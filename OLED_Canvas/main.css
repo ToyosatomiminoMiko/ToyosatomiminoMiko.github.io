@@ -7,7 +7,7 @@ html {
   font-family: "Unispace";
   src:
       /*url("http:// /fonts/unispace_rg.ttf") format("truetype"),*/
-      local("./fonts/unispace_rg.ttf") format("truetype");
+      local("./fonts/Unispace_Rg.otf") format("opentype");
 }
 
 body {
