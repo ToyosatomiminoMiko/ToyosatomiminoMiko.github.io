@@ -1,0 +1,91 @@
+/* 基础样式 */
+html {
+  background-color: #202020;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  max-width: 800px;
+  margin: 20px auto;
+  padding: 0 20px;
+}
+
+/* 画布样式 */
+canvas {
+  /* 放大显示尺寸 */
+  width: 512px;
+  height: 256px;
+  /* 保持像素锐利 */
+  image-rendering: pixelated;
+  /* 隐藏默认鼠标指针 */
+  cursor: none;
+}
+
+/* 工具区布局 */
+.tools {
+  margin-top: 15px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* 状态指示器样式 */
+.coords-display {
+  background: #f0f0f0;
+  padding: 8px 15px;
+  border-radius: 5px;
+  font-family: monospace;
+  margin-top: 10px;
+  /* 默认显示 */
+  display: flex;
+}
+
+/* 按钮基础样式 */
+button {
+  padding: 8px 15px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+button:hover {
+  background: #0056b3;
+}
+
+select {
+  padding: 7px;
+  border-radius: 5px;
+  border: 1px solid #ddd;
+}
+
+/* 优化指示器样式 */
+.pixel-indicator {
+  /* 改为fixed定位 */
+  position: fixed;
+  z-index: 9999;
+  background: rgba(255, 0, 0, 0.6);
+  /*box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);*/
+  /* 添加平滑移动效果 */
+  transition: all 10ms linear;
+  pointer-events: none;
+  /* 初始隐藏 */
+  display: none;
+}
+
+.textarea-data {
+  /*padding: 10px;*/
+  /*锁定宽度*/
+  resize: vertical;
+  min-height: 150px;
+  width: 700px;
+  font-family: monospace;
+  display: block;
+}
+
+.area-data {
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
