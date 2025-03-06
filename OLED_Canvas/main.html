@@ -20,11 +20,9 @@
     <!-- 工具控制区 -->
     <div class="tools">
         <button onclick="clearCanvas()">清除画板</button>
-        <select id="toolSelect" onchange="changeTool(this.value)">
-            <option value="free">绘制</option>
-            <option value="line">直线</option>
-            <option value="erase">擦除</option>
-        </select>
+        <input type="radio" name="tools" value="free" onchange="changeTool(this.value)" checked>绘制
+        <input type="radio" name="tools" value="line" onchange="changeTool(this.value)">直线
+        <input type="radio" name="tools" value="erase" onchange="changeTool(this.value)">擦除
         <button onclick="exportEmbedded()">导出数据</button>
     </div>
     <br>
@@ -37,8 +35,8 @@
         </div>
         <!--导入数据区-->
         <div class="area-data">
-            <textarea id="importData" class="textarea-data" placeholder="粘贴C数组数据:
-                const uint8_t bitmap[1024] = {0x00, 0x01, ...};"></textarea>
+            <textarea id="importData" class="textarea-data"
+                placeholder="粘贴C数组: const uint8_t bitmap[1024] = {0x00, 0x01, ...};"></textarea>
             <br><button onclick="importEmbeddedData()">导入数据</button>
         </div>
     </div>
