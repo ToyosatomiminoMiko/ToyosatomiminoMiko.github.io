@@ -6,8 +6,7 @@ html {
 @font-face {
   font-family: "Unispace";
   src:
-      /*url("http:// /fonts/unispace_rg.ttf") format("truetype"),*/
-      local("./fonts/Unispace_Rg.otf") format("opentype");
+      url("https://github.com/ToyosatomiminoMiko/ToyosatomiminoMiko.github.io/blob/main/OLED_Canvas/fonts/Unispace_Rg.otf") /*format("opentype")*/;
 }
 
 body {
