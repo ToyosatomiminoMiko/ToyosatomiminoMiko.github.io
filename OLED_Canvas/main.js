@@ -199,7 +199,7 @@ function generateEmbeddedData() {
   return buffer; // {Uint8Array} 1024字节的显示数据
 }
 // ======================
-// 工具控制区(Tools)
+// 工具控制区
 // ======================
 // 清除画板
 function clearCanvas() {
@@ -249,9 +249,9 @@ function importEmbeddedData() {
     const buffer = new Uint8Array(hexValues.map((v) => parseInt(v, 16)));
     // 更新画布数据
     updateCanvasFromBuffer(buffer);
-    alert("数据导入成功！");
+    alert("数据导入成功!");
   } catch (e) {
-    alert(`导入失败：${e.message}`);
+    alert(`导入失败:${e.message}`);
   }
 }
 // ======================
@@ -295,6 +295,6 @@ async function copyExportedData() {
     }, 4000);
   } catch (err) {
     console.error("复制失败:", err);
-    alert("复制失败，请手动选择文本后按 Ctrl+C");
+    alert("复制失败,请手动选择文本后按 Ctrl+C");
   }
 }
