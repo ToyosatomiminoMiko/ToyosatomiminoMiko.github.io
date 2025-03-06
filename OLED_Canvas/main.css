@@ -3,6 +3,13 @@ html {
   background-color: #202020;
 }
 
+@font-face {
+  font-family: "Unispace";
+  src:
+      /*url("http:// /fonts/unispace_rg.ttf") format("truetype"),*/
+      local("./fonts/unispace_rg.ttf") format("truetype");
+}
+
 body {
   font-family: Arial, sans-serif;
   max-width: 800px;
@@ -24,9 +31,7 @@ canvas {
 /* 工具区布局 */
 .tools {
   margin-top: 15px;
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
+  color: #ffffff;
 }
 
 /* 状态指示器样式 */
@@ -34,7 +39,7 @@ canvas {
   background: #f0f0f0;
   padding: 8px 15px;
   border-radius: 5px;
-  font-family: monospace;
+  font-family: Unispace;
   margin-top: 10px;
   /* 默认显示 */
   display: flex;
@@ -44,7 +49,7 @@ canvas {
 button {
   padding: 8px 15px;
   background: #007bff;
-  color: white;
+  color: #ffffff;
   border: none;
   border-radius: 5px;
   cursor: pointer;
@@ -81,7 +86,7 @@ select {
   resize: vertical;
   min-height: 150px;
   width: 700px;
-  font-family: monospace;
+  font-family: Unispace;
   display: block;
 }
 
