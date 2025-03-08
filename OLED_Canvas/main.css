@@ -39,7 +39,7 @@ canvas {
   background: #f0f0f0;
   padding: 8px 15px;
   border-radius: 5px;
-  font-family: "monospace";
+  font-family: monospace;
   margin-top: 10px;
   /* 默认显示 */
   display: flex;
@@ -86,7 +86,7 @@ select {
   resize: vertical;
   min-height: 150px;
   width: 700px;
-  font-family: "monospace";
+  font-family: monospace;
   display: block;
 }
 
