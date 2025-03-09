@@ -2,6 +2,7 @@
 html {
   background-color: #202020;
 }
+
 /*
 @font-face {
   font-family: "Unispace";
@@ -81,7 +82,6 @@ select {
 }
 
 .textarea-data {
-  /*padding: 10px;*/
   /*锁定宽度*/
   resize: vertical;
   min-height: 150px;
@@ -93,4 +93,9 @@ select {
 .area-data {
   margin-top: 10px;
   margin-bottom: 10px;
+}
+
+#change-color {
+  color: #ffffff;
+  background-color: #000000;
 }
