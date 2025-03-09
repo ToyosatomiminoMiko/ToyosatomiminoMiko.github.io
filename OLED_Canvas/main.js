@@ -73,15 +73,9 @@ function updateCoordsDisplay(pos) {
  */
 function setPixel(x, y) {
     const index = (y * canvas.width + x) * 4;
-    if (currentTool === "erase") {
-        imageData.data[index] = 255; // R
-        imageData.data[index + 1] = 255; // G
-        imageData.data[index + 2] = 255; // B
-    } else {
-        imageData.data[index] = 0; // R
-        imageData.data[index + 1] = 0; // G
-        imageData.data[index + 2] = 0; // B
-    }
+    imageData.data[index] = pixiv_color ? 0 : 255; // R
+    imageData.data[index + 1] = pixiv_color ? 0 : 255; // G
+    imageData.data[index + 2] = pixiv_color ? 0 : 255; // B
     // 注意:保留Alpha通道不变
 }
 
@@ -242,9 +236,9 @@ function generateEmbeddedData() {
 // 清除画板
 function clearCanvas() {
     for (let i = 0; i < imageData.data.length; i += 4) {
-        imageData.data[i] = 255;
-        imageData.data[i + 1] = 255;
-        imageData.data[i + 2] = 255;
+        imageData.data[i] = pixiv_color ? 0 : 255;
+        imageData.data[i + 1] = pixiv_color ? 0 : 255;
+        imageData.data[i + 2] = pixiv_color ? 0 : 255;
     }
     ctx.putImageData(imageData, 0, 0);
 }
@@ -277,15 +271,15 @@ function importEmbeddedData() {
         // 提取十六进制数据
         const hexValues = input.match(/0x[0-9a-fA-F]{2}/g);
         if (!hexValues || hexValues.length !== 1024) {
-            throw new Error("数据格式错误,需要包含1024个十六进制值");
+            throw new Error("❌数据格式错误,需要包含1024个十六进制值");
         }
         // 转换到Uint8Array
         const buffer = new Uint8Array(hexValues.map((v) => parseInt(v, 16)));
         // 更新画布数据
         updateCanvasFromBuffer(buffer);
-        alert("数据导入成功!");
+        alert("✅数据导入成功!");
     } catch (e) {
-        alert(`导入失败:${e.message}`);
+        alert(`❌导入失败:${e.message}`);
     }
 }
 // ======================
@@ -328,7 +322,22 @@ async function copyExportedData() {
             btn.textContent = "复制到剪贴板";
         }, 4000);
     } catch (err) {
-        console.error("复制失败:", err);
-        alert("复制失败,请手动选择文本后按 Ctrl+C");
+        console.error("❌复制失败:", err);
+        alert("❌复制失败,请手动选择文本后按 Ctrl+C");
     }
 }
+
+function changeColor() {
+    const btn = document.getElementById('change-color');
+    pixiv_color = !pixiv_color;
+    if (pixiv_color) {
+        btn.textContent = "🔄️黑色";
+        btn.style.color = "#ffffff";
+        btn.style.backgroundColor = "#000000";
+    } else {
+        btn.textContent = "🔄️白色";
+        btn.style.color = "#000000";
+        btn.style.backgroundColor = "#ffffff";
+    }
+}
+
