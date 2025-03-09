@@ -21,10 +21,10 @@
     <br />
     <!-- 工具控制区 -->
     <div class="tools">
-        <button onclick="clearCanvas()">清除画板</button>
+        <button onclick="clearCanvas()">颜色重置</button>
+        <button onclick="changeColor()" id="change-color">🔄️黑色</button>
         <input type="radio" name="tools" value="free" onchange="changeTool(this.value)" checked />绘制
         <input type="radio" name="tools" value="line" onchange="changeTool(this.value)" />直线
-        <input type="radio" name="tools" value="erase" onchange="changeTool(this.value)" />擦除
         <input type="radio" name="tools" value="rectangle" onchange="changeTool(this.value)" />矩形
         <button onclick="exportEmbedded()">导出数据</button>
     </div>
@@ -55,6 +55,8 @@
         // 设置物理像素尺寸(实际分辨率)
         canvas.width = 128; // Embedded 的典型宽度
         canvas.height = 64; // Embedded 的典型高度
+        // 画笔颜色
+        let pixiv_color = true;
         // 初始化白色画布
         let imageData = ctx.createImageData(canvas.width, canvas.height);
         // 填充白色背景(RGBA格式)
@@ -111,7 +113,7 @@
             return; // 阻断自由绘制逻辑
         }
         // 自由绘制模式(仅在非直线工具时生效)
-        else if ((currentTool === "free" || currentTool === "erase") && e.buttons & 3) {
+        else if ((currentTool === "free") && e.buttons & 3) {
             if (lastPos) {
                 // 鼠标移动过快采样低画直线
                 drawLine(lastPos.x, lastPos.y, pos.x, pos.y);
@@ -140,7 +142,7 @@
                 startPos = null;
             }
         }
-        else if (currentTool === "free" || currentTool === "erase") {
+        else if (currentTool === "free") {
             setPixel(pos.x, pos.y);
             ctx.putImageData(imageData, 0, 0);
             lastPos = pos;
