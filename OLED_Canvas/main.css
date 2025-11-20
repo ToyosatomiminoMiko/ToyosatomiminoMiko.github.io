@@ -3,14 +3,14 @@ html {
   background-color: #202020;
 }
 
-/*
+
 @font-face {
   font-family: "Unispace";
   src: url("https://github.com/ToyosatomiminoMiko/ToyosatomiminoMiko.github.io/blob/main/OLED_Canvas/fonts/Unispace_Rg.otf")
     format("opentype");
   font-display: swap;
 }
-*/
+
 body {
   font-family: Arial, sans-serif;
   max-width: 800px;
