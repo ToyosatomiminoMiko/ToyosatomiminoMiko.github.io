@@ -6,7 +6,7 @@ html {
 
 @font-face {
   font-family: "Unispace";
-  src: url("../fonts/Unispace_Rg.otf")
+  src: url("./fonts/Unispace_Rg.otf")
     format("opentype");
   font-display: swap;
 }
