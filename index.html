@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<!--
+2022.06.11.10:00:00 
+ToyosatomiminoMiko
+-->
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <script src="/bootstrap_5.3.0/js/bootstrap.min.js"></script>
+    <!-- <link href="/bootstrap_5.3.0/css/bootstrap.min.css" rel="stylesheet" type="text/css"> -->
+    <link href="/bootstrap_5.3.0/css/bootstrap.css" rel="stylesheet" type="text/css">
+    <script src="/vue_3.5.25/vue.global.js"></script>
+    <link href="/css/index.css" rel="stylesheet" type="text/css">
+    <title>ToyosatomiminoMiko</title>
+</head>
+
+<body>
+    <header>
+        <ul class="nav nav-tabs bg-light">
+            <li class="nav-item">
+                <a class="nav-link active" data-bs-toggle="tab" href="#home">HOME</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#oled">OLED</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#pages">PAGES</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#setting">SETTING</a>
+            </li>
+            <li class="nav-item">
+                <button data-bs-toggle="modal" data-bs-target="#UserInfo">
+                    <img src="/images/user_img/img0.jpg" class="rounded-circle head">
+                </button>
+                <!-- 修改用户信息模态框 -->
+                <div class="modal" id="UserInfo">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <!-- 修改用户信息模态框头部 -->
+                            <div class="modal-header">
+                                <h4 class="modal-title">头像设置</h4>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <!-- 修改用户信息模态框内容 -->
+                            <div class="modal-body">
+                                <p>修改头像</p>
+                                <img src="/images/user_img/img0.jpg">
+                            </div>
+                            <!-- 修改用户信息模态框底部 -->
+                            <div class="modal-footer">
+                                <form action="/files/" method="post">
+                                    <input type="file" class="btn btn-info" name="myfile" accept="image/*">
+                                    <button type="submit" class="btn btn-primary">Submit</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </li>
+            <li class="nav-item">
+                <!-- 登录模态框按钮 -->
+                <button id="login_button" type="button" class="btn btn-primary" data-bs-toggle="modal"
+                    data-bs-target="#Login">Login</button>
+                <!-- /登录模态框按钮 -->
+                <!-- 登录模态框 -->
+                <div class="modal" id="Login">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <!-- 登录模态框头部 -->
+                            <div class="modal-header">
+                                <h4 class="modal-title">Login</h4>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <!-- 登录模态框头部 -->
+                            <!-- 登陆表单 -->
+                            <form action="/api/login" method="post">
+                                <!-- 登录模态框内容 -->
+                                <div class="modal-body">
+                                    <div class="mb-3 mt-3">
+                                        <label for="email" class="form-label">Electronic Mail:</label>
+                                        <input type="email" class="form-control" id="email" placeholder="imput E-mail"
+                                            name="email">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="pwd" class="form-label">Password:</label>
+                                        <input type="password" class="form-control" id="pwd"
+                                            placeholder="input password" name="password">
+                                    </div>
+                                    <!--记住我-->
+                                    <!-- <div class="form-check mb-3">
+                                        <label class="form-check-label">
+                                            <input class="form-check-input" type="checkbox" name="remember"> Remember me
+                                        </label>
+                                    </div> -->
+                                </div>
+                                <!-- 登录模态框内容 -->
+                                <!-- 登录模态框底部 -->
+                                <div class="modal-footer">
+                                    <button type="submit" class="btn btn-primary">Submit</button>
+                                </div>
+                                <!-- 登录模态框底部 -->
+                            </form>
+                            <!--登录表单-->
+                        </div>
+                    </div>
+                </div>
+            </li>
+        </ul>
+    </header>
+    <main>
+        <div class="tab-content">
+            <!--标签页-->
+            <div class="tab-pane fade show active" id="home">
+                <div class="card">
+                    <div class="card-header">
+                        <!-- LED 时钟 -->
+                        <div id="app_led_clock">
+                            <canvas id="time_canvas" ref="ledCanvas" height="8" width="65"></canvas>
+                        </div>
+                    </div>
+                    <div class="card-body card-deck row">
+                        <!--内容主体-->
+                    </div>
+                </div>
+            </div>
+            <!--OLED_canvas-->
+            <div class="tab-pane fade" id="oled">
+                <div class="row">
+                    <!--内容主体-->
+                    <div class="card-columns d-flex justify-content-center">
+                        <!--oled-->
+                        <div class="card align-self-center oled-card">
+                            <div class="card-header d-flex">
+                                <h4>OLED Canvas</h4>
+                            </div>
+                            <div class="card-body">
+                                <!-- 状态指示区 -->
+                                <div id="coordsDisplay" class="coords-display card-text">coordinate:(X:-,Y:-)</div>
+                                <br />
+                                <!-- 主画布 -->
+                                <canvas id="pixelCanvas"></canvas>
+                                <div id="pixelIndicator" class="pixel-indicator"></div>
+                                <br />
+                                <!-- 工具控制区 -->
+                                <div class="tools">
+                                    <button type="button" class="btn btn-primary" onclick="clearCanvas()">颜色重置</button>
+                                    <button type="button" class="btn btn-primary" onclick="changeColor()"
+                                        id="change-color">🔄️黑色⬛</button>
+                                    <input type="radio" name="tools" value="free" onchange="changeTool(this.value)"
+                                        checked />绘制
+                                    <input type="radio" name="tools" value="line" onchange="changeTool(this.value)" />直线
+                                    <input type="radio" name="tools" value="rectangle"
+                                        onchange="changeTool(this.value)" />矩形
+                                    <button type="button" class="btn btn-primary"
+                                        onclick="exportEmbedded()">导出数据</button>
+                                </div>
+                                <br />
+                                <!-- 数据输入输出容器 -->
+                                <div>
+                                    <!--导出数据区-->
+                                    <div class="area-data">
+                                        <textarea id="exportOutput" class="textarea-data">
+                                        </textarea><br />
+                                        <button type="button" class="btn btn-primary" onclick="copyExportedData()"
+                                            id="output-button">
+                                            复制到剪贴板</button>
+                                    </div>
+                                    <!--导入数据区-->
+                                    <div class="area-data">
+                                        <textarea id="importData" class="textarea-data"
+                                            placeholder="const uint8_t bitmap[1024] = {0x00, 0x01, ...};">
+                                        </textarea><br />
+                                        <button type="button" class="btn btn-primary" onclick="importEmbeddedData()">
+                                            导入数据</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!--/oled-->
+                    </div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="pages">
+                <section class="card-deck row" id="page_list">
+                    <!--内容主体-->
+                    <div v-for="page in pages" class="card col-3">
+                        <img class="card-img-top" :src="page.img_url">
+                        <div class="card-body">
+                            <h4 class="card-title">{{page.title}}</h4>
+                            <p class="card-text">{{page.content}}</p>
+                            <a href="#" class="btn" target="_blank">Read more</a>
+                            <p class="card-text"><small class="text-muted">{{formatTime(page.created_at)}}</small></p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+            <div class="tab-pane fade" id="setting">
+                <!--内容主体-->
+                <div>
+                    <!--背景修改-->
+                    <h4>修改背景</h4>
+                    <!--选择背景-->
+                    <ul class="bgul">
+                        <li class="bgli"><img src="/images/bgimg/bgstar.gif" class="rounded bgimg">
+                            STAR</li>
+                        <li class="bgli"><img src="/images/bgimg/bgcode.gif" class="rounded bgimg">
+                            CODE</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </main>
+    <script src="/js/index.js"></script>
+    <script src="/js/clock.js"></script>
+    <script src="/js/page.js"></script>
+    <script src="/js/oled.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<!--
+2022.06.11.10:00:00 
+ToyosatomiminoMiko(郝季仁)
+*LED canvas 项目基于 DeepSeek 生成的代码(MIT许可)开发*
+-->
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <!--本地开发-->
+    <script src="../bootstrap_5.3.0/js/bootstrap.min.js"></script>
+    <link href="../bootstrap_5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <script src="../vue_3.5.25/vue.global.js"></script>
+    <script src="../axios_1.13.2/axios.js"></script>
+    <!--实际部署-->
+    <!--script src="/bootstrap_5.3.0/js/bootstrap.min.js"></script>
+    <link href="/bootstrap_5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <script src="/vue_3.5.25/vue.global.js"></script>
+    <script src="/axios_1.13.2/axios.js"></script-->
+    <title>ToyosatomiminoMiko</title>
+    <script>
+        function fmt_time(datetime) {
+            /* 转为字符串后用0填充2位 */
+            const year = datetime.getFullYear().toString();
+            const month = (datetime.getMonth() + 1).toString().padStart(2, '0');
+            const day = datetime.getDate().toString().padStart(2, '0');
+            const hours = datetime.getHours().toString().padStart(2, '0');
+            const minutes = datetime.getMinutes().toString().padStart(2, '0');
+            const seconds = datetime.getSeconds().toString().padStart(2, '0');
+            return `${year}.${month}.${day}.${hours}:${minutes}:${seconds}`;
+        }
+    </script>
+</head>
+
+<body>
+    <div id="info">{{ message }}</div>
+    <div id="set_title">
+        <h1>{{ title }}</h1>
+    </div>
+    <style>
+        * {
+            font-family: "\0063\006f\006e\0073\006f\006c\0061\0073";
+            margin: 0;
+            padding: 0;
+            border: 0;
+            font-size: 100%;
+            vertical-align: baseline;
+            background: none;
+        }
+
+        .active_block {
+            background-color: #ff0000;
+            color: #ffffff;
+        }
+
+        table,
+        th,
+        td {
+            border: 2px;
+            border-color: #444444;
+            border-style: solid;
+        }
+    </style>
+    <div id="get_data">
+        <table>
+            <thead>
+                <tr>
+                    <th>UID</th>
+                    <th>NAME</th>
+                    <th>E-MAIL</th>
+                    <th>CREATED_AT</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="u in users_data.users" v-bind:class="{'active_block': !u.is_active}">
+                    <td>{{u.id}}</td>
+                    <td>{{u.name}}</td>
+                    <td>{{u.email}}</td>
+                    <td>{{formatTime(u.created_at)}}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const { createApp, ref } = Vue
+        createApp({
+            setup() {
+                const message = ref('vue running...')
+                return {
+                    message
+                }
+            }
+        }).mount('#info')
+    </script>
+    <script>
+        Vue.createApp({
+            data() {
+                return {
+                    title: 'ToyosatomiminoMiko'
+                }
+            }
+        }).mount('#set_title')
+    </script>
+    <script>
+        fetch("http://127.0.0.1/api/overview")
+            .then(response => response.json())
+            .then((users_data) => Vue.createApp({
+                data() {
+                    return {
+                        users_data
+                    }
+                },
+                methods: {
+                    formatTime(timeString) {
+                        // 将字符串转换为Date对象，然后使用fmt_time格式化
+                        const date = new Date(timeString);
+                        return fmt_time(date);
+                    }
+                }
+            }).mount('#get_data'))
+            .catch((error) => console.error("server connection failed:", error));
+    </script>
+</body>
+
+</html>

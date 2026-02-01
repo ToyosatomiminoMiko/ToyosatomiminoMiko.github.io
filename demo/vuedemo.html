@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vue 3 客户端渲染示例</title>
+    <script src="/vue_3.5.25/vue.global.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 20px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 2.5rem;
+        }
+
+        .subtitle {
+            color: #7f8c8d;
+            font-size: 1.2rem;
+        }
+
+        .card-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        .card h3 {
+            color: #3498db;
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+
+        .card-content {
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .controls {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin-right: 15px;
+            margin-bottom: 10px;
+        }
+
+        .btn:hover {
+            background: #2980b9;
+        }
+
+        .btn-generate {
+            background: #2ecc71;
+        }
+
+        .btn-generate:hover {
+            background: #27ae60;
+        }
+
+        .output-section {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+        }
+
+        .output-section h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+        }
+
+        .html-output {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 15px;
+            line-height: 1.4;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 5px 10px;
+            background: #e0f7fa;
+            color: #006064;
+            border-radius: 5px;
+            font-size: 0.8rem;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app" class="container">
+        <div class="header">
+            <h1>Vue 3 HTML 生成器</h1>
+            <p class="subtitle">客户端渲染示例 - 动态生成 HTML 内容</p>
+        </div>
+
+        <div class="controls">
+            <h3>控制面板</h3>
+            <button @click="addCard" class="btn">添加卡片</button>
+            <button @click="removeCard" class="btn">移除卡片</button>
+            <button @click="generateHTML" class="btn btn-generate">生成 HTML</button>
+            <button @click="copyHTML" class="btn">复制 HTML</button>
+        </div>
+
+        <div class="card-container">
+            <div v-for="(card, index) in cards" :key="index" class="card">
+                <h3>{{ card.title }} <span class="badge">#{{ index + 1 }}</span></h3>
+                <div class="card-content">
+                    {{ card.content }}
+                </div>
+                <div>创建时间: {{ card.timestamp }}</div>
+            </div>
+        </div>
+
+        <div class="output-section">
+            <h3>生成的 HTML 代码</h3>
+            <div class="html-output">{{ generatedHTML }}</div>
+        </div>
+
+        <div class="footer">
+            <p>Vue 3 客户端渲染示例 - 使用 Vue 3 在浏览器中动态生成 HTML</p>
+            <p>卡片数量: {{ cards.length }} | 最后更新: {{ lastUpdate }}</p>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted } = Vue;
+
+        createApp({
+            setup() {
+                // 卡片数据
+                const cards = ref([
+                    {
+                        title: 'Vue 3 介绍',
+                        content: 'Vue 3 是一个渐进式 JavaScript 框架,用于构建用户界面。',
+                        timestamp: '2023-10-01 10:30:00'
+                    },
+                    {
+                        title: '组合式 API',
+                        content: 'Vue 3 引入了组合式 API,提供了更好的逻辑复用和代码组织。',
+                        timestamp: '2023-10-01 11:15:00'
+                    },
+                    {
+                        title: '响应式系统',
+                        content: 'Vue 3 使用 Proxy 重构了响应式系统,性能更优。',
+                        timestamp: '2023-10-01 12:00:00'
+                    }
+                ]);
+
+                // 生成的 HTML
+                const generatedHTML = ref('');
+                const lastUpdate = ref('');
+
+                // 添加卡片
+                const addCard = () => {
+                    const cardTitles = ['新特性', '性能优化', 'TypeScript 支持', '生态系统'];
+                    const cardContents = [
+                        'Vue 3 提供了许多新特性,如 Fragments,Teleport,Suspense 等。',
+                        'Vue 3 相比 Vue 2 有显著的性能提升,包括更小的包体积和更快的渲染速度。',
+                        'Vue 3 使用 TypeScript 重写,提供了更好的 TypeScript 支持。',
+                        'Vue 3 拥有丰富的生态系统,包括 Vue Router,Vuex/Pinia,Vite 等工具。'
+                    ];
+
+                    const randomTitle = cardTitles[Math.floor(Math.random() * cardTitles.length)];
+                    const randomContent = cardContents[Math.floor(Math.random() * cardContents.length)];
+
+                    const now = new Date();
+                    const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+
+                    cards.value.push({
+                        title: randomTitle,
+                        content: randomContent,
+                        timestamp: timestamp
+                    });
+
+                    updateLastUpdate();
+                };
+
+                // 移除卡片
+                const removeCard = () => {
+                    if (cards.value.length > 1) {
+                        cards.value.pop();
+                        updateLastUpdate();
+                    }
+                };
+
+                // 生成 HTML
+                const generateHTML = () => {
+                    let html = '<div class="card-container">\n';
+
+                    cards.value.forEach((card, index) => {
+                        html += `  <div class="card">\n`;
+                        html += `    <h3>${card.title} <span class="badge">#${index + 1}</span></h3>\n`;
+                        html += `    <div class="card-content">\n`;
+                        html += `      ${card.content}\n`;
+                        html += `    </div>\n`;
+                        html += `    <div>创建时间: ${card.timestamp}</div>\n`;
+                        html += `  </div>\n`;
+                    });
+
+                    html += '</div>';
+                    generatedHTML.value = html;
+                    updateLastUpdate();
+                };
+
+                // 复制 HTML 到剪贴板
+                const copyHTML = async () => {
+                    try {
+                        await navigator.clipboard.writeText(generatedHTML.value);
+                        alert('HTML 代码已复制到剪贴板！');
+                    } catch (err) {
+                        console.error('复制失败:', err);
+                        // 降级方案
+                        const textArea = document.createElement('textarea');
+                        textArea.value = generatedHTML.value;
+                        document.body.appendChild(textArea);
+                        textArea.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(textArea);
+                        alert('HTML 代码已复制到剪贴板！');
+                    }
+                };
+
+                // 更新最后更新时间
+                const updateLastUpdate = () => {
+                    const now = new Date();
+                    lastUpdate.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+                };
+
+                // 初始化
+                onMounted(() => {
+                    generateHTML();
+                    updateLastUpdate();
+                });
+
+                return {
+                    cards,
+                    generatedHTML,
+                    lastUpdate,
+                    addCard,
+                    removeCard,
+                    generateHTML,
+                    copyHTML
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <link href="/katex/katex.min.css" rel="stylesheet" type="text/css">
+    <script src="/katex/katex.min.js"></script>
+</head>
+
+<body>
+    <div id="math"></div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            katex.render("x=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}", document.getElementById("math"));
+        });
+    </script>
+
+</body>
+
+</html>

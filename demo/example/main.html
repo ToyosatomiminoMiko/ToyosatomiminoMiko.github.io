@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vue3 根据 JSON 生成 HTML 元素</title>
+    <!-- 引入 Vue 3 -->
+    <script src="/vue_3.5.25/vue.global.js"></script>
+    <!-- 引入外部 CSS -->
+    <link rel="stylesheet" href="main.css">
+</head>
+
+<body>
+    <div id="app">
+        <header>
+            <h1>Vue3 JSON 动态生成 HTML 元素</h1>
+            <p>根据 JSON 配置动态生成页面结构</p>
+        </header>
+
+        <main>
+            <div class="container">
+                <section class="controls">
+                    <h2>JSON 配置</h2>
+                    <textarea v-model="jsonInput" placeholder="请输入 JSON 配置..." @input="updateJsonConfig"></textarea>
+                    <div class="buttons">
+                        <button @click="resetToDefault">重置为默认配置</button>
+                        <button @click="applyJson" class="primary">应用配置</button>
+                    </div>
+                    <div v-if="jsonError" class="error-message">
+                        JSON 解析错误: {{ jsonError }}
+                    </div>
+                </section>
+
+                <section class="preview">
+                    <h2>生成结果预览</h2>
+                    <div class="preview-container">
+                        <!-- 动态生成的元素容器 -->
+                        <json-renderer :config="jsonConfig" />
+                    </div>
+                </section>
+
+                <section class="examples">
+                    <h2>示例配置</h2>
+                    <div class="example-buttons">
+                        <button @click="loadExample('simple')">简单示例</button>
+                        <button @click="loadExample('form')">表单示例</button>
+                        <button @click="loadExample('card')">卡片示例</button>
+                        <button @click="loadExample('layout')">布局示例</button>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <footer>
+            <p>Vue3 动态元素生成器 &copy; 2023</p>
+        </footer>
+    </div>
+
+    <!-- 引入外部 JS -->
+    <script src="main.js"></script>
+</body>
+
+</html>

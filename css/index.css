@@ -1,0 +1,176 @@
+/*全局设置*/
+* {
+    /*字体名称必须设置为Unicode形式才能生效 */
+    /*font-family: "\5FAE\8F6F\96C5\9ED1";*/
+    font-family: "\0063\006f\006e\0073\006f\006c\0061\0073";
+    /* consolas */
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font-size: 100%;
+    vertical-align: baseline;
+    background: none;
+}
+
+body {
+    /* 防止 --darkreader-inline-bgimage */
+    background-image: url("/images/bgimg/bgcode.gif") !important;
+    /*background-image: url("/images/bgimg/bgstar.gif") !important;*/
+    background-attachment: fixed;
+}
+
+nav {
+    position: relative;
+    left: 0px;
+    right: 0px;
+    top: 0px;
+}
+
+main {
+    margin-top: 3%;
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: 0px;
+    height: 2000px;
+    /*height: 100%;*/
+    width: 90%;
+    background-color: rgba(0, 0, 0, 0);
+}
+
+/*home主页卡片*/
+#home>div {
+    background-color: #00000000;
+}
+
+.card-head {
+    width: 70px;
+    height: 70px;
+    margin: 0px;
+}
+
+.pl-head {
+    width: 40px;
+    margin: 10px;
+}
+
+/* 用户头像 */
+.head {
+    width: 35px;
+    margin: 7px;
+}
+
+.head:hover {
+    filter: drop-shadow(0 0 15px #00ffc3);
+}
+
+/* 画布样式 */
+.oled-card {
+    width: 100%;
+}
+
+canvas#pixelCanvas {
+    /* 放大显示尺寸 */
+    /*width: 512px;
+    height: 256px;*/
+    width: 1024px;
+    height: 512px;
+    /*width: 100%;*/
+    /* 保持像素锐利 */
+    image-rendering: pixelated;
+    /* 隐藏默认鼠标指针 */
+    cursor: none;
+}
+
+/* 工具区布局 */
+.tools {
+    margin-top: 15px;
+    color: #ffffff;
+}
+
+/* 状态指示器样式 */
+.coords-display {
+    background: #f0f0f0;
+    padding: 8px 15px;
+    border-radius: 5px;
+    font-family: monospace;
+    margin-top: 10px;
+    /* 默认显示 */
+    display: flex;
+}
+
+/* 优化指示器样式 */
+.pixel-indicator {
+    /* 改为fixed定位 */
+    position: fixed;
+    z-index: 9999;
+    background: rgba(255, 0, 0, 0.6);
+    /* 添加平滑移动效果 */
+    transition: all 10ms linear;
+    pointer-events: none;
+    /* 初始隐藏 */
+    display: none;
+}
+
+.textarea-data {
+    /*锁定宽度*/
+    resize: vertical;
+    min-height: 150px;
+    width: 100%;
+    font-family: monospace;
+    display: block;
+    background-color: #555555;
+    border: 10px;
+}
+
+.area-data {
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+#change-color {
+    color: #ffffff;
+    background-color: #000000;
+}
+
+.bgul {
+    list-style: none;
+}
+
+.bgli {
+    width: 90px;
+    height: 60px;
+    float: left;
+    margin: 10px;
+    background-color: #001fab9f;
+    padding: 5px;
+    border-style: none;
+}
+
+.bgimg {
+    width: 80px;
+    height: 50px;
+    cursor: pointer;
+}
+
+button#login_button {
+    margin-left: 20px;
+    margin-right: 20px;
+    margin-top: 2px;
+}
+
+/* LED clock */
+#app_led_clock {
+    background: #000;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 0 40px rgba(0, 255, 0, 0.3);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#time_canvas {
+    margin: 0px;
+    image-rendering: crisp-edges;
+    height: 128px;
+}

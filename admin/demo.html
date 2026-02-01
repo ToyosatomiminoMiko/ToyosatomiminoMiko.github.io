@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<!--
+2025.11.30.01:28:00
+ToyosatomiminoMiko(郝季仁)
+VUE,AXIOS学习笔记
+-->
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <!--本地开发-->
+    <script src="../bootstrap_5.3.0/js/bootstrap.min.js"></script>
+    <link href="../bootstrap_5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <script src="../vue_3.5.25/vue.global.js"></script>
+    <!-- <script src="../axios_1.13.2/axios.js"></script> -->
+    <title>ToyosatomiminoMiko</title>
+</head>
+
+<body>
+    <div id="info">{{ message }}</div>
+    <div id="set_title">
+        <h1>{{ title }}</h1>
+    </div>
+    <style>
+        .active_block {
+            background-color: #ff0000;
+            color: #ffffff;
+        }
+
+        table,
+        th,
+        td {
+            border: 2px;
+            border-color: #444444;
+            border-style: solid;
+        }
+    </style>
+    <div id="user_list">
+        <table>
+            <tbody>
+                <tr v-for="user in users" v-bind:class="{'active_block': !user.is_active}">
+                    <td>{{user.id}}</td>
+                    <td>{{user.name}}</td>
+                    <td>{{user.email}}</td>
+                    <td>{{user.created_at}}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <div style="height: 50px;"></div>
+    <div id="page_list">
+        <div v-for="page in pages" class="card col-3">
+            <img class="card-img-top" :src="page.img_url">
+            <div class="card-body">
+                <h4 class="card-title">{{page.title}}</h4>
+                <p class="card-text">{{page.content}}</p>
+                <a href="#" class="btn" target="_blank">Read more</a>
+                <p class="card-text"><small class="text-muted">{{page.created_at}}</small></p>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        const { createApp, ref } = Vue
+        createApp({
+            setup() {
+                const message = ref('vue running...')
+                return {
+                    message
+                }
+            }
+        }).mount('#info')
+    </script>
+    <script>
+        Vue.createApp({
+            data() {
+                return {
+                    title: 'ToyosatomiminoMiko'
+                }
+            }
+        }).mount('#set_title')
+    </script>
+    <script>
+        function fmt_time(datetime) {
+            /* 转为字符串后用0填充2位 */
+            const year = datetime.getFullYear().toString();
+            const month = (datetime.getMonth() + 1).toString().padStart(2, '0');
+            const day = datetime.getDate().toString().padStart(2, '0');
+            const hours = datetime.getHours().toString().padStart(2, '0');
+            const minutes = datetime.getMinutes().toString().padStart(2, '0');
+            const seconds = datetime.getSeconds().toString().padStart(2, '0');
+            return `${year}.${month}.${day}.${hours}:${minutes}:${seconds}`;
+        }
+        Vue.createApp({
+            data() {
+                return {
+                    users: [
+                        {
+                            id: 0,
+                            name: 'toyosatomiminomiko',
+                            email: 'tystmmnmk@redstar.com',
+                            created_at: fmt_time(new Date(2000, 10, 31, 11, 45, 14)),
+                            is_active: true
+                        },
+                        {
+                            id: 1,
+                            name: 'abrams',
+                            email: 'abrams@army.us',
+                            created_at: fmt_time(new Date(1996, 8, 6, 10, 10, 7)),
+                            is_active: false
+                        },
+                        {
+                            id: 2,
+                            name: 'leopard',
+                            email: 'leopard@defence.de',
+                            created_at: fmt_time(new Date(2009, 6, 5, 13, 6, 5)),
+                            is_active: true
+                        }
+                    ]
+                }
+            }
+        }).mount('#user_list')
+    </script>
+    <script>
+        Vue.createApp({
+            data() {
+                return {
+                    pages: [
+                        {
+                            id: 0,
+                            title: 'Markdown',
+                            content: 'Markdown是一种轻量级标记语言,排版语法简洁,让人们更多地关注内容本身而非排版.',
+                            img_url: '/images/card_img/card0.jpg',
+                            created_at: Date(2022, 6, 13, 0, 0, 0)
+                        }
+                    ]
+                }
+            }
+        }).mount('#page_list')
+    </script>
+</body>
+
+</html>
