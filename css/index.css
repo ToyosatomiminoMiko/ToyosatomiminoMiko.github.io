@@ -160,7 +160,7 @@ button#login_button {
 
 /* LED clock */
 #app_led_clock {
-    background: #000;
+    background-color: #000 !important;
     border-radius: 10px;
     padding: 20px;
     box-shadow: 0 0 40px rgba(0, 255, 0, 0.3);
