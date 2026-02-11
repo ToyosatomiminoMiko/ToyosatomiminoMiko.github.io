@@ -1,4 +1,8 @@
 /*全局设置*/
+:root, * {
+    --darkreader-background-000000: #000000 !important;
+}
+
 * {
     /*字体名称必须设置为Unicode形式才能生效 */
     /*font-family: "\5FAE\8F6F\96C5\9ED1";*/
@@ -170,7 +174,7 @@ button#login_button {
 }
 
 #time_canvas {
-    margin: 0px;
-    image-rendering: crisp-edges;
+    /*image-rendering: crisp-edges;*/
+    image-rendering: pixelated;
     height: 128px;
 }

@@ -13,6 +13,7 @@ ToyosatomiminoMiko
     <script src="/vue_3.5.25/vue.global.js"></script>
     <link href="/css/index.css" rel="stylesheet" type="text/css">
     <title>ToyosatomiminoMiko</title>
+    <!--meta name="darkreader" content="disabled"-->
 </head>
 
 <body>
@@ -116,6 +117,8 @@ ToyosatomiminoMiko
                 <div class="card">
                     <div class="card-header">
                         <!-- LED 时钟 -->
+                        <!--行内样式避免DarkReader修改-->
+                        <!--div id="app_led_clock" style="background-color: #000 !important;"-->
                         <div id="app_led_clock">
                             <canvas id="time_canvas" ref="ledCanvas" height="8" width="65"></canvas>
                         </div>

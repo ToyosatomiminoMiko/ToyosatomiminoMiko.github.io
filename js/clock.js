@@ -125,6 +125,7 @@ createApp({
 
         // 动画循环
         function animate() {
+            //document.getElementById('app_led_clock').style.backgroundColor = "#000";
             drawDisplay();
             animationFrameId = requestAnimationFrame(animate);
         }
