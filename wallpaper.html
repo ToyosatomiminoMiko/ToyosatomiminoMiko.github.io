@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<!--
+2026.02.27.23:17:25
+ToyosatomiminoMiko
+-->
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <script src="/bootstrap_5.3.0/js/bootstrap.min.js"></script>
+    <link href="/bootstrap_5.3.0/css/bootstrap.css" rel="stylesheet" type="text/css">
+    <script src="/vue_3.5.25/vue.global.js"></script>
+    <title>ToyosatomiminoMiko</title>
+    <link href="/css/index.css" rel="stylesheet" type="text/css">
+</head>
+
+<body>
+    <main>
+        <div class="tab-content">
+            <!--标签页-->
+            <div class="tab-pane fade show active" id="home">
+                <div class="card">
+                    <div class="card-header">
+                        <!-- LED 时钟 -->
+                        <div id="app_led_clock">
+                            <canvas id="time_canvas" ref="ledCanvas" height="8" width="65"></canvas>
+                        </div>
+                    </div>
+                    <div class="card-body card-deck row">
+                        <!--内容主体-->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    <script src="/js/index.js"></script>
+    <script src="/js/clock.js"></script>
+</body>
+
+</html>
