@@ -11,26 +11,70 @@ ToyosatomiminoMiko
     <link href="/bootstrap_5.3.0/css/bootstrap.css" rel="stylesheet" type="text/css">
     <script src="/vue_3.5.25/vue.global.js"></script>
     <title>ToyosatomiminoMiko</title>
-    <link href="/css/index.css" rel="stylesheet" type="text/css">
+    <!--link href="/css/index.css" rel="stylesheet" type="text/css"-->
+    <style>
+        /*全局设置*/
+        :root,
+        * {
+            --darkreader-background-000000: #000000 !important;
+        }
+
+        * {
+            /*字体名称必须设置为Unicode形式才能生效 */
+            /*font-family: "\5FAE\8F6F\96C5\9ED1";*/
+            font-family: "\0063\006f\006e\0073\006f\006c\0061\0073";
+            /* consolas */
+            margin: 0px;
+            padding: 0px;
+            border: 0px;
+            font-size: 100%;
+            vertical-align: baseline;
+            background: none;
+        }
+
+        body {
+            /* 防止 --darkreader-inline-bgimage */
+            background-image: url("/images/bgimg/bgcode.gif") !important;
+            /*background-image: url("/images/bgimg/bgstar.gif") !important;*/
+            background-attachment: fixed;
+        }
+
+        main {
+            padding-top: 2%;
+            margin-left: auto;
+            margin-right: auto;
+            margin-bottom: 0px;
+            /*height: 2000px;*/
+            height: 100vh;
+            width: 90%;
+            background-color: rgba(0, 0, 0, 0);
+        }
+
+        /* LED clock */
+        #app_led_clock {
+            background-color: #000 !important;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 0 40px rgba(0, 255, 0, 0.3);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #time_canvas {
+            /*image-rendering: crisp-edges;*/
+            /*像素化风格*/
+            image-rendering: pixelated;
+            height: 128px;
+        }
+    </style>
 </head>
 
 <body>
     <main>
-        <div class="tab-content">
-            <!--标签页-->
-            <div class="tab-pane fade show active" id="home">
-                <div class="card">
-                    <div class="card-header">
-                        <!-- LED 时钟 -->
-                        <div id="app_led_clock">
-                            <canvas id="time_canvas" ref="ledCanvas" height="8" width="65"></canvas>
-                        </div>
-                    </div>
-                    <div class="card-body card-deck row">
-                        <!--内容主体-->
-                    </div>
-                </div>
-            </div>
+        <!-- LED 时钟 -->
+        <div id="app_led_clock">
+            <canvas id="time_canvas" ref="ledCanvas" height="8" width="65"></canvas>
         </div>
     </main>
     <script src="/js/index.js"></script>
