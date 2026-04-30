@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Red-Black Tree Lab</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #f5f7fb;
+            font-family: 'Segoe UI', 'Roboto', 'Monaco', 'Courier New', monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            padding: 20px 24px 24px 24px;
+            width: fit-content;
+            max-width: 100%;
+            transition: all 0.2s ease;
+        }
+
+        .input-area {
+            margin-bottom: 20px;
+            width: 100%;
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #1e293b;
+            margin-bottom: 6px;
+            letter-spacing: 0.3px;
+        }
+
+        input {
+            width: 100%;
+            padding: 10px 14px;
+            font-size: 0.9rem;
+            font-family: 'Fira Code', 'Monaco', 'Cascadia Code', monospace;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            background: #ffffff;
+            transition: 0.2s;
+            outline: none;
+            color: #0f172a;
+        }
+
+        input:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+            border: 1px solid #e9eef3;
+        }
+
+        .info-hint {
+            margin-top: 14px;
+            font-size: 0.7rem;
+            text-align: center;
+            color: #5b6e8c;
+            background: #f8fafc;
+            padding: 6px 12px;
+            border-radius: 24px;
+            display: inline-block;
+            width: auto;
+            font-family: monospace;
+        }
+
+        .error-msg {
+            color: #dc2626;
+            font-size: 0.7rem;
+            margin-top: 8px;
+            padding-left: 6px;
+            font-family: monospace;
+        }
+
+        footer {
+            margin-top: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container"></div>
+
+    <script type="module">
+        import { createApp, ref, onMounted, watch, nextTick } from './vue.esm-browser.js';
+
+        // ---------- 红黑树节点 ----------
+        class RBNode {
+            constructor(value, color, left = null, right = null) {
+                this.value = value;   // 字符串或数字
+                this.color = color;   // 'R' 或 'B'
+                this.left = left;
+                this.right = right;
+            }
+        }
+
+        // ---------- 解析核心 (支持不带括号的叶子节点: "xB" 自动变成 "xB(nil,nil)") ----------
+        function trim(s) {
+            return s.trim();
+        }
+
+        function parseNode(str) {
+            let s = trim(str);
+            // 空或者 nil 直接返回 null
+            if (s === '' || s === 'nil' || s === 'Nil' || s === 'NIL') {
+                return null;
+            }
+
+            // 检查是否包含括号，如果不包含括号且不是 nil，说明是简写的叶子节点 -> 补上 (nil,nil)
+            if (!s.includes('(')) {
+                // 形式必须是 值+颜色，例如 "13B" / "8R" / "1B"
+                // 简单校验最后一位是 R 或 B
+                if (s.length < 2) {
+                    throw new Error(`无效节点简写: "${s}"，需要至少一个字符的值加上 R/B，例如 "5R"`);
+                }
+                const lastChar = s[s.length - 1];
+                if (lastChar !== 'R' && lastChar !== 'B') {
+                    throw new Error(`简写节点必须用 R 或 B 结尾，错误: "${s}"`);
+                }
+                // 构造完整形式
+                const fullExpr = `${s}(nil,nil)`;
+                // 递归调用自身 (这次会走下面带括号的分支)
+                return parseNode(fullExpr);
+            }
+
+            // ---------- 正常带括号的解析逻辑 ----------
+            const leftParenIdx = s.indexOf('(');
+            const valueColorPart = s.substring(0, leftParenIdx);
+            if (valueColorPart.length < 2) {
+                throw new Error(`节点标识错误: 至少包含值和颜色(如 13B)，实际: ${valueColorPart}`);
+            }
+            const colorChar = valueColorPart[valueColorPart.length - 1];
+            if (colorChar !== 'R' && colorChar !== 'B') {
+                throw new Error(`颜色标记必须是 R 或 B, 错误部分: ${valueColorPart}`);
+            }
+            const valueStr = valueColorPart.substring(0, valueColorPart.length - 1);
+            const nodeValue = valueStr;  // 保留原始字符串 (数字保持字符形式展示)
+
+            // 匹配括号内内容
+            let balance = 1;
+            let rightParenIdx = leftParenIdx + 1;
+            while (rightParenIdx < s.length && balance > 0) {
+                if (s[rightParenIdx] === '(') balance++;
+                else if (s[rightParenIdx] === ')') balance--;
+                rightParenIdx++;
+            }
+            if (balance !== 0) {
+                throw new Error(`括号不匹配: ${s}`);
+            }
+            const inside = s.substring(leftParenIdx + 1, rightParenIdx - 1);
+            // 分割左右子树 (按最外层逗号)
+            let leftStr = '', rightStr = '';
+            let commaIdx = -1;
+            let depth = 0;
+            for (let i = 0; i < inside.length; i++) {
+                const ch = inside[i];
+                if (ch === '(') depth++;
+                else if (ch === ')') depth--;
+                else if (ch === ',' && depth === 0) {
+                    commaIdx = i;
+                    break;
+                }
+            }
+            if (commaIdx === -1) {
+                throw new Error(`子树格式错误: 缺少逗号分隔左右子树, 内部: ${inside}`);
+            }
+            leftStr = inside.substring(0, commaIdx);
+            rightStr = inside.substring(commaIdx + 1);
+
+            const leftChild = parseNode(leftStr);
+            const rightChild = parseNode(rightStr);
+            return new RBNode(nodeValue, colorChar, leftChild, rightChild);
+        }
+
+        function buildTreeFromExpression(expr) {
+            if (!expr || expr.trim() === '') {
+                return null;
+            }
+            try {
+                return parseNode(expr);
+            } catch (e) {
+                console.error(e);
+                throw new Error(`解析失败: ${e.message}`);
+            }
+        }
+
+        // ---------- 工具: 计算树深度 ----------
+        function getTreeDepth(node) {
+            if (!node) return 0;
+            return 1 + Math.max(getTreeDepth(node.left), getTreeDepth(node.right));
+        }
+
+        // ---------- Canvas 绘制模块 (动态布局) ----------
+        class TreeDrawer {
+            constructor(ctx, canvasWidth, canvasHeight) {
+                this.ctx = ctx;
+                this.canvasWidth = canvasWidth;
+                this.canvasHeight = canvasHeight;
+                this.nodeRadius = 22;
+                this.yStep = 70;
+                this.minOffset = 18;
+            }
+
+            computeBaseOffset(rootDepth) {
+                let base = Math.min(190, this.canvasWidth / 5);
+                if (rootDepth > 4) {
+                    base = Math.max(50, base - (rootDepth - 4) * 12);
+                }
+                return Math.max(this.minOffset * 1.5, base);
+            }
+
+            setNodePositions(node, x, y, offsetHor) {
+                if (!node) return;
+                node.x = x;
+                node.y = y;
+                let childOffset = Math.max(this.minOffset, offsetHor * 0.68);
+                if (childOffset < this.minOffset) childOffset = this.minOffset + 2;
+                if (node.left) {
+                    const leftX = x - childOffset;
+                    const leftY = y + this.yStep;
+                    this.setNodePositions(node.left, leftX, leftY, childOffset);
+                }
+                if (node.right) {
+                    const rightX = x + childOffset;
+                    const rightY = y + this.yStep;
+                    this.setNodePositions(node.right, rightX, rightY, childOffset);
+                }
+            }
+
+            adjustTreePosition(root) {
+                if (!root) return;
+                let minX = Infinity, maxX = -Infinity;
+                const traverse = (node) => {
+                    if (!node) return;
+                    if (node.x < minX) minX = node.x;
+                    if (node.x > maxX) maxX = node.x;
+                    traverse(node.left);
+                    traverse(node.right);
+                };
+                traverse(root);
+                if (minX === Infinity) return;
+                const margin = this.nodeRadius + 15;
+                const canvasCenter = this.canvasWidth / 2;
+                const idealCenter = (minX + maxX) / 2;
+                let deltaX = canvasCenter - idealCenter;
+                const newMinX = minX + deltaX;
+                const newMaxX = maxX + deltaX;
+                if (newMinX < margin) {
+                    deltaX += (margin - newMinX);
+                } else if (newMaxX > this.canvasWidth - margin) {
+                    deltaX -= (newMaxX - (this.canvasWidth - margin));
+                }
+                if (Math.abs(deltaX) > 0.1) {
+                    const shift = (node) => {
+                        if (!node) return;
+                        node.x += deltaX;
+                        shift(node.left);
+                        shift(node.right);
+                    };
+                    shift(root);
+                }
+            }
+
+            drawLines(node) {
+                if (!node) return;
+                const ctx = this.ctx;
+                const startX = node.x;
+                const startY = node.y;
+                if (node.left) {
+                    ctx.beginPath();
+                    ctx.moveTo(startX, startY);
+                    ctx.lineTo(node.left.x, node.left.y);
+                    ctx.strokeStyle = '#a0aec0';
+                    ctx.lineWidth = 1.8;
+                    ctx.stroke();
+                    this.drawLines(node.left);
+                }
+                if (node.right) {
+                    ctx.beginPath();
+                    ctx.moveTo(startX, startY);
+                    ctx.lineTo(node.right.x, node.right.y);
+                    ctx.stroke();
+                    this.drawLines(node.right);
+                }
+            }
+
+            drawNode(node) {
+                const ctx = this.ctx;
+                const x = node.x;
+                const y = node.y;
+                const r = this.nodeRadius;
+                if (node.color === 'R') {
+                    ctx.fillStyle = '#f87171';
+                    ctx.beginPath();
+                    ctx.arc(x, y, r, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = '#b91c1c';
+                    ctx.lineWidth = 1.8;
+                    ctx.stroke();
+                    ctx.fillStyle = '#2d1a0e';
+                } else {
+                    ctx.fillStyle = '#2c3e4e';
+                    ctx.beginPath();
+                    ctx.arc(x, y, r, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = '#1e293b';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+                    ctx.fillStyle = '#f1f5f9';
+                }
+                ctx.font = `bold ${Math.max(12, Math.floor(r * 0.8))}px "Fira Code", "Monaco", monospace`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(`${node.value}`, x, y);
+            }
+
+            drawAllNodes(node) {
+                if (!node) return;
+                this.drawNode(node);
+                this.drawAllNodes(node.left);
+                this.drawAllNodes(node.right);
+            }
+
+            render(root) {
+                if (!root) {
+                    this.clearCanvas();
+                    this.ctx.font = "14px monospace";
+                    this.ctx.fillStyle = "#94a3b8";
+                    this.ctx.textAlign = "center";
+                    this.ctx.fillText("无树结构，请输入合法表达式 (例如: 13B(8R(1B,11R),17R(15B,25B)))", this.canvasWidth / 2, this.canvasHeight / 2);
+                    return;
+                }
+                const depth = getTreeDepth(root);
+                const baseOffset = this.computeBaseOffset(depth);
+                const startY = 65;
+                const startX = this.canvasWidth / 2;
+                this.setNodePositions(root, startX, startY, baseOffset);
+                this.adjustTreePosition(root);
+                this.clearCanvas();
+                this.drawLines(root);
+                this.drawAllNodes(root);
+            }
+
+            clearCanvas() {
+                this.ctx.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
+                this.ctx.fillStyle = '#ffffff';
+                this.ctx.fillRect(0, 0, this.canvasWidth, this.canvasHeight);
+            }
+        }
+
+        // ---------- Vue 应用 ----------
+        const App = {
+            setup() {
+                const inputExpression = ref('');
+                const errorMessage = ref('');
+                const canvasRef = ref(null);
+                let currentRoot = null;
+                let drawer = null;
+
+                const renderTree = () => {
+                    if (!canvasRef.value) return;
+                    const canvas = canvasRef.value;
+                    const ctx = canvas.getContext('2d');
+                    const width = canvas.width;
+                    const height = canvas.height;
+                    if (!drawer || drawer.canvasWidth !== width || drawer.canvasHeight !== height) {
+                        drawer = new TreeDrawer(ctx, width, height);
+                    } else {
+                        drawer.ctx = ctx;
+                    }
+
+                    const expr = inputExpression.value.trim();
+                    if (expr === '') {
+                        errorMessage.value = '';
+                        currentRoot = null;
+                        drawer.render(null);
+                        return;
+                    }
+
+                    try {
+                        const rootNode = buildTreeFromExpression(expr);
+                        currentRoot = rootNode;
+                        errorMessage.value = '';
+                        drawer.render(currentRoot);
+                    } catch (err) {
+                        errorMessage.value = err.message;
+                        if (drawer) {
+                            drawer.clearCanvas();
+                            drawer.ctx.font = "13px monospace";
+                            drawer.ctx.fillStyle = "#dc2626";
+                            drawer.ctx.textAlign = "center";
+                            drawer.ctx.fillText(`❌ 解析错误: ${err.message.slice(0, 80)}`, drawer.canvasWidth / 2, drawer.canvasHeight / 2);
+                        }
+                    }
+                };
+
+                const handleInput = () => {
+                    renderTree();
+                };
+
+                onMounted(() => {
+                    const canvas = canvasRef.value;
+                    if (canvas) {
+                        // 初始默认值: 简洁红黑树示例 (内部叶子节点全简写)
+                        inputExpression.value = '13B(8R(1B,11R),17R(15B,25B))';
+                        renderTree();
+                    }
+                });
+
+                return {
+                    inputExpression,
+                    errorMessage,
+                    canvasRef,
+                    handleInput,
+                };
+            },
+            template: `
+            <div>
+                <div class="input-area">
+                <p>🔴红色节点;⚫黑色节点;</p>
+                    <input 
+                        id="treeInput" 
+                        v-model="inputExpression" 
+                        @input="handleInput"
+                        spellcheck="false"
+                    />
+                    <div v-if="errorMessage" class="error-msg">⚠️ {{ errorMessage }}</div>
+                </div>
+                <canvas ref="canvasRef" id="rbCanvas" width="900" height="580" style="width:100%; height:auto; max-width:900px; aspect-ratio:900/580"></canvas>
+            </div>
+        `
+        };
+
+        createApp(App).mount('.container');
+    </script>
+</body>
+
+</html>
