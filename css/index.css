@@ -1,5 +1,6 @@
 /*全局设置*/
-:root, * {
+:root,
+* {
     --darkreader-background-000000: #000000 !important;
 }
 
@@ -177,4 +178,18 @@ button#login_button {
     /*像素化风格*/
     image-rendering: pixelated;
     height: 128px;
+}
+
+#treeInput {
+    width: 100%;
+    padding: 0px;
+    font-family: 'JetBrains Mono Slashed', 'Fira Code', 'Consolas', monospace;
+    color: #00FF00FF;
+    background: #000000FF;
+    border: 1.5px solid #e2e8f0;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    resize: vertical;
+    min-height: 100px;
+    white-space: pre-wrap;
 }

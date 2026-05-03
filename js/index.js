@@ -1,5 +1,5 @@
 // 2025.12.17:06:24:00
-const { createApp, ref, onMounted, onUnmounted } = Vue;
+const { createApp, ref, onMounted, onUnmounted, watch, nextTick } = Vue;
 
 window.onload = function () { // 在网页加载完毕后立刻执行操作
     var imgs = document.getElementsByClassName("bgimg");

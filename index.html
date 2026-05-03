@@ -25,6 +25,9 @@ ToyosatomiminoMiko
                 <a class="nav-link" data-bs-toggle="tab" href="#oled">OLED</a>
             </li>
             <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#rbt">RBT</a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link" data-bs-toggle="tab" href="#pages">PAGES</a>
             </li>
             <li class="nav-item">
@@ -120,70 +123,75 @@ ToyosatomiminoMiko
                             <canvas id="time_canvas" ref="ledCanvas" height="8" width="65"></canvas>
                         </div>
                     </div>
-                    <div class="card-body card-deck row">
+                    <div class="card-body card-deck">
                         <!--内容主体-->
                     </div>
                 </div>
             </div>
-            <!--OLED_canvas-->
+            <!-- OLED_canvas -->
             <div class="tab-pane fade" id="oled">
-                <div class="row">
-                    <!--内容主体-->
-                    <div class="card-columns d-flex justify-content-center">
-                        <!--oled-->
-                        <div class="card align-self-center oled-card">
-                            <div class="card-header d-flex">
-                                <h4>OLED Canvas</h4>
+                <div class="card oled-card">
+                    <div class="card-header">
+                        <h4>OLED Canvas</h4>
+                    </div>
+                    <div class="card-body">
+                        <!-- 状态指示区 -->
+                        <div id="coordsDisplay" class="coords-display card-text">coordinate:(X:-,Y:-)</div>
+                        <br />
+                        <!-- 主画布 -->
+                        <canvas id="pixelCanvas"></canvas>
+                        <div id="pixelIndicator" class="pixel-indicator"></div>
+                        <br />
+                        <!-- 工具控制区 -->
+                        <div class="tools">
+                            <button type="button" class="btn btn-primary" onclick="clearCanvas()">颜色重置</button>
+                            <button type="button" class="btn btn-primary" onclick="changeColor()"
+                                id="change-color">🔄️黑色⬛</button>
+                            <input type="radio" name="tools" value="free" onchange="changeTool(this.value)" checked />绘制
+                            <input type="radio" name="tools" value="line" onchange="changeTool(this.value)" />直线
+                            <input type="radio" name="tools" value="rectangle" onchange="changeTool(this.value)" />矩形
+                            <button type="button" class="btn btn-primary" onclick="exportEmbedded()">导出数据</button>
+                        </div>
+                        <br />
+                        <!-- 数据输入输出容器 -->
+                        <div>
+                            <!--导出数据区-->
+                            <div class="area-data">
+                                <textarea id="exportOutput" class="textarea-data">
+                                        </textarea><br />
+                                <button type="button" class="btn btn-primary" onclick="copyExportedData()"
+                                    id="output-button">
+                                    复制到剪贴板</button>
                             </div>
-                            <div class="card-body">
-                                <!-- 状态指示区 -->
-                                <div id="coordsDisplay" class="coords-display card-text">coordinate:(X:-,Y:-)</div>
-                                <br />
-                                <!-- 主画布 -->
-                                <canvas id="pixelCanvas"></canvas>
-                                <div id="pixelIndicator" class="pixel-indicator"></div>
-                                <br />
-                                <!-- 工具控制区 -->
-                                <div class="tools">
-                                    <button type="button" class="btn btn-primary" onclick="clearCanvas()">颜色重置</button>
-                                    <button type="button" class="btn btn-primary" onclick="changeColor()"
-                                        id="change-color">🔄️黑色⬛</button>
-                                    <input type="radio" name="tools" value="free" onchange="changeTool(this.value)"
-                                        checked />绘制
-                                    <input type="radio" name="tools" value="line" onchange="changeTool(this.value)" />直线
-                                    <input type="radio" name="tools" value="rectangle"
-                                        onchange="changeTool(this.value)" />矩形
-                                    <button type="button" class="btn btn-primary"
-                                        onclick="exportEmbedded()">导出数据</button>
-                                </div>
-                                <br />
-                                <!-- 数据输入输出容器 -->
-                                <div>
-                                    <!--导出数据区-->
-                                    <div class="area-data">
-                                        <textarea id="exportOutput" class="textarea-data">
+                            <!--导入数据区-->
+                            <div class="area-data">
+                                <textarea id="importData" class="textarea-data"
+                                    placeholder="const uint8_t bitmap[1024] = {0x00, 0x01, ...};">
                                         </textarea><br />
-                                        <button type="button" class="btn btn-primary" onclick="copyExportedData()"
-                                            id="output-button">
-                                            复制到剪贴板</button>
-                                    </div>
-                                    <!--导入数据区-->
-                                    <div class="area-data">
-                                        <textarea id="importData" class="textarea-data"
-                                            placeholder="const uint8_t bitmap[1024] = {0x00, 0x01, ...};">
-                                        </textarea><br />
-                                        <button type="button" class="btn btn-primary" onclick="importEmbeddedData()">
-                                            导入数据</button>
-                                    </div>
-                                </div>
+                                <button type="button" class="btn btn-primary" onclick="importEmbeddedData()">
+                                    导入数据</button>
                             </div>
                         </div>
-                        <!--/oled-->
                     </div>
                 </div>
             </div>
+            <!--/OLED_canvas-->
+            <!-- Red-Black Tree Lab -->
+            <div class="tab-pane fade" id="rbt">
+                <div class="card">
+                    <div class="card-header">
+                        <h4>🌳 Red-Black Tree Lab | 红黒树实验室</h4>
+                    </div>
+                    <div>
+                        <span>💡 支持简写叶子节点 (例如 "5R" 等价于 "5R(nil,nil)")</span><br>
+                        <span>🔴 R 红色 &nbsp;|&nbsp; ⚫ B 黒色</span><br>
+                    </div>
+                    <div class="container card-body"></div>
+                </div>
+            </div>
+            <!-- /Red-Black Tree Lab -->
             <div class="tab-pane fade" id="pages">
-                <section class="card-deck row" id="page_list">
+                <section class="card-deck" id="page_list">
                     <!--内容主体-->
                     <div v-for="page in pages" class="card col-3">
                         <img class="card-img-top" :src="page.img_url">
@@ -216,6 +224,7 @@ ToyosatomiminoMiko
     <script src="/js/clock.js"></script>
     <script src="/js/page.js"></script>
     <script src="/js/oled.js"></script>
+    <script src="/js/rbt_lab.js"></script>
 </body>
 
 </html>
