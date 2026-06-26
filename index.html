@@ -146,11 +146,13 @@ ToyosatomiminoMiko
                         <div class="tools">
                             <button type="button" class="btn btn-primary" onclick="clearCanvas()">颜色重置</button>
                             <button type="button" class="btn btn-primary" onclick="changeColor()"
-                                id="change-color">🔄️黑色⬛</button>
+                                id="change-color">🔄️暗⬛</button>
                             <input type="radio" name="tools" value="free" onchange="changeTool(this.value)" checked />绘制
                             <input type="radio" name="tools" value="line" onchange="changeTool(this.value)" />直线
                             <input type="radio" name="tools" value="rectangle" onchange="changeTool(this.value)" />矩形
                             <button type="button" class="btn btn-primary" onclick="exportEmbedded()">导出数据</button>
+                            <button type="button" class="btn btn-primary" onclick="downloadPNG()" id="output-button">
+                                下载PNG</button>
                         </div>
                         <br />
                         <!-- 数据输入输出容器 -->

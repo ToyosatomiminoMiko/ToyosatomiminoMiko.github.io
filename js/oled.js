@@ -408,6 +408,15 @@ function exportEmbedded() {
     // 更新常驻文本域
     outputTextarea.value = output;
 }
+// 下载PNG
+function downloadPNG() {
+    const link = document.createElement('a');
+    link.download = 'canvas.png';
+    link.href = canvas.toDataURL('image/png');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
 // 数据导入
 function importEmbeddedData() {
     const input = document.getElementById("importData").value;
@@ -475,11 +484,11 @@ function changeColor() {
     const btn = document.getElementById('change-color');
     pixiv_color = !pixiv_color;
     if (pixiv_color) {
-        btn.textContent = "🔄️黑色⬛";
+        btn.textContent = "🔄️暗⬛";
         btn.style.color = "#ffffff";
         btn.style.backgroundColor = "#000000";
     } else {
-        btn.textContent = "🔄️白色⬜";
+        btn.textContent = "🔄️亮⬜";
         btn.style.color = "#000000";
         btn.style.backgroundColor = "#ffffff";
     }

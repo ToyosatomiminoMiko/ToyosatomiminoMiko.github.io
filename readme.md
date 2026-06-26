@@ -11,3 +11,9 @@
 ## Red-Black Tree Lab
 
 本项目基于*DeepSeek*生成的代码(MIT许可)开发
+
+## 运行测试
+
+```sh
+python -m http.server 8080
+```
