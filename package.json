@@ -1,0 +1,14 @@
+{
+  "name": "toyosatomiminomiko.github.io",
+  "version": "0.0.0",
+  "private": true,
+  "description": "",
+  "type": "module",
+  "dependencies": {
+    "bootstrap": "^5.3.8",
+    "katex": "^0.18.1",
+    "mathjs": "^15.2.0",
+    "three": "^0.185.1",
+    "vue": "^3.5.40"
+  }
+}
