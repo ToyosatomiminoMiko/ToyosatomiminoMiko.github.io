@@ -1,3 +1,7 @@
+/*
+表达式输入框
+*/
+
 export class ExprInputController {
     /**
      * @param {import('../service/EventBus.js').EventBus} eventBus

@@ -2,14 +2,12 @@ import { APP_CONFIG } from '../config/appConfig.js';
 
 /**
  * ============================================================
- * 表达式管理器 / core/ExpressionManager.js
- * 功能: 管理所有数学表达式的增/删/改/查,
- *       将表达式字符串编译为可执行的 JS 函数.
+ * 表达式管理器
+ * 功能: 管理所有数学表达式的增/删/改/查,原生js表示
  * 数据结构: {
  *     id:      number   -- 唯一标识
  *     type:    '2d'|'3d' -- 维度类型
  *     fnStr:   string   -- 原始表达式字符串 (如 "Math.sin(x)")
- *     fn:      Function  -- 编译后的可执行函数
  *     color:   string   -- 十六进制颜色
  *     enabled: boolean  -- 可见性开关
  * }
@@ -69,14 +67,15 @@ export class ExpressionManager {
      * @param {string} fnStr  - 原始表达式字符串
      * @param {string} type   - '2d' 或 '3d'
      * @returns {Function} 编译后的函数 (编译失败时返回占位函数)
+     * ⚠️ XSS 漏洞
      */
     compile(fnStr, type) {
         try {
             if (type === '2d') {
-                /** 2D: 一元函数 y = f(x) */
+                // 2D: 一元函数 y = f(x)
                 return new Function('x', `"use strict"; return (${fnStr});`);
             } else {
-                /** 3D: 二元函数 z = f(x, y) */
+                // 3D: 二元函数 z = f(x, y)
                 return new Function('x', 'y', `"use strict"; return (${fnStr});`);
             }
         } catch (e) {

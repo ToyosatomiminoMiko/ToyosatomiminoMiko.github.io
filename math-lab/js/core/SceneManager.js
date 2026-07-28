@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
 /*
+创建场景,渲染器,灯光,坐标轴
 CameraManager 当前持有 renderer 引用
 SceneManager 接管后, CameraManager 需要改为依赖 SceneManager
 */

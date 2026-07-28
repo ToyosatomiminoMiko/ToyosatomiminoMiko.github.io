@@ -342,7 +342,6 @@ export class IntegralVisualizer {
     // 阈值全部从 z=0 开始计算,确保准确反映函数与 xOy 平面围成的有符号体积
     // ================================================================
     visualize3DLebesgue(expr, xRange, yRange, layers = 20) {
-        console.log('visualize3DLebesgue');
         // ----- 第1步:解构参数,准备采样 -----
         const fn = expr.fn;
         const [xMin, xMax] = xRange;

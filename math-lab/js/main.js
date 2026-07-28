@@ -53,7 +53,7 @@ new IntegralPanel(eventBus, exprManager, integralVisualizer);
 // 4. 事件订阅(通过 eventBus 解耦的联动逻辑)
 // =====================================================
 
-// 模式切换 → 更新相机 + 更新可见性（不重建几何体）
+// 模式切换 -> 更新相机 + 更新可见性,不重建几何体
 eventBus.on('mode:changed', ({ mode }) => {
     cameraManager.setViewMode(mode);
     plotter.updateMode(mode);
@@ -134,7 +134,7 @@ document.addEventListener('keydown', (e) => {
 
 // 动画循环
 function animate() {
-    requestAnimationFrame(animate);
+    requestAnimationFrame(animate); // 浏览器每帧调用一次
     controls.object = cameraManager.getCamera();
     controls.update();
     sceneManager.render(cameraManager.getCamera());
@@ -149,13 +149,5 @@ if (panelToggleBtn && panel) {
         panel.classList.toggle('collapsed');
     });
 }
-
-// 暴露一些变量到全局方便调试
-// window.__scene = scene;
-// window.__exprManager = exprManager;
-// window.__plotter = plotter;
-// window.__cameraManager = cameraManager;
-// window.__uiManager = uiManager;
-// window.__integralController = integralController;
 
 console.log('[MathPlot] 初始化完成! 使用 2D/3D 模式绘制数学表达式');

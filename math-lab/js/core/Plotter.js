@@ -27,10 +27,10 @@ export class Plotter {
         this.scene = scene;
         this.plotMap = new Map(); // id -> PlotEntry
 
-        // 当前渲染模式，由 updateMode() 设置
+        // 当前渲染模式,由 updateMode() 设置
         this.currentMode = '2d';
 
-        // 顶层容器：所有表达式 Group 都挂在这里，便于统一管理
+        // 顶层容器：所有表达式 Group 都挂在这里,便于统一管理
         this.plotContainer = new THREE.Group();
         this.scene.add(this.plotContainer);
     }
@@ -40,7 +40,7 @@ export class Plotter {
     // =====================================================
 
     /**
-     * 绘制 2D 曲线（若 Group 不存在则创建，若已存在则更新几何体）
+     * 绘制 2D 曲线（若 Group 不存在则创建,若已存在则更新几何体）
      * @param {object} expr   - { id, fn, color, enabled }
      * @param {number[]} [xRange=[-8,8]]
      * @param {number} [steps=320]
@@ -76,7 +76,7 @@ export class Plotter {
         // 采样点
         const points = this._sample2D(fn, xRange, steps);
         if (points.length < 2) {
-            // 无有效点，仅更新可见性
+            // 无有效点,仅更新可见性
             entry.enabled = enabled ?? true;
             this._applyVisibility(entry);
             return;
@@ -85,7 +85,7 @@ export class Plotter {
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
         const material = new THREE.LineBasicMaterial({
             color: color || '#ffffff',
-            linewidth: 2,
+            linewidth: 1, // 大多数平台的WebGL实现中lineWidth被硬限制为1
             transparent: true,
             opacity: 0.95,
         });
@@ -98,7 +98,7 @@ export class Plotter {
     }
 
     /**
-     * 绘制 / 更新 3D 曲面（复用 SurfaceMesh，仅在分段数改变时重建）
+     * 绘制 / 更新 3D 曲面（复用 SurfaceMesh,仅在分段数改变时重建）
      * @param {object} expr       - { id, fn, enabled }
      * @param {number[]} [range=[-6,6]]
      * @param {number} [segments=64]
@@ -144,7 +144,7 @@ export class Plotter {
     }
 
     /**
-     * 移除表达式（销毁 Group 及所有子对象，释放 GPU 资源）
+     * 移除表达式（销毁 Group 及所有子对象,释放 GPU 资源）
      * @param {string} id
      */
     remove(id) {
@@ -175,7 +175,7 @@ export class Plotter {
     }
 
     /**
-     * 更新表达式数据（表达式字符串改变时调用，会重建几何体）
+     * 更新表达式数据（表达式字符串改变时调用,会重建几何体）
      * @param {object} expr - 完整的表达式对象
      * @param {string} mode - 当前模式 '2d' | '3d'
      */
@@ -188,7 +188,7 @@ export class Plotter {
     }
 
     /**
-     * 模式切换：仅更新所有 Group 的可见性，不销毁任何几何体
+     * 模式切换：仅更新所有 Group 的可见性,不销毁任何几何体
      * @param {string} mode - '2d' | '3d'
      */
     updateMode(mode) {
@@ -213,7 +213,7 @@ export class Plotter {
     // =====================================================
 
     /**
-     * 2D 采样：对 x 范围进行均匀采样，跳过奇异点
+     * 2D 采样：对 x 范围进行均匀采样,跳过奇异点
      */
     _sample2D(fn, xRange, steps) {
         const points = [];
