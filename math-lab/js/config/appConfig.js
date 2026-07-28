@@ -29,6 +29,9 @@ export const APP_CONFIG = {
     integral: {
         default2DSteps: 200,
         default3DSegments: 32,
+        // 勒贝格分层数
+        lebesgue2DLayers: 50,
+        lebesgue3DLayers: 20,
     },
 
     plotter: {

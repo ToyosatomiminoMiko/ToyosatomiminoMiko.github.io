@@ -1,4 +1,5 @@
 import { riemann1dLeft, riemann2dLeft, lebesgue1d, lebesgue2d } from '../integration/IntegralCore.js';
+import { APP_CONFIG } from '../config/appConfig.js';
 
 export class IntegralPanel {
     /**
@@ -82,7 +83,7 @@ export class IntegralPanel {
             const a = parseFloat(this.xMin2d.value);
             const b = parseFloat(this.xMax2d.value);
             if (a >= b) { alert('请输入有效的区间 (a < b)'); return; }
-            const steps = 200;  // 步长
+            const steps = APP_CONFIG.integral.default2DSteps; // 步长
 
             enabled.forEach(expr => {
                 try {
@@ -110,7 +111,7 @@ export class IntegralPanel {
             const yMin = parseFloat(this.yMin3d.value);
             const yMax = parseFloat(this.yMax3d.value);
             if (xMin >= xMax || yMin >= yMax) { alert('请输入有效的区间'); return; }
-            const N = 32;
+            const N = APP_CONFIG.integral.default3DSegments;
             const M = N;
 
             enabled.forEach(expr => {
