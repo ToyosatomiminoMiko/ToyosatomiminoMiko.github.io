@@ -556,24 +556,28 @@ body {
     color: #ffd93d;
 }
 
+/* 积分输入参数 */
 .integral-inputs {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 4px 8px;
-    font-size: 13px;
     color: #8a9ab8;
     margin-bottom: 8px;
+    font-weight: bold;
+    font-size: 20px;
 }
 
+/* 数值输入框 */
 .integral-inputs input[type="number"] {
-    width: 52px;
+    width: 60px;
     padding: 2px 4px;
     background: #1e2a3a;
     border: 1px solid #3a4a6a;
     border-radius: 4px;
     color: #ddeeff;
-    font-size: 13px;
+    font-weight: bold;
+    font-size: 20px;
 }
 
 .integral-inputs label {

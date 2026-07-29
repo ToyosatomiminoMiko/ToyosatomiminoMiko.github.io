@@ -1,13 +1,12 @@
 import * as THREE from 'three';
-import { APP_CONFIG } from '../config/appConfig.js';
 
 /*
 黎曼 & 勒贝格积分可视化
 */
 // 渲染常量
-const BAR_GAP = 0.03;        // 方块间隙比例
+const BAR_GAP = 0.05;        // 方块间隙比例
 const DEPTH_2D = 0.3;        // 2D 柱体 z 轴深度
-const OPACITY_RIEMANN = 0.6;
+const OPACITY_RIEMANN = 0.5;
 const OPACITY_LEBESGUE = 0.5;
 const EDGE_OPACITY_RIEMANN = 0.4;
 
@@ -50,7 +49,6 @@ export class IntegralVisualizer {
         });
     }
 
-    // opts: { opacity, color?, edgeOpacity?, edgeColor? }
     // 返回 THREE.Group
     _instancedMeshGroup(bars, opts = {}) {
         const { opacity, color, edgeOpacity, edgeColor } = opts;
@@ -209,12 +207,10 @@ export class IntegralVisualizer {
     }
 
     // 2D勒贝格可视化
-    visualize2DLebesgue(expr, a, b, layers = APP_CONFIG.integral.lebesgue2DLayers) {
+    visualize2DLebesgue(expr, a, b, layers, sampleN) {
         const fn = expr.fn;
         const baseColor = new THREE.Color(expr.color);
 
-        //  采样 
-        const sampleN = 1000;
         const h = (b - a) / sampleN;
         const samples = [];
         let yMin = Infinity, yMax = -Infinity;
@@ -256,7 +252,7 @@ export class IntegralVisualizer {
                     if (w < 1e-6) continue;
                     result.push({
                         pos: [(xStart + xEnd) / 2, centerY, 0],
-                        scale: [w * 0.98, dy * 0.9, 0.15],
+                        scale: [w * (1 - BAR_GAP), dy * (1 - BAR_GAP), 0.15],
                         color,
                     });
                 }
@@ -275,12 +271,11 @@ export class IntegralVisualizer {
     // 数学逻辑:严格区分正部(z>0,向上堆叠)和负部(z<0,向下堆叠)
     // 阈值全部从 z=0 开始计算,确保准确反映函数与 xOy 平面围成的有符号体积
     // ================================================================
-    visualize3DLebesgue(expr, xRange, yRange, layers = APP_CONFIG.integral.lebesgue3DLayers) {
+    visualize3DLebesgue(expr, xRange, yRange, res) {
         const fn = expr.fn;
         const [xMin, xMax] = xRange;
         const [yMin, yMax] = yRange;
         const baseColor = new THREE.Color(expr.color);
-        const res = 80;
         const hx = (xMax - xMin) / res;
         const hy = (yMax - yMin) / res;
 
@@ -305,7 +300,7 @@ export class IntegralVisualizer {
         if (!isFinite(zMin) || !isFinite(zMax)) return;
 
         // ── 分层生成切片 ──
-        const slices = this._layerLoop(zMin, zMax, layers, baseColor, 0,
+        const slices = this._layerLoop(zMin, zMax, res, baseColor, 0,
             (threshold, centerZ, _k, color, _dy) => {
                 const result = [];
                 const predicate = centerZ >= 0
@@ -321,7 +316,7 @@ export class IntegralVisualizer {
                         if (predicate(z00) && predicate(z10) && predicate(z01) && predicate(z11)) {
                             result.push({
                                 pos: [xMin + (i + 0.5) * hx, yMin + (j + 0.5) * hy, centerZ],
-                                scale: [hx * 0.95, hy * 0.95, 0.1],
+                                scale: [hx * (1 - BAR_GAP), hy * (1 - BAR_GAP), 0.05],
                                 color,
                             });
                         }

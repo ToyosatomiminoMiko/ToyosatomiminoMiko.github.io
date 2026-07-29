@@ -1,5 +1,4 @@
 import { riemann1dLeft, riemann2dLeft, lebesgue1d, lebesgue2d } from '../integration/IntegralCore.js';
-import { APP_CONFIG } from '../config/appConfig.js';
 
 export class IntegralPanel {
     /**
@@ -15,13 +14,15 @@ export class IntegralPanel {
         this.calcBtn = document.getElementById('calcIntegralBtn');
         this.showToggle = document.getElementById('showIntegralToggle');
         this.totalDisplay = document.getElementById('integralTotal');
-
+        // 区间 获取元素
         this.xMin2d = document.getElementById('xMin2d');
         this.xMax2d = document.getElementById('xMax2d');
         this.xMin3d = document.getElementById('xMin3d');
         this.xMax3d = document.getElementById('xMax3d');
         this.yMin3d = document.getElementById('yMin3d');
         this.yMax3d = document.getElementById('yMax3d');
+        // 切分数量
+        this.segmentInput = document.getElementById('segmentCount');
 
         this.methodBtns = document.querySelectorAll('[data-integral-method]');
         // 积分方法: 'riemann' | 'lebesgue'
@@ -78,26 +79,27 @@ export class IntegralPanel {
         this.visualizer.clearAll();
         let totalSum = 0;
         const results = [];
-
+        // 分割数量
+        const segments = parseInt(this.segmentInput.value);
         if (mode === '2d') {
             const a = parseFloat(this.xMin2d.value);
             const b = parseFloat(this.xMax2d.value);
             if (a >= b) { alert('请输入有效的区间 (a < b)'); return; }
-            const steps = APP_CONFIG.integral.default2DSteps; // 步长
 
             enabled.forEach(expr => {
                 try {
                     // 辛普森法
-                    // const val = simpson1d(expr.fn, a, b, steps);
+                    // const val = simpson1d(expr.fn, a, b, segments);
                     let val;
+                    const sample2d = segments * 20; // 采样精度
                     if (this.method === 'lebesgue') {
                         // 勒贝格法
-                        val = lebesgue1d(expr.fn, a, b);
-                        this.visualizer.visualize2DLebesgue(expr, a, b);
+                        val = lebesgue1d(expr.fn, a, b, segments, sample2d);
+                        this.visualizer.visualize2DLebesgue(expr, a, b, segments, sample2d);
                     } else {
                         // 黎曼法
-                        val = riemann1dLeft(expr.fn, a, b, steps);
-                        this.visualizer.visualize2DRiemann(expr, a, b, steps);
+                        val = riemann1dLeft(expr.fn, a, b, segments);
+                        this.visualizer.visualize2DRiemann(expr, a, b, segments);
                     }
                     totalSum += val;
                     results.push({ id: expr.id, value: val });
@@ -111,15 +113,15 @@ export class IntegralPanel {
             const yMin = parseFloat(this.yMin3d.value);
             const yMax = parseFloat(this.yMax3d.value);
             if (xMin >= xMax || yMin >= yMax) { alert('请输入有效的区间'); return; }
-            const N = APP_CONFIG.integral.default3DSegments;
-            const M = N;
+            const N = segments, M = segments;
 
             enabled.forEach(expr => {
                 try {
                     let val;
+                    const res3d = segments; // 总分层
                     if (this.method === 'lebesgue') {
-                        val = lebesgue2d(expr.fn, [xMin, xMax], [yMin, yMax]);
-                        this.visualizer.visualize3DLebesgue(expr, [xMin, xMax], [yMin, yMax]);
+                        val = lebesgue2d(expr.fn, [xMin, xMax], [yMin, yMax], segments, res3d);
+                        this.visualizer.visualize3DLebesgue(expr, [xMin, xMax], [yMin, yMax], res3d);
                     } else {
                         val = riemann2dLeft(expr.fn, [xMin, xMax], [yMin, yMax], N, M);
                         this.visualizer.visualize3DRiemann(expr, [xMin, xMax], [yMin, yMax], N, M);

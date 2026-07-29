@@ -39,6 +39,10 @@ Math.sqrt(16 -x*x + y*y,2) // 马鞍面
 Math.sqrt(4 - x*x - y*y,2) // 半球
 -Math.sqrt(4 - x*x - y*y,2)
 Math.log(x*y)
+x*x*x - 3*x*y*y // 猴子鞍面
+Math.sin(Math.pow(x*x+y*y,0.5))/Math.pow(x*x+y*y,0.5)+1 // 指数衰减波纹
+Math.pow((1-x),2)+100*Math.pow(y-x*x,2) // 罗森布鲁克香蕉谷
+Math.pow(Math.e,-0.1*(x*x+y*y))*(Math.sin(x)+Math.cos(2*y)) // ??? 皱褶的床单/翻涌的海浪
 ```
 
 ## 本地运行

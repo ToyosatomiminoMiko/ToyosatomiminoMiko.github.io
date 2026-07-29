@@ -125,11 +125,8 @@ export function riemann2dLeft(f, xRange, yRange, N, M) {
     return sum * hx * hy;
 }
 
-// ----- 一维勒贝格积分 -----
-// 按函数值分层,测量每层对应的 x 区间宽度
 // layers: 层数(值域等分数), sampleN: 采样精度
-export function lebesgue1d(f, a, b, layers = 50, sampleN = 5000) {
-    // 1. 精细采样,找出值域 [yMin, yMax]
+export function lebesgue1d(f, a, b, layers, sampleN) {
     const h = (b - a) / sampleN;
     let yMin = Infinity, yMax = -Infinity;
     const samples = [];
@@ -143,35 +140,47 @@ export function lebesgue1d(f, a, b, layers = 50, sampleN = 5000) {
         }
     }
     if (samples.length === 0) return 0;
-
-    const dy = (yMax - yMin) / layers;
-    if (dy < 1e-12) return 0;  // 常值函数直接返回
-
-    // 2. 对每层,测量 {x | f(x) > threshold} 的测度
     let sum = 0;
-    for (let k = 0; k < layers; k++) {
-        const threshold = yMin + k * dy;
-        let measure = 0;
-        for (let i = 0; i < sampleN; i++) {
-            const y = samples[i].y;
-            if (isFinite(y) && y > threshold) {
-                measure += h;
+    // 正部：∫₀^{yMax} μ({f > t}) dt
+    if (yMax > 1e-12) {
+        const dy = yMax / layers;
+        for (let k = 0; k < layers; k++) {
+            const threshold = k * dy;   // 从 0 往上
+            let measure = 0;
+            for (let i = 0; i < sampleN; i++) {
+                if (isFinite(samples[i].y) && samples[i].y > threshold) {
+                    measure += h;
+                }
             }
+            sum += measure * dy;
         }
-        sum += measure * dy;
     }
+    // 负部：∫₀^{-yMin} μ({f < -t}) dt
+    if (yMin < -1e-12) {
+        const dy = -yMin / layers;
+        for (let k = 0; k < layers; k++) {
+            const threshold = k * dy;   // 从 0 往上
+            let measure = 0;
+            for (let i = 0; i < sampleN; i++) {
+                if (isFinite(samples[i].y) && samples[i].y < -threshold) {
+                    measure += h;
+                }
+            }
+            sum -= measure * dy;   // 减去负部贡献
+        }
+    }
+
     return sum;
 }
 
 // ----- 二维勒贝格积分(简化版) -----
 // 按函数值分层,测量每层对应的 (x,y) 区域面积
-export function lebesgue2d(f, xRange, yRange, layers = 30, sampleN = 80) {
+export function lebesgue2d(f, xRange, yRange, layers, sampleN) {
     const [a, b] = xRange;
     const [c, d] = yRange;
     const hx = (b - a) / sampleN;
     const hy = (d - c) / sampleN;
 
-    // 1. 网格采样,找出值域
     let zMin = Infinity, zMax = -Infinity;
     const grid = [];
     for (let j = 0; j <= sampleN; j++) {
@@ -191,23 +200,40 @@ export function lebesgue2d(f, xRange, yRange, layers = 30, sampleN = 80) {
         grid.push(row);
     }
 
-    const dz = (zMax - zMin) / layers;
-    if (dz < 1e-12) return 0;
-
-    // 2. 对每层,测量 {(x,y) | f(x,y) > threshold} 的面积
     let sum = 0;
-    for (let k = 0; k < layers; k++) {
-        const threshold = zMin + k * dz;
-        let measure = 0;
-        for (let j = 0; j < sampleN; j++) {
-            for (let i = 0; i < sampleN; i++) {
-                const z = grid[j][i];
-                if (isFinite(z) && z > threshold) {
-                    measure += hx * hy;
+    //  正部
+    if (zMax > 1e-12) {
+        const dz = zMax / layers;
+        for (let k = 0; k < layers; k++) {
+            const threshold = k * dz;
+            let measure = 0;
+            for (let j = 0; j < sampleN; j++) {
+                for (let i = 0; i < sampleN; i++) {
+                    const z = grid[j][i];
+                    if (isFinite(z) && z > threshold) {
+                        measure += hx * hy;
+                    }
                 }
             }
+            sum += measure * dz;
         }
-        sum += measure * dz;
+    }
+    //  负部
+    if (zMin < -1e-12) {
+        const dz = -zMin / layers;
+        for (let k = 0; k < layers; k++) {
+            const threshold = k * dz;
+            let measure = 0;
+            for (let j = 0; j < sampleN; j++) {
+                for (let i = 0; i < sampleN; i++) {
+                    const z = grid[j][i];
+                    if (isFinite(z) && z < -threshold) {
+                        measure += hx * hy;
+                    }
+                }
+            }
+            sum -= measure * dz;
+        }
     }
     return sum;
 }
