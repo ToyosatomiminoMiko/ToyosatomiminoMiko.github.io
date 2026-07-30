@@ -1,4 +1,5 @@
 import { APP_CONFIG } from '../config/appConfig.js';
+import * as math from 'mathjs';
 
 /**
  * ============================================================
@@ -39,52 +40,69 @@ export class ExpressionManager {
         });
     }
 
+    parse(raw, type) {
+        const node = math.parse(raw);
+        const coefficients = this._extractCoefficients(node, type);
+        return { node, coefficients };
+    }
+
     /**
      * 添加一个新表达式
      * @param {string} type  - '2d' 或 '3d'
-     * @param {string} fnStr - 表达式字符串 (如 "Math.sin(x)")
-     * @param {string} color - 十六进制颜色 (可选, 缺省自动分配)
+     * @param {string} color - 十六进制颜色
      * @returns {object} 新创建的表达式对象
      */
-    add(type, fnStr, color) {
+    add(type, raw, color) {
+        const { node, coefficients } = this.parse(raw, type);
         const expr = {
             id: this.nextId++,
-            type: type,          // '2d' | '3d'
-            fnStr: fnStr.trim(), // 原始字符串, 用于 UI 显示
+            type,
+            node,
+            coefficients,
             color: color || this.colorManager.next(),
-            enabled: true,       // 是否可见
-            fn: this.compile(fnStr, type), // 编译后的可调用函数
+            enabled: true,
+            derivative: null,
         };
         this.expressions.push(expr);
         return expr;
     }
 
-    /**
-     * 将表达式字符串编译为可执行的 JS 函数
-     * - 2D 函数签名: fn(x) -> y
-     * - 3D 函数签名: fn(x, y) -> z
-     * 使用 new Function() 动态编译, 比 eval() 更安全且性能更好
-     * @param {string} fnStr  - 原始表达式字符串
-     * @param {string} type   - '2d' 或 '3d'
-     * @returns {Function} 编译后的函数 (编译失败时返回占位函数)
-     * ⚠️ XSS 漏洞
-     */
-    compile(fnStr, type) {
-        try {
-            if (type === '2d') {
-                // 2D: 一元函数 y = f(x)
-                return new Function('x', `"use strict"; return (${fnStr});`);
-            } else {
-                // 3D: 二元函数 z = f(x, y)
-                return new Function('x', 'y', `"use strict"; return (${fnStr});`);
-            }
-        } catch (e) {
-            console.warn('[ExpressionManager] 编译失败:', fnStr, e);
-            // 编译失败时返回零函数, 避免整个应用崩溃
-            return type === '2d' ? (x) => 0 : (x, y) => 0;
-        }
-    }
+    // 提取系数
+    _extractCoefficients(node, type) {
+        const vars = new Set(type === '2d' ? ['x'] : ['x', 'y']);
+        const builtins = new Set([
+            'sin', 'cos', 'tan', 'exp', 'log', 'sqrt', 'abs',
+            'asin', 'acos', 'atan', 'sinh', 'cosh', 'tanh',
+            'floor', 'ceil', 'round', 'sign', 'pow', 'max', 'min',
+            'PI', 'E', 'i', 'Infinity', 'NaN',
+        ]);
+        const coeffSet = new Set();
 
+        node.traverse((n) => {
+            if (n.isSymbolNode && !vars.has(n.name) && !builtins.has(n.name)) {
+                coeffSet.add(n.name);
+            }
+        });
+
+        return [...coeffSet].map(name => ({
+            name,
+            value: 1,
+            min: -10,
+            max: 10,
+            step: 0.1,
+        }));
+    }
+    // 更新某个系数的值
+    setCoefficient(id, coeffName, newValue) {
+        const expr = this.expressions.find(e => e.id === id);
+        if (!expr) return false;
+        const coeff = expr.coefficients.find(c => c.name === coeffName);
+        if (coeff) {
+            coeff.value = parseFloat(newValue);
+            return true;
+        }
+        return false;
+    }
     /**
      * 按 id 删除表达式
      * @param {number} id
@@ -133,14 +151,18 @@ export class ExpressionManager {
      * @param {string} newFnStr - 新的表达式字符串
      * @returns {boolean} 是否成功更新
      */
-    updateFn(id, newFnStr) {
+    updateFn(id, newRaw) {
         const expr = this.expressions.find(e => e.id === id);
-        if (expr) {
-            expr.fnStr = newFnStr.trim();
-            expr.fn = this.compile(expr.fnStr, expr.type);
+        if (!expr) return false;
+        try {
+            const { node, coefficients } = this.parse(newRaw, expr.type);
+            expr.node = node;
+            expr.coefficients = coefficients;
+            expr.derivative = null;   // 导数失效
             return true;
+        } catch (e) {
+            throw new Error(`表达式编辑失败: ${e.message}`);
         }
-        return false;
     }
 
     /**

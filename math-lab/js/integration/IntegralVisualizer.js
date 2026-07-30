@@ -142,8 +142,7 @@ export class IntegralVisualizer {
     // 2D 黎曼和可视化
     // 用 InstancedMesh 合并所有方块,减少 draw call
     // 间隙 gap 控制方块之间的视觉间隔,gap=0 为紧贴
-    visualize2DRiemann(expr, a, b, N) {
-        const fn = expr.fn;
+    visualize2DRiemann(expr, fn, a, b, N) {
         const h = (b - a) / N;
         const color = new THREE.Color(expr.color);
         const bars = [];
@@ -169,8 +168,7 @@ export class IntegralVisualizer {
         this.cache.set(expr.id, { type: '2d', objects: group });
     }
 
-    visualize3DRiemann(expr, xRange, yRange, N, M) {
-        const fn = expr.fn;
+    visualize3DRiemann(expr, fn, xRange, yRange, N, M) {
         const [xMin, xMax] = xRange;
         const [yMin, yMax] = yRange;
         const hx = (xMax - xMin) / N;
@@ -207,8 +205,7 @@ export class IntegralVisualizer {
     }
 
     // 2D勒贝格可视化
-    visualize2DLebesgue(expr, a, b, layers, sampleN) {
-        const fn = expr.fn;
+    visualize2DLebesgue(expr, fn, a, b, layers, sampleN) {
         const baseColor = new THREE.Color(expr.color);
 
         const h = (b - a) / sampleN;
@@ -271,15 +268,14 @@ export class IntegralVisualizer {
     // 数学逻辑:严格区分正部(z>0,向上堆叠)和负部(z<0,向下堆叠)
     // 阈值全部从 z=0 开始计算,确保准确反映函数与 xOy 平面围成的有符号体积
     // ================================================================
-    visualize3DLebesgue(expr, xRange, yRange, res) {
-        const fn = expr.fn;
+    visualize3DLebesgue(expr, fn, xRange, yRange, res) {
         const [xMin, xMax] = xRange;
         const [yMin, yMax] = yRange;
         const baseColor = new THREE.Color(expr.color);
         const hx = (xMax - xMin) / res;
         const hy = (yMax - yMin) / res;
 
-        // ── 网格采样 ──
+        // 网格采样
         let zMin = Infinity, zMax = -Infinity;
         const grid = [];
         for (let j = 0; j <= res; j++) {
@@ -299,7 +295,7 @@ export class IntegralVisualizer {
         }
         if (!isFinite(zMin) || !isFinite(zMax)) return;
 
-        // ── 分层生成切片 ──
+        // 分层生成切片
         const slices = this._layerLoop(zMin, zMax, res, baseColor, 0,
             (threshold, centerZ, _k, color, _dy) => {
                 const result = [];

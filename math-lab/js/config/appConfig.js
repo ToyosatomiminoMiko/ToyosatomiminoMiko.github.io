@@ -8,13 +8,13 @@ export const APP_CONFIG = {
 
     defaultExpressions: {
         '2d': [
-            { fn: 'Math.sin(x)', color: '#6dd5ff' },
-            { fn: 'Math.cos(x)', color: '#ff6b8a' },
+            { fn: 'sin(x)', color: '#6dd5ff' },
+            { fn: 'cos(x)', color: '#ff6b8a' },
         ],
         '3d': [
-            { fn: 'Math.sin(x) * Math.cos(y)', color: '#ffd93d' },
-            { fn: 'Math.exp(-(x*x + y*y) / 3) * 2', color: '#6bffb8' },
-            { fn: 'Math.sin(x)*Math.cos(y)+0.1*x*y', color: '#a78bfa' },
+            { fn: 'sin(x) * cos(y)', color: '#ffd93d' },
+            { fn: 'exp(-(x*x + y*y) / 3) * 2', color: '#6bffb8' },
+            { fn: 'sin(x)*cos(y)+0.1*x*y', color: '#a78bfa' },
         ],
     },
 

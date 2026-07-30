@@ -40,6 +40,25 @@ export class IntegralPanel {
         this._updateRangeVisibility();
     }
 
+    // 根据表达式对象构建可在采样循环中使用的求值函数
+    _makeFn(expr) {
+        const compiled = expr.node.compile();
+        const scope = {};
+        for (const c of expr.coefficients) scope[c.name] = c.value;
+        if (expr.type === '2d') {
+            return (x) => {
+                scope.x = x;
+                return compiled.evaluate(scope);
+            };
+        } else {
+            return (x, y) => {
+                scope.x = x;
+                scope.y = y;
+                return compiled.evaluate(scope);
+            };
+        }
+    }
+
     _bindEvents() {
         this.calcBtn.addEventListener('click', () => this.calculate());
         this.showToggle.addEventListener('change', () => {
@@ -91,15 +110,16 @@ export class IntegralPanel {
                     // 辛普森法
                     // const val = simpson1d(expr.fn, a, b, segments);
                     let val;
+                    const fn = this._makeFn(expr);
                     const sample2d = segments * 20; // 采样精度
                     if (this.method === 'lebesgue') {
                         // 勒贝格法
-                        val = lebesgue1d(expr.fn, a, b, segments, sample2d);
-                        this.visualizer.visualize2DLebesgue(expr, a, b, segments, sample2d);
+                        val = lebesgue1d(fn, a, b, segments, sample2d);
+                        this.visualizer.visualize2DLebesgue(expr, fn, a, b, segments, sample2d);
                     } else {
                         // 黎曼法
-                        val = riemann1dLeft(expr.fn, a, b, segments);
-                        this.visualizer.visualize2DRiemann(expr, a, b, segments);
+                        val = riemann1dLeft(fn, a, b, segments);
+                        this.visualizer.visualize2DRiemann(expr, fn, a, b, segments);
                     }
                     totalSum += val;
                     results.push({ id: expr.id, value: val });
@@ -118,13 +138,14 @@ export class IntegralPanel {
             enabled.forEach(expr => {
                 try {
                     let val;
+                    const fn = this._makeFn(expr);
                     const res3d = segments; // 总分层
                     if (this.method === 'lebesgue') {
-                        val = lebesgue2d(expr.fn, [xMin, xMax], [yMin, yMax], segments, res3d);
-                        this.visualizer.visualize3DLebesgue(expr, [xMin, xMax], [yMin, yMax], res3d);
+                        val = lebesgue2d(fn, [xMin, xMax], [yMin, yMax], segments, res3d);
+                        this.visualizer.visualize3DLebesgue(expr, fn, [xMin, xMax], [yMin, yMax], res3d);
                     } else {
-                        val = riemann2dLeft(expr.fn, [xMin, xMax], [yMin, yMax], N, M);
-                        this.visualizer.visualize3DRiemann(expr, [xMin, xMax], [yMin, yMax], N, M);
+                        val = riemann2dLeft(fn, [xMin, xMax], [yMin, yMax], N, M);
+                        this.visualizer.visualize3DRiemann(expr, fn, [xMin, xMax], [yMin, yMax], N, M);
                     }
                     totalSum += val;
                     results.push({ id: expr.id, value: val });

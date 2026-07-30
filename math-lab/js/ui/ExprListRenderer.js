@@ -31,7 +31,7 @@ export class ExprListRenderer {
         for (const expr of exprs) {
             const isVisible = expr.enabled;
             const is2D = expr.type === '2d';
-            const label = is2D ? `y = ${expr.fnStr}` : `z = ${expr.fnStr}`;
+            const label = is2D ? `y = ${expr.node.toString()}` : `z = ${expr.node.toString()}`;
             const toggleIcon = isVisible ? '1' : '0';
             const toggleClass = isVisible ? 'on' : '';
 
@@ -44,7 +44,7 @@ export class ExprListRenderer {
           <button class="toggle-btn ${toggleClass}"
             data-action="toggle" title="show/hide">${toggleIcon}</button>
           <button class="edit-btn" data-action="edit" title="edit">✏️</button>
-          <button class="del-btn" data-action="delete" title="delete">✕</button>
+          <button class="del-btn" data-action="delete" title="delete">❌</button>
         </div>`;
         }
         this.exprListEl.innerHTML = html;

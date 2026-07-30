@@ -129,7 +129,15 @@ class SurfaceMesh {
      * @param {number} yMax - y 范围上界
      * @returns {{ zMin: number, zMax: number }} 本次计算的 z 极值
      */
-    update(fn, xMin, xMax, yMin, yMax) {
+    update(compiled, coefficients, xMin, xMax, yMin, yMax) {
+        // 组装求值闭包 -- 内部保持 (x,y)=>z 的签名,MathEvaluator 无需改动
+        const scope = {};
+        for (const c of coefficients) scope[c.name] = c.value;
+        const fn = (x, y) => {
+            scope.x = x;
+            scope.y = y;
+            return compiled.evaluate(scope);
+        };
         // 第一步:复用 MathEvaluator 进行网格采样(单一数据入口,便于测试)
         const positions = MathEvaluator.computeGrid(fn, xMin, xMax, yMin, yMax, this.cols, this.rows);
         const posAttr = this.geometry.attributes.position;

@@ -40,18 +40,16 @@ export class Plotter {
     // =====================================================
 
     /**
-     * 绘制 2D 曲线（若 Group 不存在则创建,若已存在则更新几何体）
+     * 绘制 2D 曲线(若 Group 不存在则创建,若已存在则更新几何体)
      * @param {object} expr   - { id, fn, color, enabled }
      * @param {number[]} [xRange=[-8,8]]
      * @param {number} [steps=320]
      */
     draw2D(expr, xRange = [-8, 8], steps = 320) {
-        const { id, fn, color, enabled } = expr;
-        if (!fn) return;
-
+        const { id, color, enabled } = expr;
+        const compiled = expr.node.compile();               // 编译一次
         let entry = this.plotMap.get(id);
 
-        // 若不存在则创建专属 Group
         if (!entry) {
             const group = new THREE.Group();
             this.plotContainer.add(group);
@@ -65,7 +63,6 @@ export class Plotter {
             this.plotMap.set(id, entry);
         }
 
-        // 释放旧曲线（如果存在）
         if (entry.object) {
             entry.group.remove(entry.object);
             entry.object.geometry?.dispose();
@@ -73,10 +70,8 @@ export class Plotter {
             entry.object = null;
         }
 
-        // 采样点
-        const points = this._sample2D(fn, xRange, steps);
+        const points = this._sample2D(expr, compiled, xRange, steps);
         if (points.length < 2) {
-            // 无有效点,仅更新可见性
             entry.enabled = enabled ?? true;
             this._applyVisibility(entry);
             return;
@@ -85,7 +80,7 @@ export class Plotter {
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
         const material = new THREE.LineBasicMaterial({
             color: color || '#ffffff',
-            linewidth: 1, // 大多数平台的WebGL实现中lineWidth被硬限制为1
+            linewidth: 1,
             transparent: true,
             opacity: 0.95,
         });
@@ -98,15 +93,14 @@ export class Plotter {
     }
 
     /**
-     * 绘制 / 更新 3D 曲面（复用 SurfaceMesh,仅在分段数改变时重建）
+     * 绘制 / 更新 3D 曲面(复用 SurfaceMesh,仅在分段数改变时重建)
      * @param {object} expr       - { id, fn, enabled }
      * @param {number[]} [range=[-6,6]]
      * @param {number} [segments=64]
      */
     draw3D(expr, range = [-6, 6], segments = 64) {
-        const { id, fn, enabled } = expr;
-        if (!fn) return;
-
+        const { id, enabled } = expr;
+        const compiled = expr.node.compile();
         let entry = this.plotMap.get(id);
 
         if (!entry) {
@@ -122,7 +116,6 @@ export class Plotter {
             this.plotMap.set(id, entry);
         }
 
-        // 分段数变化 → 销毁旧 SurfaceMesh
         if (entry.surface) {
             if (entry.surface.cols !== segments || entry.surface.rows !== segments) {
                 entry.group.remove(entry.surface.group);
@@ -137,14 +130,15 @@ export class Plotter {
             entry.surface = surface;
         }
 
-        entry.surface.update(fn, range[0], range[1], range[0], range[1]);
+        // SurfaceMesh.update 原本接受 fn，现在需要传 compiled 和 coefficients
+        entry.surface.update(compiled, expr.coefficients, range[0], range[1], range[0], range[1]);
         entry.enabled = enabled ?? true;
 
         this._applyVisibility(entry);
     }
 
     /**
-     * 移除表达式（销毁 Group 及所有子对象,释放 GPU 资源）
+     * 移除表达式(销毁 Group 及所有子对象,释放 GPU 资源)
      * @param {string} id
      */
     remove(id) {
@@ -163,7 +157,7 @@ export class Plotter {
     }
 
     /**
-     * 设置表达式可见性（toggle 专用）
+     * 设置表达式可见性(toggle 专用)
      * @param {string} id
      * @param {boolean} visible
      */
@@ -175,7 +169,7 @@ export class Plotter {
     }
 
     /**
-     * 更新表达式数据（表达式字符串改变时调用,会重建几何体）
+     * 更新表达式数据(表达式字符串改变时调用,会重建几何体)
      * @param {object} expr - 完整的表达式对象
      * @param {string} mode - 当前模式 '2d' | '3d'
      */
@@ -199,7 +193,7 @@ export class Plotter {
     }
 
     /**
-     * 销毁整个绘图器（仅在应用卸载时使用）
+     * 销毁整个绘图器(仅在应用卸载时使用)
      */
     dispose() {
         for (const [id] of this.plotMap) {
@@ -215,18 +209,20 @@ export class Plotter {
     /**
      * 2D 采样：对 x 范围进行均匀采样,跳过奇异点
      */
-    _sample2D(fn, xRange, steps) {
+    _sample2D(expr, compiled, xRange, steps) {
         const points = [];
         const step = (xRange[1] - xRange[0]) / steps;
+        const scope = {};
+        for (const c of expr.coefficients) scope[c.name] = c.value;
+
         for (let x = xRange[0]; x <= xRange[1]; x += step) {
             try {
-                const y = fn(x);
+                scope.x = x;
+                const y = compiled.evaluate(scope);
                 if (isFinite(y)) {
                     points.push(new THREE.Vector3(x, y, 0));
                 }
-            } catch (_) {
-                // 跳过无效点
-            }
+            } catch (_) { /* 跳过无效点 */ }
         }
         return points;
     }

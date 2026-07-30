@@ -48,7 +48,7 @@
                         <option value="2d">2D</option>
                         <option value="3d">3D</option>
                     </select>
-                    <input type="text" id="exprInput" placeholder='如: Math.sin(x)' spellcheck="false" />
+                    <input type="text" id="exprInput" placeholder='example: sin(x)' spellcheck="false" />
                     <button class="add-btn" id="addExprBtn">+ 添加</button>
                 </div>
                 <div class="color-picker-row">
@@ -115,8 +115,16 @@
                 if (isLocal) return '/node_modules/three/' + file;
                 return 'https://cdn.jsdelivr.net/npm/three@0.185.1/' + file;
             }
+            function mathUrl() {
+                // esm.sh 会把 mathjs 及其所有内部依赖打包成浏览器可用的 ESM 模块
+                return 'https://esm.sh/mathjs@15.2.0';
+            }
 
-            document.write('<script type="importmap">{"imports":{"three":"' + url('build/three.module.js') + '","three/addons/":"' + url('examples/jsm/') + '","three/webgpu":"' + url('build/three.webgpu.js') + '"}}<\/script>');
+            document.write('<script type="importmap">{"imports":{"three":"' + url('build/three.module.js')
+                + '","three/addons/":"' + url('examples/jsm/')
+                + '","three/webgpu":"' + url('build/three.webgpu.js')
+                + '","mathjs":"' + mathUrl()
+                + '"}}<\/script>');
         })();
     </script>
     <script type="module" src="./js/main.js"></script>
