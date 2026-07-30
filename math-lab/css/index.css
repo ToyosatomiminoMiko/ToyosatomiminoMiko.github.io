@@ -29,7 +29,6 @@ body {
     max-height: calc(100vh - 40px);
     background: rgba(10, 15, 34, 0.82);
     backdrop-filter: blur(14px);
-    border-radius: 16px;
     padding: 18px 20px 20px;
     border: 1px solid rgba(255, 255, 255, 0.07);
     box-shadow: 0 12px 48px rgba(0, 0, 0, 0.7);
@@ -203,6 +202,14 @@ body {
 
 /* 响应式适配 */
 @media (max-width: 720px) {
+    #panel {
+        width: 260px;
+        right: 12px;
+        top: 12px;
+        padding: 14px 14px 16px;
+        max-height: calc(100vh - 24px);
+    }
+
     .cam-toggle {
         padding: 2px 6px 2px 8px;
         gap: 4px;
@@ -226,6 +233,23 @@ body {
 }
 
 @media (max-width: 480px) {
+    #panel {
+        width: 220px;
+        right: 8px;
+        top: 8px;
+        padding: 10px 10px 12px;
+        font-size: 12px;
+    }
+
+    .mode-btn {
+        font-size: 11px;
+        padding: 4px 0;
+    }
+
+    .add-row input {
+        font-size: 12px;
+    }
+
     .cam-toggle {
         padding: 2px 4px;
         gap: 2px;
@@ -301,93 +325,6 @@ body {
     border-radius: 4px;
 }
 
-.expr-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(255, 255, 255, 0.04);
-    border-radius: 8px;
-    padding: 5px 10px 5px 8px;
-    border-left: 3px solid #555;
-    transition: background 0.15s;
-}
-
-.expr-item:hover {
-    background: rgba(255, 255, 255, 0.07);
-}
-
-.expr-item .color-dot {
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    flex-shrink: 0;
-    border: 1px solid rgba(255, 255, 255, 0.10);
-}
-
-/*表达式.方程*/
-.expr-item .expr-label {
-    flex: 1;
-    font-size: 20px;
-    font-weight: 400;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-family: 'JetBrains Mono', 'Consolas', monospace;
-}
-
-/*表达式.维度(2d/3d)*/
-.expr-item .expr-type {
-    font-size: 20px;
-    font-weight: 600;
-    padding: 0 8px;
-    border-radius: 12px;
-    line-height: 18px;
-}
-
-/*表达式.可见性*/
-.expr-item .toggle-btn {
-    width: 40px;
-    height: 40px;
-    border: none;
-    background: transparent;
-    font-size: 20px;
-    cursor: pointer;
-    transition: all 0.15s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.expr-item .toggle-btn:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: #c8d6f0;
-}
-
-.expr-item .toggle-btn.on {
-    color: #6dd5ff;
-}
-
-.expr-item .del-btn {
-    width: 28px;
-    height: 28px;
-    border: none;
-    border-radius: 6px;
-    background: transparent;
-    color: #5a4a5a;
-    font-size: 16px;
-    cursor: pointer;
-    transition: all 0.15s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.expr-item .del-btn:hover {
-    background: rgba(255, 70, 70, 0.15);
-    color: #ff7a7a;
-}
 
 /* 添加表达式区域 */
 .add-area {
@@ -497,40 +434,6 @@ body {
     text-align: center;
     padding: 18px 0 10px;
     font-style: italic;
-}
-
-/* 响应式 */
-@media (max-width: 720px) {
-    #panel {
-        width: 260px;
-        right: 12px;
-        top: 12px;
-        padding: 14px 14px 16px;
-        max-height: calc(100vh - 24px);
-    }
-
-    .expr-item .expr-label {
-        font-size: 12px;
-    }
-}
-
-@media (max-width: 480px) {
-    #panel {
-        width: 220px;
-        right: 8px;
-        top: 8px;
-        padding: 10px 10px 12px;
-        font-size: 12px;
-    }
-
-    .mode-btn {
-        font-size: 11px;
-        padding: 4px 0;
-    }
-
-    .add-row input {
-        font-size: 12px;
-    }
 }
 
 /* 积分区域样式 */
@@ -647,4 +550,246 @@ body {
     background: rgba(70, 130, 255, 0.25);
     border-color: rgba(70, 130, 255, 0.45);
     color: #aac8ff;
+}
+
+/* ===== 表达式卡片可折叠面板 ===== */
+.edit-row input {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 4px;
+    padding: 3px 8px;
+    color: #d6e3ff;
+    font-size: 20px;
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    outline: none;
+}
+
+.edit-row input:focus {
+    border-color: rgba(70, 130, 255, 0.5);
+}
+
+.coeff-row {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 20px;
+}
+
+
+.coeff-value {
+    color: #ccd6f6;
+    min-width: 22px;
+    text-align: right;
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+}
+
+/* 系数滑块 */
+.coeff-sliders {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 10px;
+    margin-top: 4px;
+    padding-left: 2px;
+}
+
+.coeff-row label {
+    color: #8892b0;
+    min-width: 10px;
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+}
+
+.coeff-row input[type="range"] {
+    width: 56px;
+    height: 3px;
+    cursor: pointer;
+    accent-color: #6dd5ff;
+}
+
+.expr-item {
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 8px;
+    border-left: 3px solid #555;
+    overflow: hidden;
+    transition: background 0.15s;
+}
+
+.expr-item:hover {
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.expr-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.expr-header:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.expand-btn {
+    width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #5a6a8a;
+    font-size: 10px;
+    cursor: pointer;
+    transition: transform 0.25s, color 0.2s;
+    flex-shrink: 0;
+    padding: 0;
+    line-height: 22px;
+    text-align: center;
+}
+
+.expand-btn:hover {
+    color: #aac8ff;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.expand-btn.expanded {
+    transform: rotate(180deg);
+}
+
+.expr-header .color-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+.expr-header .expr-label {
+    flex: 1;
+    font-size: 20px;
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.expr-header .integral-result {
+    font-size: 11px;
+    color: #7a8bb5;
+    min-width: 48px;
+    text-align: right;
+}
+
+.expr-header .expr-type {
+    font-size: 20px;
+    font-weight: 600;
+    padding: 0 8px;
+    border-radius: 12px;
+    color: #7a8bb5;
+}
+
+.expr-header .toggle-btn {
+    width: 40px;
+    height: 40px;
+    border: none;
+    background: transparent;
+    font-size: 20px;
+    cursor: pointer;
+    flex-shrink: 0;
+    color: #5a6a8a;
+    border-radius: 4px;
+}
+
+.expr-header .toggle-btn.on {
+    color: #6dd5ff;
+}
+
+.expr-header .toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.expr-header .del-btn {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: #5a4a5a;
+    font-size: 16px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.expr-header .del-btn:hover {
+    background: rgba(255, 70, 70, 0.15);
+    color: #ff7a7a;
+}
+
+/* 详情面板 */
+.expr-detail {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+    background: rgba(0, 0, 0, 0.15);
+    border-top: 1px solid transparent;
+    padding: 0 10px;
+}
+
+.expr-detail.show {
+    max-height: 300px;
+    border-top-color: rgba(255, 255, 255, 0.05);
+    padding: 8px 10px;
+}
+
+/* 编辑行 */
+.edit-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.update-btn {
+    padding: 3px 10px;
+    border: none;
+    border-radius: 4px;
+    background: rgba(70, 130, 255, 0.25);
+    color: #aac8ff;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.update-btn:hover {
+    background: rgba(70, 130, 255, 0.4);
+}
+
+/* 颜色行 */
+.color-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    font-size: 12px;
+    color: #7a8bb5;
+}
+
+.color-row input[type="color"] {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    background: transparent;
+}
+
+.coeff-value {
+    color: #ccd6f6;
+    min-width: 22px;
+    text-align: right;
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
 }

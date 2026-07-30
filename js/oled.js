@@ -8,7 +8,7 @@ const indicator = document.getElementById("pixelIndicator");
 canvas.width = 128; // Embedded 的典型宽度
 canvas.height = 64; // Embedded 的典型高度
 // 画笔颜色
-let pixiv_color = true;
+let pixel_color = true;
 // 初始化白色画布
 let imageData = ctx.createImageData(canvas.width, canvas.height);
 // 填充白色背景(RGBA格式)
@@ -137,7 +137,7 @@ document.addEventListener("keydown", function (e) {
 // ======================
 // 窗口事件监听
 // ======================
-window.addEventListener("scroll", updateCanvasRect, true);
+window.addEventListener("scroll", updateCanvasRect, { passive: true, capture: true });
 window.addEventListener("resize", () => {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(updateCanvasRect, 100);
@@ -215,9 +215,9 @@ function updateCoordsDisplay(pos) {
  */
 function setPixel(x, y) {
     const index = (y * canvas.width + x) * 4;
-    imageData.data[index] = pixiv_color ? 0 : 255; // R
-    imageData.data[index + 1] = pixiv_color ? 0 : 255; // G
-    imageData.data[index + 2] = pixiv_color ? 0 : 255; // B
+    imageData.data[index] = pixel_color ? 0 : 255; // R
+    imageData.data[index + 1] = pixel_color ? 0 : 255; // G
+    imageData.data[index + 2] = pixel_color ? 0 : 255; // B
     // 注意:保留Alpha通道不变
 }
 
@@ -366,9 +366,9 @@ function generateEmbeddedData() {
 // 清除画板
 function clearCanvas() {
     for (let i = 0; i < imageData.data.length; i += 4) {
-        imageData.data[i] = pixiv_color ? 0 : 255;
-        imageData.data[i + 1] = pixiv_color ? 0 : 255;
-        imageData.data[i + 2] = pixiv_color ? 0 : 255;
+        imageData.data[i] = pixel_color ? 0 : 255;
+        imageData.data[i + 1] = pixel_color ? 0 : 255;
+        imageData.data[i + 2] = pixel_color ? 0 : 255;
     }
     ctx.putImageData(imageData, 0, 0);
 }
@@ -468,8 +468,8 @@ async function copyExportedData() {
 
 function changeColor() {
     const btn = document.getElementById('change-color');
-    pixiv_color = !pixiv_color;
-    if (pixiv_color) {
+    pixel_color = !pixel_color;
+    if (pixel_color) {
         btn.textContent = "🔄️暗⬛";
         btn.style.color = "#ffffff";
         btn.style.backgroundColor = "#000000";

@@ -124,7 +124,7 @@ export class IntegralPanel {
                     totalSum += val;
                     results.push({ id: expr.id, value: val });
                 } catch (e) {
-                    console.warn('[积分] 2D 计算失败:', expr.fnStr, e);
+                    console.warn('[积分] 2D 计算失败:', expr.node.toString(), e);
                 }
             });
         } else {
@@ -150,7 +150,7 @@ export class IntegralPanel {
                     totalSum += val;
                     results.push({ id: expr.id, value: val });
                 } catch (e) {
-                    console.warn('[积分] 3D 计算失败:', expr.fnStr, e);
+                    console.warn('[积分] 3D 计算失败:', expr.node.toString(), e);
                 }
             });
         }

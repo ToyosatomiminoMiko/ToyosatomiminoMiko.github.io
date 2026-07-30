@@ -13,7 +13,7 @@ export const APP_CONFIG = {
         ],
         '3d': [
             { fn: 'sin(x) * cos(y)', color: '#ffd93d' },
-            { fn: 'exp(-(x*x + y*y) / 3) * 2', color: '#6bffb8' },
+            { fn: 'exp(-(x*x + y*y) / a) * b', color: '#6bffb8' },
             { fn: 'sin(x)*cos(y)+0.1*x*y', color: '#a78bfa' },
         ],
     },

@@ -90,6 +90,14 @@ eventBus.on('expr:updated', ({ id }) => {
     }
 });
 
+// 系数滑块变化 -> 重绘目标表达式
+eventBus.on('coefficient:changed', ({ id }) => {
+    const expr = exprManager.getAll().find(e => e.id === id);
+    if (expr) {
+        plotter.updateExpr(expr, modeController.getMode());
+    }
+});
+
 // 4.5 初始绘制: 绘制所有预设表达式
 const initialMode = modeController.getMode();
 const initialExprs = exprManager.getAll();
