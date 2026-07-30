@@ -20,8 +20,10 @@ body {
     display: block;
 }
 
-/* ===== 主控制面板（左侧抽屉）===== */
+/* ===== 主控制面板 ===== */
 #panel {
+    display: flex;
+    flex-direction: column;
     position: absolute;
     top: 0;
     left: 0;
@@ -46,8 +48,13 @@ body {
     transform: translateX(0);
 }
 
-/* 内部内容始终可见，无折叠 */
+/* 内部内容始终可见,无折叠 */
 #panel .panel-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    /* 滚动交给 expr-list 处理 */
+    overflow: hidden;
     max-height: none;
     opacity: 1;
     visibility: visible;
@@ -255,13 +262,15 @@ body {
 
 /* 表达式列表 */
 .expr-list {
+    flex: 1;
     margin: 14px 0 12px;
-    max-height: 340px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 6px;
     padding-right: 4px;
+    /* 防止被压扁 */
+    min-height: 60px;
 }
 
 .expr-list::-webkit-scrollbar {
@@ -276,6 +285,7 @@ body {
 
 /* 添加表达式区域 */
 .add-area {
+    flex-shrink: 0;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -386,6 +396,7 @@ body {
 
 /* 积分区域样式 */
 .integral-area {
+    flex-shrink: 0;
     margin-top: 12px;
     padding: 10px;
     background: rgba(255, 255, 255, 0.05);
@@ -517,41 +528,55 @@ body {
     border-color: rgba(70, 130, 255, 0.5);
 }
 
+/* --- 系数滑块容器 --- */
+.coeff-sliders {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+/* 每行: 标签 + 滑块 + 数字输入 */
 .coeff-row {
     display: flex;
     align-items: center;
-    gap: 3px;
-    font-size: 20px;
-}
-
-
-.coeff-value {
-    color: #ccd6f6;
-    min-width: 22px;
-    text-align: right;
-    font-family: 'JetBrains Mono', 'Consolas', monospace;
-}
-
-/* 系数滑块 */
-.coeff-sliders {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 2px 10px;
-    margin-top: 4px;
-    padding-left: 2px;
+    gap: 8px;
+    width: 100%;
 }
 
 .coeff-row label {
     color: #8892b0;
-    min-width: 10px;
+    min-width: 14px;
     font-family: 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 14px;
+    font-weight: 600;
 }
 
 .coeff-row input[type="range"] {
-    width: 56px;
-    height: 3px;
+    flex: 1;
+    min-width: 60px;
+    height: 10px;
     cursor: pointer;
     accent-color: #6dd5ff;
+}
+
+/* 系数数值输入框 — 可直接编辑 */
+.coeff-value {
+    width: 80px;
+    padding: 3px 6px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 5px;
+    color: #ccd6f6;
+    font-size: 20px;
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    text-align: right;
+    outline: none;
+    transition: border 0.2s;
+}
+
+.coeff-value:focus {
+    border-color: rgba(70, 130, 255, 0.5);
 }
 
 .expr-item {
@@ -561,7 +586,6 @@ body {
     background: rgba(255, 255, 255, 0.04);
     border-radius: 8px;
     border-left: 3px solid #555;
-    overflow: hidden;
     transition: background 0.15s;
 }
 
@@ -708,11 +732,4 @@ body {
     padding: 0;
     border: 1px solid rgba(255, 255, 255, 0.10);
     background: transparent;
-}
-
-.coeff-value {
-    color: #ccd6f6;
-    min-width: 22px;
-    text-align: right;
-    font-family: 'JetBrains Mono', 'Consolas', monospace;
 }

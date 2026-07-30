@@ -27,22 +27,23 @@
 - 2D
 
 ```js
-Math.pow(x,2)
+pow(x,2)
 ```
 
 - 3D
 
 ```js
-Math.sin(x)*Math.cos(y)+0.1*x*y
-Math.sqrt(x*x+y*y,2) // 圆锥
-Math.sqrt(16 -x*x + y*y,2) // 马鞍面
-Math.sqrt(4 - x*x - y*y,2) // 半球
--Math.sqrt(4 - x*x - y*y,2)
-Math.log(x*y)
+sin(x)*cos(y)+0.1*x*y
+exp(-(x * x + y * y) / a) * b
+sqrt(x*x+y*y,2) // 圆锥
+x ^ 2 * a + y ^ 2 * b + c // 马鞍面
+sqrt(4 - x*x - y*y,2) // 半球
+-sqrt(4 - x*x - y*y,2)
+log(x * y * a) * b
 x*x*x - 3*x*y*y // 猴子鞍面
-Math.sin(Math.pow(x*x+y*y,0.5))/Math.pow(x*x+y*y,0.5)+1 // 指数衰减波纹
-Math.pow((1-x),2)+100*Math.pow(y-x*x,2) // 罗森布鲁克香蕉谷
-Math.pow(Math.e,-0.1*(x*x+y*y))*(Math.sin(x)+Math.cos(2*y)) // ??? 皱褶的床单/翻涌的海浪
+sin(pow(x*x+y*y,0.5))/pow(x*x+y*y,0.5)+1 // 指数衰减波纹
+pow((1-x),2)+100*pow(y-x*x,2) // 罗森布鲁克香蕉谷
+pow(e,-0.1*(x*x+y*y))*(sin(x)+cos(2*y)) // ??? 皱褶的床单/翻涌的海浪
 ```
 
 ## 本地运行

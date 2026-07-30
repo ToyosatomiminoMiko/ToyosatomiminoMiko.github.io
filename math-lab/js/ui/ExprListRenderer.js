@@ -59,13 +59,17 @@ export class ExprListRenderer {
                 coeffHtml += '<div class="coeff-sliders">';
                 for (const c of expr.coefficients) {
                     coeffHtml += `
-                        <div class="coeff-row">
-                            <label>${c.name}</label>
-                            <input type="range" min="${c.min}" max="${c.max}"
-                                step="${c.step}" value="${c.value}"
-                                data-id="${expr.id}" data-coeff="${c.name}" />
-                            <span class="coeff-value">${c.value.toFixed(1)}</span>
-                        </div>`;
+            <div class="coeff-row">
+                <label>${c.name}</label>
+                <input type="range" min="${c.min}" max="${c.max}"
+                    step="${c.step}" value="${c.value}"
+                    data-id="${expr.id}" data-coeff="${c.name}"
+                    class="coeff-slider" />
+                <input type="number" class="coeff-value"
+                    value="${c.value.toFixed(1)}"
+                    step="${c.step}" min="${c.min}" max="${c.max}"
+                    data-id="${expr.id}" data-coeff="${c.name}" />
+            </div>`;
                 }
                 coeffHtml += '</div>';
             }
@@ -134,18 +138,32 @@ export class ExprListRenderer {
                 this.eventBus.emit('expr:removed', { id });
             });
             // 系数滑块事件
-            item.querySelectorAll('.coeff-sliders input[type="range"]').forEach(slider => {
-                slider.addEventListener('input', (e) => {
+            item.querySelectorAll('.coeff-row').forEach(row => {
+                const slider = row.querySelector('input[type="range"]');
+                const numInput = row.querySelector('input[type="number"]');
+                if (!slider || !numInput) return;
+
+                // 滑块拖拽 -> 同步数字 + 更新数据
+                slider.addEventListener('input', () => {
+                    const val = parseFloat(slider.value);
+                    numInput.value = val.toFixed(2);
                     const id = parseInt(slider.dataset.id);
                     const coeffName = slider.dataset.coeff;
-                    const newValue = parseFloat(slider.value);
-                    // 更新数值显示
-                    const valSpan = slider.parentElement.querySelector('.coeff-value');
-                    if (valSpan) valSpan.textContent = newValue.toFixed(1);
-                    // 更新数据层
-                    this.exprManager.setCoefficient(id, coeffName, newValue);
-                    // 通知重绘(防抖 50ms)
+                    this.exprManager.setCoefficient(id, coeffName, val);
                     this._debouncedEmitCoefficient(id);
+                });
+
+                // 数字手动输入 -> 同步滑块 + 更新数据
+                numInput.addEventListener('input', () => {
+                    let val = parseFloat(numInput.value);
+                    if (isNaN(val)) return;
+                    // 钳制范围
+                    val = Math.max(parseFloat(slider.min), Math.min(parseFloat(slider.max), val));
+                    slider.value = val;
+                    const id = parseInt(numInput.dataset.id);
+                    const coeffName = numInput.dataset.coeff;
+                    this.exprManager.setCoefficient(id, coeffName, val);
+                    this._debouncedEmitCoefficient(id); // 防抖
                 });
             });
             // 更新表达式
@@ -183,18 +201,7 @@ export class ExprListRenderer {
                 this.eventBus.emit('expr:updated', { id });
             });
 
-            // 系数滑块
-            item.querySelectorAll('.coeff-sliders input[type="range"]').forEach(slider => {
-                slider.addEventListener('input', (e) => {
-                    e.stopPropagation();
-                    const coeffName = slider.dataset.coeff;
-                    const newValue = parseFloat(slider.value);
-                    const valSpan = slider.parentElement.querySelector('.coeff-value');
-                    if (valSpan) valSpan.textContent = newValue.toFixed(1);
-                    this.exprManager.setCoefficient(id, coeffName, newValue);
-                    this._debouncedEmitCoefficient(id);
-                });
-            });
+
         });
     }
 
