@@ -1,5 +1,6 @@
 import { APP_CONFIG } from '../config/appConfig.js';
 import * as math from 'mathjs';
+import { differentiate } from '../derivative/DerivativeCore.js';
 
 /**
  * ============================================================
@@ -163,6 +164,35 @@ export class ExpressionManager {
         } catch (e) {
             throw new Error(`表达式编辑失败: ${e.message}`);
         }
+    }
+
+    /**
+     * 对已有表达式求导,生成新表达式并加入列表
+     * @param {number} id       - 源表达式 id
+     * @param {string} variable - 求导变量 'x' 或 'y'
+     * @returns {object} 导函数表达式对象
+     */
+    deriveExpr(id, variable) {
+        const source = this.expressions.find(e => e.id === id);
+        if (!source) throw new Error('源表达式不存在');
+
+        // 核心:符号求导
+        const derivNode = differentiate(source.node, variable);
+
+        // 自动探测新表达式的系数
+        const coefficients = this._extractCoefficients(derivNode, source.type);
+
+        const expr = {
+            id: this.nextId++,
+            type: source.type,
+            node: derivNode,
+            coefficients,
+            color: this.colorManager.next(),
+            enabled: true,
+            derivative: null,   // 保留占位，为将来可能的二阶导数做准备
+        };
+        this.expressions.push(expr);
+        return expr;
     }
 
     /**

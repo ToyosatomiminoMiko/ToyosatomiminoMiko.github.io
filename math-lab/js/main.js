@@ -15,8 +15,9 @@ import { SceneManager } from './core/SceneManager.js';
 import { CameraManager } from './core/CameraManager.js';
 import { ExpressionManager } from './core/ExpressionManager.js';
 import { Plotter } from './core/Plotter.js';
+// modules
 import { IntegralVisualizer } from './integration/IntegralVisualizer.js';
-
+import { DerivativePanel } from './derivative/DerivativePanel.js';
 // UI Layer
 import { ModeController } from './ui/ModeController.js';
 import { CameraToggle } from './ui/CameraToggle.js';
@@ -48,6 +49,7 @@ new CameraToggle(eventBus);
 new ExprInputController(eventBus, exprManager, colorManager);
 new ExprListRenderer(eventBus, exprManager);
 new IntegralPanel(eventBus, exprManager, integralVisualizer);
+new DerivativePanel(eventBus, exprManager);
 
 // =====================================================
 // 4. 事件订阅(通过 eventBus 解耦的联动逻辑)

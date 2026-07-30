@@ -74,6 +74,25 @@ export class ExprListRenderer {
                 coeffHtml += '</div>';
             }
 
+            // 求导按钮行
+            let derivHtml = '';
+            if (is2D) {
+                derivHtml = `
+                    <div class="deriv-row">
+                        <span class="deriv-label">导</span>
+                        <button class="deriv-btn" data-action="derive"
+                            data-id="${expr.id}" data-var="x">d/dx</button>
+                    </div>`;
+            } else {
+                derivHtml = `
+                    <div class="deriv-row">
+                        <span class="deriv-label">偏导</span>
+                        <button class="deriv-btn" data-action="derive"
+                            data-id="${expr.id}" data-var="x">∂/∂x</button>
+                        <button class="deriv-btn" data-action="derive"
+                            data-id="${expr.id}" data-var="y">∂/∂y</button>
+                    </div>`;
+            }
             html += `
                 <div class="expr-item" data-id="${expr.id}">
                     <!-- 头行:始终可见 -->
@@ -83,18 +102,18 @@ export class ExprListRenderer {
                         <span class="integral-result">S=---</span>
                         <span class="expr-type">${is2D ? '2D' : '3D'}</span>
                         <button class="toggle-btn ${toggleClass}"
-                            data-action="toggle" title="显示/隐藏">${toggleIcon}</button>
+                            data-action="toggle" title="fold/unfold">${toggleIcon}</button>
                         <button class="del-btn"
-                            data-action="delete" title="删除">❌</button>
+                            data-action="delete" title="delete">🗑️</button>
                     </div>
                     <!-- 折叠详情面板 -->
                     <div class="expr-detail ${detailClass}">
-                        ${coeffHtml}
+                        ${coeffHtml}${derivHtml}
                         <div class="edit-row">
                             <input type="text" class="edit-input"
                                 value="${this._escapeHtml(expr.node.toString())}"
                                 spellcheck="false" />
-                            <button class="update-btn" data-action="update">更新</button>
+                            <button class="update-btn" data-action="update">🔄</button>
                         </div>
                         <div class="color-row">
                             <label>颜色</label>
@@ -197,7 +216,6 @@ export class ExprListRenderer {
                 const dot = item.querySelector('.color-dot');
                 if (dot) dot.style.background = newColor;
                 // 通知画布重建(颜色变了要重建 Line 材质)
-                e.stopPropagation();
                 this.eventBus.emit('expr:updated', { id });
             });
 
