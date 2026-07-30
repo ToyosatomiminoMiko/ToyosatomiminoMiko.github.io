@@ -20,23 +20,41 @@ body {
     display: block;
 }
 
-/* 主控制面板 */
+/* ===== 主控制面板（左侧抽屉）===== */
 #panel {
     position: absolute;
-    top: 20px;
-    right: 20px;
+    top: 0;
+    left: 0;
     width: 600px;
-    max-height: calc(100vh - 40px);
-    background: rgba(10, 15, 34, 0.82);
+    height: 100vh;
+    max-height: none;
+    margin: 0;
+    border-radius: 0;
+    background: rgba(10, 15, 34, 0.85);
     backdrop-filter: blur(14px);
-    padding: 18px 20px 20px;
-    border: 1px solid rgba(255, 255, 255, 0.07);
-    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.7);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 4px 0 48px rgba(0, 0, 0, 0.6);
     z-index: 20;
     overflow-y: auto;
-    transition: transform 0.25s ease, opacity 0.25s ease;
+    padding: 18px 20px 20px;
+    box-sizing: border-box;
+    transform: translateX(-100%);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+#panel.open {
+    transform: translateX(0);
+}
+
+/* 内部内容始终可见，无折叠 */
+#panel .panel-body {
+    max-height: none;
+    opacity: 1;
+    visibility: visible;
+    transition: none;
+}
+
+/* 面板滚动条 */
 #panel::-webkit-scrollbar {
     width: 4px;
 }
@@ -56,59 +74,66 @@ body {
     margin-bottom: 14px;
     color: #d6e3ff;
     letter-spacing: 0.5px;
+}
+
+/* ===== 抽屉切换把手 ===== */
+#sidebarToggleBtn {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    transform: translateY(-50%);
+    z-index: 21;
+    width: 34px;
+    height: 72px;
+    border: none;
+    border-radius: 0 10px 10px 0;
+    background: rgba(10, 15, 34, 0.72);
+    backdrop-filter: blur(6px);
+    color: #aac8ff;
+    font-size: 18px;
+    cursor: pointer;
+    transition: left 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+        background 0.3s;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-left: none;
     display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
 }
 
-#panel h2 small {
-    font-size: 12px;
-    font-weight: 400;
-    color: #7a8bb5;
-    margin-left: auto;
+#sidebarToggleBtn:hover {
+    background: rgba(70, 130, 255, 0.3);
+    color: #d6e8ff;
 }
 
-/*折叠隐藏btn*/
-#panelToggleBtn {
+/* 面板展开时把手跟随 */
+#panel.open~#sidebarToggleBtn {
+    left: var(--panel-width, 600px);
+}
+
+/* ===== 宽度拖拽手柄 ===== */
+#resizeHandle {
+    position: absolute;
+    top: 0;
+    left: var(--panel-width, 600px);
+    width: 6px;
+    height: 100vh;
+    z-index: 22;
+    cursor: col-resize;
     background: transparent;
-    border: none;
-    color: #ffffff;
-    font-size: 24px;
-    cursor: pointer;
-    padding: 5px 5px;
-    margin-left: 12px;
-    transition: transform 0.3s, color 0.2s;
-    line-height: 1;
+    transition: left 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-#panelToggleBtn:hover {
-    color: #c8d6f0;
-    background: rgba(255, 255, 255, 0.06);
+#resizeHandle:hover,
+#resizeHandle.dragging {
+    background: rgba(109, 213, 255, 0.25);
 }
 
-/* 折叠时按钮旋转 */
-#panel.collapsed #panelToggleBtn {
-    transform: rotate(180deg);
+/* 面板隐藏时拖拽手柄也隐藏 */
+#panel:not(.open)~#resizeHandle {
+    display: none;
 }
 
-/* 面部隐藏模式
-折叠状态下隐藏面板内容
-面板内容过渡动画 */
-.panel-body {
-    max-height: 1000px;
-    overflow: hidden;
-    transition: max-height 0.4s ease, opacity 0.3s ease;
-    opacity: 1;
-}
-
-/* 折叠状态下隐藏面板内容 */
-#panel.collapsed .panel-body {
-    max-height: 0;
-    opacity: 0;
-    /* 用 visibility 确保不可交互 */
-    visibility: hidden;
-    transition: max-height 0.4s ease, opacity 0.3s ease, visibility 0s 0.4s;
-}
 
 /* 模式切换行 */
 .mode-row {
@@ -198,83 +223,6 @@ body {
     transform: translateX(18px);
     background: #6dd5ff;
     box-shadow: 0 0 12px rgba(70, 130, 255, 0.3);
-}
-
-/* 响应式适配 */
-@media (max-width: 720px) {
-    #panel {
-        width: 260px;
-        right: 12px;
-        top: 12px;
-        padding: 14px 14px 16px;
-        max-height: calc(100vh - 24px);
-    }
-
-    .cam-toggle {
-        padding: 2px 6px 2px 8px;
-        gap: 4px;
-    }
-
-    .switch {
-        width: 34px;
-        height: 20px;
-    }
-
-    .slider::before {
-        height: 14px;
-        width: 14px;
-        left: 3px;
-        bottom: 3px;
-    }
-
-    .switch input:checked+.slider::before {
-        transform: translateX(14px);
-    }
-}
-
-@media (max-width: 480px) {
-    #panel {
-        width: 220px;
-        right: 8px;
-        top: 8px;
-        padding: 10px 10px 12px;
-        font-size: 12px;
-    }
-
-    .mode-btn {
-        font-size: 11px;
-        padding: 4px 0;
-    }
-
-    .add-row input {
-        font-size: 12px;
-    }
-
-    .cam-toggle {
-        padding: 2px 4px;
-        gap: 2px;
-    }
-
-    .cam-label {
-        font-size: 10px;
-        padding: 2px 0;
-    }
-
-    .switch {
-        width: 30px;
-        height: 18px;
-    }
-
-    .slider::before {
-        height: 12px;
-        width: 12px;
-        left: 3px;
-        bottom: 3px;
-    }
-
-    .switch input:checked+.slider::before {
-        transform: translateX(12px);
-    }
 }
 
 .mode-btn {
@@ -632,31 +580,6 @@ body {
 
 .expr-header:hover {
     background: rgba(255, 255, 255, 0.04);
-}
-
-.expand-btn {
-    width: 22px;
-    height: 22px;
-    border: none;
-    border-radius: 4px;
-    background: transparent;
-    color: #5a6a8a;
-    font-size: 10px;
-    cursor: pointer;
-    transition: transform 0.25s, color 0.2s;
-    flex-shrink: 0;
-    padding: 0;
-    line-height: 22px;
-    text-align: center;
-}
-
-.expand-btn:hover {
-    color: #aac8ff;
-    background: rgba(255, 255, 255, 0.06);
-}
-
-.expand-btn.expanded {
-    transform: rotate(180deg);
 }
 
 .expr-header .color-dot {

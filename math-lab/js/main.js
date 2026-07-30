@@ -149,13 +149,60 @@ function animate() {
 }
 animate();
 
-// 面板折叠/展开
-const panelToggleBtn = document.getElementById('panelToggleBtn');
+// =====================================================
+// 6. 左侧抽屉: 滑入/滑出 + 宽度拖拽
+// =====================================================
+const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
 const panel = document.getElementById('panel');
-if (panelToggleBtn && panel) {
-    panelToggleBtn.addEventListener('click', () => {
-        panel.classList.toggle('collapsed');
-    });
+const resizeHandle = document.getElementById('resizeHandle');
+
+let panelWidth = 600;
+const MIN_WIDTH = 280;
+const MAX_WIDTH = 900;
+
+function applyPanelWidth(w) {
+    panel.style.width = w + 'px';
+    document.documentElement.style.setProperty('--panel-width', w + 'px');
 }
+
+// 抽屉切换
+sidebarToggleBtn.addEventListener('click', () => {
+    const isOpen = panel.classList.toggle('open');
+    sidebarToggleBtn.textContent = isOpen ? '◀' : '▶';
+});
+
+// 宽度拖拽
+let isDragging = false;
+let startX = 0;
+let startWidth = 0;
+
+resizeHandle.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    startX = e.clientX;
+    startWidth = panel.offsetWidth;
+    resizeHandle.classList.add('dragging');
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+});
+
+document.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const delta = e.clientX - startX;
+    let newWidth = startWidth + delta;
+    newWidth = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, newWidth));
+    applyPanelWidth(newWidth);
+    panelWidth = newWidth;
+});
+
+document.addEventListener('mouseup', () => {
+    if (isDragging) {
+        isDragging = false;
+        resizeHandle.classList.remove('dragging');
+        document.body.style.userSelect = '';
+    }
+});
+
+// 初始面板
+applyPanelWidth(panelWidth);
 
 console.log('[MathPlot] 初始化完成! 使用 2D/3D 模式绘制数学表达式');
