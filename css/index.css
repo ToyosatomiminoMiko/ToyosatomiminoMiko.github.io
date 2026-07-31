@@ -99,8 +99,6 @@ canvas#pixelCanvas {
     border-radius: 5px;
     font-family: monospace;
     margin-top: 10px;
-    /* 默认显示 */
-    display: flex;
 }
 
 /* 优化指示器样式 */

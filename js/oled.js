@@ -255,7 +255,7 @@ function walkBresenham(x1, y1, x2, y2, callback) {
     }
 }
 
-function drawLine(x1, y1, x2, y2, method = 1) {
+function drawLine(x1, y1, x2, y2) {
     // 直接调用迭代器,回调函数就是 setPixel
     walkBresenham(x1, y1, x2, y2, (x, y) => setPixel(x, y));
 }
@@ -368,7 +368,7 @@ function generateEmbeddedData() {
 // 工具控制区
 // ======================
 // 清除画板
-function clearCanvas() {
+function refillCanvas() {
     for (let i = 0; i < imageData.data.length; i += 4) {
         imageData.data[i] = pixel_color ? 0 : 255;
         imageData.data[i + 1] = pixel_color ? 0 : 255;

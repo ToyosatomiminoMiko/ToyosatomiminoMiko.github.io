@@ -67,7 +67,7 @@ ToyosatomiminoMiko
                         <br />
                         <!-- 工具控制区 -->
                         <div class="tools">
-                            <button type="button" class="btn btn-primary" onclick="clearCanvas()">颜色重置</button>
+                            <button type="button" class="btn btn-primary" onclick="refillCanvas()">颜色重置</button>
                             <button type="button" class="btn btn-primary" onclick="changeColor()"
                                 id="change-color">🔄️暗⬛</button>
                             <input type="radio" name="tools" value="free" onchange="changeTool(this.value)" checked />绘制
@@ -84,19 +84,15 @@ ToyosatomiminoMiko
                         <div>
                             <!--导出数据区-->
                             <div class="area-data">
-                                <textarea id="exportOutput" class="textarea-data">
-                                        </textarea><br />
+                                <textarea id="exportOutput" class="textarea-data"></textarea><br />
                                 <button type="button" class="btn btn-primary" onclick="copyExportedData()"
-                                    id="output-button">
-                                    复制到剪贴板</button>
+                                    id="output-button">复制到剪贴板</button>
                             </div>
                             <!--导入数据区-->
                             <div class="area-data">
-                                <textarea id="importData" class="textarea-data"
-                                    placeholder="const uint8_t bitmap[1024] = {0x00, 0x01, ...};">
-                                        </textarea><br />
-                                <button type="button" class="btn btn-primary" onclick="importEmbeddedData()">
-                                    导入数据</button>
+                                <textarea id="importData" class="textarea-data"></textarea><br />
+                                <button type="button" class="btn btn-primary"
+                                    onclick="importEmbeddedData()">导入数据</button>
                             </div>
                         </div>
                     </div>
