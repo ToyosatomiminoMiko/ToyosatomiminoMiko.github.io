@@ -1,8 +1,9 @@
 import { mountClock } from './clock.js';
 import { mountPages } from './page.js';
 import { mountRBT } from './rbt_lab.js';
+import { OLEDCanvas } from '../dist-js/js/oled.js';
 
-// 处理背景切换 原 index.js 逻辑
+// 在 DOMContentLoaded 之前初始化
 document.addEventListener('DOMContentLoaded', function () {
     // 背景切换
     const imgs = document.getElementsByClassName("bgimg");
@@ -19,4 +20,5 @@ document.addEventListener('DOMContentLoaded', function () {
     mountClock();
     mountPages();
     mountRBT();
+    new OLEDCanvas();
 });

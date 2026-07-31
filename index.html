@@ -35,8 +35,8 @@ ToyosatomiminoMiko
         </ul>
     </header>
     <main>
+        <!--标签页-->
         <div class="tab-content">
-            <!--标签页-->
             <!-- HOME -->
             <div class="tab-pane fade show active" id="home">
                 <div class="card">
@@ -65,34 +65,31 @@ ToyosatomiminoMiko
                         <canvas id="pixelCanvas"></canvas>
                         <div id="pixelIndicator" class="pixel-indicator"></div>
                         <br />
+
                         <!-- 工具控制区 -->
                         <div class="tools">
-                            <button type="button" class="btn btn-primary" onclick="refillCanvas()">颜色重置</button>
-                            <button type="button" class="btn btn-primary" onclick="changeColor()"
-                                id="change-color">🔄️暗⬛</button>
-                            <input type="radio" name="tools" value="free" onchange="changeTool(this.value)" checked />绘制
-                            <input type="radio" name="tools" value="line" onchange="changeTool(this.value)" />直线
-                            <input type="radio" name="tools" value="rectangle" onchange="changeTool(this.value)" />矩形
-                            <button type="button" class="btn btn-primary" onclick="exportEmbedded()">导出数据</button>
-                            <button type="button" class="btn btn-primary" onclick="downloadPNG()" id="output-png-btn">
-                                下载PNG</button>
-                            <button type="button" class="btn btn-primary" onclick="toggleByteOrder()"
-                                id="byte-order-btn">⬇低位模式(LSB)</button>
+                            <button type="button" class="btn btn-primary" id="refill-btn">颜色重置</button>
+                            <button type="button" class="btn btn-primary" id="change-color">🔄️暗⬛</button>
+                            <input type="radio" name="tools" value="free" checked />绘制
+                            <input type="radio" name="tools" value="line" />直线
+                            <input type="radio" name="tools" value="rectangle" />矩形
+                            <button type="button" class="btn btn-primary" id="export-btn">导出数据</button>
+                            <button type="button" class="btn btn-primary" id="output-png-btn">下载PNG</button>
+                            <button type="button" class="btn btn-primary" id="byte-order-btn">⬇低位模式(LSB)</button>
                         </div>
                         <br />
+
                         <!-- 数据输入输出容器 -->
                         <div>
-                            <!--导出数据区-->
+                            <!-- 导出数据区 -->
                             <div class="area-data">
                                 <textarea id="exportOutput" class="textarea-data"></textarea><br />
-                                <button type="button" class="btn btn-primary" onclick="copyExportedData()"
-                                    id="output-button">复制到剪贴板</button>
+                                <button type="button" class="btn btn-primary" id="output-button">复制到剪贴板</button>
                             </div>
-                            <!--导入数据区-->
+                            <!-- 导入数据区 -->
                             <div class="area-data">
                                 <textarea id="importData" class="textarea-data"></textarea><br />
-                                <button type="button" class="btn btn-primary"
-                                    onclick="importEmbeddedData()">导入数据</button>
+                                <button type="button" class="btn btn-primary" id="import-btn">导入数据</button>
                             </div>
                         </div>
                     </div>
@@ -191,7 +188,6 @@ ToyosatomiminoMiko
         })();
     </script>
     <script type="module" src="/js/main.js"></script>
-    <script src="/js/oled.js"></script>
 </body>
 
 </html>
