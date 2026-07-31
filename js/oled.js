@@ -33,7 +33,7 @@ let currentTool = "free";
 // 记录位置,首次/最后按下
 let startPos = null;
 let lastPos = null;
-// 存储预览前的画布状态
+// 存储预览前的画布
 let previewImageData = null;
 // 窗口事件监听
 let resizeTimer;
@@ -310,30 +310,74 @@ function drawRectangle(x1, y1, x2, y2) {
     }
 }
 
+// function previewRectangle(endX, endY) {
+//     // 1. 恢复预览前状态(和previewLine一致)
+//     ctx.putImageData(previewImageData, 0, 0);
+//     // 2. 创建离屏临时canvas
+//     const tempCanvas = document.createElement("canvas");
+//     tempCanvas.width = canvas.width;
+//     tempCanvas.height = canvas.height;
+//     const tempCtx = tempCanvas.getContext("2d");
+//     tempCtx.imageSmoothingEnabled = false;
+//     // 3. 在临时画布上绘制红色半透明矩形
+//     tempCtx.fillStyle = PREVIEW_COLOR;
+//     tempCtx.globalAlpha = PREVIEW_OPACITY;
+//     const left = Math.min(startPos.x, endX);
+//     const right = Math.max(startPos.x, endX);
+//     const top = Math.min(startPos.y, endY);
+//     const bottom = Math.max(startPos.y, endY);
+//     // 上边
+//     for (let x = left; x <= right; x++) tempCtx.fillRect(x, top, 1, 1);
+//     // 下边
+//     for (let x = left; x <= right; x++) tempCtx.fillRect(x, bottom, 1, 1);
+//     // 左边(排除角点)
+//     for (let y = top + 1; y < bottom; y++) tempCtx.fillRect(left, y, 1, 1);
+//     // 右边(排除角点)
+//     for (let y = top + 1; y < bottom; y++) tempCtx.fillRect(right, y, 1, 1);
+//     // 4. 叠加到主画布
+//     ctx.drawImage(tempCanvas, 0, 0);
+// }
+
 function previewRectangle(endX, endY) {
+    // ===========================================
+    // 1. 把主画布恢复到"鼠标刚按下时"的状态
+    // previewImageData 是从 mousedown 时捕获的干净快照
+    // 这一步会擦除上一帧的预览矩形
+    // ===========================================
     ctx.putImageData(previewImageData, 0, 0);
 
-    // 创建临时副本进行操作
-    const tempImageData = new ImageData(
-        new Uint8ClampedArray(imageData.data),
-        canvas.width,
-        canvas.height
-    );
+    // ===========================================
+    // 2. 创建一个完全独立的离屏 canvas
+    // 它和主画布没有任何关系
+    // ===========================================
+    const tempCanvas = document.createElement("canvas");
+    tempCanvas.width = canvas.width;   // 128
+    tempCanvas.height = canvas.height; // 64
+    const tempCtx = tempCanvas.getContext("2d");
+    tempCtx.imageSmoothingEnabled = false;
 
-    // 使用临时上下文绘制预览
-    const tempCtx = canvas.getContext('2d');
-    tempCtx.putImageData(tempImageData, 0, 0);
-
-    // 绘制预览边框 红色半透明
-    tempCtx.strokeStyle = PREVIEW_COLOR; // 矩形必须strokeStyle
+    // ===========================================
+    // 3. 在离屏 canvas 上绘制红色预览矩形
+    // 离屏 canvas 初始是透明的(所有像素 RGBA = 0,0,0,0)
+    // 所以只会有红色矩形,其余区域透明
+    // ===========================================
+    tempCtx.strokeStyle = PREVIEW_COLOR;
     tempCtx.globalAlpha = PREVIEW_OPACITY;
     tempCtx.lineWidth = 1;
-    tempCtx.strokeRect(
-        Math.min(startPos.x, endX) + 0.5,
-        Math.min(startPos.y, endY) + 0.5,
-        Math.abs(endX - startPos.x),
-        Math.abs(endY - startPos.y)
-    );
+
+    const x = Math.min(startPos.x, endX) + 0.5;
+    const y = Math.min(startPos.y, endY) + 0.5;
+    const w = Math.abs(endX - startPos.x);
+    const h = Math.abs(endY - startPos.y);
+    tempCtx.strokeRect(x, y, w, h);
+
+    // ===========================================
+    // 4. 将离屏 canvas 叠加到主画布上
+    // 透明区域不会影响主画布
+    // 红色半透明矩形会叠加显示
+    // ⚠️ 这不会修改 imageData 对象
+    // ===========================================
+    ctx.drawImage(tempCanvas, 0, 0);
 }
 // ======================
 // 数据生成模块
