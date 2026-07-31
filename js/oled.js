@@ -9,6 +9,8 @@ canvas.width = 128; // Embedded 的典型宽度
 canvas.height = 64; // Embedded 的典型高度
 // 画笔颜色
 let pixel_color = true;
+// 'lsb' | 'msb' (低位/高位模式)
+let byteOrderMode = 'lsb';
 // 初始化白色画布
 let imageData = ctx.createImageData(canvas.width, canvas.height);
 // 填充白色背景(RGBA格式)
@@ -345,7 +347,9 @@ function generateEmbeddedData() {
             let byte = 0;
             // 组合8个垂直像素为一个字节
             for (let bit = 0; bit < 8; bit++) {
-                const y = page * 8 + bit;
+                const y = (byteOrderMode === 'lsb')
+                    ? page * 8 + bit // LSB
+                    : page * 8 + (7 - bit); // MSB
                 const idx = (y * 128 + x) * 4;
                 // 判断像素颜色(黑色为1)
                 const isBlack =
@@ -378,6 +382,16 @@ function changeTool(tool) {
     startPos = null;
     previewImageData = null;
     ctx.putImageData(imageData, 0, 0); // 清除任何预览
+}
+// 高地位模式切换
+function toggleByteOrder() {
+    const btn = document.getElementById('byte-order-btn');
+    byteOrderMode = (byteOrderMode === 'lsb') ? 'msb' : 'lsb';
+    if (byteOrderMode === 'lsb') {
+        btn.textContent = '⬇低位模式(LSB)';
+    } else {
+        btn.textContent = '⬆高位模式(MSB)';
+    }
 }
 // 数据导出
 function exportEmbedded() {
@@ -436,7 +450,9 @@ function updateCanvasFromBuffer(buffer) {
         for (let x = 0; x < 128; x++) {
             const byte = buffer[page * 128 + x];
             for (let bit = 0; bit < 8; bit++) {
-                const y = page * 8 + bit;
+                const y = (byteOrderMode === 'lsb')
+                    ? page * 8 + bit // LSB
+                    : page * 8 + (7 - bit); // MSB
                 const isBlack = (byte & (1 << bit)) !== 0; // 注意位顺序
                 const index = (y * 128 + x) * 4;
                 imageData.data[index] = isBlack ? 0 : 255;
@@ -455,7 +471,7 @@ async function copyExportedData() {
         // 使用现代 Clipboard API
         await navigator.clipboard.writeText(textarea.value);
         // 添加视觉反馈
-        const btn = document.querySelector("#output-button");
+        const btn = document.getElementById("output-button");
         btn.textContent = "✅已复制!";
         setTimeout(() => {
             btn.textContent = "复制到剪贴板";
