@@ -108,18 +108,20 @@ export class ExprListRenderer {
                     </div>
                     <!-- 折叠详情面板 -->
                     <div class="expr-detail ${detailClass}">
-                        ${coeffHtml}${derivHtml}
                         <div class="edit-row">
                             <input type="text" class="edit-input"
                                 value="${this._escapeHtml(expr.node.toString())}"
                                 spellcheck="false" />
                             <button class="update-btn" data-action="update">🔄</button>
                         </div>
-                        <div class="color-row">
-                            <label>颜色</label>
-                            <input type="color" class="color-input"
-                                value="${expr.color}" data-action="color" />
+                        <div class="deriv-color-row">
+                            ${derivHtml}
+                            <div class="color-row">
+                                <label>颜色</label>
+                                <input type="color" class="color-input" .../>
+                            </div>
                         </div>
+                        ${coeffHtml}
                     </div>
                 </div>`;
         }

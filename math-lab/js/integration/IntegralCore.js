@@ -125,7 +125,8 @@ export function riemann2dLeft(f, xRange, yRange, N, M) {
     return sum * hx * hy;
 }
 
-// layers: 层数(值域等分数), sampleN: 采样精度
+// ⚠️ 数组越界问题??? samples 数组可能比 sampleN 短
+// 一维勒贝格 layers: 层数(值域等分数); sampleN: 采样精度
 export function lebesgue1d(f, a, b, layers, sampleN) {
     const h = (b - a) / sampleN;
     let yMin = Infinity, yMax = -Infinity;
@@ -141,7 +142,7 @@ export function lebesgue1d(f, a, b, layers, sampleN) {
     }
     if (samples.length === 0) return 0;
     let sum = 0;
-    // 正部：∫₀^{yMax} μ({f > t}) dt
+    // 正部: ∫₀^{yMax} μ({f > t}) dt
     if (yMax > 1e-12) {
         const dy = yMax / layers;
         for (let k = 0; k < layers; k++) {
@@ -155,7 +156,7 @@ export function lebesgue1d(f, a, b, layers, sampleN) {
             sum += measure * dy;
         }
     }
-    // 负部：∫₀^{-yMin} μ({f < -t}) dt
+    // 负部:∫₀^{-yMin} μ({f < -t}) dt
     if (yMin < -1e-12) {
         const dy = -yMin / layers;
         for (let k = 0; k < layers; k++) {

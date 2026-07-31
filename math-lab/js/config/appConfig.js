@@ -29,7 +29,6 @@ export const APP_CONFIG = {
     plotter: {
         defaultSegments: 64,
         maxDepth: 4,
-        xRange: [-8, 8],
     },
 };
 
