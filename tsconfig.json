@@ -9,11 +9,13 @@
         "module": "ESNext",
         "moduleResolution": "bundler",
         "strict": true,
-        "noEmit": true, // Vite 只做类型检查，不产出文件
+        "noEmit": true,
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
         "resolveJsonModule": true,
         "isolatedModules": true,
+        "allowJs": true,
+        "checkJs": false,
         "baseUrl": ".",
         "paths": {
             "@/*": [
