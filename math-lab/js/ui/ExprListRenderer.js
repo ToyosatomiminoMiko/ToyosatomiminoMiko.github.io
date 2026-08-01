@@ -118,7 +118,7 @@ export class ExprListRenderer {
                             ${derivHtml}
                             <div class="color-row">
                                 <label>颜色</label>
-                                <input type="color" class="color-input" .../>
+                                <input type="color" class="color-input"/>
                             </div>
                         </div>
                         ${coeffHtml}

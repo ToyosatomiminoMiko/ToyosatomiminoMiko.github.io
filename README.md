@@ -85,3 +85,21 @@ pow(e,-0.1*(x*x+y*y))*(sin(x)+cos(2*y)) // ??? 皱褶的床单/翻涌的海浪
 ```sh
 python -m http.server 8080
 ```
+
+试运行
+
+```sh
+npm run dev
+```
+
+构建
+
+```sh
+npx vite build
+```
+
+构建后预览
+
+```sh
+npx vite preview
+```

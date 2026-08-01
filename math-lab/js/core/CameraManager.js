@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { APP_CONFIG } from '../config/appConfig.js';
+import { APP_CONFIG } from '../config/appConfig';
 
 /*
  * ============================================================

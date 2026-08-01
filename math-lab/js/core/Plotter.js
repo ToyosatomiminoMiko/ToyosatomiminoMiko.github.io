@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { SurfaceMesh } from './SurfaceMesh.js';
+import { SurfaceMesh } from './SurfaceMesh';
 
 /**
  * 增量式绘图器 —— 每个表达式拥有独立的 THREE.Group

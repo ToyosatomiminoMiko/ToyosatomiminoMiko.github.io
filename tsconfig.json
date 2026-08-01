@@ -6,24 +6,27 @@
             "DOM",
             "DOM.Iterable"
         ],
-        "module": "ES2020",
+        "module": "ESNext",
         "moduleResolution": "bundler",
         "strict": true,
-        "noEmit": false,
-        "outDir": "./dist-js",
-        "rootDir": ".",
-        "allowJs": false,
-        "checkJs": false,
+        "noEmit": true, // Vite 只做类型检查，不产出文件
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
-        "declaration": false,
-        "sourceMap": true
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+        "baseUrl": ".",
+        "paths": {
+            "@/*": [
+                "src/*"
+            ]
+        }
     },
     "include": [
-        "js/**/*.ts"
+        "src/**/*.ts",
+        "src/**/*.d.ts"
     ],
     "exclude": [
         "node_modules",
-        "math-lab"
+        "dist"
     ]
 }

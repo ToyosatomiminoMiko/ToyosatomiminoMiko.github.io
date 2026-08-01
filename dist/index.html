@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<!--
+2022.06.11.10:00:00 
+ToyosatomiminoMiko
+-->
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>ToyosatomiminoMiko</title>
+    <link href="/css/index.css" rel="stylesheet" type="text/css">
+  <script type="module" crossorigin src="/assets/main-DeUYqccA.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/modulepreload-polyfill-BIgaVKhB.js">
+  <link rel="stylesheet" crossorigin href="/assets/main-D5d7ASZ_.css">
+</head>
+
+<body>
+    <header>
+        <ul class="nav nav-tabs bg-light">
+            <li class="nav-item">
+                <a class="nav-link active" data-bs-toggle="tab" href="#home">HOME</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#oled">OLED</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#rbt">RBT</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#pages">PAGES</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#setting">SETTING</a>
+            </li>
+            <li class="nav-item">
+                <img src="/images/user_img/img0.jpg" class="rounded-circle head">
+            </li>
+        </ul>
+    </header>
+    <main>
+        <!--标签页-->
+        <div class="tab-content">
+            <!-- HOME -->
+            <div class="tab-pane fade show active" id="home">
+                <div class="card">
+                    <div class="card-header">
+                        <!-- LED 时钟 -->
+                        <div id="app_led_clock">
+                            <canvas id="time_canvas" ref="ledCanvas" height="8" width="65"></canvas>
+                        </div>
+                    </div>
+                    <div class="card-body card-deck">
+                        <!--内容主体-->
+                    </div>
+                </div>
+            </div>
+            <!-- OLED_canvas -->
+            <div class="tab-pane fade" id="oled">
+                <div class="card oled-card">
+                    <div class="card-header">
+                        <h4>OLED Canvas</h4>
+                    </div>
+                    <div class="card-body">
+                        <!-- 状态指示区 -->
+                        <div id="coordsDisplay" class="coords-display card-text">coordinate:(X:-,Y:-)</div>
+                        <br />
+                        <!-- 主画布 -->
+                        <canvas id="pixelCanvas"></canvas>
+                        <div id="pixelIndicator" class="pixel-indicator"></div>
+                        <br />
+
+                        <!-- 工具控制区 -->
+                        <div class="tools">
+                            <button type="button" class="btn btn-primary" id="refill-btn">颜色重置</button>
+                            <button type="button" class="btn btn-primary" id="change-color">🔄️暗⬛</button>
+                            <input type="radio" name="tools" value="free" checked />绘制
+                            <input type="radio" name="tools" value="line" />直线
+                            <input type="radio" name="tools" value="rectangle" />矩形
+                            <button type="button" class="btn btn-primary" id="export-btn">导出数据</button>
+                            <button type="button" class="btn btn-primary" id="output-png-btn">下载PNG</button>
+                            <button type="button" class="btn btn-primary" id="byte-order-btn">⬇低位模式(LSB)</button>
+                        </div>
+                        <br />
+
+                        <!-- 数据输入输出容器 -->
+                        <div>
+                            <!-- 导出数据区 -->
+                            <div class="area-data">
+                                <textarea id="exportOutput" class="textarea-data"></textarea><br />
+                                <button type="button" class="btn btn-primary" id="output-button">复制到剪贴板</button>
+                            </div>
+                            <!-- 导入数据区 -->
+                            <div class="area-data">
+                                <textarea id="importData" class="textarea-data"></textarea><br />
+                                <button type="button" class="btn btn-primary" id="import-btn">导入数据</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Red-Black Tree Lab -->
+            <div class="tab-pane fade" id="rbt">
+                <div class="card">
+                    <div class="card-header">
+                        <h4>🌳 Red-Black Tree Lab | 红黒树实验室</h4>
+                    </div>
+                    <div>
+                        <span>💡 支持简写叶子节点 (例如 "5R" 等价于 "5R(nil,nil)")</span><br>
+                        <span>🔴 R 红色 &nbsp;|&nbsp; ⚫ B 黒色</span><br>
+                    </div>
+                    <div id="rbt-container" class="card-body"></div>
+                </div>
+            </div>
+            <!-- PAGES -->
+            <div class="tab-pane fade" id="pages">
+                <section class="card-deck" id="page_list">
+                    <!--内容主体-->
+                    <div v-for="page in pages" class="card col-3">
+                        <img class="card-img-top" :src="page.img_url">
+                        <div class="card-body">
+                            <h4 class="card-title">{{page.title}}</h4>
+                            <p class="card-text">{{page.content}}</p>
+                            <a href="#" class="btn" target="_blank">Read more</a>
+                            <p class="card-text">
+                                <small class="text-muted">{{formatTime(page.created_at)}}</small>
+                            </p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+            <!-- SETTING -->
+            <div class="tab-pane fade" id="setting">
+                <!--内容主体-->
+                <div>
+                    <!--背景修改-->
+                    <h4>修改背景</h4>
+                    <!--选择背景-->
+                    <ul class="bgul">
+                        <li class="bgli"><img src="/images/bgimg/bgstar.gif" class="rounded bgimg">
+                            STAR</li>
+                        <li class="bgli"><img src="/images/bgimg/bgcode.gif" class="rounded bgimg">
+                            CODE</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </main>
+</body>
+
+</html>

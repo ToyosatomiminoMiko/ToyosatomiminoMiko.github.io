@@ -1,29 +1,29 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls';
 console.log("THREE version:", THREE.REVISION);
 //import { WebGPURenderer } from 'three/webgpu';
 //console.log('WebGPURenderer:', WebGPURenderer);  // 应该输出类构造函数
 
 // Service Layer
-import { EventBus } from './service/EventBus.js';
+import { EventBus } from './service/EventBus';
 
 // Config
-import { APP_CONFIG, ColorManager } from './config/appConfig.js';
+import { APP_CONFIG, ColorManager } from './config/appConfig';
 
 // Core Layer
-import { SceneManager } from './core/SceneManager.js';
-import { CameraManager } from './core/CameraManager.js';
-import { ExpressionManager } from './core/ExpressionManager.js';
-import { Plotter } from './core/Plotter.js';
+import { SceneManager } from './core/SceneManager';
+import { CameraManager } from './core/CameraManager';
+import { ExpressionManager } from './core/ExpressionManager';
+import { Plotter } from './core/Plotter';
 // modules
-import { IntegralVisualizer } from './integration/IntegralVisualizer.js';
-import { DerivativePanel } from './derivative/DerivativePanel.js';
+import { IntegralVisualizer } from './integration/IntegralVisualizer';
+import { DerivativePanel } from './derivative/DerivativePanel';
 // UI Layer
-import { ModeController } from './ui/ModeController.js';
-import { CameraToggle } from './ui/CameraToggle.js';
-import { ExprInputController } from './ui/ExprInputController.js';
-import { ExprListRenderer } from './ui/ExprListRenderer.js';
-import { IntegralPanel } from './ui/IntegralPanel.js';
+import { ModeController } from './ui/ModeController';
+import { CameraToggle } from './ui/CameraToggle';
+import { ExprInputController } from './ui/ExprInputController';
+import { ExprListRenderer } from './ui/ExprListRenderer';
+import { IntegralPanel } from './ui/IntegralPanel';
 
 // =====================================================
 // 1. 基础设施

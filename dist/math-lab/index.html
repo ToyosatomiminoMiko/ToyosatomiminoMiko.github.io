@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>数学可视化 2D/3D</title>
+<script type="importmap">{"imports":{"three":"' + url('build/three.module.js')
+                + '","three/addons/":"' + url('examples/jsm/')
+                + '","three/webgpu":"' + url('build/three.webgpu.js')
+                + '","mathjs":"' + mathUrl()
+                + '"}}<\/script>');
+        })();
+    </script>
+  <script type="module" crossorigin src="/assets/math-lab-DuLAVw1P.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/modulepreload-polyfill-BIgaVKhB.js">
+  <link rel="stylesheet" crossorigin href="/assets/math-lab-O0W2C6i7.css">
+</head>
+
+<body>
+    <!-- Three.js 画布 -->
+    <div id="canvas-container"></div>
+    <!-- 右侧控制面板 -->
+    <div id="panel">
+        <h2>📐 表达式控制台</h2>
+
+        <!-- 可隐藏部分 -->
+        <div class="panel-body">
+            <!-- 模式切换 -->
+            <div class="mode-row">
+                <button class="mode-btn active" data-mode="2d">2D</button>
+                <button class="mode-btn" data-mode="3d">3D</button>
+
+                <!-- 相机切换开关 -->
+                <div class="cam-toggle">
+                    <span class="cam-label active" data-cam="perspective">透视</span>
+                    <label class="switch">
+                        <input type="checkbox" id="camToggle">
+                        <span class="slider"></span>
+                    </label>
+                    <span class="cam-label" data-cam="orthographic">正交</span>
+                </div>
+
+            </div>
+
+            <!-- 表达式列表 -->
+            <div class="expr-list" id="exprList">
+                <!-- 由 JS 动态渲染 -->
+                <div class="empty-hint">暂无表达式,添加一个吧 ✨</div>
+            </div>
+
+            <!-- 添加表达式 -->
+            <div class="add-area">
+                <div class="add-row">
+                    <select id="exprTypeSelect">
+                        <option value="2d">2D</option>
+                        <option value="3d">3D</option>
+                    </select>
+                    <input type="text" id="exprInput" placeholder='example: sin(x)' spellcheck="false" />
+                    <button class="add-btn" id="addExprBtn">+ 添加</button>
+                </div>
+                <div class="color-picker-row">
+                    <label>颜色</label>
+                    <input type="color" id="exprColorPicker" value="#6dd5ff" />
+                    <label style="margin-left:8px;font-size:12px;color:#5a6a8a;">
+                        提示: 使用 <code style="background:rgba(255,255,255,0.06);padding:0 6px;border-radius:4px;">x</code>
+                        <span id="dimensionHint">(一元)</span>
+                    </label>
+                </div>
+            </div>
+            <!-- 积分控制区 -->
+            <div class="integral-area">
+                <div class="integral-header">
+                    <span>📊 数值积分</span>
+                    <span>
+                        <button class="method-btn active" data-integral-method="riemann">黎曼</button>
+                        <button class="method-btn" data-integral-method="lebesgue">勒贝格</button>
+                    </span>
+                    <span class="integral-total" id="integralTotal">∑ S = 0.0000</span>
+                </div>
+                <div class="integral-inputs">
+                    <!-- 2D 区间 -->
+                    <div class="range-group" id="rangeGroup2d">
+                        <label>x ∈ [</label>
+                        <input type="number" id="xMin2d" value="-4" step="0.1" />
+                        <span> , </span>
+                        <input type="number" id="xMax2d" value="4" step="0.1" />
+                        <span>]</span>
+                    </div>
+                    <!-- 3D 区间 -->
+                    <div class="range-group" id="rangeGroup3d" style="display:none;">
+                        <label>x ∈ [</label>
+                        <input type="number" id="xMin3d" value="-3" step="0.1" />
+                        <span> , </span>
+                        <input type="number" id="xMax3d" value="3" step="0.1" />
+                        <span>] &nbsp; y ∈ [</span>
+                        <input type="number" id="yMin3d" value="-3" step="0.1" />
+                        <span> , </span>
+                        <input type="number" id="yMax3d" value="3" step="0.1" />
+                        <span>]</span>
+                    </div>
+                    <!-- 切分数量 -->
+                    <div class="range-group" id="segmentGroup">
+                        <label>切分: </label>
+                        <input type="number" id="segmentCount" value="32" min="4" max="256" step="1" />
+                    </div>
+                </div>
+                <div class="integral-actions">
+                    <button id="calcIntegralBtn">🧮 计算并显示积分</button>
+                    <label class="integral-switch">
+                        <input type="checkbox" id="showIntegralToggle" checked />
+                        显示区域
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- <script>
+        (function () {
+            var isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+
+            function url(file) {
+                if (isLocal) return '/node_modules/three/' + file;
+                return 'https://cdn.jsdelivr.net/npm/three@0.185.1/' + file;
+            }
+            function mathUrl() {
+                // esm.sh 会把 mathjs 及其所有内部依赖打包成浏览器可用的 ESM 模块
+                return 'https://esm.sh/mathjs@15.2.0';
+            }
+
+            document.write(' -->
+    <!-- <script type="module" src="./js/main.js"></script> -->
+    <!-- 左侧抽屉切换把手 -->
+    <button id="sidebarToggleBtn" title="fold/unfold">▶</button>
+    <!-- 面板宽度拖拽手柄 -->
+    <div id="resizeHandle"></div>
+</body>
+
+</html>

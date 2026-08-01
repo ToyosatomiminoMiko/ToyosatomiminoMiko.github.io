@@ -1,6 +1,6 @@
-import { APP_CONFIG } from '../config/appConfig.js';
+import { APP_CONFIG } from '../config/appConfig';
 import * as math from 'mathjs';
-import { differentiate } from '../derivative/DerivativeCore.js';
+import { differentiate } from '../derivative/DerivativeCore';
 
 /**
  * ============================================================

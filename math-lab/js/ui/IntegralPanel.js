@@ -1,4 +1,4 @@
-import { riemann1dLeft, riemann2dLeft, lebesgue1d, lebesgue2d } from '../integration/IntegralCore.js';
+import { riemann1dLeft, riemann2dLeft, lebesgue1d, lebesgue2d } from '../integration/IntegralCore';
 
 export class IntegralPanel {
     /**
