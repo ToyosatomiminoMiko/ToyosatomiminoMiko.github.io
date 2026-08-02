@@ -1,12 +1,15 @@
 import * as THREE from 'three';
 
-/*
-创建场景,渲染器,灯光,坐标轴
-CameraManager 当前持有 renderer 引用
-SceneManager 接管后, CameraManager 需要改为依赖 SceneManager
-*/
+/**
+ * 场景管理器 — 负责创建场景、渲染器、灯光、坐标轴等基础元素。
+ * CameraManager 通过注入 SceneManager 获取 renderer 引用。
+ */
 export class SceneManager {
-    constructor(container) {
+    container: HTMLElement;
+    scene: THREE.Scene;
+    renderer: THREE.WebGLRenderer;
+
+    constructor(container: HTMLElement) {
         this.container = container;
 
         // --- 场景 ---
@@ -38,12 +41,13 @@ export class SceneManager {
         const sphereMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
         const centerSphere = new THREE.Mesh(sphereGeo, sphereMat);
         this.scene.add(centerSphere);
-        // --- XYZ 轴标签 使用 Sprite ---
-        const makeLabel = (text, position) => {
+
+        // --- XYZ 轴标签（使用 Sprite）---
+        const makeLabel = (text: string, position: THREE.Vector3): void => {
             const canvas = document.createElement('canvas');
             canvas.width = 64;
             canvas.height = 64;
-            const ctx = canvas.getContext('2d');
+            const ctx = canvas.getContext('2d')!;
             ctx.fillStyle = 'rgba(0,0,0,0)';
             ctx.fillRect(0, 0, 64, 64);
             ctx.font = 'Bold 36px Arial';
@@ -63,36 +67,47 @@ export class SceneManager {
             const sprite = new THREE.Sprite(material);
             sprite.position.copy(position);
             sprite.scale.set(0.8, 0.8, 1);
-            return sprite;
+            this.scene.add(sprite);
         };
+
         const axisLen = 8.5;
-        this.scene.add(makeLabel('X', new THREE.Vector3(axisLen, 0, 0)));
-        this.scene.add(makeLabel('Y', new THREE.Vector3(0, axisLen, 0)));
-        this.scene.add(makeLabel('Z', new THREE.Vector3(0, 0, axisLen)));
+        makeLabel('X', new THREE.Vector3(axisLen, 0, 0));
+        makeLabel('Y', new THREE.Vector3(0, axisLen, 0));
+        makeLabel('Z', new THREE.Vector3(0, 0, axisLen));
     }
 
-    getScene() { return this.scene; }
-    getRenderer() { return this.renderer; }
+    getScene(): THREE.Scene {
+        return this.scene;
+    }
 
-    addToScene(object) { this.scene.add(object); }
-    removeFromScene(object) { this.scene.remove(object); }
+    getRenderer(): THREE.WebGLRenderer {
+        return this.renderer;
+    }
 
-    render(camera) {
+    addToScene(object: THREE.Object3D): void {
+        this.scene.add(object);
+    }
+
+    removeFromScene(object: THREE.Object3D): void {
+        this.scene.remove(object);
+    }
+
+    render(camera: THREE.Camera): void {
         this.renderer.render(this.scene, camera);
     }
 
-    resize() {
+    resize(): { width: number; height: number } {
         const width = this.container.clientWidth;
         const height = this.container.clientHeight;
         this.renderer.setSize(width, height);
         return { width, height };
     }
 
-    dispose() {
+    dispose(): void {
         this.renderer.dispose();
         // 清理场景中所有几何体和材质
-        this.scene.traverse(node => {
-            if (node.isMesh) {
+        this.scene.traverse((node: THREE.Object3D) => {
+            if (node instanceof THREE.Mesh) {
                 node.geometry?.dispose();
                 if (Array.isArray(node.material)) {
                     node.material.forEach(m => m.dispose());

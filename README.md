@@ -92,6 +92,12 @@ python -m http.server 8080
 npm run dev
 ```
 
+检查
+
+```sh
+npx tsc --noEmit
+```
+
 构建
 
 ```sh

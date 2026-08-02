@@ -1,14 +1,25 @@
+import { EventBus } from '../service/EventBus';
+import type { MathLabEvents, Expression } from '../types';
+import type { ExpressionManager } from '../core/ExpressionManager';
+
+/**
+ * 表达式列表渲染器
+ * 负责生成 / 刷新左侧面板中的表达式列表 HTML
+ */
 export class ExprListRenderer {
-    /**
-     * @param {import('../service/EventBus.js').EventBus} eventBus
-     * @param {import('../core/ExpressionManager.js').ExpressionManager} exprManager
-     */
-    constructor(eventBus, exprManager) {
+    eventBus: EventBus<MathLabEvents>;
+    exprManager: ExpressionManager;
+    exprListEl: HTMLElement;
+    private _expandedIds: Set<number>;
+    private _debounceTimers: Record<number, ReturnType<typeof setTimeout>>;
+
+    constructor(eventBus: EventBus<MathLabEvents>, exprManager: ExpressionManager) {
         this.eventBus = eventBus;
         this.exprManager = exprManager;
-        this.exprListEl = document.getElementById('exprList');
-        this._expandedIds = new Set();    // 跟踪展开的表达式 id
+        this.exprListEl = document.getElementById('exprList')!;
+        this._expandedIds = new Set();
         this._debounceTimers = {};
+
         // 监听事件触发重新渲染
         this.eventBus.on('expr:added', () => this.render());
         this.eventBus.on('expr:removed', () => this.render());
@@ -16,28 +27,27 @@ export class ExprListRenderer {
         this.eventBus.on('expr:updated', () => this.render());
         this.eventBus.on('mode:changed', () => this.render());
 
-        // 初始渲染
         this.render();
     }
 
-    _debouncedEmitCoefficient(id) {
+    private _debouncedEmitCoefficient(id: number): void {
         if (this._debounceTimers[id]) clearTimeout(this._debounceTimers[id]);
         this._debounceTimers[id] = setTimeout(() => {
             this.eventBus.emit('coefficient:changed', { id });
         }, 50);
     }
 
-    _escapeHtml(str) {
+    private _escapeHtml(str: string): string {
         const div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
     }
 
-    render() {
+    render(): void {
         const exprs = this.exprManager.getAll();
         if (exprs.length === 0) {
             this.exprListEl.innerHTML =
-                '<div class="empty-hint">暂无表达式,添加一个吧 ✨</div>';
+                '<div class="empty-hint">暂无表达式，添加一个吧 ✨</div>';
             return;
         }
 
@@ -59,17 +69,17 @@ export class ExprListRenderer {
                 coeffHtml += '<div class="coeff-sliders">';
                 for (const c of expr.coefficients) {
                     coeffHtml += `
-            <div class="coeff-row">
-                <label>${c.name}</label>
-                <input type="range" min="${c.min}" max="${c.max}"
-                    step="${c.step}" value="${c.value}"
-                    data-id="${expr.id}" data-coeff="${c.name}"
-                    class="coeff-slider" />
-                <input type="number" class="coeff-value"
-                    value="${c.value.toFixed(1)}"
-                    step="${c.step}" min="${c.min}" max="${c.max}"
-                    data-id="${expr.id}" data-coeff="${c.name}" />
-            </div>`;
+                        <div class="coeff-row">
+                            <label>${c.name}</label>
+                            <input type="range" min="${c.min}" max="${c.max}"
+                                step="${c.step}" value="${c.value}"
+                                data-id="${expr.id}" data-coeff="${c.name}"
+                                class="coeff-slider" />
+                            <input type="number" class="coeff-value"
+                                value="${c.value.toFixed(1)}"
+                                step="${c.step}" min="${c.min}" max="${c.max}"
+                                data-id="${expr.id}" data-coeff="${c.name}" />
+                        </div>`;
                 }
                 coeffHtml += '</div>';
             }
@@ -93,20 +103,19 @@ export class ExprListRenderer {
                             data-id="${expr.id}" data-var="y">∂/∂y</button>
                     </div>`;
             }
+
             html += `
                 <div class="expr-item" data-id="${expr.id}">
-                    <!-- 头行:始终可见 -->
                     <div class="expr-header">
                         <span class="color-dot" style="background:${expr.color};"></span>
                         <span class="expr-label" title="${label}">${label}</span>
                         <span class="integral-result">S=---</span>
                         <span class="expr-type">${is2D ? '2D' : '3D'}</span>
                         <button class="toggle-btn ${toggleClass}"
-                            data-action="toggle" title="fold/unfold">${toggleIcon}</button>
+                            data-action="toggle" title="折叠/展开">${toggleIcon}</button>
                         <button class="del-btn"
-                            data-action="delete" title="delete">🗑️</button>
+                            data-action="delete" title="删除">🗑️</button>
                     </div>
-                    <!-- 折叠详情面板 -->
                     <div class="expr-detail ${detailClass}">
                         <div class="edit-row">
                             <input type="text" class="edit-input"
@@ -118,7 +127,8 @@ export class ExprListRenderer {
                             ${derivHtml}
                             <div class="color-row">
                                 <label>颜色</label>
-                                <input type="color" class="color-input"/>
+                                <input type="color" class="color-input"
+                                    value="${expr.color}" />
                             </div>
                         </div>
                         ${coeffHtml}
@@ -129,100 +139,101 @@ export class ExprListRenderer {
         this._bindItemEvents();
     }
 
-
-
-    _bindItemEvents() {
+    private _bindItemEvents(): void {
         this.exprListEl.querySelectorAll('.expr-item').forEach(item => {
-            const id = parseInt(item.dataset.id);
+            const id = parseInt((item as HTMLElement).dataset.id!);
+            const htmlItem = item as HTMLElement;
+
             // 头行单击展开/折叠
-            item.querySelector('.expr-header')?.addEventListener('click', (e) => {
-                // 按钮除外
-                if (e.target.closest('button')) return;
+            const header = htmlItem.querySelector('.expr-header') as HTMLElement | null;
+            header?.addEventListener('click', (e: Event) => {
+                if ((e.target as HTMLElement).closest('button')) return;
                 if (this._expandedIds.has(id)) {
                     this._expandedIds.delete(id);
                 } else {
                     this._expandedIds.add(id);
                 }
-                this.render(); // 重新渲染以更新面板状态
+                this.render();
             });
-            // click:单击;dblclick:双击
-            // 可见性
-            item.querySelector('[data-action="toggle"]')?.addEventListener('click', (e) => {
+
+            // 可见性切换
+            const toggleBtn = htmlItem.querySelector('[data-action="toggle"]') as HTMLElement | null;
+            toggleBtn?.addEventListener('click', (e: Event) => {
                 e.stopPropagation();
                 const enabled = this.exprManager.toggle(id);
                 this.eventBus.emit('expr:toggled', { id, enabled });
             });
+
             // 删除
-            item.querySelector('[data-action="delete"]')?.addEventListener('click', (e) => {
+            const delBtn = htmlItem.querySelector('[data-action="delete"]') as HTMLElement | null;
+            delBtn?.addEventListener('click', (e: Event) => {
                 e.stopPropagation();
                 this.exprManager.remove(id);
                 this.eventBus.emit('expr:removed', { id });
             });
-            // 系数滑块事件
-            item.querySelectorAll('.coeff-row').forEach(row => {
-                const slider = row.querySelector('input[type="range"]');
-                const numInput = row.querySelector('input[type="number"]');
+
+            // 系数滑块
+            htmlItem.querySelectorAll('.coeff-row').forEach(row => {
+                const slider = row.querySelector('input[type="range"]') as HTMLInputElement | null;
+                const numInput = row.querySelector('input[type="number"]') as HTMLInputElement | null;
                 if (!slider || !numInput) return;
 
-                // 滑块拖拽 -> 同步数字 + 更新数据
                 slider.addEventListener('input', () => {
                     const val = parseFloat(slider.value);
                     numInput.value = val.toFixed(2);
-                    const id = parseInt(slider.dataset.id);
-                    const coeffName = slider.dataset.coeff;
+                    const coeffName = slider.dataset.coeff!;
                     this.exprManager.setCoefficient(id, coeffName, val);
                     this._debouncedEmitCoefficient(id);
                 });
 
-                // 数字手动输入 -> 同步滑块 + 更新数据
                 numInput.addEventListener('input', () => {
                     let val = parseFloat(numInput.value);
                     if (isNaN(val)) return;
-                    // 钳制范围
-                    val = Math.max(parseFloat(slider.min), Math.min(parseFloat(slider.max), val));
-                    slider.value = val;
-                    const id = parseInt(numInput.dataset.id);
-                    const coeffName = numInput.dataset.coeff;
+                    val = Math.max(
+                        parseFloat(slider.min),
+                        Math.min(parseFloat(slider.max), val),
+                    );
+                    slider.value = String(val);
+                    const coeffName = numInput.dataset.coeff!;
                     this.exprManager.setCoefficient(id, coeffName, val);
-                    this._debouncedEmitCoefficient(id); // 防抖
+                    this._debouncedEmitCoefficient(id);
                 });
             });
+
             // 更新表达式
-            item.querySelector('[data-action="update"]')?.addEventListener('click', (e) => {
+            const updateBtn = htmlItem.querySelector('[data-action="update"]') as HTMLElement | null;
+            updateBtn?.addEventListener('click', (e: Event) => {
                 e.stopPropagation();
-                const input = item.querySelector('.edit-input');
+                const input = htmlItem.querySelector('.edit-input') as HTMLInputElement | null;
                 const newRaw = input?.value.trim();
                 if (!newRaw) return;
                 try {
                     this.exprManager.updateFn(id, newRaw);
                     this.eventBus.emit('expr:updated', { id, fnStr: newRaw });
                 } catch (err) {
-                    alert(err.message);
+                    alert((err as Error).message);
                 }
             });
 
             // 回车更新
-            item.querySelector('.edit-input')?.addEventListener('keydown', (e) => {
+            const editInput = htmlItem.querySelector('.edit-input') as HTMLInputElement | null;
+            editInput?.addEventListener('keydown', (e: KeyboardEvent) => {
                 if (e.key === 'Enter') {
-                    const updateBtn = item.querySelector('[data-action="update"]');
                     updateBtn?.click();
                 }
                 e.stopPropagation();
             });
+
             // 颜色更新
-            item.querySelector('.color-input')?.addEventListener('input', (e) => {
+            const colorInput = htmlItem.querySelector('.color-input') as HTMLInputElement | null;
+            colorInput?.addEventListener('input', (e: Event) => {
                 e.stopPropagation();
-                const newColor = e.target.value;
+                const newColor = (e.target as HTMLInputElement).value;
                 this.exprManager.updateColor(id, newColor);
-                // 同步更新头行颜色圆点
-                const dot = item.querySelector('.color-dot');
+                const dot = htmlItem.querySelector('.color-dot') as HTMLElement | null;
                 if (dot) dot.style.background = newColor;
-                // 通知画布重建(颜色变了要重建 Line 材质)
-                this.eventBus.emit('expr:updated', { id });
+                this.eventBus.emit('expr:updated', { id, fnStr: '' });
             });
-
-
         });
     }
-
 }

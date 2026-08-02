@@ -13,10 +13,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // 背景切换
     const imgs = document.getElementsByClassName('bgimg');
     for (let i = 0; i < imgs.length; i++) {
-        imgs[i].onclick = function () {
+        const img = imgs[i] as HTMLImageElement;
+        img.addEventListener('click', () => {
             document.body.style.cssText =
-                'background-image: url("' + (this as HTMLImageElement).src + '") !important;';
-        };
+                'background-image: url("' + img.src + '") !important;';
+        });
     }
 
     // 挂载所有 Vue 应用

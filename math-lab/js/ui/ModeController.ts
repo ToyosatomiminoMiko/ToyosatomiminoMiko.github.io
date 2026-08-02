@@ -1,15 +1,22 @@
+import { EventBus } from '../service/EventBus';
+import type { MathLabEvents, ViewMode } from '../types';
+
+/**
+ * 2D/3D 模式切换控制器
+ */
 export class ModeController {
-    /**
-     * @param {import('../service/EventBus.js').EventBus} eventBus
-     */
-    constructor(eventBus) {
+    eventBus: EventBus<MathLabEvents>;
+    modeBtns: NodeListOf<HTMLElement>;
+    currentMode: ViewMode;
+
+    constructor(eventBus: EventBus<MathLabEvents>) {
         this.eventBus = eventBus;
         this.modeBtns = document.querySelectorAll('[data-mode]');
         this.currentMode = '2d';
 
         this.modeBtns.forEach(btn => {
             btn.addEventListener('click', () => {
-                const mode = btn.dataset.mode;
+                const mode = (btn as HTMLElement).dataset.mode as ViewMode | undefined;
                 if (mode && mode !== this.currentMode) {
                     this.currentMode = mode;
                     this.modeBtns.forEach(b => b.classList.remove('active'));
@@ -20,8 +27,11 @@ export class ModeController {
         });
 
         // 初始激活
-        document.querySelector('[data-mode="2d"]')?.classList.add('active');
+        const defaultBtn = document.querySelector('[data-mode="2d"]');
+        defaultBtn?.classList.add('active');
     }
 
-    getMode() { return this.currentMode; }
+    getMode(): ViewMode {
+        return this.currentMode;
+    }
 }

@@ -1,10 +1,14 @@
+// ============================================================
+// 应用配置
+// ============================================================
+
 export const APP_CONFIG = {
     colorPalette: [
         '#6dd5ff', '#ff6b8a', '#ffd93d', '#6bffb8',
         '#c084fc', '#fb923c', '#60a5fa', '#f472b6',
         '#34d399', '#a78bfa', '#fbbf24', '#f87171',
         '#2dd4bf', '#e879f9', '#facc15', '#4ade80',
-    ],
+    ] as readonly string[],
 
     defaultExpressions: {
         '2d': [
@@ -19,35 +23,41 @@ export const APP_CONFIG = {
     },
 
     camera: {
-        defaultMode: 'perspective',
-        defaultView: '3d',
+        defaultMode: 'perspective' as const,
+        defaultView: '3d' as const,
         frustumSize: { '2d': 12, '3d': 14 },
-        initViewPositions: { '2d': [0, 0, 20], '3d': [12, 8, 12] },
-        initViewTarget: [0, 0, 0]
+        initViewPositions: {
+            '2d': [0, 0, 20] as readonly number[],
+            '3d': [12, 8, 12] as readonly number[],
+        },
+        initViewTarget: [0, 0, 0] as readonly number[],
     },
 
     plotter: {
         defaultSegments: 64,
         maxDepth: 4,
     },
-};
+} as const;
 
-/**
- * ColorManager — 管理颜色分配的实例对象
- */
+// ============================================================
+// ColorManager — 管理颜色分配的实例对象
+// ============================================================
 export class ColorManager {
-    constructor(palette) {
-        this.palette = palette;
+    palette: string[];
+    index: number;
+
+    constructor(palette: readonly string[]) {
+        this.palette = [...palette]; // 复制一份避免外部修改影响
         this.index = 0;
     }
 
-    next() {
+    next(): string {
         const c = this.palette[this.index % this.palette.length];
         this.index++;
         return c;
     }
 
-    reset() {
+    reset(): void {
         this.index = 0;
     }
 }

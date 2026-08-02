@@ -16,16 +16,17 @@
         "isolatedModules": true,
         "allowJs": true,
         "checkJs": false,
-        "baseUrl": ".",
         "paths": {
             "@/*": [
-                "src/*"
+                "./src/*"
             ]
         }
     },
     "include": [
         "src/**/*.ts",
-        "src/**/*.d.ts"
+        "src/**/*.d.ts",
+        "math-lab/**/*.ts",
+        "math-lab/**/*.d.ts"
     ],
     "exclude": [
         "node_modules",
