@@ -365,7 +365,7 @@ export class IntegralVisualizer {
         return group;
     }
 
-    /** 分层循环工具:正部从 0 向上，负部从 0 向下 */
+    /** 分层循环工具:正部从 0 向上,负部从 0 向下 */
     private _layerLoop(
         yMin: number,
         yMax: number,

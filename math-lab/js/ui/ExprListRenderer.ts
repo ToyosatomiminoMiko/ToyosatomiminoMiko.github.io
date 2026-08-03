@@ -1,163 +1,123 @@
 import { EventBus } from '../service/EventBus';
 import type { MathLabEvents, Expression } from '../types';
 import type { ExpressionManager } from '../core/ExpressionManager';
+import type { SelectionManager } from '../core/SelectionManager';
 
 /**
- * 表达式列表渲染器
- * 负责生成 / 刷新左侧面板中的表达式列表 HTML
+ * 表达式列表渲染器（精简版）
+ *
+ * 职责:生成 / 刷新紧凑单行列表 + 处理行点击选中 / 可见性 / 删除
+ * 编辑,系数滑块,求导等功能全部迁移到 DetailPanel 中
  */
 export class ExprListRenderer {
     eventBus: EventBus<MathLabEvents>;
     exprManager: ExpressionManager;
+    selectionManager: SelectionManager;
     exprListEl: HTMLElement;
-    private _expandedIds: Set<number>;
-    private _debounceTimers: Record<number, ReturnType<typeof setTimeout>>;
 
-    constructor(eventBus: EventBus<MathLabEvents>, exprManager: ExpressionManager) {
+    constructor(
+        eventBus: EventBus<MathLabEvents>,
+        exprManager: ExpressionManager,
+        selectionManager: SelectionManager,
+    ) {
         this.eventBus = eventBus;
         this.exprManager = exprManager;
+        this.selectionManager = selectionManager;
         this.exprListEl = document.getElementById('exprList')!;
-        this._expandedIds = new Set();
-        this._debounceTimers = {};
 
-        // 监听事件触发重新渲染
+        // 数据变更 -> 重新渲染
         this.eventBus.on('expr:added', () => this.render());
         this.eventBus.on('expr:removed', () => this.render());
         this.eventBus.on('expr:toggled', () => this.render());
         this.eventBus.on('expr:updated', () => this.render());
-        this.eventBus.on('mode:changed', () => this.render());
+
+        // 选中变化 -> 更新行高亮
+        this.eventBus.on('selection:changed', () => this._updateRowHighlight());
 
         this.render();
     }
 
-    private _debouncedEmitCoefficient(id: number): void {
-        if (this._debounceTimers[id]) clearTimeout(this._debounceTimers[id]);
-        this._debounceTimers[id] = setTimeout(() => {
-            this.eventBus.emit('coefficient:changed', { id });
-        }, 50);
-    }
-
-    private _escapeHtml(str: string): string {
-        const div = document.createElement('div');
-        div.textContent = str;
-        return div.innerHTML;
-    }
+    // ============================================================
+    //  渲染
+    // ============================================================
 
     render(): void {
         const exprs = this.exprManager.getAll();
         if (exprs.length === 0) {
             this.exprListEl.innerHTML =
-                '<div class="empty-hint">暂无表达式，添加一个吧 ✨</div>';
+                '<div class="empty-hint">暂无表达式,添加一个吧 ✨</div>';
             return;
         }
 
         let html = '';
         for (const expr of exprs) {
+            const label = this._formatLabel(expr);
             const isVisible = expr.enabled;
-            const is2D = expr.type === '2d';
-            const label = is2D
-                ? `y = ${expr.node.toString()}`
-                : `z = ${expr.node.toString()}`;
             const toggleIcon = isVisible ? '1' : '0';
-            const toggleClass = isVisible ? 'on' : '';
-            const expanded = this._expandedIds.has(expr.id);
-            const detailClass = expanded ? 'show' : '';
-
-            // 系数滑块 HTML
-            let coeffHtml = '';
-            if (expr.coefficients && expr.coefficients.length > 0) {
-                coeffHtml += '<div class="coeff-sliders">';
-                for (const c of expr.coefficients) {
-                    coeffHtml += `
-                        <div class="coeff-row">
-                            <label>${c.name}</label>
-                            <input type="range" min="${c.min}" max="${c.max}"
-                                step="${c.step}" value="${c.value}"
-                                data-id="${expr.id}" data-coeff="${c.name}"
-                                class="coeff-slider" />
-                            <input type="number" class="coeff-value"
-                                value="${c.value.toFixed(1)}"
-                                step="${c.step}" min="${c.min}" max="${c.max}"
-                                data-id="${expr.id}" data-coeff="${c.name}" />
-                        </div>`;
-                }
-                coeffHtml += '</div>';
-            }
-
-            // 求导按钮行
-            let derivHtml = '';
-            if (is2D) {
-                derivHtml = `
-                    <div class="deriv-row">
-                        <span class="deriv-label">导</span>
-                        <button class="deriv-btn" data-action="derive"
-                            data-id="${expr.id}" data-var="x">d/dx</button>
-                    </div>`;
-            } else {
-                derivHtml = `
-                    <div class="deriv-row">
-                        <span class="deriv-label">偏导</span>
-                        <button class="deriv-btn" data-action="derive"
-                            data-id="${expr.id}" data-var="x">∂/∂x</button>
-                        <button class="deriv-btn" data-action="derive"
-                            data-id="${expr.id}" data-var="y">∂/∂y</button>
-                    </div>`;
-            }
+            const toggleTitle = isVisible ? 'hide' : 'show';
+            const typeBadge = this._typeBadge(expr.type);
+            const escapedLabel = this._escapeHtml(label);
 
             html += `
-                <div class="expr-item" data-id="${expr.id}">
-                    <div class="expr-header">
-                        <span class="color-dot" style="background:${expr.color};"></span>
-                        <span class="expr-label" title="${label}">${label}</span>
-                        <span class="integral-result">S=---</span>
-                        <span class="expr-type">${is2D ? '2D' : '3D'}</span>
-                        <button class="toggle-btn ${toggleClass}"
-                            data-action="toggle" title="折叠/展开">${toggleIcon}</button>
-                        <button class="del-btn"
-                            data-action="delete" title="删除">🗑️</button>
-                    </div>
-                    <div class="expr-detail ${detailClass}">
-                        <div class="edit-row">
-                            <input type="text" class="edit-input"
-                                value="${this._escapeHtml(expr.node.toString())}"
-                                spellcheck="false" />
-                            <button class="update-btn" data-action="update">🔄</button>
-                        </div>
-                        <div class="deriv-color-row">
-                            ${derivHtml}
-                            <div class="color-row">
-                                <label>颜色</label>
-                                <input type="color" class="color-input"
-                                    value="${expr.color}" />
-                            </div>
-                        </div>
-                        ${coeffHtml}
-                    </div>
+                <div class="expr-item"
+                     data-id="${expr.id}"
+                     data-type="${expr.type}">
+                    <span class="color-dot"
+                          style="background:${expr.color};"></span>
+                    <span class="expr-label"
+                          title="${escapedLabel}">${escapedLabel}</span>
+                    <span class="expr-type">${typeBadge}</span>
+                    <button class="toggle-btn"
+                            data-action="toggle"
+                            title="${toggleTitle}">${toggleIcon}</button>
+                    <button class="del-btn"
+                            data-action="delete"
+                            title="delete">🗑</button>
                 </div>`;
         }
         this.exprListEl.innerHTML = html;
         this._bindItemEvents();
+        this._updateRowHighlight();
     }
 
+    // ============================================================
+    //  内部
+    // ============================================================
+
+    /**
+     * 根据选中状态给对应行添加 .selected class
+     */
+    private _updateRowHighlight(): void {
+        const selected = this.selectionManager.getSelected();
+        const items = this.exprListEl.querySelectorAll('.expr-item');
+        items.forEach(item => {
+            const id = parseInt((item as HTMLElement).dataset.id!);
+            if (selected && id === selected.id) {
+                item.classList.add('selected');
+            } else {
+                item.classList.remove('selected');
+            }
+        });
+    }
+
+    /**
+     * 事件委托:行点击选中,toggle,删除
+     */
     private _bindItemEvents(): void {
         this.exprListEl.querySelectorAll('.expr-item').forEach(item => {
-            const id = parseInt((item as HTMLElement).dataset.id!);
-            const htmlItem = item as HTMLElement;
+            const el = item as HTMLElement;
+            const id = parseInt(el.dataset.id!);
+            const type = el.dataset.type!;
 
-            // 头行单击展开/折叠
-            const header = htmlItem.querySelector('.expr-header') as HTMLElement | null;
-            header?.addEventListener('click', (e: Event) => {
+            // 行点击 -> 选中
+            el.addEventListener('click', (e: Event) => {
+                // 如果点在按钮上,不走选中逻辑
                 if ((e.target as HTMLElement).closest('button')) return;
-                if (this._expandedIds.has(id)) {
-                    this._expandedIds.delete(id);
-                } else {
-                    this._expandedIds.add(id);
-                }
-                this.render();
+                this.selectionManager.select(id, type);
             });
 
             // 可见性切换
-            const toggleBtn = htmlItem.querySelector('[data-action="toggle"]') as HTMLElement | null;
+            const toggleBtn = el.querySelector('[data-action="toggle"]') as HTMLElement | null;
             toggleBtn?.addEventListener('click', (e: Event) => {
                 e.stopPropagation();
                 const enabled = this.exprManager.toggle(id);
@@ -165,75 +125,65 @@ export class ExprListRenderer {
             });
 
             // 删除
-            const delBtn = htmlItem.querySelector('[data-action="delete"]') as HTMLElement | null;
+            const delBtn = el.querySelector('[data-action="delete"]') as HTMLElement | null;
             delBtn?.addEventListener('click', (e: Event) => {
                 e.stopPropagation();
+                // 如果删除的是当前选中实体,先取消选中
+                const selected = this.selectionManager.getSelected();
+                if (selected && selected.id === id) {
+                    this.selectionManager.deselect();
+                }
                 this.exprManager.remove(id);
                 this.eventBus.emit('expr:removed', { id });
             });
-
-            // 系数滑块
-            htmlItem.querySelectorAll('.coeff-row').forEach(row => {
-                const slider = row.querySelector('input[type="range"]') as HTMLInputElement | null;
-                const numInput = row.querySelector('input[type="number"]') as HTMLInputElement | null;
-                if (!slider || !numInput) return;
-
-                slider.addEventListener('input', () => {
-                    const val = parseFloat(slider.value);
-                    numInput.value = val.toFixed(2);
-                    const coeffName = slider.dataset.coeff!;
-                    this.exprManager.setCoefficient(id, coeffName, val);
-                    this._debouncedEmitCoefficient(id);
-                });
-
-                numInput.addEventListener('input', () => {
-                    let val = parseFloat(numInput.value);
-                    if (isNaN(val)) return;
-                    val = Math.max(
-                        parseFloat(slider.min),
-                        Math.min(parseFloat(slider.max), val),
-                    );
-                    slider.value = String(val);
-                    const coeffName = numInput.dataset.coeff!;
-                    this.exprManager.setCoefficient(id, coeffName, val);
-                    this._debouncedEmitCoefficient(id);
-                });
-            });
-
-            // 更新表达式
-            const updateBtn = htmlItem.querySelector('[data-action="update"]') as HTMLElement | null;
-            updateBtn?.addEventListener('click', (e: Event) => {
-                e.stopPropagation();
-                const input = htmlItem.querySelector('.edit-input') as HTMLInputElement | null;
-                const newRaw = input?.value.trim();
-                if (!newRaw) return;
-                try {
-                    this.exprManager.updateFn(id, newRaw);
-                    this.eventBus.emit('expr:updated', { id, fnStr: newRaw });
-                } catch (err) {
-                    alert((err as Error).message);
-                }
-            });
-
-            // 回车更新
-            const editInput = htmlItem.querySelector('.edit-input') as HTMLInputElement | null;
-            editInput?.addEventListener('keydown', (e: KeyboardEvent) => {
-                if (e.key === 'Enter') {
-                    updateBtn?.click();
-                }
-                e.stopPropagation();
-            });
-
-            // 颜色更新
-            const colorInput = htmlItem.querySelector('.color-input') as HTMLInputElement | null;
-            colorInput?.addEventListener('input', (e: Event) => {
-                e.stopPropagation();
-                const newColor = (e.target as HTMLInputElement).value;
-                this.exprManager.updateColor(id, newColor);
-                const dot = htmlItem.querySelector('.color-dot') as HTMLElement | null;
-                if (dot) dot.style.background = newColor;
-                this.eventBus.emit('expr:updated', { id, fnStr: '' });
-            });
         });
+    }
+
+    /**
+     * 根据类型生成紧凑显示标签
+     */
+    private _formatLabel(expr: Expression): string {
+        switch (expr.type) {
+            case '2d':
+                return `y = ${expr.node.toString()}`;
+            case '3d':
+                return `z = ${expr.node.toString()}`;
+            case 'point': {
+                const x = expr.coefficients.find(c => c.name === 'x')?.value ?? 0;
+                const y = expr.coefficients.find(c => c.name === 'y')?.value ?? 0;
+                const z = expr.coefficients.find(c => c.name === 'z')?.value ?? 0;
+                return `📍 P(${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)})`;
+            }
+            case 'vector': {
+                const dx = expr.coefficients.find(c => c.name === 'dx')?.value ?? 0;
+                const dy = expr.coefficients.find(c => c.name === 'dy')?.value ?? 0;
+                const dz = expr.coefficients.find(c => c.name === 'dz')?.value ?? 0;
+                const ox = expr.coefficients.find(c => c.name === 'ox')?.value ?? 0;
+                const oy = expr.coefficients.find(c => c.name === 'oy')?.value ?? 0;
+                const oz = expr.coefficients.find(c => c.name === 'oz')?.value ?? 0;
+                return `➡️ v⃗(${dx.toFixed(1)},${dy.toFixed(1)},${dz.toFixed(1)})@(${ox.toFixed(1)},${oy.toFixed(1)},${oz.toFixed(1)})`;
+            }
+            default:
+                return expr.node.toString();
+        }
+    }
+
+    /**
+     * 类型徽章文字
+     */
+    private _typeBadge(type: string): string {
+        switch (type) {
+            case '2d': return '2D';
+            case '3d': return '3D';
+            case 'point': return '📍';
+            case 'vector': return '➡️';
+            default: return type;
+        }
+    }
+
+    private _escapeHtml(str: string): string {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
     }
 }

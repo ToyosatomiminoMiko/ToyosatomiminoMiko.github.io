@@ -45,9 +45,11 @@ export class ExpressionManager {
      * 解析表达式字符串，提取节点和系数
      */
     parse(
-        raw: string,
-        type: '2d' | '3d',
+        raw: string, type: '2d' | '3d' | 'point' | 'vector'
     ): { node: MathNode; coefficients: Coefficient[] } {
+        if (type === 'point' || type === 'vector') {
+            return { node: math.parse('0'), coefficients: [] };
+        }
         const node = math.parse(raw);
         const coefficients = this._extractCoefficients(node, type);
         return { node, coefficients };
@@ -197,6 +199,59 @@ export class ExpressionManager {
         return false;
     }
 
+    /**
+     * 添加一个三维空间中的点实体
+     * @param x,y,z - 空间坐标
+     * @param color - 可选颜色
+     */
+    addPoint(x: number, y: number, z: number, color?: string): Expression {
+        const expr: Expression = {
+            id: this.nextId++,
+            type: 'point',
+            node: math.parse('0'),          // 占位，无实际计算
+            coefficients: [
+                { name: 'x', value: x, min: -10, max: 10, step: 0.1 },
+                { name: 'y', value: y, min: -10, max: 10, step: 0.1 },
+                { name: 'z', value: z, min: -10, max: 10, step: 0.1 },
+            ],
+            color: color || this.colorManager.next(),
+            enabled: true,
+            derivative: null,
+        };
+        this.expressions.push(expr);
+        return expr;
+    }
+
+    /**
+     * 添加一个三维向量实体
+     * @param dx,dy,dz - 方向分量
+     * @param ox,oy,oz - 起点坐标
+     * @param color    - 可选颜色
+     */
+    addVector(
+        dx: number, dy: number, dz: number,
+        ox: number, oy: number, oz: number,
+        color?: string,
+    ): Expression {
+        const expr: Expression = {
+            id: this.nextId++,
+            type: 'vector',
+            node: math.parse('0'),
+            coefficients: [
+                { name: 'dx', value: dx, min: -5, max: 5, step: 0.1 },
+                { name: 'dy', value: dy, min: -5, max: 5, step: 0.1 },
+                { name: 'dz', value: dz, min: -5, max: 5, step: 0.1 },
+                { name: 'ox', value: ox, min: -10, max: 10, step: 0.1 },
+                { name: 'oy', value: oy, min: -10, max: 10, step: 0.1 },
+                { name: 'oz', value: oz, min: -10, max: 10, step: 0.1 },
+            ],
+            color: color || this.colorManager.next(),
+            enabled: true,
+            derivative: null,
+        };
+        this.expressions.push(expr);
+        return expr;
+    }
     // =====================================================
     //  内部方法
     // =====================================================
@@ -205,9 +260,9 @@ export class ExpressionManager {
      * 从表达式树中提取用户自定义系数（排除 x/y 变量和内置函数名）
      */
     private _extractCoefficients(
-        node: MathNode,
-        type: '2d' | '3d',
+        node: MathNode, type: '2d' | '3d' | 'point' | 'vector'
     ): Coefficient[] {
+        if (type === 'point' || type === 'vector') return [];
         const vars = new Set<string>(type === '2d' ? ['x'] : ['x', 'y']);
         const builtins = new Set([
             'sin', 'cos', 'tan', 'exp', 'log', 'sqrt', 'abs',

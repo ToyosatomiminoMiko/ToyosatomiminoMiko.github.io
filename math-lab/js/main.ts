@@ -24,7 +24,9 @@ import { Plotter } from './core/Plotter';
 // Integration / Derivative
 // ============================================================
 import { IntegralVisualizer } from './integration/IntegralVisualizer';
-import { DerivativePanel } from './derivative/DerivativePanel';
+import { GradientVisualizer } from './vector-field/GradientVisualizer';
+import { SelectionManager } from './core/SelectionManager';
+import { DetailPanel } from './ui/DetailPanel';
 
 // ============================================================
 // UI Layer
@@ -33,7 +35,6 @@ import { ModeController } from './ui/ModeController';
 import { CameraToggle } from './ui/CameraToggle';
 import { ExprInputController } from './ui/ExprInputController';
 import { ExprListRenderer } from './ui/ExprListRenderer';
-import { IntegralPanel } from './ui/IntegralPanel';
 
 // ============================================================
 // 0. 启动日志
@@ -56,17 +57,16 @@ const cameraManager = new CameraManager(sceneManager);
 const exprManager = new ExpressionManager(colorManager);
 const plotter = new Plotter(sceneManager.getScene());
 const integralVisualizer = new IntegralVisualizer(sceneManager.getScene());
-
+const gradientVisualizer = new GradientVisualizer(sceneManager.getScene());
 // ============================================================
 // 3. UI 组件（注入 eventBus,不持有 core 引用）
 // ============================================================
+const selectionManager = new SelectionManager(eventBus);
 const modeController = new ModeController(eventBus);
 new CameraToggle(eventBus);
 new ExprInputController(eventBus, exprManager, colorManager);
-new ExprListRenderer(eventBus, exprManager);
-new IntegralPanel(eventBus, exprManager, integralVisualizer);
-new DerivativePanel(eventBus, exprManager);
-
+new ExprListRenderer(eventBus, exprManager, selectionManager);
+new DetailPanel(eventBus, exprManager, selectionManager, integralVisualizer, gradientVisualizer);
 // ============================================================
 // 4. 事件订阅（通过 eventBus 解耦的联动逻辑）
 // ============================================================
@@ -79,11 +79,23 @@ eventBus.on('mode:changed', ({ mode }) => {
 
 // 新增表达式 -> 仅绘制新加的那一条
 eventBus.on('expr:added', ({ expr }) => {
-    const mode = modeController.getMode();
-    if (mode === '2d' && expr.type === '2d') {
-        plotter.draw2D(expr);
-    } else if (mode === '3d' && expr.type === '3d') {
-        plotter.draw3D(expr);
+    switch (expr.type) {
+        case '2d':
+            plotter.draw2D(expr);
+            break;
+        case '3d':
+            plotter.draw3D(expr);
+            break;
+        case 'point':
+            plotter.drawPoint(expr);
+            break;
+        case 'vector':
+            plotter.drawVector(expr);
+            break;
+        // 可选：default 处理未知类型（原逻辑无操作）
+        default:
+            // 不执行任何操作
+            break;
     }
 });
 
@@ -111,7 +123,13 @@ eventBus.on('expr:updated', ({ id }) => {
 // 系数滑块变化 -> 重绘目标表达式
 eventBus.on('coefficient:changed', ({ id }) => {
     const expr = exprManager.getAll().find(e => e.id === id);
-    if (expr) {
+    if (!expr) return;
+
+    if (expr.type === 'point') {
+        plotter.drawPoint(expr);
+    } else if (expr.type === 'vector') {
+        plotter.drawVector(expr);
+    } else {
         plotter.updateExpr(expr, modeController.getMode());
     }
 });
@@ -128,10 +146,22 @@ const initialMode = modeController.getMode();
 const initialExprs = exprManager.getAll();
 for (const expr of initialExprs) {
     if (!expr.enabled) continue;
-    if (expr.type === '2d') {
-        plotter.draw2D(expr);
-    } else if (expr.type === '3d') {
-        plotter.draw3D(expr);
+    switch (expr.type) {
+        case '2d':
+            plotter.draw2D(expr);
+            break;
+        case '3d':
+            plotter.draw3D(expr);
+            break;
+        case 'point':
+            plotter.drawPoint(expr);
+            break;
+        case 'vector':
+            plotter.drawVector(expr);
+            break;
+        default:
+            // 可选：处理未知类型，或保持空
+            break;
     }
 }
 // 根据当前模式设置可见性,2D 模式隐藏 3D,反之亦然
@@ -163,10 +193,10 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
 // 动画循环
 function animate(): void {
     requestAnimationFrame(animate);
-    controls.object = cameraManager.getCamera();
     controls.update();
     sceneManager.render(cameraManager.getCamera());
 }
+// 运行动画
 animate();
 
 // ============================================================

@@ -5,6 +5,7 @@ import type { ColorManager } from '../config/appConfig';
 
 /**
  * 表达式输入框控制器
+ * 新增：📍 添加点按钮逻辑
  */
 export class ExprInputController {
     eventBus: EventBus<MathLabEvents>;
@@ -15,6 +16,7 @@ export class ExprInputController {
     exprTypeSelect: HTMLSelectElement;
     colorPicker: HTMLInputElement;
     addBtn: HTMLButtonElement;
+    addPointBtn: HTMLButtonElement;       // 新增
     dimensionHint: HTMLElement;
 
     constructor(
@@ -30,6 +32,7 @@ export class ExprInputController {
         this.exprTypeSelect = document.getElementById('exprTypeSelect') as HTMLSelectElement;
         this.colorPicker = document.getElementById('exprColorPicker') as HTMLInputElement;
         this.addBtn = document.getElementById('addExprBtn') as HTMLButtonElement;
+        this.addPointBtn = document.getElementById('addPointBtn') as HTMLButtonElement; // 新增
         this.dimensionHint = document.getElementById('dimensionHint')!;
 
         this._bindEvents();
@@ -42,6 +45,9 @@ export class ExprInputController {
             if (e.key === 'Enter') this._handleAdd();
         });
         this.exprTypeSelect.addEventListener('change', () => this._updateDimensionHint());
+
+        // 新增：添加点按钮
+        this.addPointBtn.addEventListener('click', () => this._handleAddPoint());
     }
 
     private _updateDimensionHint(): void {
@@ -65,6 +71,14 @@ export class ExprInputController {
 
         this.exprInput.value = '';
         this.exprInput.focus();
+        this.eventBus.emit('expr:added', { expr });
+    }
+
+    /**
+     * 新增：在默认位置 (0, 0, 0) 添加点实体
+     */
+    private _handleAddPoint(): void {
+        const expr = this.exprManager.addPoint(0, 0, 0);
         this.eventBus.emit('expr:added', { expr });
     }
 }

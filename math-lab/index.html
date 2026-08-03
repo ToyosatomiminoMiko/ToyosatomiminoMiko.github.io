@@ -57,75 +57,22 @@
                         <span id="dimensionHint">(一元)</span>
                     </label>
                 </div>
+                <button id="addPointBtn">📍 添加点</button>
             </div>
-            <!-- 积分控制区 -->
-            <div class="integral-area">
-                <div class="integral-header">
-                    <span>📊 数值积分</span>
-                    <span>
-                        <button class="method-btn active" data-integral-method="riemann">黎曼</button>
-                        <button class="method-btn" data-integral-method="lebesgue">勒贝格</button>
-                    </span>
-                    <span class="integral-total" id="integralTotal">∑ S = 0.0000</span>
+            <!-- 详情面板 -->
+            <div class="detail-area" id="detailArea">
+                <div class="detail-tabs" id="detailTabs">
+                    <button class="detail-tab active" data-tab="edit">📝 编辑</button>
+                    <button class="detail-tab" data-tab="derivative">📐 求导</button>
+                    <button class="detail-tab" data-tab="integral">📊 积分</button>
+                    <button class="detail-tab" data-tab="gradient">📐 梯度</button>
                 </div>
-                <div class="integral-inputs">
-                    <!-- 2D 区间 -->
-                    <div class="range-group" id="rangeGroup2d">
-                        <label>x ∈ [</label>
-                        <input type="number" id="xMin2d" value="-4" step="0.1" />
-                        <span> , </span>
-                        <input type="number" id="xMax2d" value="4" step="0.1" />
-                        <span>]</span>
-                    </div>
-                    <!-- 3D 区间 -->
-                    <div class="range-group" id="rangeGroup3d" style="display:none;">
-                        <label>x ∈ [</label>
-                        <input type="number" id="xMin3d" value="-3" step="0.1" />
-                        <span> , </span>
-                        <input type="number" id="xMax3d" value="3" step="0.1" />
-                        <span>] &nbsp; y ∈ [</span>
-                        <input type="number" id="yMin3d" value="-3" step="0.1" />
-                        <span> , </span>
-                        <input type="number" id="yMax3d" value="3" step="0.1" />
-                        <span>]</span>
-                    </div>
-                    <!-- 切分数量 -->
-                    <div class="range-group" id="segmentGroup">
-                        <label>切分: </label>
-                        <input type="number" id="segmentCount" value="32" min="4" max="256" step="1" />
-                    </div>
-                </div>
-                <div class="integral-actions">
-                    <button id="calcIntegralBtn">🧮 计算并显示积分</button>
-                    <label class="integral-switch">
-                        <input type="checkbox" id="showIntegralToggle" checked />
-                        显示区域
-                    </label>
+                <div class="detail-content" id="detailContent">
+                    <!-- JS 动态填充 -->
                 </div>
             </div>
         </div>
     </div>
-    <!-- <script>
-        (function () {
-            var isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-
-            function url(file) {
-                if (isLocal) return '/node_modules/three/' + file;
-                return 'https://cdn.jsdelivr.net/npm/three@0.185.1/' + file;
-            }
-            function mathUrl() {
-                // esm.sh 会把 mathjs 及其所有内部依赖打包成浏览器可用的 ESM 模块
-                return 'https://esm.sh/mathjs@15.2.0';
-            }
-
-            document.write('<script type="importmap">{"imports":{"three":"' + url('build/three.module.js')
-                + '","three/addons/":"' + url('examples/jsm/')
-                + '","three/webgpu":"' + url('build/three.webgpu.js')
-                + '","mathjs":"' + mathUrl()
-                + '"}}<\/script>');
-        })();
-    </script> -->
-    <!-- <script type="module" src="./js/main.js"></script> -->
     <!-- 左侧抽屉切换把手 -->
     <button id="sidebarToggleBtn" title="fold/unfold">▶</button>
     <!-- 面板宽度拖拽手柄 -->

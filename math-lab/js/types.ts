@@ -22,7 +22,7 @@ export interface Coefficient {
 
 export interface Expression {
     id: number;
-    type: '2d' | '3d';
+    type: '2d' | '3d' | 'point' | 'vector';
     node: MathNode;
     coefficients: Coefficient[];
     color: string;
@@ -46,4 +46,5 @@ export interface MathLabEvents {
     'camera:changed': { camMode: CamMode };
     'integral:calculated': { results: { id: number; value: number }[]; total: number };
     'coefficient:changed': { id: number };
+    'selection:changed': { id: number | null; type: string | null };
 }

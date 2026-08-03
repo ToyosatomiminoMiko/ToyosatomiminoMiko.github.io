@@ -18,7 +18,6 @@ export default defineConfig({
         },
     },
     optimizeDeps: {
-        //include: ['three', 'three/addons/controls/OrbitControls', 'mathjs'],
         include: ['three', 'mathjs'],
     },
 });

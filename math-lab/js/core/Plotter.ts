@@ -2,15 +2,18 @@ import * as THREE from 'three';
 import { SurfaceMesh } from './SurfaceMesh';
 import type { Expression, Coefficient } from '../types';
 import * as math from 'mathjs'
+import { ArrowMesh } from '../vector-field/ArrowMesh';
 
 // ============================================================
 // 内部类型:绘图条目
 // ============================================================
 interface PlotEntry {
-    type: '2d' | '3d';
+    type: '2d' | '3d' | 'point' | 'vector';
     group: THREE.Group;
     object: THREE.Line | null;
     surface: SurfaceMesh | null;
+    mesh: THREE.Mesh | null;      // 点的小球
+    arrow: ArrowMesh | null;      // 向量箭头
     enabled: boolean;
 }
 
@@ -66,6 +69,8 @@ export class Plotter {
                 group,
                 object: null,
                 surface: null,
+                mesh: null,
+                arrow: null,
                 enabled: enabled ?? true,
             };
             this.plotMap.set(id, entry);
@@ -125,6 +130,8 @@ export class Plotter {
                 group,
                 object: null,
                 surface: null,
+                mesh: null,
+                arrow: null,
                 enabled: enabled ?? true,
             };
             this.plotMap.set(id, entry);
@@ -170,7 +177,20 @@ export class Plotter {
                 mat?.dispose();
             }
         }
-
+        // 释放点的小球
+        if (entry.mesh) {
+            entry.mesh.geometry?.dispose();
+            const mat = entry.mesh.material;
+            if (Array.isArray(mat)) {
+                mat.forEach(m => m.dispose());
+            } else {
+                mat?.dispose();
+            }
+        }
+        // 释放向量箭头
+        if (entry.arrow) {
+            entry.arrow.dispose();
+        }
         this.plotContainer.remove(entry.group);
         this.plotMap.delete(id);
     }
@@ -216,6 +236,87 @@ export class Plotter {
         this.scene.remove(this.plotContainer);
     }
 
+    /**
+     * 绘制 / 更新一个空间点（小球）
+     */
+    drawPoint(expr: Expression): void {
+        const { id, color, enabled } = expr;
+        let entry = this.plotMap.get(id);
+
+        if (!entry) {
+            const group = new THREE.Group();
+            this.plotContainer.add(group);
+
+            const geo = new THREE.SphereGeometry(0.2, 16, 16);
+            const mat = new THREE.MeshPhongMaterial({
+                color: color || '#ffffff',
+                emissive: 0x000000,
+                specular: 0x333333,
+                shininess: 40,
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+            group.add(mesh);
+
+            entry = {
+                type: 'point',
+                group,
+                object: null,
+                surface: null,
+                mesh,
+                arrow: null,
+                enabled: enabled ?? true,
+            };
+            this.plotMap.set(id, entry);
+        }
+
+        // 从系数读取位置
+        const x = expr.coefficients.find(c => c.name === 'x')?.value ?? 0;
+        const y = expr.coefficients.find(c => c.name === 'y')?.value ?? 0;
+        const z = expr.coefficients.find(c => c.name === 'z')?.value ?? 0;
+        entry.mesh!.position.set(x, y, z);
+
+        // 颜色可能变化
+        const mat = entry.mesh!.material as THREE.MeshPhongMaterial;
+        mat.color.set(color);
+
+        entry.enabled = enabled ?? true;
+        this._applyVisibility(entry);
+    }
+
+    /**
+     * 绘制 / 更新一个向量箭头
+     */
+    drawVector(expr: Expression): void {
+        const { id, color, enabled } = expr;
+        let entry = this.plotMap.get(id);
+
+        if (!entry) {
+            const arrow = new ArrowMesh(color);
+            entry = {
+                type: 'vector',
+                group: arrow.group,
+                object: null,
+                surface: null,
+                mesh: null,
+                arrow,
+                enabled: enabled ?? true,
+            };
+            this.plotContainer.add(arrow.group);
+            this.plotMap.set(id, entry);
+        }
+
+        // 从系数读取方向和起点
+        const getC = (n: string): number =>
+            expr.coefficients.find(c => c.name === n)?.value ?? 0;
+        const origin = new THREE.Vector3(getC('ox'), getC('oy'), getC('oz'));
+        const direction = new THREE.Vector3(getC('dx'), getC('dy'), getC('dz'));
+
+        entry.arrow!.setTransform(origin, direction);
+        entry.arrow!.setColor(color);
+        entry.enabled = enabled ?? true;
+        this._applyVisibility(entry);
+    }
+
     // =====================================================
     //  内部辅助
     // =====================================================
@@ -255,6 +356,11 @@ export class Plotter {
      * - 用户主动 toggle 的 disabled 状态始终生效
      */
     private _applyVisibility(entry: PlotEntry): void {
+        // point / vector 始终可见 不受 2D/3D 模式切换影响
+        if (entry.type === 'point' || entry.type === 'vector') {
+            entry.group.visible = entry.enabled;
+            return;
+        }
         const modeMatch =
             (this.currentMode === '2d' && entry.type === '2d') ||
             (this.currentMode === '3d' && entry.type === '3d');
