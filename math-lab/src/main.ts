@@ -5,27 +5,27 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // Service Layer
 // ============================================================
 import { EventBus } from './service/EventBus';
-import type { MathLabEvents } from './types';
+import type { MathLabEvents, MathObject } from './types';
 
 // ============================================================
 // Config
 // ============================================================
-import { APP_CONFIG, ColorManager } from './config/appConfig';
+import { APP_CONFIG } from './config/appConfig';
+import { ColorManager, MathObjectManager } from './math_objects';
 
 // ============================================================
 // Core Layer
 // ============================================================
 import { SceneManager } from './core/SceneManager';
 import { CameraManager } from './core/CameraManager';
-import { ExpressionManager } from './core/ExpressionManager';
 import { Plotter } from './core/Plotter';
 
 // ============================================================
-// Integration / Derivative
+// Integration / Vector-field
 // ============================================================
-import { IntegralVisualizer } from './integration/IntegralVisualizer';
-import { GradientVisualizer } from './vector-field/GradientVisualizer';
-import { SelectionManager } from './core/SelectionManager';
+import { IntegralVisualizer } from './visualization/IntegralVisualizer';
+import { GradientVisualizer } from './visualization/GradientVisualizer';
+import { SelectionManager } from './ui/SelectionManager';
 import { DetailPanel } from './ui/DetailPanel';
 
 // ============================================================
@@ -54,117 +54,118 @@ const renderer = sceneManager.getRenderer();
 // 2. 核心逻辑
 // ============================================================
 const cameraManager = new CameraManager(sceneManager);
-const exprManager = new ExpressionManager(colorManager);
+const objectManager = new MathObjectManager(colorManager);
 const plotter = new Plotter(sceneManager.getScene());
 const integralVisualizer = new IntegralVisualizer(sceneManager.getScene());
 const gradientVisualizer = new GradientVisualizer(sceneManager.getScene());
+
 // ============================================================
-// 3. UI 组件（注入 eventBus,不持有 core 引用）
+// 3. UI 组件（注入 eventBus，部分暂用 any 兼容尚未更新的组件）
 // ============================================================
 const selectionManager = new SelectionManager(eventBus);
 const modeController = new ModeController(eventBus);
 new CameraToggle(eventBus);
-new ExprInputController(eventBus, exprManager, colorManager);
-new ExprListRenderer(eventBus, exprManager, selectionManager);
-new DetailPanel(eventBus, exprManager, selectionManager, integralVisualizer, gradientVisualizer);
+new ExprInputController(eventBus, objectManager, colorManager);
+new ExprListRenderer(eventBus, objectManager, selectionManager);
+new DetailPanel(
+    eventBus,
+    objectManager,
+    selectionManager,
+    integralVisualizer,
+    gradientVisualizer,
+);
+
 // ============================================================
-// 4. 事件订阅（通过 eventBus 解耦的联动逻辑）
+// 4. 事件订阅（新事件名 + discriminated union 分发）
 // ============================================================
 
-// 模式切换 -> 更新相机 + 更新可见性,不重建几何体
+// 模式切换 -> 更新相机 + 更新可见性
 eventBus.on('mode:changed', ({ mode }) => {
     cameraManager.setViewMode(mode);
     plotter.updateMode(mode);
 });
 
-// 新增表达式 -> 仅绘制新加的那一条
-eventBus.on('expr:added', ({ expr }) => {
-    switch (expr.type) {
-        case '2d':
-            plotter.draw2D(expr);
+// 新增数学对象 -> 绘制新加的那一个
+eventBus.on('mathobj:added', ({ object }: { object: MathObject }) => {
+    switch (object.kind) {
+        case 'curve':
+            plotter.drawCurve(object);
             break;
-        case '3d':
-            plotter.draw3D(expr);
+        case 'surface':
+            plotter.drawSurface(object);
             break;
         case 'point':
-            plotter.drawPoint(expr);
+            plotter.drawPoint(object);
             break;
         case 'vector':
-            plotter.drawVector(expr);
-            break;
-        // 可选：default 处理未知类型（原逻辑无操作）
-        default:
-            // 不执行任何操作
+            plotter.drawVector(object);
             break;
     }
 });
 
-// 删除表达式 -> 仅移除目标
-eventBus.on('expr:removed', ({ id }) => {
+// 删除 -> 仅移除目标
+eventBus.on('mathobj:removed', ({ id }) => {
     plotter.remove(id);
 });
 
 // 切换可见性 -> 仅设置 Group.visible
-eventBus.on('expr:toggled', ({ id }) => {
-    const expr = exprManager.getAll().find(e => e.id === id);
-    if (expr) {
-        plotter.setVisible(id, expr.enabled);
+eventBus.on('mathobj:toggled', ({ id }) => {
+    const obj = objectManager.getAll().find(o => o.id === id);
+    if (obj) {
+        plotter.setVisible(id, obj.enabled);
     }
 });
 
-// 修改表达式 -> 仅重建目标
-eventBus.on('expr:updated', ({ id }) => {
-    const expr = exprManager.getAll().find(e => e.id === id);
-    if (expr) {
-        plotter.updateExpr(expr, modeController.getMode());
+// 修改表达式 -> 重建目标
+eventBus.on('mathobj:updated', ({ id }) => {
+    const obj = objectManager.getAll().find(o => o.id === id);
+    if (obj) {
+        plotter.updateObject(obj, modeController.getMode());
     }
 });
 
-// 系数滑块变化 -> 重绘目标表达式
+// 系数滑块变化 -> 重绘目标
 eventBus.on('coefficient:changed', ({ id }) => {
-    const expr = exprManager.getAll().find(e => e.id === id);
-    if (!expr) return;
+    const obj = objectManager.getAll().find(o => o.id === id);
+    if (!obj) return;
 
-    if (expr.type === 'point') {
-        plotter.drawPoint(expr);
-    } else if (expr.type === 'vector') {
-        plotter.drawVector(expr);
+    // point / vector 按需全量重绘；curve / surface 按模式更新
+    if (obj.kind === 'point') {
+        plotter.drawPoint(obj);
+    } else if (obj.kind === 'vector') {
+        plotter.drawVector(obj);
     } else {
-        plotter.updateExpr(expr, modeController.getMode());
+        plotter.updateObject(obj, modeController.getMode());
     }
 });
 
-// 相机模式切换
+// 相机投影模式切换
 eventBus.on('camera:changed', ({ camMode }) => {
     cameraManager.setCameraMode(camMode);
 });
 
 // ============================================================
-// 4.5 初始绘制：绘制所有预设表达式
+// 4.5 初始绘制：绘制所有预设对象
 // ============================================================
 const initialMode = modeController.getMode();
-const initialExprs = exprManager.getAll();
-for (const expr of initialExprs) {
-    if (!expr.enabled) continue;
-    switch (expr.type) {
-        case '2d':
-            plotter.draw2D(expr);
+const initialObjects = objectManager.getAll();
+for (const obj of initialObjects) {
+    if (!obj.enabled) continue;
+    switch (obj.kind) {
+        case 'curve':
+            plotter.drawCurve(obj);
             break;
-        case '3d':
-            plotter.draw3D(expr);
+        case 'surface':
+            plotter.drawSurface(obj);
             break;
         case 'point':
-            plotter.drawPoint(expr);
+            plotter.drawPoint(obj);
             break;
         case 'vector':
-            plotter.drawVector(expr);
-            break;
-        default:
-            // 可选：处理未知类型，或保持空
+            plotter.drawVector(obj);
             break;
     }
 }
-// 根据当前模式设置可见性,2D 模式隐藏 3D,反之亦然
 plotter.updateMode(initialMode);
 
 // ============================================================
@@ -196,7 +197,6 @@ function animate(): void {
     controls.update();
     sceneManager.render(cameraManager.getCamera());
 }
-// 运行动画
 animate();
 
 // ============================================================
@@ -252,7 +252,7 @@ document.addEventListener('mouseup', () => {
     }
 });
 
-// 初始面板
+// 初始面板宽度
 applyPanelWidth(panelWidth);
 
-console.log('[MathPlot] 初始化完成!使用 2D/3D 模式绘制数学表达式');
+console.log('[MathPlot] 初始化完成！使用 2D/3D 模式绘制数学表达式');

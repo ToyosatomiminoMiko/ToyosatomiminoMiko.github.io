@@ -1,35 +1,33 @@
 import { EventBus } from '../service/EventBus';
-import type { MathLabEvents, Expression } from '../types';
-import type { ExpressionManager } from '../core/ExpressionManager';
-import type { SelectionManager } from '../core/SelectionManager';
+import type { MathLabEvents, MathObject } from '../types';
+import type { MathObjectManager } from '../math_objects';
+import type { SelectionManager } from './SelectionManager';
 
 /**
- * 表达式列表渲染器（精简版）
- *
- * 职责:生成 / 刷新紧凑单行列表 + 处理行点击选中 / 可见性 / 删除
- * 编辑,系数滑块,求导等功能全部迁移到 DetailPanel 中
+ * 表达式列表渲染器
+ * 生成 / 刷新紧凑单行列表 + 处理行点击选中 / 可见性 / 删除
  */
 export class ExprListRenderer {
     eventBus: EventBus<MathLabEvents>;
-    exprManager: ExpressionManager;
+    objectManager: MathObjectManager;
     selectionManager: SelectionManager;
     exprListEl: HTMLElement;
 
     constructor(
         eventBus: EventBus<MathLabEvents>,
-        exprManager: ExpressionManager,
+        objectManager: MathObjectManager,
         selectionManager: SelectionManager,
     ) {
         this.eventBus = eventBus;
-        this.exprManager = exprManager;
+        this.objectManager = objectManager;
         this.selectionManager = selectionManager;
         this.exprListEl = document.getElementById('exprList')!;
 
         // 数据变更 -> 重新渲染
-        this.eventBus.on('expr:added', () => this.render());
-        this.eventBus.on('expr:removed', () => this.render());
-        this.eventBus.on('expr:toggled', () => this.render());
-        this.eventBus.on('expr:updated', () => this.render());
+        this.eventBus.on('mathobj:added', () => this.render());
+        this.eventBus.on('mathobj:removed', () => this.render());
+        this.eventBus.on('mathobj:toggled', () => this.render());
+        this.eventBus.on('mathobj:updated', () => this.render());
 
         // 选中变化 -> 更新行高亮
         this.eventBus.on('selection:changed', () => this._updateRowHighlight());
@@ -42,28 +40,28 @@ export class ExprListRenderer {
     // ============================================================
 
     render(): void {
-        const exprs = this.exprManager.getAll();
-        if (exprs.length === 0) {
+        const objects = this.objectManager.getAll();
+        if (objects.length === 0) {
             this.exprListEl.innerHTML =
-                '<div class="empty-hint">暂无表达式,添加一个吧 ✨</div>';
+                '<div class="empty-hint">暂无表达式，添加一个吧 ✨</div>';
             return;
         }
 
         let html = '';
-        for (const expr of exprs) {
-            const label = this._formatLabel(expr);
-            const isVisible = expr.enabled;
+        for (const obj of objects) {
+            const label = this._formatLabel(obj);
+            const isVisible = obj.enabled;
             const toggleIcon = isVisible ? '1' : '0';
             const toggleTitle = isVisible ? 'hide' : 'show';
-            const typeBadge = this._typeBadge(expr.type);
+            const typeBadge = this._typeBadge(obj.kind);
             const escapedLabel = this._escapeHtml(label);
 
             html += `
                 <div class="expr-item"
-                     data-id="${expr.id}"
-                     data-type="${expr.type}">
+                     data-id="${obj.id}"
+                     data-kind="${obj.kind}">
                     <span class="color-dot"
-                          style="background:${expr.color};"></span>
+                          style="background:${obj.color};"></span>
                     <span class="expr-label"
                           title="${escapedLabel}">${escapedLabel}</span>
                     <span class="expr-type">${typeBadge}</span>
@@ -84,9 +82,6 @@ export class ExprListRenderer {
     //  内部
     // ============================================================
 
-    /**
-     * 根据选中状态给对应行添加 .selected class
-     */
     private _updateRowHighlight(): void {
         const selected = this.selectionManager.getSelected();
         const items = this.exprListEl.querySelectorAll('.expr-item');
@@ -100,84 +95,64 @@ export class ExprListRenderer {
         });
     }
 
-    /**
-     * 事件委托:行点击选中,toggle,删除
-     */
     private _bindItemEvents(): void {
         this.exprListEl.querySelectorAll('.expr-item').forEach(item => {
             const el = item as HTMLElement;
             const id = parseInt(el.dataset.id!);
-            const type = el.dataset.type!;
+            const kind = el.dataset.kind!;
 
             // 行点击 -> 选中
             el.addEventListener('click', (e: Event) => {
-                // 如果点在按钮上,不走选中逻辑
                 if ((e.target as HTMLElement).closest('button')) return;
-                this.selectionManager.select(id, type);
+                this.selectionManager.select(id, kind);
             });
 
             // 可见性切换
             const toggleBtn = el.querySelector('[data-action="toggle"]') as HTMLElement | null;
             toggleBtn?.addEventListener('click', (e: Event) => {
                 e.stopPropagation();
-                const enabled = this.exprManager.toggle(id);
-                this.eventBus.emit('expr:toggled', { id, enabled });
+                const enabled = this.objectManager.toggle(id);
+                this.eventBus.emit('mathobj:toggled', { id, enabled });
             });
 
             // 删除
             const delBtn = el.querySelector('[data-action="delete"]') as HTMLElement | null;
             delBtn?.addEventListener('click', (e: Event) => {
                 e.stopPropagation();
-                // 如果删除的是当前选中实体,先取消选中
                 const selected = this.selectionManager.getSelected();
                 if (selected && selected.id === id) {
                     this.selectionManager.deselect();
                 }
-                this.exprManager.remove(id);
-                this.eventBus.emit('expr:removed', { id });
+                this.objectManager.remove(id);
+                this.eventBus.emit('mathobj:removed', { id });
             });
         });
     }
 
-    /**
-     * 根据类型生成紧凑显示标签
-     */
-    private _formatLabel(expr: Expression): string {
-        switch (expr.type) {
-            case '2d':
-                return `y = ${expr.node.toString()}`;
-            case '3d':
-                return `z = ${expr.node.toString()}`;
-            case 'point': {
-                const x = expr.coefficients.find(c => c.name === 'x')?.value ?? 0;
-                const y = expr.coefficients.find(c => c.name === 'y')?.value ?? 0;
-                const z = expr.coefficients.find(c => c.name === 'z')?.value ?? 0;
-                return `📍 P(${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)})`;
-            }
-            case 'vector': {
-                const dx = expr.coefficients.find(c => c.name === 'dx')?.value ?? 0;
-                const dy = expr.coefficients.find(c => c.name === 'dy')?.value ?? 0;
-                const dz = expr.coefficients.find(c => c.name === 'dz')?.value ?? 0;
-                const ox = expr.coefficients.find(c => c.name === 'ox')?.value ?? 0;
-                const oy = expr.coefficients.find(c => c.name === 'oy')?.value ?? 0;
-                const oz = expr.coefficients.find(c => c.name === 'oz')?.value ?? 0;
-                return `➡️ v⃗(${dx.toFixed(1)},${dy.toFixed(1)},${dz.toFixed(1)})@(${ox.toFixed(1)},${oy.toFixed(1)},${oz.toFixed(1)})`;
-            }
-            default:
-                return expr.node.toString();
+    // ============================================================
+    //  标签格式化
+    // ============================================================
+
+    private _formatLabel(obj: MathObject): string {
+        switch (obj.kind) {
+            case 'curve':
+                return `y = ${obj.node.toString()}`;
+            case 'surface':
+                return `z = ${obj.node.toString()}`;
+            case 'point':
+                return `📍 P(${obj.x.toFixed(1)}, ${obj.y.toFixed(1)}, ${obj.z.toFixed(1)})`;
+            case 'vector':
+                return `➡️ v⃗(${obj.direction.x.toFixed(1)},${obj.direction.y.toFixed(1)},${obj.direction.z.toFixed(1)})@(${obj.origin.x.toFixed(1)},${obj.origin.y.toFixed(1)},${obj.origin.z.toFixed(1)})`;
         }
     }
 
-    /**
-     * 类型徽章文字
-     */
-    private _typeBadge(type: string): string {
-        switch (type) {
-            case '2d': return '2D';
-            case '3d': return '3D';
+    private _typeBadge(kind: string): string {
+        switch (kind) {
+            case 'curve': return '2D';
+            case 'surface': return '3D';
             case 'point': return '📍';
             case 'vector': return '➡️';
-            default: return type;
+            default: return kind;
         }
     }
 

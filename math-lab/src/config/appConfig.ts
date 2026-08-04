@@ -1,5 +1,5 @@
 // ============================================================
-// 应用配置
+// 应用配置（纯数据，不包含类定义）
 // ============================================================
 
 export const APP_CONFIG = {
@@ -38,26 +38,3 @@ export const APP_CONFIG = {
         maxDepth: 4,
     },
 } as const;
-
-// ============================================================
-// ColorManager — 管理颜色分配的实例对象
-// ============================================================
-export class ColorManager {
-    palette: string[];
-    index: number;
-
-    constructor(palette: readonly string[]) {
-        this.palette = [...palette]; // 复制一份避免外部修改影响
-        this.index = 0;
-    }
-
-    next(): string {
-        const c = this.palette[this.index % this.palette.length];
-        this.index++;
-        return c;
-    }
-
-    reset(): void {
-        this.index = 0;
-    }
-}

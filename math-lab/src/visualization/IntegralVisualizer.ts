@@ -1,11 +1,11 @@
 import * as THREE from 'three';
-import type { Expression } from '../types';
+import type { MathObject } from '../types';
 
 // ============================================================
 // 渲染常量
 // ============================================================
-const BAR_GAP = 0.05;        // 方块间隙比例
-const DEPTH_2D = 0.3;        // 2D 柱体 z 轴深度
+const BAR_GAP = 0.05;
+const DEPTH_2D = 0.3;
 const OPACITY_RIEMANN = 0.5;
 const OPACITY_LEBESGUE = 0.5;
 const EDGE_OPACITY_RIEMANN = 0.4;
@@ -14,14 +14,12 @@ const EDGE_OPACITY_RIEMANN = 0.4;
 // 内部类型
 // ============================================================
 
-/** InstancedMesh 每根柱子的参数 */
 interface BarDef {
     pos: [number, number, number];
     scale: [number, number, number];
     color: THREE.Color;
 }
 
-/** _instancedMeshGroup 的可选参数 */
 interface BarOptions {
     opacity?: number;
     color?: THREE.Color;
@@ -29,7 +27,6 @@ interface BarOptions {
     edgeColor?: THREE.Color;
 }
 
-/** _layerLoop 的回调签名 */
 type LayerCallback = (
     threshold: number,
     centerY: number,
@@ -44,7 +41,6 @@ type LayerCallback = (
 export class IntegralVisualizer {
     scene: THREE.Scene;
     group: THREE.Group;
-    /** id → { type, objects } 缓存 */
     cache: Map<number | string, { type: string; objects: THREE.Group }>;
 
     constructor(scene: THREE.Scene) {
@@ -54,7 +50,6 @@ export class IntegralVisualizer {
         this.cache = new Map();
     }
 
-    /** 清空所有可视化 */
     clearAll(): void {
         while (this.group.children.length > 0) {
             const child = this.group.children[0];
@@ -64,7 +59,6 @@ export class IntegralVisualizer {
         this.cache.clear();
     }
 
-    /** 清空指定 id 的可视化 */
     clear(id: number): void {
         const entry = this.cache.get(id);
         if (entry) {
@@ -80,14 +74,14 @@ export class IntegralVisualizer {
 
     /** 2D 黎曼和可视化 */
     visualize2DRiemann(
-        expr: Expression,
+        obj: MathObject,
         fn: (x: number) => number,
         a: number,
         b: number,
         N: number,
     ): void {
         const h = (b - a) / N;
-        const color = new THREE.Color(expr.color);
+        const color = new THREE.Color(obj.color);
         const bars: BarDef[] = [];
 
         for (let i = 0; i < N; i++) {
@@ -108,12 +102,12 @@ export class IntegralVisualizer {
             edgeColor: color,
         });
         this.group.add(group);
-        this.cache.set(expr.id, { type: '2d', objects: group });
+        this.cache.set(obj.id, { type: '2d', objects: group });
     }
 
     /** 3D 黎曼和可视化 */
     visualize3DRiemann(
-        expr: Expression,
+        obj: MathObject,
         fn: (x: number, y: number) => number,
         xRange: [number, number],
         yRange: [number, number],
@@ -124,7 +118,7 @@ export class IntegralVisualizer {
         const [yMin, yMax] = yRange;
         const hx = (xMax - xMin) / N;
         const hy = (yMax - yMin) / M;
-        const baseColor = new THREE.Color(expr.color);
+        const baseColor = new THREE.Color(obj.color);
         const bars: BarDef[] = [];
 
         for (let j = 0; j < M; j++) {
@@ -152,7 +146,7 @@ export class IntegralVisualizer {
             edgeColor: baseColor.clone().multiplyScalar(1.3),
         });
         this.group.add(group);
-        this.cache.set(expr.id, { type: '3d', objects: group });
+        this.cache.set(obj.id, { type: '3d', objects: group });
     }
 
     // ============================================================
@@ -161,14 +155,14 @@ export class IntegralVisualizer {
 
     /** 2D 勒贝格可视化 */
     visualize2DLebesgue(
-        expr: Expression,
+        obj: MathObject,
         fn: (x: number) => number,
         a: number,
         b: number,
         layers: number,
         sampleN: number,
     ): void {
-        const baseColor = new THREE.Color(expr.color);
+        const baseColor = new THREE.Color(obj.color);
 
         const h = (b - a) / sampleN;
         const samples: { x: number; y: number }[] = [];
@@ -199,7 +193,6 @@ export class IntegralVisualizer {
             return intervals;
         };
 
-        // 分层生成条带
         const strips = this._layerLoop(yMin, yMax, layers, baseColor, 0.15,
             (threshold, centerY, _k, color, dy) => {
                 const result: BarDef[] = [];
@@ -223,12 +216,12 @@ export class IntegralVisualizer {
         if (strips.length === 0) return;
         const group = this._instancedMeshGroup(strips, { opacity: OPACITY_LEBESGUE });
         this.group.add(group);
-        this.cache.set(expr.id + '_lebesgue', { type: '2d', objects: group });
+        this.cache.set(obj.id + '_lebesgue', { type: '2d', objects: group });
     }
 
     /** 3D 勒贝格积分可视化（等高线切片） */
     visualize3DLebesgue(
-        expr: Expression,
+        obj: MathObject,
         fn: (x: number, y: number) => number,
         xRange: [number, number],
         yRange: [number, number],
@@ -236,11 +229,10 @@ export class IntegralVisualizer {
     ): void {
         const [xMin, xMax] = xRange;
         const [yMin, yMax] = yRange;
-        const baseColor = new THREE.Color(expr.color);
+        const baseColor = new THREE.Color(obj.color);
         const hx = (xMax - xMin) / res;
         const hy = (yMax - yMin) / res;
 
-        // 网格采样
         let zMin = Infinity;
         let zMax = -Infinity;
         const grid: number[][] = [];
@@ -261,7 +253,6 @@ export class IntegralVisualizer {
         }
         if (!isFinite(zMin) || !isFinite(zMax)) return;
 
-        // 分层生成切片
         const slices = this._layerLoop(zMin, zMax, res, baseColor, 0,
             (threshold, centerZ, _k, color, _dy) => {
                 const result: BarDef[] = [];
@@ -293,7 +284,7 @@ export class IntegralVisualizer {
         if (slices.length === 0) return;
         const group = this._instancedMeshGroup(slices, { opacity: OPACITY_LEBESGUE - 0.1 });
         this.group.add(group);
-        this.cache.set(expr.id + '_lebesgue', { type: '3d', objects: group });
+        this.cache.set(obj.id + '_lebesgue', { type: '3d', objects: group });
     }
 
     // ============================================================

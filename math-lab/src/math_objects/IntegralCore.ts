@@ -1,4 +1,4 @@
-import type { Integral1DFn, Integral2DFn, Range1D } from '../types';
+import type { Integral1DFn, Integral2DFn, Range1D } from './types';
 
 // ================================================================
 // 二维数值积分

@@ -1,33 +1,31 @@
 import { EventBus } from '../service/EventBus';
-import type { MathLabEvents, Expression } from '../types';
-import type { ExpressionManager } from '../core/ExpressionManager';
-import type { SelectionManager } from '../core/SelectionManager';
-import type { IntegralVisualizer } from '../integration/IntegralVisualizer';
-import { GradientVisualizer } from '../vector-field/GradientVisualizer';
+import type { MathLabEvents, MathObject } from '../types';
+import type { MathObjectManager } from '../math_objects';
+import type { SelectionManager } from './SelectionManager';
+import type { IntegralVisualizer } from '../visualization/IntegralVisualizer';
+import { GradientVisualizer } from '../visualization/GradientVisualizer';
 import {
     riemann1dLeft,
     riemann2dLeft,
     lebesgue1d,
     lebesgue2d,
-} from '../integration/IntegralCore';
-import { computeGradient } from '../vector-field/GradientCore';
+} from '../math_objects/IntegralCore';
+import { computeGradient } from '../math_objects/GradientCore';
 
 type IntegralMethod = 'riemann' | 'lebesgue';
 
 /**
- * DetailPanel — 详情面板
+ * DetailPanel - 详情面板
  *
  * 标签页：
- *   📝 编辑   — 表达式输入框 + 🔄更新 + 颜色 + 系数滑块
- *   📐 求导   — d/dx / ∂/∂x / ∂/∂y 按钮
- *   📊 积分   — 方法选择 + 区间 + 分段 + 计算（迁移自 IntegralPanel）
- *   📐 梯度   — 状态提示 + 计算梯度按钮
- *
- * 根据选中实体类型动态显示 / 隐藏标签页
+ *   📝 编辑   - 表达式输入框 + 🔄更新 + 颜色 + 系数滑块
+ *   📐 求导   - d/dx / ∂/∂x / ∂/∂y 按钮
+ *   📊 积分   - 方法选择 + 区间 + 分段 + 计算
+ *   📐 梯度   - 状态提示 + 计算梯度按钮
  */
 export class DetailPanel {
     private _eventBus: EventBus<MathLabEvents>;
-    private _exprManager: ExpressionManager;
+    private _objectManager: MathObjectManager;
     private _selectionManager: SelectionManager;
     private _integralVisualizer: IntegralVisualizer;
     private _gradientVisualizer: GradientVisualizer;
@@ -42,17 +40,17 @@ export class DetailPanel {
     private _integralMethod: IntegralMethod = 'riemann';
     // 梯度滑块状态
     private _gradientTimer: ReturnType<typeof setTimeout> | null = null;
-    private _gradientPinned = false; // 是否已固定
+    private _gradientPinned = false;
 
     constructor(
         eventBus: EventBus<MathLabEvents>,
-        exprManager: ExpressionManager,
+        objectManager: MathObjectManager,
         selectionManager: SelectionManager,
         integralVisualizer: IntegralVisualizer,
         gradientVisualizer: GradientVisualizer,
     ) {
         this._eventBus = eventBus;
-        this._exprManager = exprManager;
+        this._objectManager = objectManager;
         this._selectionManager = selectionManager;
         this._integralVisualizer = integralVisualizer;
         this._gradientVisualizer = gradientVisualizer;
@@ -74,9 +72,9 @@ export class DetailPanel {
         this._eventBus.on('selection:changed', () => this._onSelectionChanged());
 
         // 数据变更 -> 刷新当前面板
-        this._eventBus.on('expr:added', () => this._refreshContent());
-        this._eventBus.on('expr:removed', () => this._refreshContent());
-        this._eventBus.on('expr:updated', () => this._refreshContent());
+        this._eventBus.on('mathobj:added', () => this._refreshContent());
+        this._eventBus.on('mathobj:removed', () => this._refreshContent());
+        this._eventBus.on('mathobj:updated', () => this._refreshContent());
 
         // 初始渲染
         this._onSelectionChanged();
@@ -94,16 +92,13 @@ export class DetailPanel {
         this._refreshContent();
     }
 
-    /**
-     * 根据选中类型控制标签页显隐
-     */
     private _onSelectionChanged(): void {
         const selected = this._selectionManager.getSelected();
-        const type = selected?.type ?? null;
+        const kind = selected?.kind ?? null;
 
         this._tabs.forEach(tab => {
             const tabName = (tab as HTMLElement).dataset.tab!;
-            const visible = this._isTabVisible(tabName, type);
+            const visible = this._isTabVisible(tabName, kind);
             (tab as HTMLElement).style.display = visible ? '' : 'none';
         });
 
@@ -121,23 +116,20 @@ export class DetailPanel {
             }
         }
 
-        // 清理积分可视化（切换选中时）
+        // 清理积分 / 梯度可视化（切换选中时）
         this._integralVisualizer.clearAll();
         this._gradientVisualizer.clear();
         this._refreshContent();
     }
 
-    /**
-     * 标签页显隐规则
-     */
-    private _isTabVisible(tab: string, type: string | null): boolean {
-        if (!type) return tab === 'edit'; // 无选中时只显示编辑（占位）
+    private _isTabVisible(tab: string, kind: string | null): boolean {
+        if (!kind) return tab === 'edit'; // 无选中时只显示编辑（占位）
 
         switch (tab) {
             case 'edit': return true;
-            case 'derivative': return type === '2d' || type === '3d';
-            case 'integral': return type === '2d' || type === '3d';
-            case 'gradient': return type === '3d';
+            case 'derivative': return kind === 'curve' || kind === 'surface';
+            case 'integral': return kind === 'curve' || kind === 'surface';
+            case 'gradient': return kind === 'surface';
             default: return false;
         }
     }
@@ -154,49 +146,144 @@ export class DetailPanel {
             return;
         }
 
-        const expr = this._exprManager.getById(selected.id);
-        if (!expr) {
+        const obj = this._objectManager.getById(selected.id);
+        if (!obj) {
             this._contentContainer.innerHTML =
                 '<div class="detail-hint">实体已被删除</div>';
             return;
         }
 
         switch (this._activeTab) {
-            case 'edit': this._renderEdit(expr); break;
-            case 'derivative': this._renderDerivative(expr); break;
-            case 'integral': this._renderIntegral(expr); break;
-            case 'gradient': this._renderGradient(expr); break;
+            case 'edit': this._renderEdit(obj); break;
+            case 'derivative': this._renderDerivative(obj); break;
+            case 'integral': this._renderIntegral(obj); break;
+            case 'gradient': this._renderGradient(obj); break;
         }
     }
 
     // ============================================================
     //  编辑标签页
     // ============================================================
-    private _renderEdit(expr: Expression): void {
+
+    private _renderEdit(obj: MathObject): void {
         let html = '';
 
-        // 2d / 3d：表达式编辑框 + 更新按钮 + 颜色
-        if (expr.type === '2d' || expr.type === '3d') {
+        // 表达式编辑框（仅 curve / surface）
+        if (obj.kind === 'curve' || obj.kind === 'surface') {
             html += `
                 <div class="edit-row">
                     <input type="text" class="edit-input"
-                           value="${this._escapeHtml(expr.node.toString())}"
+                           value="${this._escapeHtml(obj.node.toString())}"
                            spellcheck="false" id="detailEditInput" />
                     <button class="update-btn" id="detailUpdateBtn">🔄</button>
                 </div>
                 <div class="color-row" style="margin-top:8px;">
                     <label>颜色</label>
                     <input type="color" class="color-input"
-                           value="${expr.color}" id="detailColorInput" />
+                           value="${obj.color}" id="detailColorInput" />
                 </div>`;
         }
 
-        // point / vector：直接跳到系数滑块，无表达式输入框
+        // 点坐标编辑
+        if (obj.kind === 'point') {
+            html += `
+                <div class="color-row" style="margin-bottom:8px;">
+                    <label>颜色</label>
+                    <input type="color" class="color-input"
+                           value="${obj.color}" id="detailColorInput" />
+                </div>
+                <div class="coeff-sliders">
+                    <div class="coeff-row">
+                        <label>x</label>
+                        <input type="range" min="-10" max="10" step="0.1"
+                               value="${obj.x}" data-coeff="x" class="coeff-slider" />
+                        <input type="number" class="coeff-value"
+                               value="${obj.x.toFixed(2)}" step="0.1" min="-10" max="10"
+                               data-coeff="x" />
+                    </div>
+                    <div class="coeff-row">
+                        <label>y</label>
+                        <input type="range" min="-10" max="10" step="0.1"
+                               value="${obj.y}" data-coeff="y" class="coeff-slider" />
+                        <input type="number" class="coeff-value"
+                               value="${obj.y.toFixed(2)}" step="0.1" min="-10" max="10"
+                               data-coeff="y" />
+                    </div>
+                    <div class="coeff-row">
+                        <label>z</label>
+                        <input type="range" min="-10" max="10" step="0.1"
+                               value="${obj.z}" data-coeff="z" class="coeff-slider" />
+                        <input type="number" class="coeff-value"
+                               value="${obj.z.toFixed(2)}" step="0.1" min="-10" max="10"
+                               data-coeff="z" />
+                    </div>
+                </div>`;
+        }
 
-        // 系数滑块（所有类型都可能有）
-        if (expr.coefficients.length > 0) {
+        // 向量编辑
+        if (obj.kind === 'vector') {
+            html += `
+                <div class="color-row" style="margin-bottom:8px;">
+                    <label>颜色</label>
+                    <input type="color" class="color-input"
+                           value="${obj.color}" id="detailColorInput" />
+                </div>
+                <div class="coeff-sliders">
+                    <div class="coeff-row">
+                        <label>dx</label>
+                        <input type="range" min="-5" max="5" step="0.1"
+                               value="${obj.direction.x}" data-coeff="dx" class="coeff-slider" />
+                        <input type="number" class="coeff-value"
+                               value="${obj.direction.x.toFixed(2)}" step="0.1" min="-5" max="5"
+                               data-coeff="dx" />
+                    </div>
+                    <div class="coeff-row">
+                        <label>dy</label>
+                        <input type="range" min="-5" max="5" step="0.1"
+                               value="${obj.direction.y}" data-coeff="dy" class="coeff-slider" />
+                        <input type="number" class="coeff-value"
+                               value="${obj.direction.y.toFixed(2)}" step="0.1" min="-5" max="5"
+                               data-coeff="dy" />
+                    </div>
+                    <div class="coeff-row">
+                        <label>dz</label>
+                        <input type="range" min="-5" max="5" step="0.1"
+                               value="${obj.direction.z}" data-coeff="dz" class="coeff-slider" />
+                        <input type="number" class="coeff-value"
+                               value="${obj.direction.z.toFixed(2)}" step="0.1" min="-5" max="5"
+                               data-coeff="dz" />
+                    </div>
+                    <div class="coeff-row">
+                        <label>ox</label>
+                        <input type="range" min="-10" max="10" step="0.1"
+                               value="${obj.origin.x}" data-coeff="ox" class="coeff-slider" />
+                        <input type="number" class="coeff-value"
+                               value="${obj.origin.x.toFixed(2)}" step="0.1" min="-10" max="10"
+                               data-coeff="ox" />
+                    </div>
+                    <div class="coeff-row">
+                        <label>oy</label>
+                        <input type="range" min="-10" max="10" step="0.1"
+                               value="${obj.origin.y}" data-coeff="oy" class="coeff-slider" />
+                        <input type="number" class="coeff-value"
+                               value="${obj.origin.y.toFixed(2)}" step="0.1" min="-10" max="10"
+                               data-coeff="oy" />
+                    </div>
+                    <div class="coeff-row">
+                        <label>oz</label>
+                        <input type="range" min="-10" max="10" step="0.1"
+                               value="${obj.origin.z}" data-coeff="oz" class="coeff-slider" />
+                        <input type="number" class="coeff-value"
+                               value="${obj.origin.z.toFixed(2)}" step="0.1" min="-10" max="10"
+                               data-coeff="oz" />
+                    </div>
+                </div>`;
+        }
+
+        // 系数滑块（仅 curve / surface）
+        if ((obj.kind === 'curve' || obj.kind === 'surface') && obj.coefficients.length > 0) {
             html += '<div class="coeff-sliders">';
-            for (const c of expr.coefficients) {
+            for (const c of obj.coefficients) {
                 html += `
                     <div class="coeff-row">
                         <label>${c.name}</label>
@@ -214,39 +301,47 @@ export class DetailPanel {
         }
 
         this._contentContainer.innerHTML = html;
-
-        // 绑定事件
-        this._bindEditEvents(expr);
+        this._bindEditEvents(obj);
     }
 
-    private _bindEditEvents(expr: Expression): void {
-        // 更新按钮
+    private _bindEditEvents(obj: MathObject): void {
+        // ---------- 表达式更新（仅 curve / surface）----------
         const updateBtn = this._contentContainer.querySelector<HTMLElement>('#detailUpdateBtn');
         const editInput = this._contentContainer.querySelector<HTMLInputElement>('#detailEditInput');
         updateBtn?.addEventListener('click', () => {
             const newRaw = editInput?.value.trim();
             if (!newRaw) return;
             try {
-                this._exprManager.updateFn(expr.id, newRaw);
-                this._eventBus.emit('expr:updated', { id: expr.id, fnStr: newRaw });
+                this._objectManager.updateFn(obj.id, newRaw);
+                this._eventBus.emit('mathobj:updated', { id: obj.id });
             } catch (err) {
                 alert((err as Error).message);
             }
         });
-
-        // 回车更新
         editInput?.addEventListener('keydown', (e: KeyboardEvent) => {
             if (e.key === 'Enter') updateBtn?.click();
         });
 
-        // 颜色
+        // ---------- 颜色（所有类型通用）----------
         const colorInput = this._contentContainer.querySelector('#detailColorInput') as HTMLInputElement | null;
         colorInput?.addEventListener('input', () => {
-            this._exprManager.updateColor(expr.id, colorInput.value);
-            this._eventBus.emit('expr:updated', { id: expr.id, fnStr: '' });
+            this._objectManager.updateColor(obj.id, colorInput.value);
+            this._eventBus.emit('mathobj:updated', { id: obj.id });
         });
 
-        // 系数滑块
+        // ---------- point：坐标滑块 ----------
+        if (obj.kind === 'point') {
+            this._bindPointSliders(obj.id);
+            return;
+        }
+
+        // ---------- vector：方向/起点滑块 ----------
+        if (obj.kind === 'vector') {
+            this._bindVectorSliders(obj.id);
+            return;
+        }
+
+        // ---------- curve / surface：系数滑块 ----------
         this._contentContainer.querySelectorAll('.coeff-row').forEach(row => {
             const slider = row.querySelector('.coeff-slider') as HTMLInputElement | null;
             const numInput = row.querySelector('.coeff-value') as HTMLInputElement | null;
@@ -256,8 +351,8 @@ export class DetailPanel {
                 const val = parseFloat(slider.value);
                 numInput.value = val.toFixed(2);
                 const coeffName = slider.dataset.coeff!;
-                this._exprManager.setCoefficient(expr.id, coeffName, val);
-                this._debouncedEmitCoefficient(expr.id);
+                this._objectManager.setCoefficient(obj.id, coeffName, val);
+                this._debouncedEmitCoefficient(obj.id);
             });
 
             numInput.addEventListener('input', () => {
@@ -269,10 +364,90 @@ export class DetailPanel {
                 );
                 slider.value = String(val);
                 const coeffName = numInput.dataset.coeff!;
-                this._exprManager.setCoefficient(expr.id, coeffName, val);
-                this._debouncedEmitCoefficient(expr.id);
+                this._objectManager.setCoefficient(obj.id, coeffName, val);
+                this._debouncedEmitCoefficient(obj.id);
             });
         });
+    }
+
+    /** 点坐标滑块：x, y, z 绑定 */
+    private _bindPointSliders(id: number): void {
+        const getVal = (name: string): number => {
+            const el = this._contentContainer.querySelector(`[data-coeff="${name}"].coeff-value`) as HTMLInputElement | null;
+            return parseFloat(el?.value ?? '0');
+        };
+        const getSlider = (name: string): HTMLInputElement | null =>
+            this._contentContainer.querySelector(`[data-coeff="${name}"].coeff-slider`);
+
+        const commit = () => {
+            const x = getVal('x');
+            const y = getVal('y');
+            const z = getVal('z');
+            this._objectManager.updatePointPosition(id, x, y, z);
+            this._debouncedEmitCoefficient(id);
+        };
+
+        const bind = (name: string) => {
+            const slider = getSlider(name);
+            const numInput = this._contentContainer.querySelector(`[data-coeff="${name}"].coeff-value`) as HTMLInputElement | null;
+            if (!slider || !numInput) return;
+
+            slider.addEventListener('input', () => {
+                numInput.value = parseFloat(slider.value).toFixed(2);
+                commit();
+            });
+            numInput.addEventListener('input', () => {
+                let val = parseFloat(numInput.value);
+                if (isNaN(val)) return;
+                val = Math.max(parseFloat(slider.min), Math.min(parseFloat(slider.max), val));
+                slider.value = String(val);
+                commit();
+            });
+        };
+
+        bind('x'); bind('y'); bind('z');
+    }
+
+    /** 向量方向/起点滑块：dx, dy, dz, ox, oy, oz 绑定 */
+    private _bindVectorSliders(id: number): void {
+        const getVal = (name: string): number => {
+            const el = this._contentContainer.querySelector(`[data-coeff="${name}"].coeff-value`) as HTMLInputElement | null;
+            return parseFloat(el?.value ?? '0');
+        };
+        const getSlider = (name: string): HTMLInputElement | null =>
+            this._contentContainer.querySelector(`[data-coeff="${name}"].coeff-slider`);
+
+        const commit = () => {
+            const dx = getVal('dx');
+            const dy = getVal('dy');
+            const dz = getVal('dz');
+            const ox = getVal('ox');
+            const oy = getVal('oy');
+            const oz = getVal('oz');
+            this._objectManager.updateVectorTransform(id, dx, dy, dz, ox, oy, oz);
+            this._debouncedEmitCoefficient(id);
+        };
+
+        const bind = (name: string) => {
+            const slider = getSlider(name);
+            const numInput = this._contentContainer.querySelector(`[data-coeff="${name}"].coeff-value`) as HTMLInputElement | null;
+            if (!slider || !numInput) return;
+
+            slider.addEventListener('input', () => {
+                numInput.value = parseFloat(slider.value).toFixed(2);
+                commit();
+            });
+            numInput.addEventListener('input', () => {
+                let val = parseFloat(numInput.value);
+                if (isNaN(val)) return;
+                val = Math.max(parseFloat(slider.min), Math.min(parseFloat(slider.max), val));
+                slider.value = String(val);
+                commit();
+            });
+        };
+
+        bind('dx'); bind('dy'); bind('dz');
+        bind('ox'); bind('oy'); bind('oz');
     }
 
     private _coeffDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -286,45 +461,58 @@ export class DetailPanel {
     // ============================================================
     //  求导标签页
     // ============================================================
-    private _renderDerivative(expr: Expression): void {
+
+    private _renderDerivative(obj: MathObject): void {
         let html = '<div class="deriv-row">';
-        if (expr.type === '2d') {
+
+        if (obj.kind === 'curve') {
             html += `
                 <span class="deriv-label">导</span>
                 <button class="deriv-btn" id="derivBtnX">d/dx</button>`;
-        } else {
+        } else if (obj.kind === 'surface') {
             html += `
                 <span class="deriv-label">偏导</span>
                 <button class="deriv-btn" id="derivBtnX">∂/∂x</button>
                 <button class="deriv-btn" id="derivBtnY">∂/∂y</button>`;
         }
+
         html += '</div>';
         this._contentContainer.innerHTML = html;
 
         document.getElementById('derivBtnX')?.addEventListener('click', () => {
-            this._doDerivative(expr.id, 'x');
+            this._doDerivative(obj.id, obj.kind as 'curve' | 'surface', 'x');
         });
         document.getElementById('derivBtnY')?.addEventListener('click', () => {
-            this._doDerivative(expr.id, 'y');
+            this._doDerivative(obj.id, 'surface', 'y');
         });
     }
 
-    private _doDerivative(id: number, variable: 'x' | 'y'): void {
+    private _doDerivative(id: number, kind: 'curve' | 'surface', variable: 'x' | 'y'): void {
         try {
-            const derivExpr = this._exprManager.deriveExpr(id, variable);
-            this._eventBus.emit('expr:added', { expr: derivExpr });
-            // 自动选中新表达式
-            this._selectionManager.select(derivExpr.id, derivExpr.type);
+            const deriv =
+                kind === 'curve'
+                    ? this._objectManager.deriveCurve(id)
+                    : this._objectManager.deriveSurface(id, variable);
+
+            this._eventBus.emit('mathobj:added', { object: deriv });
+            this._selectionManager.select(deriv.id, deriv.kind);
         } catch (err) {
             alert(`求导失败: ${(err as Error).message}`);
         }
     }
 
     // ============================================================
-    //  积分标签页（迁移自 IntegralPanel，改为单表达式计算）
+    //  积分标签页
     // ============================================================
-    private _renderIntegral(expr: Expression): void {
-        const is2D = expr.type === '2d';
+
+    private _renderIntegral(obj: MathObject): void {
+        if (obj.kind !== 'curve' && obj.kind !== 'surface') {
+            this._contentContainer.innerHTML =
+                '<div class="detail-hint">积分仅适用于曲线或曲面</div>';
+            return;
+        }
+
+        const isCurve = obj.kind === 'curve';
 
         let html = `
             <div class="integral-header">
@@ -338,7 +526,7 @@ export class DetailPanel {
             </div>
             <div class="integral-inputs">`;
 
-        if (is2D) {
+        if (isCurve) {
             html += `
                 <div class="range-group">
                     <label>x ∈ [</label>
@@ -379,11 +567,10 @@ export class DetailPanel {
                  style="margin-top:8px;color:#ffd93d;"></div>`;
 
         this._contentContainer.innerHTML = html;
-
-        this._bindIntegralEvents(expr, is2D);
+        this._bindIntegralEvents(obj, isCurve);
     }
 
-    private _bindIntegralEvents(expr: Expression, is2D: boolean): void {
+    private _bindIntegralEvents(obj: MathObject, isCurve: boolean): void {
         // 方法切换
         this._contentContainer.querySelectorAll('.method-btn').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -401,15 +588,19 @@ export class DetailPanel {
 
         // 计算按钮
         const calcBtn = this._contentContainer.querySelector('#calcIntegralBtn');
-        calcBtn?.addEventListener('click', () => this._doIntegral(expr, is2D));
+        calcBtn?.addEventListener('click', () => this._doIntegral(obj, isCurve));
     }
 
-    private _makeFn(expr: Expression): (x: number, y?: number) => number {
-        const compiled = expr.node.compile();
-        const scope: Record<string, number> = {};
-        for (const c of expr.coefficients) scope[c.name] = c.value;
+    private _makeFn(obj: MathObject): (x: number, y?: number) => number {
+        if (obj.kind !== 'curve' && obj.kind !== 'surface') {
+            throw new Error('只能对曲线或曲面构建求值函数');
+        }
 
-        if (expr.type === '2d') {
+        const compiled = obj.node.compile();
+        const scope: Record<string, number> = {};
+        for (const c of obj.coefficients) scope[c.name] = c.value;
+
+        if (obj.kind === 'curve') {
             return (x: number): number => {
                 scope.x = x;
                 return compiled.evaluate(scope);
@@ -423,18 +614,18 @@ export class DetailPanel {
         }
     }
 
-    private _doIntegral(expr: Expression, is2D: boolean): void {
+    private _doIntegral(obj: MathObject, isCurve: boolean): void {
         this._integralVisualizer.clearAll();
         const resultDiv = this._contentContainer.querySelector('#singleIntegralResult') as HTMLElement | null;
 
         try {
             let val: number;
-            const fn = this._makeFn(expr);
+            const fn = this._makeFn(obj);
             const segments = parseInt(
                 (this._contentContainer.querySelector('#segInt') as HTMLInputElement)?.value || '32',
             );
 
-            if (is2D) {
+            if (isCurve) {
                 const a = parseFloat(
                     (this._contentContainer.querySelector('#xMinInt') as HTMLInputElement)?.value || '-4',
                 );
@@ -446,10 +637,14 @@ export class DetailPanel {
                 const sample2d = segments * 20;
                 if (this._integralMethod === 'lebesgue') {
                     val = lebesgue1d(fn as (x: number) => number, a, b, segments, sample2d);
-                    this._integralVisualizer.visualize2DLebesgue(expr, fn as (x: number) => number, a, b, segments, sample2d);
+                    this._integralVisualizer.visualize2DLebesgue(
+                        obj, fn as (x: number) => number, a, b, segments, sample2d,
+                    );
                 } else {
                     val = riemann1dLeft(fn as (x: number) => number, a, b, segments);
-                    this._integralVisualizer.visualize2DRiemann(expr, fn as (x: number) => number, a, b, segments);
+                    this._integralVisualizer.visualize2DRiemann(
+                        obj, fn as (x: number) => number, a, b, segments,
+                    );
                 }
             } else {
                 const xMin = parseFloat(
@@ -474,7 +669,7 @@ export class DetailPanel {
                         segments, res3d,
                     );
                     this._integralVisualizer.visualize3DLebesgue(
-                        expr,
+                        obj,
                         fn as (x: number, y: number) => number,
                         [xMin, xMax], [yMin, yMax],
                         res3d,
@@ -486,7 +681,7 @@ export class DetailPanel {
                         segments, segments,
                     );
                     this._integralVisualizer.visualize3DRiemann(
-                        expr,
+                        obj,
                         fn as (x: number, y: number) => number,
                         [xMin, xMax], [yMin, yMax],
                         segments, segments,
@@ -498,13 +693,12 @@ export class DetailPanel {
                 resultDiv.textContent = `积分结果: S = ${val.toFixed(6)}`;
             }
 
-            // 更新列表中的积分显示
             this._eventBus.emit('integral:calculated', {
-                results: [{ id: expr.id, value: val }],
+                results: [{ id: obj.id, value: val }],
                 total: val,
             });
         } catch (e) {
-            console.warn('[积分] 计算失败:', expr.node.toString(), e);
+            console.warn('[积分] 计算失败:', obj.kind === 'curve' || obj.kind === 'surface' ? obj.node.toString() : '', e);
             if (resultDiv) resultDiv.textContent = '积分计算失败';
         }
     }
@@ -514,23 +708,27 @@ export class DetailPanel {
     //  滑块拖动 -> 实时预览标记点 + 法向量 + 切平面
     //  点击[固定]-> 持久化到场景
     // ============================================================
-    private _renderGradient(expr: Expression): void {
-        if (expr.type !== '3d') {
+    // ============================================================
+    //  梯度标签页（仅曲面 surface 显示）
+    // ============================================================
+
+    private _renderGradient(obj: MathObject): void {
+        if (obj.kind !== 'surface') {
             this._contentContainer.innerHTML =
                 '<div class="detail-hint">梯度计算仅适用于 3D 曲面</div>';
             return;
         }
 
-        // 从表达式系数读取当前值
+        // 从曲面系数读取 x0/y0 默认值
         const getCoeff = (name: string, fallback: number): number =>
-            expr.coefficients.find(c => c.name === name)?.value ?? fallback;
+            obj.coefficients.find(c => c.name === name)?.value ?? fallback;
 
         const x0 = getCoeff('x0', 0);
         const y0 = getCoeff('y0', 0);
 
         const html = `
             <div class="gradient-status" style="margin-bottom:6px;font-size:13px;color:#aac8ff;">
-                曲面: <b>z = ${this._escapeHtml(expr.node.toString())}</b>
+                曲面: <b>z = ${this._escapeHtml(obj.node.toString())}</b>
             </div>
 
             <div class="gradient-sliders">
@@ -564,14 +762,14 @@ export class DetailPanel {
         this._contentContainer.innerHTML = html;
         this._gradientPinned = false;
 
-        // 绑定滑块事件
-        this._bindGradientSliders(expr);
-        // 首次自动预览
-        this._updateGradientPreview(expr, x0, y0);
+        this._bindGradientSliders(obj);
+        this._updateGradientPreview(obj, x0, y0);
     }
 
     // ---------- 滑块绑定 ----------
-    private _bindGradientSliders(expr: Expression): void {
+    private _bindGradientSliders(obj: MathObject): void {
+        if (obj.kind !== 'surface') return;
+
         const sliderX = this._contentContainer.querySelector('#gradX0Slider') as HTMLInputElement | null;
         const numX = this._contentContainer.querySelector('#gradX0Num') as HTMLInputElement | null;
         const sliderY = this._contentContainer.querySelector('#gradY0Slider') as HTMLInputElement | null;
@@ -585,10 +783,9 @@ export class DetailPanel {
             if (numX) numX.value = xVal.toFixed(2);
             if (numY) numY.value = yVal.toFixed(2);
 
-            // debounce 50ms
             if (this._gradientTimer) clearTimeout(this._gradientTimer);
             this._gradientTimer = setTimeout(() => {
-                this._updateGradientPreview(expr, xVal, yVal);
+                this._updateGradientPreview(obj, xVal, yVal);
             }, 50);
         };
 
@@ -603,31 +800,29 @@ export class DetailPanel {
         numX?.addEventListener('input', onNumInput);
         numY?.addEventListener('input', onNumInput);
 
-        // 固定按钮
         pinBtn?.addEventListener('click', () => {
             const xVal = parseFloat(sliderX?.value ?? '0');
             const yVal = parseFloat(sliderY?.value ?? '0');
-            this._doGradientPersist(expr, xVal, yVal);
+            this._doGradientPersist(obj, xVal, yVal);
         });
 
-        // 清除预览按钮
         clearBtn?.addEventListener('click', () => {
             this._gradientVisualizer.clear();
         });
     }
 
     // ---------- 实时预览 ----------
-    private _updateGradientPreview(expr: Expression, x0: number, y0: number): void {
+    private _updateGradientPreview(obj: MathObject, x0: number, y0: number): void {
+        if (obj.kind !== 'surface') return;
+
         try {
-            // 构建带系数的 scope
             const scope: Record<string, number> = {};
-            for (const c of expr.coefficients) {
+            for (const c of obj.coefficients) {
                 scope[c.name] = c.value;
             }
 
-            const result = computeGradient(expr.node, x0, y0, scope);
+            const result = computeGradient(obj.node, x0, y0, scope);
 
-            // 更新信息文字
             const infoDiv = this._contentContainer.querySelector('#gradResultInfo');
             if (infoDiv) {
                 infoDiv.innerHTML = `
@@ -638,12 +833,11 @@ export class DetailPanel {
                 `;
             }
 
-            // 更新场景预览
             this._gradientVisualizer.update(
                 x0, y0, result.f0,
                 result.fx, result.fy,
                 result.normalDirection,
-                expr.color,
+                obj.color,
             );
         } catch (err) {
             const infoDiv = this._contentContainer.querySelector('#gradResultInfo');
@@ -653,35 +847,36 @@ export class DetailPanel {
         }
     }
 
-    // ---------- 🎯 固定到场景（原 _doGradient 逻辑，加入 scope 修复）----------
-    private _doGradientPersist(expr: Expression, x0: number, y0: number): void {
+    // ---------- 🎯 固定到场景 ----------
+    private _doGradientPersist(obj: MathObject, x0: number, y0: number): void {
+        if (obj.kind !== 'surface') return;
+
         try {
-            // 构建带系数的 scope
             const scope: Record<string, number> = {};
-            for (const c of expr.coefficients) {
+            for (const c of obj.coefficients) {
                 scope[c.name] = c.value;
             }
 
-            const result = computeGradient(expr.node, x0, y0, scope);
+            const result = computeGradient(obj.node, x0, y0, scope);
 
             // 1. 添加切平面表达式
             const tangentStr = result.tangentPlaneNode.toString();
-            const tangentExpr = this._exprManager.add('3d', tangentStr);
-            const planeColor = this._adjustColor(expr.color, 0.7);
-            this._exprManager.updateColor(tangentExpr.id, planeColor);
-            this._eventBus.emit('expr:added', { expr: tangentExpr });
+            const tangentExpr = this._objectManager.addSurface(tangentStr);
+            const planeColor = this._adjustColor(obj.color, 0.7);
+            this._objectManager.updateColor(tangentExpr.id, planeColor);
+            this._eventBus.emit('mathobj:added', { object: tangentExpr });
 
             // 2. 添加法线箭头
             const [nx, ny, nz] = result.normalDirection;
             const arrowLength = 2;
-            const arrowExpr = this._exprManager.addVector(
+            const arrowExpr = this._objectManager.addVector(
                 nx * arrowLength,
                 ny * arrowLength,
                 nz * arrowLength,
                 x0, y0, result.f0,
                 '#ff6b8a',
             );
-            this._eventBus.emit('expr:added', { expr: arrowExpr });
+            this._eventBus.emit('mathobj:added', { object: arrowExpr });
 
             // 3. 自动选中法线箭头
             this._selectionManager.select(arrowExpr.id, 'vector');

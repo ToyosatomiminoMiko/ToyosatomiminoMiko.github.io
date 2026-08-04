@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 /**
- * GradientVisualizer — 梯度临时可视化
+ * GradientVisualizer
  *
  * 在场景中绘制三个临时对象：
  *   1. 标记点  — 小球,表示 (x₀, y₀, z₀)

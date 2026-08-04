@@ -1,21 +1,48 @@
 import * as THREE from 'three';
-import { SurfaceMesh } from './SurfaceMesh';
-import type { Expression, Coefficient } from '../types';
-import * as math from 'mathjs'
-import { ArrowMesh } from '../vector-field/ArrowMesh';
+import { SurfaceMesh } from '../visualization/SurfaceMesh';
+import type {
+    CurveExpr,
+    SurfaceExpr,
+    PointEntity,
+    VectorEntity,
+    MathObject,
+} from '../types';
+import * as math from 'mathjs';
+import { ArrowMesh } from '../visualization/ArrowMesh';
 
 // ============================================================
-// 内部类型:绘图条目
+// 内部类型：绘图条目（discriminated union）
 // ============================================================
-interface PlotEntry {
-    type: '2d' | '3d' | 'point' | 'vector';
+
+interface CurveEntry {
+    objectKind: 'curve';
     group: THREE.Group;
-    object: THREE.Line | null;
-    surface: SurfaceMesh | null;
-    mesh: THREE.Mesh | null;      // 点的小球
-    arrow: ArrowMesh | null;      // 向量箭头
+    line: THREE.Line | null;
     enabled: boolean;
 }
+
+interface SurfaceEntry {
+    objectKind: 'surface';
+    group: THREE.Group;
+    mesh: SurfaceMesh | null;
+    enabled: boolean;
+}
+
+interface PointEntry {
+    objectKind: 'point';
+    group: THREE.Group;
+    sphere: THREE.Mesh;
+    enabled: boolean;
+}
+
+interface VectorEntry {
+    objectKind: 'vector';
+    group: THREE.Group;
+    arrow: ArrowMesh;
+    enabled: boolean;
+}
+
+type PlotEntry = CurveEntry | SurfaceEntry | PointEntry | VectorEntry;
 
 /**
  * 增量式绘图器 —— 每个表达式拥有独立的 THREE.Group
@@ -26,21 +53,17 @@ interface PlotEntry {
  * - 模式切换仅遍历更新 visible
  * - 绝不执行 clearAll 式清空
  */
+
 export class Plotter {
     scene: THREE.Scene;
-    /** id → PlotEntry 映射表 */
     plotMap: Map<number, PlotEntry>;
-    /** 当前渲染模式 */
     currentMode: '2d' | '3d';
-    /** 顶层容器:所有表达式 Group 都挂在这里 */
     plotContainer: THREE.Group;
 
     constructor(scene: THREE.Scene) {
         this.scene = scene;
         this.plotMap = new Map();
-
         this.currentMode = '2d';
-
         this.plotContainer = new THREE.Group();
         this.scene.add(this.plotContainer);
     }
@@ -50,45 +73,43 @@ export class Plotter {
     // =====================================================
 
     /**
-     * 绘制 2D 曲线（若 Group 不存在则创建,若已存在则更新几何体）
+     * 绘制 / 更新 2D 曲线
      */
-    draw2D(
-        expr: Expression,
+    drawCurve(
+        curve: CurveExpr,
         xRange: [number, number] = [-8, 8],
         steps: number = 320,
     ): void {
-        const { id, color, enabled } = expr;
-        const compiled = expr.node.compile();
+        const { id, color, enabled } = curve;
+        const compiled = curve.node.compile();
         let entry = this.plotMap.get(id);
 
-        if (!entry) {
+        if (!entry || entry.objectKind !== 'curve') {
             const group = new THREE.Group();
             this.plotContainer.add(group);
             entry = {
-                type: '2d',
+                objectKind: 'curve',
                 group,
-                object: null,
-                surface: null,
-                mesh: null,
-                arrow: null,
+                line: null,
                 enabled: enabled ?? true,
             };
             this.plotMap.set(id, entry);
         }
 
-        if (entry.object) {
-            entry.group.remove(entry.object);
-            entry.object.geometry?.dispose();
-            const mat = entry.object.material;
+        // 清理旧 line
+        if (entry.line) {
+            entry.group.remove(entry.line);
+            entry.line.geometry?.dispose();
+            const mat = entry.line.material;
             if (Array.isArray(mat)) {
                 mat.forEach(m => m.dispose());
             } else {
                 mat?.dispose();
             }
-            entry.object = null;
+            entry.line = null;
         }
 
-        const points = this._sample2D(expr, compiled, xRange, steps);
+        const points = this._sampleCurve(curve, compiled, xRange, steps);
         if (points.length < 2) {
             entry.enabled = enabled ?? true;
             this._applyVisibility(entry);
@@ -104,60 +125,56 @@ export class Plotter {
         });
         const line = new THREE.Line(geometry, material);
         entry.group.add(line);
-        entry.object = line;
+        entry.line = line;
         entry.enabled = enabled ?? true;
-
         this._applyVisibility(entry);
     }
 
     /**
      * 绘制 / 更新 3D 曲面（复用 SurfaceMesh,仅在分段数改变时重建）
      */
-    draw3D(
-        expr: Expression,
+    drawSurface(
+        surface: SurfaceExpr,
         range: [number, number] = [-6, 6],
         segments: number = 64,
     ): void {
-        const { id, enabled } = expr;
-        const compiled = expr.node.compile();
+        const { id, enabled } = surface;
+        const compiled = surface.node.compile();
         let entry = this.plotMap.get(id);
 
-        if (!entry) {
+        if (!entry || entry.objectKind !== 'surface') {
             const group = new THREE.Group();
             this.plotContainer.add(group);
             entry = {
-                type: '3d',
+                objectKind: 'surface',
                 group,
-                object: null,
-                surface: null,
                 mesh: null,
-                arrow: null,
                 enabled: enabled ?? true,
             };
             this.plotMap.set(id, entry);
         }
 
-        if (entry.surface) {
-            if (entry.surface.cols !== segments || entry.surface.rows !== segments) {
-                entry.group.remove(entry.surface.group);
-                entry.surface.dispose();
-                entry.surface = null;
+        // 分段数变化时重建 SurfaceMesh
+        if (entry.mesh) {
+            if (entry.mesh.cols !== segments || entry.mesh.rows !== segments) {
+                entry.group.remove(entry.mesh.group);
+                entry.mesh.dispose();
+                entry.mesh = null;
             }
         }
 
-        if (!entry.surface) {
-            const surface = new SurfaceMesh(segments, segments);
-            entry.group.add(surface.group);
-            entry.surface = surface;
+        if (!entry.mesh) {
+            const mesh = new SurfaceMesh(segments, segments);
+            entry.group.add(mesh.group);
+            entry.mesh = mesh;
         }
 
-        entry.surface.update(
+        entry.mesh.update(
             compiled,
-            expr.coefficients,
+            surface.coefficients,
             range[0], range[1], range[0], range[1],
         );
         entry.enabled = enabled ?? true;
-
         this._applyVisibility(entry);
     }
 
@@ -168,29 +185,44 @@ export class Plotter {
         const entry = this.plotMap.get(id);
         if (!entry) return;
 
-        if (entry.type === '2d' && entry.object) {
-            entry.object.geometry?.dispose();
-            const mat = entry.object.material;
-            if (Array.isArray(mat)) {
-                mat.forEach(m => m.dispose());
-            } else {
-                mat?.dispose();
-            }
+        switch (entry.objectKind) {
+            case 'curve':
+                if (entry.line) {
+                    entry.line.geometry?.dispose();
+                    const mat = entry.line.material;
+                    if (Array.isArray(mat)) {
+                        mat.forEach(m => m.dispose());
+                    } else {
+                        mat?.dispose();
+                    }
+                }
+                break;
+
+            case 'surface':
+                if (entry.mesh) {
+                    entry.mesh.dispose();
+                }
+                break;
+
+            case 'point':
+                if (entry.sphere) {
+                    entry.sphere.geometry?.dispose();
+                    const mat = entry.sphere.material;
+                    if (Array.isArray(mat)) {
+                        mat.forEach(m => m.dispose());
+                    } else {
+                        mat?.dispose();
+                    }
+                }
+                break;
+
+            case 'vector':
+                if (entry.arrow) {
+                    entry.arrow.dispose();
+                }
+                break;
         }
-        // 释放点的小球
-        if (entry.mesh) {
-            entry.mesh.geometry?.dispose();
-            const mat = entry.mesh.material;
-            if (Array.isArray(mat)) {
-                mat.forEach(m => m.dispose());
-            } else {
-                mat?.dispose();
-            }
-        }
-        // 释放向量箭头
-        if (entry.arrow) {
-            entry.arrow.dispose();
-        }
+
         this.plotContainer.remove(entry.group);
         this.plotMap.delete(id);
     }
@@ -206,18 +238,27 @@ export class Plotter {
     }
 
     /**
-     * 更新表达式数据（表达式字符串改变时调用,会重建几何体）
+     * 根据对象数据刷新绘制（表达式字符串改变 / 模式切换时调用）
      */
-    updateExpr(expr: Expression, mode: '2d' | '3d'): void {
-        if (mode === '2d' && expr.type === '2d') {
-            this.draw2D(expr);
-        } else if (mode === '3d' && expr.type === '3d') {
-            this.draw3D(expr);
+    updateObject(obj: MathObject, mode: '2d' | '3d'): void {
+        switch (obj.kind) {
+            case 'curve':
+                if (mode === '2d') this.drawCurve(obj);
+                break;
+            case 'surface':
+                if (mode === '3d') this.drawSurface(obj);
+                break;
+            case 'point':
+                this.drawPoint(obj);
+                break;
+            case 'vector':
+                this.drawVector(obj);
+                break;
         }
     }
 
     /**
-     * 模式切换:仅更新所有 Group 的可见性,不销毁任何几何体
+     * 模式切换：仅更新所有 Group 的可见性,不销毁任何几何体
      */
     updateMode(mode: '2d' | '3d'): void {
         this.currentMode = mode;
@@ -239,11 +280,11 @@ export class Plotter {
     /**
      * 绘制 / 更新一个空间点（小球）
      */
-    drawPoint(expr: Expression): void {
-        const { id, color, enabled } = expr;
+    drawPoint(point: PointEntity): void {
+        const { id, x, y, z, color, enabled } = point;
         let entry = this.plotMap.get(id);
 
-        if (!entry) {
+        if (!entry || entry.objectKind !== 'point') {
             const group = new THREE.Group();
             this.plotContainer.add(group);
 
@@ -254,65 +295,54 @@ export class Plotter {
                 specular: 0x333333,
                 shininess: 40,
             });
-            const mesh = new THREE.Mesh(geo, mat);
-            group.add(mesh);
+            const sphere = new THREE.Mesh(geo, mat);
+            group.add(sphere);
 
             entry = {
-                type: 'point',
+                objectKind: 'point',
                 group,
-                object: null,
-                surface: null,
-                mesh,
-                arrow: null,
+                sphere,
                 enabled: enabled ?? true,
             };
             this.plotMap.set(id, entry);
         }
 
-        // 从系数读取位置
-        const x = expr.coefficients.find(c => c.name === 'x')?.value ?? 0;
-        const y = expr.coefficients.find(c => c.name === 'y')?.value ?? 0;
-        const z = expr.coefficients.find(c => c.name === 'z')?.value ?? 0;
-        entry.mesh!.position.set(x, y, z);
-
-        // 颜色可能变化
-        const mat = entry.mesh!.material as THREE.MeshPhongMaterial;
+        entry.sphere.position.set(x, y, z);
+        const mat = entry.sphere.material as THREE.MeshPhongMaterial;
         mat.color.set(color);
-
         entry.enabled = enabled ?? true;
         this._applyVisibility(entry);
     }
 
     /**
-     * 绘制 / 更新一个向量箭头
+     * 绘制 / 更新空间向量箭头
      */
-    drawVector(expr: Expression): void {
-        const { id, color, enabled } = expr;
+    drawVector(vec: VectorEntity): void {
+        const { id, color, enabled } = vec;
         let entry = this.plotMap.get(id);
 
-        if (!entry) {
+        if (!entry || entry.objectKind !== 'vector') {
             const arrow = new ArrowMesh(color);
+            const group = arrow.group;
             entry = {
-                type: 'vector',
-                group: arrow.group,
-                object: null,
-                surface: null,
-                mesh: null,
+                objectKind: 'vector',
+                group,
                 arrow,
                 enabled: enabled ?? true,
             };
-            this.plotContainer.add(arrow.group);
+            this.plotContainer.add(group);
             this.plotMap.set(id, entry);
         }
 
-        // 从系数读取方向和起点
-        const getC = (n: string): number =>
-            expr.coefficients.find(c => c.name === n)?.value ?? 0;
-        const origin = new THREE.Vector3(getC('ox'), getC('oy'), getC('oz'));
-        const direction = new THREE.Vector3(getC('dx'), getC('dy'), getC('dz'));
+        const origin = new THREE.Vector3(
+            vec.origin.x, vec.origin.y, vec.origin.z,
+        );
+        const direction = new THREE.Vector3(
+            vec.direction.x, vec.direction.y, vec.direction.z,
+        );
 
-        entry.arrow!.setTransform(origin, direction);
-        entry.arrow!.setColor(color);
+        entry.arrow.setTransform(origin, direction);
+        entry.arrow.setColor(color);
         entry.enabled = enabled ?? true;
         this._applyVisibility(entry);
     }
@@ -322,10 +352,10 @@ export class Plotter {
     // =====================================================
 
     /**
-     * 2D 采样:对 x 范围进行均匀采样,跳过奇异点
+     * 2D 采样：对 x 范围进行均匀采样,跳过奇异点
      */
-    private _sample2D(
-        expr: Expression,
+    private _sampleCurve(
+        curve: CurveExpr,
         compiled: math.EvalFunction,
         xRange: [number, number],
         steps: number,
@@ -333,7 +363,7 @@ export class Plotter {
         const points: THREE.Vector3[] = [];
         const step = (xRange[1] - xRange[0]) / steps;
         const scope: Record<string, number> = {};
-        for (const c of expr.coefficients) scope[c.name] = c.value;
+        for (const c of curve.coefficients) scope[c.name] = c.value;
 
         for (let x = xRange[0]; x <= xRange[1]; x += step) {
             try {
@@ -356,14 +386,15 @@ export class Plotter {
      * - 用户主动 toggle 的 disabled 状态始终生效
      */
     private _applyVisibility(entry: PlotEntry): void {
-        // point / vector 始终可见 不受 2D/3D 模式切换影响
-        if (entry.type === 'point' || entry.type === 'vector') {
+        // point / vector 始终可见,不受 2D/3D 模式切换影响
+        if (entry.objectKind === 'point' || entry.objectKind === 'vector') {
             entry.group.visible = entry.enabled;
             return;
         }
+
         const modeMatch =
-            (this.currentMode === '2d' && entry.type === '2d') ||
-            (this.currentMode === '3d' && entry.type === '3d');
+            (this.currentMode === '2d' && entry.objectKind === 'curve') ||
+            (this.currentMode === '3d' && entry.objectKind === 'surface');
         entry.group.visible = modeMatch && entry.enabled;
     }
 }
