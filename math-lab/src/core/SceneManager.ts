@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 
 /**
- * 场景管理器 — 负责创建场景、渲染器、灯光、坐标轴等基础元素。
- * CameraManager 通过注入 SceneManager 获取 renderer 引用。
+ * 场景管理器 — 负责创建场景,渲染器,灯光,坐标轴等基础元素
+ * CameraManager 通过注入 SceneManager 获取 renderer 引用
  */
 export class SceneManager {
     container: HTMLElement;
@@ -43,7 +43,7 @@ export class SceneManager {
         this.scene.add(centerSphere);
 
         // --- XYZ 轴标签（使用 Sprite）---
-        const makeLabel = (text: string, position: THREE.Vector3): void => {
+        const makeLabel = (text: string, position: THREE.Vector3, color: string): void => {
             const canvas = document.createElement('canvas');
             canvas.width = 64;
             canvas.height = 64;
@@ -53,7 +53,7 @@ export class SceneManager {
             ctx.font = 'Bold 36px Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#ffffff';
+            ctx.fillStyle = color; // 使用传入的颜色
             ctx.shadowColor = 'rgba(0,0,0,0.8)';
             ctx.shadowBlur = 4;
             ctx.fillText(text, 32, 32);
@@ -71,9 +71,10 @@ export class SceneManager {
         };
 
         const axisLen = 8.5;
-        makeLabel('X', new THREE.Vector3(axisLen, 0, 0));
-        makeLabel('Y', new THREE.Vector3(0, axisLen, 0));
-        makeLabel('Z', new THREE.Vector3(0, 0, axisLen));
+        // X 红色 | Y 绿色 | Z 蓝色 与 AxesHelper 配色一致
+        makeLabel('X', new THREE.Vector3(axisLen, 0, 0), '#ff4444');
+        makeLabel('Y', new THREE.Vector3(0, axisLen, 0), '#44ff44');
+        makeLabel('Z', new THREE.Vector3(0, 0, axisLen), '#4488ff');
     }
 
     getScene(): THREE.Scene {

@@ -1,4 +1,5 @@
 node_modules/
+dist/
 mathjs_demo.html
 autorun.py
 prompt.md
