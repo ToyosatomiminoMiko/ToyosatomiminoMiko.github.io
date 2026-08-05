@@ -9,7 +9,7 @@ import {
     riemann2dLeft,
     lebesgue1d,
     lebesgue2d,
-} from '../math_objects/IntegralCore';
+} from '../math_objects/IntegralWasm';
 import { computeGradient } from '../math_objects/GradientCore';
 
 type IntegralMethod = 'riemann' | 'lebesgue';
@@ -116,14 +116,14 @@ export class DetailPanel {
             }
         }
 
-        // 清理积分 / 梯度可视化（切换选中时）
+        // 清理积分 / 梯度可视化(切换选中时)
         this._integralVisualizer.clearAll();
         this._gradientVisualizer.clear();
         this._refreshContent();
     }
 
     private _isTabVisible(tab: string, kind: string | null): boolean {
-        if (!kind) return tab === 'edit'; // 无选中时只显示编辑（占位）
+        if (!kind) return tab === 'edit'; // 无选中时只显示编辑(占位)
 
         switch (tab) {
             case 'edit': return true;
@@ -168,7 +168,7 @@ export class DetailPanel {
     private _renderEdit(obj: MathObject): void {
         let html = '';
 
-        // 表达式编辑框（仅 curve / surface）
+        // 表达式编辑框(仅 curve / surface)
         if (obj.kind === 'curve' || obj.kind === 'surface') {
             html += `
                 <div class="edit-row">
@@ -280,7 +280,7 @@ export class DetailPanel {
                 </div>`;
         }
 
-        // 系数滑块（仅 curve / surface）
+        // 系数滑块(仅 curve / surface)
         if ((obj.kind === 'curve' || obj.kind === 'surface') && obj.coefficients.length > 0) {
             html += '<div class="coeff-sliders">';
             for (const c of obj.coefficients) {
@@ -305,7 +305,7 @@ export class DetailPanel {
     }
 
     private _bindEditEvents(obj: MathObject): void {
-        // ---------- 表达式更新（仅 curve / surface）----------
+        // ---------- 表达式更新(仅 curve / surface)----------
         const updateBtn = this._contentContainer.querySelector<HTMLElement>('#detailUpdateBtn');
         const editInput = this._contentContainer.querySelector<HTMLInputElement>('#detailEditInput');
         updateBtn?.addEventListener('click', () => {
@@ -322,7 +322,7 @@ export class DetailPanel {
             if (e.key === 'Enter') updateBtn?.click();
         });
 
-        // ---------- 颜色（所有类型通用）----------
+        // ---------- 颜色(所有类型通用)----------
         const colorInput = this._contentContainer.querySelector('#detailColorInput') as HTMLInputElement | null;
         colorInput?.addEventListener('input', () => {
             this._objectManager.updateColor(obj.id, colorInput.value);
@@ -588,7 +588,11 @@ export class DetailPanel {
 
         // 计算按钮
         const calcBtn = this._contentContainer.querySelector('#calcIntegralBtn');
-        calcBtn?.addEventListener('click', () => this._doIntegral(obj, isCurve));
+        calcBtn?.addEventListener('click', () => {
+            this._doIntegral(obj, isCurve).catch(err => {
+                console.error('[积分WASM] 计算失败:', err);
+            });
+        });
     }
 
     private _makeFn(obj: MathObject): (x: number, y?: number) => number {
@@ -614,7 +618,7 @@ export class DetailPanel {
         }
     }
 
-    private _doIntegral(obj: MathObject, isCurve: boolean): void {
+    private async _doIntegral(obj: MathObject, isCurve: boolean): Promise<void> {
         this._integralVisualizer.clearAll();
         const resultDiv = this._contentContainer.querySelector('#singleIntegralResult') as HTMLElement | null;
 
@@ -636,12 +640,12 @@ export class DetailPanel {
 
                 const sample2d = segments * 20;
                 if (this._integralMethod === 'lebesgue') {
-                    val = lebesgue1d(fn as (x: number) => number, a, b, segments, sample2d);
+                    val = await lebesgue1d(fn as (x: number) => number, a, b, segments, sample2d);
                     this._integralVisualizer.visualize2DLebesgue(
                         obj, fn as (x: number) => number, a, b, segments, sample2d,
                     );
                 } else {
-                    val = riemann1dLeft(fn as (x: number) => number, a, b, segments);
+                    val = await riemann1dLeft(fn as (x: number) => number, a, b, segments);
                     this._integralVisualizer.visualize2DRiemann(
                         obj, fn as (x: number) => number, a, b, segments,
                     );
@@ -663,7 +667,7 @@ export class DetailPanel {
 
                 const res3d = segments;
                 if (this._integralMethod === 'lebesgue') {
-                    val = lebesgue2d(
+                    val = await lebesgue2d(
                         fn as (x: number, y: number) => number,
                         [xMin, xMax], [yMin, yMax],
                         segments, res3d,
@@ -675,7 +679,7 @@ export class DetailPanel {
                         res3d,
                     );
                 } else {
-                    val = riemann2dLeft(
+                    val = await riemann2dLeft(
                         fn as (x: number, y: number) => number,
                         [xMin, xMax], [yMin, yMax],
                         segments, segments,
@@ -704,12 +708,12 @@ export class DetailPanel {
     }
 
     // ============================================================
-    //  梯度标签页（选中 3D 曲面时显示）
+    //  梯度标签页(选中 3D 曲面时显示)
     //  滑块拖动 -> 实时预览标记点 + 法向量 + 切平面
     //  点击[固定]-> 持久化到场景
     // ============================================================
     // ============================================================
-    //  梯度标签页（仅曲面 surface 显示）
+    //  梯度标签页(仅曲面 surface 显示)
     // ============================================================
 
     private _renderGradient(obj: MathObject): void {
@@ -888,7 +892,7 @@ export class DetailPanel {
     }
 
     /**
-     * 调整颜色亮度（简单线性插值到白色，t 越小越白）
+     * 调整颜色亮度(简单线性插值到白色，t 越小越白)
      */
     private _adjustColor(hex: string, t: number): string {
         const r = parseInt(hex.slice(1, 3), 16);

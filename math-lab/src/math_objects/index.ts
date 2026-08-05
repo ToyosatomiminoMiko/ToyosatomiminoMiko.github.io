@@ -19,18 +19,7 @@ export type {
 } from './types';
 
 // 数值积分纯函数
-export {
-    trapz2d,
-    simpson2d,
-    trapz1d,
-    simpson1d,
-    riemann1dLeft,
-    riemann1dRight,
-    riemann1dMid,
-    riemann2dLeft,
-    lebesgue1d,
-    lebesgue2d,
-} from './IntegralCore';
+// WASM
 
 // 纯函数 — 曲线
 export { parseCurve, differentiateCurve } from './Curve';
