@@ -5,6 +5,10 @@ import type { SelectionManager } from './SelectionManager';
 import type { IntegralVisualizer } from '../visualization/IntegralVisualizer';
 import { GradientVisualizer } from '../visualization/GradientVisualizer';
 import {
+    trapz1d,
+    trapz2d,
+    simpson1d,
+    simpson2d,
     riemann1dLeft,
     riemann2dLeft,
     lebesgue1d,
@@ -12,7 +16,7 @@ import {
 } from '../math_objects/IntegralWasm';
 import { computeGradient } from '../math_objects/GradientCore';
 
-type IntegralMethod = 'riemann' | 'lebesgue';
+type IntegralMethod = 'trapezoid' | 'simpson' | 'riemann' | 'lebesgue';
 
 /**
  * DetailPanel - 详情面板
@@ -514,15 +518,25 @@ export class DetailPanel {
 
         const isCurve = obj.kind === 'curve';
 
+        const methods: { key: IntegralMethod; label: string }[] = [
+            { key: 'trapezoid', label: '梯形' },
+            { key: 'simpson', label: '辛普森' },
+            { key: 'riemann', label: '黎曼' },
+            { key: 'lebesgue', label: '勒贝格' },
+        ];
+
+        const methodButtons = methods
+            .map(
+                m =>
+                    `<button class="method-btn ${this._integralMethod === m.key ? 'active' : ''}"
+                            data-method="${m.key}">${m.label}</button>`,
+            )
+            .join('');
+
         let html = `
             <div class="integral-header">
                 <span>📊 数值积分</span>
-                <span>
-                    <button class="method-btn ${this._integralMethod === 'riemann' ? 'active' : ''}"
-                            data-method="riemann">黎曼</button>
-                    <button class="method-btn ${this._integralMethod === 'lebesgue' ? 'active' : ''}"
-                            data-method="lebesgue">勒贝格</button>
-                </span>
+                <span>${methodButtons}</span>
             </div>
             <div class="integral-inputs">`;
 
@@ -550,10 +564,16 @@ export class DetailPanel {
                 </div>`;
         }
 
+        const evenHint =
+            this._integralMethod === 'simpson'
+                ? '<span style="color:#ffd93d;font-size:11px;margin-left:8px;">需偶数</span>'
+                : '';
+
         html += `
                 <div class="range-group">
                     <label>切分: </label>
                     <input type="number" id="segInt" value="32" min="4" max="256" step="1" />
+                    ${evenHint}
                 </div>
             </div>
             <div class="integral-actions">
@@ -586,9 +606,17 @@ export class DetailPanel {
             this._integralVisualizer.group.visible = showToggle?.checked ?? true;
         });
 
-        // 计算按钮
+        // 计算按钮 —— Simpson 时自动调整分段数为偶数
         const calcBtn = this._contentContainer.querySelector('#calcIntegralBtn');
         calcBtn?.addEventListener('click', () => {
+            const segInput = this._contentContainer.querySelector('#segInt') as HTMLInputElement | null;
+            if (segInput && this._integralMethod === 'simpson') {
+                let n = parseInt(segInput.value, 10) || 32;
+                if (n % 2 !== 0) {
+                    n = Math.max(4, n % 2 === 0 ? n : n + 1);
+                    segInput.value = String(n);
+                }
+            }
             this._doIntegral(obj, isCurve).catch(err => {
                 console.error('[积分WASM] 计算失败:', err);
             });
@@ -619,15 +647,25 @@ export class DetailPanel {
     }
 
     private async _doIntegral(obj: MathObject, isCurve: boolean): Promise<void> {
+        if (obj.kind !== 'curve' && obj.kind !== 'surface') return;
+
         this._integralVisualizer.clearAll();
         const resultDiv = this._contentContainer.querySelector('#singleIntegralResult') as HTMLElement | null;
 
         try {
             let val: number;
-            const fn = this._makeFn(obj);
             const segments = parseInt(
                 (this._contentContainer.querySelector('#segInt') as HTMLInputElement)?.value || '32',
             );
+
+            const method = this._integralMethod;
+
+            // 系数快照
+            const coeffsObj: Record<string, number> = {};
+            for (const c of obj.coefficients) coeffsObj[c.name] = c.value;
+
+            // 主线程 fn 仅用于可视化
+            const fn = this._makeFn(obj);
 
             if (isCurve) {
                 const a = parseFloat(
@@ -638,19 +676,32 @@ export class DetailPanel {
                 );
                 if (a >= b) { alert('请输入有效区间 a < b'); return; }
 
-                const sample2d = segments * 20;
-                if (this._integralMethod === 'lebesgue') {
-                    val = await lebesgue1d(fn as (x: number) => number, a, b, segments, sample2d);
-                    this._integralVisualizer.visualize2DLebesgue(
-                        obj, fn as (x: number) => number, a, b, segments, sample2d,
-                    );
+                // WASM 计算
+                if (method === 'trapezoid') {
+                    val = await trapz1d(obj.node.toString(), coeffsObj, a, b, segments);
+                } else if (method === 'simpson') {
+                    val = await simpson1d(obj.node.toString(), coeffsObj, a, b, segments);
+                } else if (method === 'riemann') {
+                    val = await riemann1dLeft(obj.node.toString(), coeffsObj, a, b, segments);
                 } else {
-                    val = await riemann1dLeft(fn as (x: number) => number, a, b, segments);
-                    this._integralVisualizer.visualize2DRiemann(
-                        obj, fn as (x: number) => number, a, b, segments,
-                    );
+                    const sample2d = segments * 20;
+                    val = await lebesgue1d(obj.node.toString(), coeffsObj, a, b, segments, sample2d);
+                }
+
+                // 可视化
+                const fn1d = fn as (x: number) => number;
+                if (method === 'trapezoid') {
+                    this._integralVisualizer.visualize2DRiemann(obj, fn1d, a, b, segments);
+                } else if (method === 'simpson') {
+                    this._integralVisualizer.visualize2DRiemann(obj, fn1d, a, b, segments);
+                } else if (method === 'riemann') {
+                    this._integralVisualizer.visualize2DRiemann(obj, fn1d, a, b, segments);
+                } else {
+                    const sample2d = segments * 20;
+                    this._integralVisualizer.visualize2DLebesgue(obj, fn1d, a, b, segments, sample2d);
                 }
             } else {
+                // ---- 二维 ----
                 const xMin = parseFloat(
                     (this._contentContainer.querySelector('#xMinInt') as HTMLInputElement)?.value || '-3',
                 );
@@ -666,29 +717,26 @@ export class DetailPanel {
                 if (xMin >= xMax || yMin >= yMax) { alert('请输入有效区间'); return; }
 
                 const res3d = segments;
-                if (this._integralMethod === 'lebesgue') {
-                    val = await lebesgue2d(
-                        fn as (x: number, y: number) => number,
-                        [xMin, xMax], [yMin, yMax],
-                        segments, res3d,
+
+                if (method === 'trapezoid') {
+                    val = await trapz2d(obj.node.toString(), coeffsObj, [xMin, xMax], [yMin, yMax], segments, segments);
+                    this._integralVisualizer.visualize3DRiemann(
+                        obj, fn as (x: number, y: number) => number, [xMin, xMax], [yMin, yMax], segments, segments,
                     );
-                    this._integralVisualizer.visualize3DLebesgue(
-                        obj,
-                        fn as (x: number, y: number) => number,
-                        [xMin, xMax], [yMin, yMax],
-                        res3d,
+                } else if (method === 'simpson') {
+                    val = await simpson2d(obj.node.toString(), coeffsObj, [xMin, xMax], [yMin, yMax], segments, segments);
+                    this._integralVisualizer.visualize3DRiemann(
+                        obj, fn as (x: number, y: number) => number, [xMin, xMax], [yMin, yMax], segments, segments,
+                    );
+                } else if (method === 'riemann') {
+                    val = await riemann2dLeft(obj.node.toString(), coeffsObj, [xMin, xMax], [yMin, yMax], segments, segments);
+                    this._integralVisualizer.visualize3DRiemann(
+                        obj, fn as (x: number, y: number) => number, [xMin, xMax], [yMin, yMax], segments, segments,
                     );
                 } else {
-                    val = await riemann2dLeft(
-                        fn as (x: number, y: number) => number,
-                        [xMin, xMax], [yMin, yMax],
-                        segments, segments,
-                    );
-                    this._integralVisualizer.visualize3DRiemann(
-                        obj,
-                        fn as (x: number, y: number) => number,
-                        [xMin, xMax], [yMin, yMax],
-                        segments, segments,
+                    val = await lebesgue2d(obj.node.toString(), coeffsObj, [xMin, xMax], [yMin, yMax], segments, res3d);
+                    this._integralVisualizer.visualize3DLebesgue(
+                        obj, fn as (x: number, y: number) => number, [xMin, xMax], [yMin, yMax], res3d,
                     );
                 }
             }

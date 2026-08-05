@@ -1,155 +1,219 @@
-import type { Integral1DFn, Integral2DFn, Range1D } from './types';
+import type { Range1D } from './types';
 
-// wasm 模块引用 路径请根据实际部署调整
-// wasm-pack build --target web 会生成 ml_wasm.js
-import init, {
-    trapz1d as wasm_trapz1d,
-    simpson1d as wasm_simpson1d,
-    riemann1d_left as wasm_riemann1d_left,
-    riemann1d_right as wasm_riemann1d_right,
-    riemann1d_mid as wasm_riemann1d_mid,
-    lebesgue1d as wasm_lebesgue1d,
-    trapz2d as wasm_trapz2d,
-    simpson2d as wasm_simpson2d,
-    riemann2d_left as wasm_riemann2d_left,
-    lebesgue2d as wasm_lebesgue2d,
-} from '../wasm/ml_wasm.js';
+type Method =
+    | 'trapz1d' | 'simpson1d' | 'riemann1d_left' | 'riemann1d_right' | 'riemann1d_mid' | 'lebesgue1d'
+    | 'trapz2d' | 'simpson2d' | 'riemann2d_left' | 'lebesgue2d';
 
-// ---------- 初始化管理 ----------
+type Request = {
+    id: number;
+    method: Method;
+    expr: string;
+    coeffs: Record<string, number>;
+    a?: number;
+    b?: number;
+    n?: number;
+    layers?: number;
+    sampleN?: number;
+    xa?: number;
+    xb?: number;
+    ya?: number;
+    yb?: number;
+    m?: number;
+};
 
-let wasmReady = false;
-const initPromise = init().then(() => { wasmReady = true; });
+type Response = {
+    id: number;
+    value?: number;
+    error?: string;
+};
 
-async function ensureWasm(): Promise<void> {
-    if (!wasmReady) await initPromise;
+// ---------- Worker 管理 ----------
+let worker: Worker | null = null;
+let workerAlive = false;
+let nextId = 1;
+const pending = new Map<
+    number,
+    { resolve: (v: number) => void; reject: (e: Error) => void }
+>();
+
+function createWorker(): Worker {
+    const w = new Worker(
+        new URL('./IntegralWorker.ts', import.meta.url),
+        { type: 'module' },
+    );
+    w.onmessage = (e: MessageEvent<Response>) => {
+        const { id, value, error } = e.data;
+        const p = pending.get(id);
+        if (!p) return;
+        pending.delete(id);
+        if (error) {
+            p.reject(new Error(error));
+        } else {
+            p.resolve(value!);
+        }
+    };
+    w.onerror = (e) => {
+        workerAlive = false;
+        worker = null;
+        pending.forEach(p => p.reject(new Error(e.message || 'Worker 崩溃')));
+        pending.clear();
+    };
+    workerAlive = true;
+    return w;
 }
 
-// ---------- 一维辅助：包装 JS 函数为 accepted by wasm ----------
-// (wasm-bindgen 的 &js_sys::Function 可以直接接收 JS 函数)
+function getWorker(): Worker {
+    if (!worker || !workerAlive) {
+        worker = createWorker();
+    }
+    return worker;
+}
 
-// ---------- 一维积分 ----------
+function callWasm(
+    method: Method,
+    expr: string,
+    coeffs: Record<string, number>,
+    params: Record<string, number>,
+): Promise<number> {
+    const id = nextId++;
+    const w = getWorker();
+    return new Promise((resolve, reject) => {
+        pending.set(id, { resolve, reject });
+        w.postMessage({ id, method, expr, coeffs, ...params } satisfies Request);
+    });
+}
 
-/** 一维复合梯形法  */
+// ---------- 公共 API ----------
+
 export async function trapz1d(
-    f: Integral1DFn,
+    expr: string,
+    coeffs: Record<string, number>,
     a: number,
     b: number,
-    N: number,
+    n: number,
 ): Promise<number> {
-    await ensureWasm();
-    return wasm_trapz1d(f, a, b, N);
+    return callWasm('trapz1d', expr, coeffs, { a, b, n });
 }
 
-/** 一维复合辛普森法  */
 export async function simpson1d(
-    f: Integral1DFn,
+    expr: string,
+    coeffs: Record<string, number>,
     a: number,
     b: number,
-    N: number,
+    n: number,
 ): Promise<number> {
-    await ensureWasm();
-    return wasm_simpson1d(f, a, b, N);
+    return callWasm('simpson1d', expr, coeffs, { a, b, n });
 }
 
-/** 一维黎曼和 左端点 */
 export async function riemann1dLeft(
-    f: Integral1DFn,
+    expr: string,
+    coeffs: Record<string, number>,
     a: number,
     b: number,
-    N: number,
+    n: number,
 ): Promise<number> {
-    await ensureWasm();
-    return wasm_riemann1d_left(f, a, b, N);
+    return callWasm('riemann1d_left', expr, coeffs, { a, b, n });
 }
 
-/** 一维黎曼和 右端点 */
 export async function riemann1dRight(
-    f: Integral1DFn,
+    expr: string,
+    coeffs: Record<string, number>,
     a: number,
     b: number,
-    N: number,
+    n: number,
 ): Promise<number> {
-    await ensureWasm();
-    return wasm_riemann1d_right(f, a, b, N);
+    return callWasm('riemann1d_right', expr, coeffs, { a, b, n });
 }
 
-/** 一维黎曼和 中点 */
 export async function riemann1dMid(
-    f: Integral1DFn,
+    expr: string,
+    coeffs: Record<string, number>,
     a: number,
     b: number,
-    N: number,
+    n: number,
 ): Promise<number> {
-    await ensureWasm();
-    return wasm_riemann1d_mid(f, a, b, N);
+    return callWasm('riemann1d_mid', expr, coeffs, { a, b, n });
 }
 
-/** 一维勒贝格积分  */
 export async function lebesgue1d(
-    f: Integral1DFn,
+    expr: string,
+    coeffs: Record<string, number>,
     a: number,
     b: number,
     layers: number,
     sampleN: number,
 ): Promise<number> {
-    await ensureWasm();
-    return wasm_lebesgue1d(f, a, b, layers, sampleN);
+    return callWasm('lebesgue1d', expr, coeffs, { a, b, layers, sampleN });
 }
 
-// ---------- 二维积分 ----------
-
-/** 二维复合梯形法  */
 export async function trapz2d(
-    f: Integral2DFn,
+    expr: string,
+    coeffs: Record<string, number>,
     xRange: Range1D,
     yRange: Range1D,
-    N: number,
-    M: number,
+    n: number,
+    m: number,
 ): Promise<number> {
-    await ensureWasm();
-    const [xa, xb] = xRange;
-    const [ya, yb] = yRange;
-    return wasm_trapz2d(f, xa, xb, ya, yb, N, M);
+    return callWasm('trapz2d', expr, coeffs, {
+        xa: xRange[0],
+        xb: xRange[1],
+        ya: yRange[0],
+        yb: yRange[1],
+        n,
+        m,
+    });
 }
 
-/** 二维复合辛普森法  */
 export async function simpson2d(
-    f: Integral2DFn,
+    expr: string,
+    coeffs: Record<string, number>,
     xRange: Range1D,
     yRange: Range1D,
-    N: number,
-    M: number,
+    n: number,
+    m: number,
 ): Promise<number> {
-    await ensureWasm();
-    const [xa, xb] = xRange;
-    const [ya, yb] = yRange;
-    return wasm_simpson2d(f, xa, xb, ya, yb, N, M);
+    return callWasm('simpson2d', expr, coeffs, {
+        xa: xRange[0],
+        xb: xRange[1],
+        ya: yRange[0],
+        yb: yRange[1],
+        n,
+        m,
+    });
 }
 
-/** 二维黎曼和 左下方角 */
 export async function riemann2dLeft(
-    f: Integral2DFn,
+    expr: string,
+    coeffs: Record<string, number>,
     xRange: Range1D,
     yRange: Range1D,
-    N: number,
-    M: number,
+    n: number,
+    m: number,
 ): Promise<number> {
-    await ensureWasm();
-    const [xa, xb] = xRange;
-    const [ya, yb] = yRange;
-    return wasm_riemann2d_left(f, xa, xb, ya, yb, N, M);
+    return callWasm('riemann2d_left', expr, coeffs, {
+        xa: xRange[0],
+        xb: xRange[1],
+        ya: yRange[0],
+        yb: yRange[1],
+        n,
+        m,
+    });
 }
 
-/** 二维勒贝格积分  */
 export async function lebesgue2d(
-    f: Integral2DFn,
+    expr: string,
+    coeffs: Record<string, number>,
     xRange: Range1D,
     yRange: Range1D,
     layers: number,
     sampleN: number,
 ): Promise<number> {
-    await ensureWasm();
-    const [xa, xb] = xRange;
-    const [ya, yb] = yRange;
-    return wasm_lebesgue2d(f, xa, xb, ya, yb, layers, sampleN);
+    return callWasm('lebesgue2d', expr, coeffs, {
+        xa: xRange[0],
+        xb: xRange[1],
+        ya: yRange[0],
+        yb: yRange[1],
+        layers,
+        sampleN,
+    });
 }
