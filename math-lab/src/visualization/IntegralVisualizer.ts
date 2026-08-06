@@ -263,12 +263,8 @@ export class IntegralVisualizer {
                 for (let j = 0; j < res; j++) {
                     for (let i = 0; i < res; i++) {
                         const z00 = grid[j][i];
-                        const z10 = grid[j][i + 1];
-                        const z01 = grid[j + 1][i];
-                        const z11 = grid[j + 1][i + 1];
-                        if (!isFinite(z00) || !isFinite(z10) || !isFinite(z01) || !isFinite(z11))
-                            continue;
-                        if (predicate(z00) && predicate(z10) && predicate(z01) && predicate(z11)) {
+                        if (!isFinite(z00)) continue;
+                        if (predicate(z00)) {
                             result.push({
                                 pos: [xMin + (i + 0.5) * hx, yMin + (j + 0.5) * hy, centerZ],
                                 scale: [hx * (1 - BAR_GAP), hy * (1 - BAR_GAP), 0.05],

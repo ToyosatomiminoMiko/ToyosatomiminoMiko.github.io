@@ -51,7 +51,7 @@ export class IntegralTab implements Tab {
         this._container.innerHTML = this._buildHtml(obj);
         this._abortController = new AbortController();
 
-        // 切换方法 → 重新渲染（刷新分段数提示）
+        // 切换方法 -> 重新渲染 刷新分段数提示
         this._container.querySelectorAll('.method-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const m = (btn as HTMLElement).dataset.method as IntegralMethod | undefined;
@@ -208,14 +208,16 @@ export class IntegralTab implements Tab {
                 } else if (method === 'riemann') {
                     val = await riemann1dLeft(obj.node.toString(), coeffsObj, a, b, segments);
                 } else {
-                    const sample2d = segments * 20;
-                    val = await lebesgue1d(obj.node.toString(), coeffsObj, a, b, segments, sample2d);
+                    const sampleN = segments * 20;
+                    const valueLayers = Math.min(32, sampleN);
+                    val = await lebesgue1d(obj.node.toString(), coeffsObj, a, b, valueLayers, sampleN);
                 }
 
                 const fn1d = fn as (x: number) => number;
                 if (method === 'lebesgue') {
-                    const sample2d = segments * 20;
-                    this._integralVisualizer.visualize2DLebesgue(obj, fn1d, a, b, segments, sample2d);
+                    const sampleN = segments * 20;
+                    const valueLayers = Math.min(32, sampleN);
+                    this._integralVisualizer.visualize2DLebesgue(obj, fn1d, a, b, valueLayers, sampleN);
                 } else {
                     this._integralVisualizer.visualize2DRiemann(obj, fn1d, a, b, segments);
                 }
@@ -235,7 +237,6 @@ export class IntegralTab implements Tab {
                 );
                 if (xMin >= xMax || yMin >= yMax) { alert('请输入有效区间'); return; }
 
-                const res3d = segments;
                 const fn2d = fn as (x: number, y: number) => number;
 
                 if (method === 'trapezoid') {
@@ -248,8 +249,10 @@ export class IntegralTab implements Tab {
                     val = await riemann2dLeft(obj.node.toString(), coeffsObj, [xMin, xMax], [yMin, yMax], segments, segments);
                     this._integralVisualizer.visualize3DRiemann(obj, fn2d, [xMin, xMax], [yMin, yMax], segments, segments);
                 } else {
-                    val = await lebesgue2d(obj.node.toString(), coeffsObj, [xMin, xMax], [yMin, yMax], segments, res3d);
-                    this._integralVisualizer.visualize3DLebesgue(obj, fn2d, [xMin, xMax], [yMin, yMax], res3d);
+                    const sampleGrid = segments * 4;       // 采样网格
+                    const valueLayers = Math.min(32, segments); // 值域分层
+                    val = await lebesgue2d(obj.node.toString(), coeffsObj, [xMin, xMax], [yMin, yMax], valueLayers, sampleGrid);
+                    this._integralVisualizer.visualize3DLebesgue(obj, fn2d, [xMin, xMax], [yMin, yMax], sampleGrid);
                 }
             }
 
