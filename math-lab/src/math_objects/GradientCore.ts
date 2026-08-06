@@ -1,6 +1,5 @@
 import * as math from 'mathjs';
-import type { MathNode } from 'mathjs';
-
+import type { MathNode, EvalFunction } from 'mathjs';
 /**
  * 梯度计算结果
  */
@@ -17,10 +16,11 @@ export interface GradientResult {
     tangentPlaneNode: MathNode;
 }
 
-// 模块级缓存：同一个表达式不要重复求导
+// 模块级缓存
 let cachedExpr = '';
-let cachedFxNode: MathNode | null = null;
-let cachedFyNode: MathNode | null = null;
+let surfaceCompiled: EvalFunction | null = null;
+let fxCompiled: EvalFunction | null = null;
+let fyCompiled: EvalFunction | null = null;
 
 /**
  * 对二元函数 z = f(x, y) 在点 (x₀, y₀) 处计算梯度,法向量和切平面
@@ -48,34 +48,32 @@ export function computeGradient(
 ): GradientResult {
     const exprStr = surfaceNode.toString();
 
-    // --- 缓存命中?否则重新求导 ---
     if (exprStr !== cachedExpr) {
-        cachedFxNode = math.derivative(surfaceNode, 'x');
-        cachedFyNode = math.derivative(surfaceNode, 'y');
+        // 符号求导 + 编译
+        fxCompiled = math.derivative(surfaceNode, 'x').compile();
+        fyCompiled = math.derivative(surfaceNode, 'y').compile();
+        surfaceCompiled = surfaceNode.compile();
         cachedExpr = exprStr;
     }
 
-    const fxNode = cachedFxNode!;
-    const fyNode = cachedFyNode!;
-
-    // --- 数值评估(无变化)---
     const scope: Record<string, number> = { x: x0, y: y0, ...(extraScope ?? {}) };
-    const f0 = surfaceNode.evaluate(scope) as number;
-    const fx = fxNode.evaluate(scope) as number;
-    const fy = fyNode.evaluate(scope) as number;
 
-    // --- 法向量 ---
-    const nx = -fx;
-    const ny = -fy;
-    const nz = 1;
+    const f0 = surfaceCompiled!.evaluate(scope) as number;
+    const fx = fxCompiled!.evaluate(scope) as number;
+    const fy = fyCompiled!.evaluate(scope) as number;
+
+    // 法向量
+    const nx = -fx, ny = -fy, nz = 1;
     const norm = Math.sqrt(nx * nx + ny * ny + nz * nz);
     const normalDirection: [number, number, number] =
         norm < 1e-12 ? [0, 0, 1] : [nx / norm, ny / norm, nz / norm];
 
-    // --- 切平面(只在需要时构建,这里仍然每次都做,但开销很小)---
+    // 切平面:只在 pin 时需要,这里懒构建
+    // 但为了接口兼容,仍返回 node（后续可优化掉）
     const constantPart = f0 - fx * x0 - fy * y0;
-    const tangentStr = `(${constantPart}) + (${fx}) * x + (${fy}) * y`;
-    const tangentPlaneNode = math.parse(tangentStr);
+    const tangentPlaneNode = math.parse(
+        `(${constantPart}) + (${fx}) * x + (${fy}) * y`
+    );
 
     return { fx, fy, f0, normalDirection, tangentPlaneNode };
 }
