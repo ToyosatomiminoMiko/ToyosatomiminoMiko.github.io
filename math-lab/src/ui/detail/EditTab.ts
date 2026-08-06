@@ -56,22 +56,12 @@ export class EditTab implements Tab {
                            value="${escapeHtml(obj.node.toString())}"
                            spellcheck="false" id="detailEditInput" />
                     <button class="update-btn" id="detailUpdateBtn">🔄</button>
-                </div>
-                <div class="color-row" style="margin-top:8px;">
-                    <label>颜色</label>
-                    <input type="color" class="color-input"
-                           value="${obj.color}" id="detailColorInput" />
                 </div>`;
         }
 
         // 点坐标编辑
         if (obj.kind === 'point') {
             html += `
-                <div class="color-row" style="margin-bottom:8px;">
-                    <label>颜色</label>
-                    <input type="color" class="color-input"
-                           value="${obj.color}" id="detailColorInput" />
-                </div>
                 <div class="coeff-sliders">
                     <div class="coeff-row">
                         <label>x</label>
@@ -103,11 +93,6 @@ export class EditTab implements Tab {
         // 向量编辑
         if (obj.kind === 'vector') {
             html += `
-                <div class="color-row" style="margin-bottom:8px;">
-                    <label>颜色</label>
-                    <input type="color" class="color-input"
-                           value="${obj.color}" id="detailColorInput" />
-                </div>
                 <div class="coeff-sliders">
                     <div class="coeff-row">
                         <label>dx</label>
@@ -203,13 +188,6 @@ export class EditTab implements Tab {
         });
         editInput?.addEventListener('keydown', (e: KeyboardEvent) => {
             if (e.key === 'Enter') updateBtn?.click();
-        });
-
-        // ---- 颜色 ----
-        const colorInput = this._container.querySelector<HTMLInputElement>('#detailColorInput');
-        colorInput?.addEventListener('input', () => {
-            this._objectManager.updateColor(obj.id, colorInput.value);
-            this._eventBus.emit('mathobj:updated', { id: obj.id });
         });
 
         // ---- 滑块 ----

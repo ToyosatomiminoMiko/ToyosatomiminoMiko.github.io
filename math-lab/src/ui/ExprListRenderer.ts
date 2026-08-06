@@ -140,9 +140,9 @@ export class ExprListRenderer {
             case 'surface':
                 return `z = ${obj.node.toString()}`;
             case 'point':
-                return `📍 P(${obj.x.toFixed(1)}, ${obj.y.toFixed(1)}, ${obj.z.toFixed(1)})`;
+                return `Point(${obj.x.toFixed(1)}, ${obj.y.toFixed(1)}, ${obj.z.toFixed(1)})`;
             case 'vector':
-                return `➡️ v⃗(${obj.direction.x.toFixed(1)},${obj.direction.y.toFixed(1)},${obj.direction.z.toFixed(1)})@(${obj.origin.x.toFixed(1)},${obj.origin.y.toFixed(1)},${obj.origin.z.toFixed(1)})`;
+                return `Vector(${obj.direction.x.toFixed(1)},${obj.direction.y.toFixed(1)},${obj.direction.z.toFixed(1)})@(${obj.origin.x.toFixed(1)},${obj.origin.y.toFixed(1)},${obj.origin.z.toFixed(1)})`;
         }
     }
 
@@ -150,8 +150,8 @@ export class ExprListRenderer {
         switch (kind) {
             case 'curve': return '2D';
             case 'surface': return '3D';
-            case 'point': return '📍';
-            case 'vector': return '➡️';
+            case 'point': return 'P';
+            case 'vector': return 'Vec';
             default: return kind;
         }
     }

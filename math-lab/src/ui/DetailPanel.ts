@@ -31,6 +31,8 @@ export class DetailPanel {
     private _tabs: NodeListOf<HTMLElement>;
     private _activeTab: string;
     private _currentTab: Tab | null = null;
+    private _colorPicker: HTMLElement;
+    private _colorInput: HTMLInputElement;
 
     constructor(
         eventBus: EventBus<MathLabEvents>,
@@ -66,10 +68,22 @@ export class DetailPanel {
         this._eventBus.on('mathobj:removed', () => this._refreshContent());
         this._eventBus.on('mathobj:updated', () => this._refreshContent());
 
+        // color
+        this._colorPicker = document.getElementById('detailColorPicker')!;
+        this._colorInput = this._colorPicker.querySelector('input[type="color"]')!;
+        this._bindColorEvents();
         // 初始渲染
         this._onSelectionChanged();
     }
 
+    private _bindColorEvents(): void {
+        this._colorInput.addEventListener('input', () => {
+            const selected = this._selectionManager.getSelected();
+            if (!selected) return;
+            this._objectManager.updateColor(selected.id, this._colorInput.value);
+            this._eventBus.emit('mathobj:updated', { id: selected.id });
+        });
+    }
     // ============================================================
     //  标签页管理
     // ============================================================
@@ -85,6 +99,7 @@ export class DetailPanel {
     private _onSelectionChanged(): void {
         const selected = this._selectionManager.getSelected();
         const kind = selected?.kind ?? null;
+        this._syncColorPicker();
 
         this._tabs.forEach(tab => {
             const tabName = (tab as HTMLElement).dataset.tab!;
@@ -183,5 +198,17 @@ export class DetailPanel {
         }
 
         this._currentTab?.render(obj);
+        this._syncColorPicker();
+    }
+
+    private _syncColorPicker(): void {
+        const selected = this._selectionManager.getSelected();
+        const obj = selected ? this._objectManager.getById(selected.id) : null;
+        if (obj && ['curve', 'surface', 'point', 'vector'].includes(obj.kind)) {
+            this._colorPicker.style.display = 'flex';
+            this._colorInput.value = obj.color;
+        } else {
+            this._colorPicker.style.display = 'none';
+        }
     }
 }

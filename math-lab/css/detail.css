@@ -8,7 +8,7 @@ DetailPanel – 详情面板样式
 .detail-area {
     flex-shrink: 0;
     margin-top: 12px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    border-top: 1px solid #ffffff;
     padding-top: 10px;
     display: flex;
     flex-direction: column;
@@ -20,6 +20,27 @@ DetailPanel – 详情面板样式
     display: flex;
     gap: 4px;
     flex-wrap: wrap;
+}
+
+.detail-color-picker {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    /* 靠右 */
+    margin-left: auto;
+    padding: 0 4px;
+    color: #7a8bb5;
+    font-size: 16px;
+}
+
+.detail-color-picker input[type="color"] {
+    width: 24px;
+    height: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 4px;
+    cursor: pointer;
+    background: transparent;
+    padding: 0;
 }
 
 .detail-tab {
