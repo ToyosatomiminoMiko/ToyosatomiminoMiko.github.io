@@ -1,244 +1,115 @@
 import * as THREE from 'three';
-import { SurfaceMesh } from '../visualization/SurfaceMesh';
-import type {
-    CurveExpr,
-    SurfaceExpr,
-    PointEntity,
-    VectorEntity,
-    MathObject,
-} from '../types';
-import * as math from 'mathjs';
-import { ArrowMesh } from '../visualization/ArrowMesh';
-
-// ============================================================
-// 内部类型:绘图条目(discriminated union)
-// ============================================================
-
-interface CurveEntry {
-    objectKind: 'curve';
-    group: THREE.Group;
-    line: THREE.Line | null;
-    enabled: boolean;
-}
-
-interface SurfaceEntry {
-    objectKind: 'surface';
-    group: THREE.Group;
-    mesh: SurfaceMesh | null;
-    enabled: boolean;
-}
-
-interface PointEntry {
-    objectKind: 'point';
-    group: THREE.Group;
-    sphere: THREE.Mesh;
-    enabled: boolean;
-}
-
-interface VectorEntry {
-    objectKind: 'vector';
-    group: THREE.Group;
-    arrow: ArrowMesh;
-    enabled: boolean;
-}
-
-type PlotEntry = CurveEntry | SurfaceEntry | PointEntry | VectorEntry;
+import { IRenderer } from './renderers/IRenderer';
+import { CurveRenderer } from './renderers/CurveRenderer';
+import { SurfaceRenderer } from './renderers/SurfaceRenderer';
+import { PointRenderer } from './renderers/PointRenderer';
+import { VectorRenderer } from './renderers/VectorRenderer';
+import type { MathObject, CurveExpr, SurfaceExpr, PointEntity, VectorEntity } from '../types';
 
 /**
- * 增量式绘图器 —— 每个表达式拥有独立的 THREE.Group
+ * 绘图门面 —— 将四种数学对象路由到对应的专属渲染器
  *
- * 设计原则:
- * - add/remove 仅操作目标 Group
- * - toggle 仅设置 Group.visible
- * - 模式切换仅遍历更新 visible
- * - 绝不执行 clearAll 式清空
+ * 职责:
+ * - 管理 rendererMap<id, IRenderer> 的增删查
+ * - 模式切换时同步各渲染器的 modeVisible
+ * - 全部与主线程帧同步
+ *
+ * 不做的事:
+ * - 不再直接操作 BufferGeometry / Material / Mesh
+ * - 不采样数据
+ * - 不管理 GPU 资源释放细节
  */
-
 export class Plotter {
-    scene: THREE.Scene;
-    plotMap: Map<number, PlotEntry>;
-    currentMode: '2d' | '3d';
-    plotContainer: THREE.Group;
+    private readonly plotContainer = new THREE.Group();
+    private readonly rendererMap = new Map<number, IRenderer>();
+    private currentMode: '2d' | '3d' = '2d';
 
-    constructor(scene: THREE.Scene) {
-        this.scene = scene;
-        this.plotMap = new Map();
-        this.currentMode = '2d';
-        this.plotContainer = new THREE.Group();
+    constructor(private readonly scene: THREE.Scene) {
         this.scene.add(this.plotContainer);
     }
 
-    // =====================================================
-    //  公开 API
-    // =====================================================
+    // ============================================================
+    //  公开 API（签名与旧版完全兼容）
+    // ============================================================
 
-    /**
-     * 绘制 / 更新 2D 曲线
-     */
-    drawCurve(
-        curve: CurveExpr,
-        xRange: [number, number] = [-8, 8],
-        steps: number = 320,
-    ): void {
-        const { id, color, enabled } = curve;
-        const compiled = curve.node.compile();
-        let entry = this.plotMap.get(id);
+    drawCurve(curve: CurveExpr): void {
+        let renderer = this.rendererMap.get(curve.id);
+        if (!(renderer instanceof CurveRenderer)) {
+            // 之前是另一种类型或不存在 —— 清理旧的,创建新的
+            renderer?.dispose();
+            if (renderer) this.plotContainer.remove(renderer.group);
 
-        if (!entry || entry.objectKind !== 'curve') {
-            const group = new THREE.Group();
-            this.plotContainer.add(group);
-            entry = {
-                objectKind: 'curve',
-                group,
-                line: null,
-                enabled: enabled ?? true,
-            };
-            this.plotMap.set(id, entry);
+            renderer = new CurveRenderer(curve);
+            this.plotContainer.add(renderer.group);
+            this.rendererMap.set(curve.id, renderer);
         }
-
-        // 清理旧 line
-        if (entry.line) {
-            entry.group.remove(entry.line);
-            entry.line.geometry?.dispose();
-            const mat = entry.line.material;
-            if (Array.isArray(mat)) {
-                mat.forEach(m => m.dispose());
-            } else {
-                mat?.dispose();
-            }
-            entry.line = null;
-        }
-
-        const points = this._sampleCurve(curve, compiled, xRange, steps);
-        if (points.length < 2) {
-            entry.enabled = enabled ?? true;
-            this._applyVisibility(entry);
-            return;
-        }
-
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const material = new THREE.LineBasicMaterial({
-            color: color || '#ffffff',
-            linewidth: 1,
-            transparent: true,
-            opacity: 0.95,
-        });
-        const line = new THREE.Line(geometry, material);
-        entry.group.add(line);
-        entry.line = line;
-        entry.enabled = enabled ?? true;
-        this._applyVisibility(entry);
+        // 更新引用和可见性
+        // 更好的做法是 CurveRenderer 暴露 updateMathObject 方法,但为了兼容先这样
+        // 实际:CurveRenderer.draw() 中使用 this.curve,我们需要更新它
+        this._refreshCurveRenderer(curve, renderer as CurveRenderer);
+        this._syncModeVisibility(renderer);
+        renderer.setVisible(curve.enabled);
+        renderer.draw();
     }
 
-    /**
-     * 绘制 / 更新 3D 曲面(复用 SurfaceMesh,仅在分段数改变时重建)
-     */
-    drawSurface(
-        surface: SurfaceExpr,
-        range: [number, number] = [-6, 6],
-        segments: number = 64,
-    ): void {
-        const { id, enabled } = surface;
-        const compiled = surface.node.compile();
-        let entry = this.plotMap.get(id);
+    drawSurface(surface: SurfaceExpr): void {
+        let renderer = this.rendererMap.get(surface.id);
+        if (!(renderer instanceof SurfaceRenderer)) {
+            renderer?.dispose();
+            if (renderer) this.plotContainer.remove(renderer.group);
 
-        if (!entry || entry.objectKind !== 'surface') {
-            const group = new THREE.Group();
-            this.plotContainer.add(group);
-            entry = {
-                objectKind: 'surface',
-                group,
-                mesh: null,
-                enabled: enabled ?? true,
-            };
-            this.plotMap.set(id, entry);
+            renderer = new SurfaceRenderer(surface);
+            this.plotContainer.add(renderer.group);
+            this.rendererMap.set(surface.id, renderer);
         }
-
-        // 分段数变化时重建 SurfaceMesh
-        if (entry.mesh) {
-            if (entry.mesh.cols !== segments || entry.mesh.rows !== segments) {
-                entry.group.remove(entry.mesh.group);
-                entry.mesh.dispose();
-                entry.mesh = null;
-            }
-        }
-
-        if (!entry.mesh) {
-            const mesh = new SurfaceMesh(segments, segments);
-            entry.group.add(mesh.group);
-            entry.mesh = mesh;
-        }
-
-        entry.mesh.update(
-            compiled,
-            surface.coefficients,
-            range[0], range[1], range[0], range[1],
-        );
-        entry.enabled = enabled ?? true;
-        this._applyVisibility(entry);
+        this._refreshSurfaceRenderer(surface, renderer as SurfaceRenderer);
+        this._syncModeVisibility(renderer);
+        renderer.setVisible(surface.enabled);
+        renderer.draw();
     }
 
-    /**
-     * 移除表达式(销毁 Group 及所有子对象,释放 GPU 资源)
-     */
+    drawPoint(point: PointEntity): void {
+        let renderer = this.rendererMap.get(point.id);
+        if (!(renderer instanceof PointRenderer)) {
+            renderer?.dispose();
+            if (renderer) this.plotContainer.remove(renderer.group);
+
+            renderer = new PointRenderer(point);
+            this.plotContainer.add(renderer.group);
+            this.rendererMap.set(point.id, renderer);
+        }
+        (renderer as PointRenderer).updateRef(point);
+        renderer.draw();
+    }
+
+    drawVector(vec: VectorEntity): void {
+        let renderer = this.rendererMap.get(vec.id);
+        if (!(renderer instanceof VectorRenderer)) {
+            renderer?.dispose();
+            if (renderer) this.plotContainer.remove(renderer.group);
+
+            renderer = new VectorRenderer(vec);
+            this.plotContainer.add(renderer.group);
+            this.rendererMap.set(vec.id, renderer);
+        }
+        (renderer as VectorRenderer).updateRef(vec);
+        renderer.draw();
+    }
+
     remove(id: number): void {
-        const entry = this.plotMap.get(id);
-        if (!entry) return;
-
-        switch (entry.objectKind) {
-            case 'curve':
-                if (entry.line) {
-                    entry.line.geometry?.dispose();
-                    const mat = entry.line.material;
-                    if (Array.isArray(mat)) {
-                        mat.forEach(m => m.dispose());
-                    } else {
-                        mat?.dispose();
-                    }
-                }
-                break;
-
-            case 'surface':
-                if (entry.mesh) {
-                    entry.mesh.dispose();
-                }
-                break;
-
-            case 'point':
-                if (entry.sphere) {
-                    entry.sphere.geometry?.dispose();
-                    const mat = entry.sphere.material;
-                    if (Array.isArray(mat)) {
-                        mat.forEach(m => m.dispose());
-                    } else {
-                        mat?.dispose();
-                    }
-                }
-                break;
-
-            case 'vector':
-                if (entry.arrow) {
-                    entry.arrow.dispose();
-                }
-                break;
-        }
-
-        this.plotContainer.remove(entry.group);
-        this.plotMap.delete(id);
+        const renderer = this.rendererMap.get(id);
+        if (!renderer) return;
+        renderer.dispose();
+        this.plotContainer.remove(renderer.group);
+        this.rendererMap.delete(id);
     }
 
-    /**
-     * 设置表达式可见性(toggle 专用)
-     */
     setVisible(id: number, visible: boolean): void {
-        const entry = this.plotMap.get(id);
-        if (!entry) return;
-        entry.enabled = visible;
-        this._applyVisibility(entry);
+        this.rendererMap.get(id)?.setVisible(visible);
     }
 
     /**
-     * 根据对象数据刷新绘制(表达式字符串改变 / 模式切换时调用)
+     * 根据对象数据刷新绘制（表达式字符串改变 / 模式切换时调用）
      */
     updateObject(obj: MathObject, mode: '2d' | '3d'): void {
         switch (obj.kind) {
@@ -257,144 +128,48 @@ export class Plotter {
         }
     }
 
-    /**
-     * 模式切换:仅更新所有 Group 的可见性,不销毁任何几何体
-     */
     updateMode(mode: '2d' | '3d'): void {
         this.currentMode = mode;
-        for (const [, entry] of this.plotMap) {
-            this._applyVisibility(entry);
+        for (const renderer of this.rendererMap.values()) {
+            this._syncModeVisibility(renderer);
         }
     }
 
-    /**
-     * 销毁整个绘图器(仅在应用卸载时使用)
-     */
     dispose(): void {
-        for (const [id] of this.plotMap) {
+        for (const [id] of this.rendererMap) {
             this.remove(id);
         }
         this.scene.remove(this.plotContainer);
     }
 
+    // ============================================================
+    //  内部
+    // ============================================================
+
     /**
-     * 绘制 / 更新一个空间点(小球)
+     * 同步模式可见性到渲染器
+     * - CurveRenderer 仅在 2D 模式下可见
+     * - SurfaceRenderer 仅在 3D 模式下可见
+     * - Point / Vector 始终 modeVisible = true
      */
-    drawPoint(point: PointEntity): void {
-        const { id, x, y, z, color, enabled } = point;
-        let entry = this.plotMap.get(id);
-
-        if (!entry || entry.objectKind !== 'point') {
-            const group = new THREE.Group();
-            this.plotContainer.add(group);
-
-            const geo = new THREE.SphereGeometry(0.2, 16, 16);
-            const mat = new THREE.MeshPhongMaterial({
-                color: color || '#ffffff',
-                emissive: 0x000000,
-                specular: 0x333333,
-                shininess: 40,
-            });
-            const sphere = new THREE.Mesh(geo, mat);
-            group.add(sphere);
-
-            entry = {
-                objectKind: 'point',
-                group,
-                sphere,
-                enabled: enabled ?? true,
-            };
-            this.plotMap.set(id, entry);
+    private _syncModeVisibility(renderer: IRenderer): void {
+        if (renderer instanceof CurveRenderer) {
+            renderer.setModeVisible(this.currentMode === '2d');
+        } else if (renderer instanceof SurfaceRenderer) {
+            renderer.setModeVisible(this.currentMode === '3d');
         }
-
-        entry.sphere.position.set(x, y, z);
-        const mat = entry.sphere.material as THREE.MeshPhongMaterial;
-        mat.color.set(color);
-        entry.enabled = enabled ?? true;
-        this._applyVisibility(entry);
+        // PointRenderer / VectorRenderer 没有 setModeVisible,group 始终按 userVisible
     }
 
     /**
-     * 绘制 / 更新空间向量箭头
+     * 由于 CurveRenderer 构造函数持有 CurveExpr 引用,
+     * 当原对象被替换（derive 生成新对象复用了 id）时,需要更新内部引用。
      */
-    drawVector(vec: VectorEntity): void {
-        const { id, color, enabled } = vec;
-        let entry = this.plotMap.get(id);
-
-        if (!entry || entry.objectKind !== 'vector') {
-            const arrow = new ArrowMesh(color);
-            const group = arrow.group;
-            entry = {
-                objectKind: 'vector',
-                group,
-                arrow,
-                enabled: enabled ?? true,
-            };
-            this.plotContainer.add(group);
-            this.plotMap.set(id, entry);
-        }
-
-        const origin = new THREE.Vector3(
-            vec.origin.x, vec.origin.y, vec.origin.z,
-        );
-        const direction = new THREE.Vector3(
-            vec.direction.x, vec.direction.y, vec.direction.z,
-        );
-
-        entry.arrow.setTransform(origin, direction);
-        entry.arrow.setColor(color);
-        entry.enabled = enabled ?? true;
-        this._applyVisibility(entry);
+    private _refreshCurveRenderer(curve: CurveExpr, renderer: CurveRenderer): void {
+        renderer.updateRef(curve);
     }
 
-    // =====================================================
-    //  内部辅助
-    // =====================================================
-
-    /**
-     * 2D 采样:对 x 范围进行均匀采样,跳过奇异点
-     */
-    private _sampleCurve(
-        curve: CurveExpr,
-        compiled: math.EvalFunction,
-        xRange: [number, number],
-        steps: number,
-    ): THREE.Vector3[] {
-        const points: THREE.Vector3[] = [];
-        const step = (xRange[1] - xRange[0]) / steps;
-        const scope: Record<string, number> = {};
-        for (const c of curve.coefficients) scope[c.name] = c.value;
-
-        for (let x = xRange[0]; x <= xRange[1]; x += step) {
-            try {
-                scope.x = x;
-                const y = compiled.evaluate(scope);
-                if (isFinite(y)) {
-                    points.push(new THREE.Vector3(x, y, 0));
-                }
-            } catch (_) {
-                /* 跳过无效点 */
-            }
-        }
-        return points;
-    }
-
-    /**
-     * 根据 currentMode 和 enabled 设置 Group 可见性
-     * - 2D 模式下只显示 2D 曲线
-     * - 3D 模式下只显示 3D 曲面
-     * - 用户主动 toggle 的 disabled 状态始终生效
-     */
-    private _applyVisibility(entry: PlotEntry): void {
-        // point / vector 始终可见,不受 2D/3D 模式切换影响
-        if (entry.objectKind === 'point' || entry.objectKind === 'vector') {
-            entry.group.visible = entry.enabled;
-            return;
-        }
-
-        const modeMatch =
-            (this.currentMode === '2d' && entry.objectKind === 'curve') ||
-            (this.currentMode === '3d' && entry.objectKind === 'surface');
-        entry.group.visible = modeMatch && entry.enabled;
+    private _refreshSurfaceRenderer(surface: SurfaceExpr, renderer: SurfaceRenderer): void {
+        renderer.updateRef(surface);
     }
 }

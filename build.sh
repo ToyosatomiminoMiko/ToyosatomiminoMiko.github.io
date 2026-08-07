@@ -10,5 +10,7 @@ wasm-pack build --target web --out-dir ../src/wasm
 # 返回项目根目录(脚本所在目录)
 cd "$(dirname "$0")"
 
+npx tsc --noEmit
+
 # 执行前端构建
 npm run build
