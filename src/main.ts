@@ -6,7 +6,7 @@ import 'katex/dist/katex.min.css';
 import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 import { mountClock } from './clock';
 import { mountPages } from './page';
-import { mountRBT } from './rbt_lab';
+import { mountRBT } from './rbt';
 import { OLEDCanvas } from './oled';
 
 document.addEventListener('DOMContentLoaded', () => {
