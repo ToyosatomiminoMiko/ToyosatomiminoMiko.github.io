@@ -1,7 +1,7 @@
 import type { PointEntity } from './types';
 
 /**
- * 创建一个空间点实体（纯数据,不依赖渲染）
+ * 创建一个空间点实体(纯数据,不依赖渲染)
  */
 export function createPoint(
     id: number,
@@ -22,7 +22,7 @@ export function createPoint(
 }
 
 /**
- * 更新点坐标（返回新对象,不修改原对象）
+ * 更新点坐标(返回新对象,不修改原对象)
  */
 export function movePoint(
     point: PointEntity,

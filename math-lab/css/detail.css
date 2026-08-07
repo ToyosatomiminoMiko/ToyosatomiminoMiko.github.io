@@ -81,7 +81,7 @@ DetailPanel – 详情面板样式
     font-style: italic;
 }
 
-/* --- 编辑行（表达式输入） --- */
+/* --- 编辑行(表达式输入) --- */
 .edit-row {
     display: flex;
     gap: 6px;

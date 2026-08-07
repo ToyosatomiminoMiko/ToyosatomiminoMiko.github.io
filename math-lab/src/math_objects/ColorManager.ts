@@ -10,7 +10,7 @@ export class ColorManager {
         this._index = 0;
     }
 
-    /** 取下一个颜色（循环） */
+    /** 取下一个颜色(循环) */
     next(): string {
         const c = this._palette[this._index % this._palette.length];
         this._index++;

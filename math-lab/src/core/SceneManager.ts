@@ -42,7 +42,7 @@ export class SceneManager {
         const centerSphere = new THREE.Mesh(sphereGeo, sphereMat);
         this.scene.add(centerSphere);
 
-        // --- XYZ 轴标签（使用 Sprite）---
+        // --- XYZ 轴标签(使用 Sprite)---
         const makeLabel = (text: string, position: THREE.Vector3, color: string): void => {
             const canvas = document.createElement('canvas');
             canvas.width = 64;

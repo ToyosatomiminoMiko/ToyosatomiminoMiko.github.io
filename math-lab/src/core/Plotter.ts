@@ -11,7 +11,7 @@ import * as math from 'mathjs';
 import { ArrowMesh } from '../visualization/ArrowMesh';
 
 // ============================================================
-// 内部类型：绘图条目（discriminated union）
+// 内部类型:绘图条目(discriminated union)
 // ============================================================
 
 interface CurveEntry {
@@ -131,7 +131,7 @@ export class Plotter {
     }
 
     /**
-     * 绘制 / 更新 3D 曲面（复用 SurfaceMesh,仅在分段数改变时重建）
+     * 绘制 / 更新 3D 曲面(复用 SurfaceMesh,仅在分段数改变时重建)
      */
     drawSurface(
         surface: SurfaceExpr,
@@ -179,7 +179,7 @@ export class Plotter {
     }
 
     /**
-     * 移除表达式（销毁 Group 及所有子对象,释放 GPU 资源）
+     * 移除表达式(销毁 Group 及所有子对象,释放 GPU 资源)
      */
     remove(id: number): void {
         const entry = this.plotMap.get(id);
@@ -228,7 +228,7 @@ export class Plotter {
     }
 
     /**
-     * 设置表达式可见性（toggle 专用）
+     * 设置表达式可见性(toggle 专用)
      */
     setVisible(id: number, visible: boolean): void {
         const entry = this.plotMap.get(id);
@@ -238,7 +238,7 @@ export class Plotter {
     }
 
     /**
-     * 根据对象数据刷新绘制（表达式字符串改变 / 模式切换时调用）
+     * 根据对象数据刷新绘制(表达式字符串改变 / 模式切换时调用)
      */
     updateObject(obj: MathObject, mode: '2d' | '3d'): void {
         switch (obj.kind) {
@@ -258,7 +258,7 @@ export class Plotter {
     }
 
     /**
-     * 模式切换：仅更新所有 Group 的可见性,不销毁任何几何体
+     * 模式切换:仅更新所有 Group 的可见性,不销毁任何几何体
      */
     updateMode(mode: '2d' | '3d'): void {
         this.currentMode = mode;
@@ -268,7 +268,7 @@ export class Plotter {
     }
 
     /**
-     * 销毁整个绘图器（仅在应用卸载时使用）
+     * 销毁整个绘图器(仅在应用卸载时使用)
      */
     dispose(): void {
         for (const [id] of this.plotMap) {
@@ -278,7 +278,7 @@ export class Plotter {
     }
 
     /**
-     * 绘制 / 更新一个空间点（小球）
+     * 绘制 / 更新一个空间点(小球)
      */
     drawPoint(point: PointEntity): void {
         const { id, x, y, z, color, enabled } = point;
@@ -352,7 +352,7 @@ export class Plotter {
     // =====================================================
 
     /**
-     * 2D 采样：对 x 范围进行均匀采样,跳过奇异点
+     * 2D 采样:对 x 范围进行均匀采样,跳过奇异点
      */
     private _sampleCurve(
         curve: CurveExpr,

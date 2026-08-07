@@ -418,7 +418,7 @@ body {
 }
 
 
-/* ===== 列表行内部元素样式（从旧的 .expr-header 迁移过来） ===== */
+/* ===== 列表行内部元素样式(从旧的 .expr-header 迁移过来) ===== */
 .expr-item .color-dot {
     width: 14px;
     height: 14px;

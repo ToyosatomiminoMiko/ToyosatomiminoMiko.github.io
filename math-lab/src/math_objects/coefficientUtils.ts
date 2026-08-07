@@ -13,9 +13,9 @@ const BUILTIN_SYMBOLS = new Set([
 ]);
 
 /**
- * 从 mathjs 表达式树提取自由参数，排除指定的变量名列表
+ * 从 mathjs 表达式树提取自由参数,排除指定的变量名列表
  * @param node      表达式树
- * @param varNames  应排除的变量名（如 ['x'] 或 ['x','y']）
+ * @param varNames  应排除的变量名(如 ['x'] 或 ['x','y'])
  */
 export function extractCoefficients(
     node: MathNode,

@@ -43,7 +43,7 @@ export class ExprListRenderer {
         const objects = this.objectManager.getAll();
         if (objects.length === 0) {
             this.exprListEl.innerHTML =
-                '<div class="empty-hint">暂无表达式，添加一个吧 ✨</div>';
+                '<div class="empty-hint">暂无表达式,添加一个吧 ✨</div>';
             return;
         }
 

@@ -32,7 +32,7 @@ export class GradientVisualizer {
     // ============================================================
 
     /**
-     * 更新预览（先清除旧的再重新画）
+     * 更新预览(先清除旧的再重新画)
      *
      * @param x0   切点 x
      * @param y0   切点 y
@@ -120,7 +120,7 @@ export class GradientVisualizer {
         }
     }
 
-    /** 完全销毁（组件卸载时调用） */
+    /** 完全销毁(组件卸载时调用) */
     dispose(): void {
         this.clear();
         this._scene.remove(this._group);

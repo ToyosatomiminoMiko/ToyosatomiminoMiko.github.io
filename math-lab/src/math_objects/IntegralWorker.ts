@@ -85,7 +85,7 @@ function sample1D(
     return values;
 }
 
-/** 黎曼中点专用：采样 n 个中点值 */
+/** 黎曼中点专用:采样 n 个中点值 */
 function sampleMid1D(
     expr: string,
     coeffs: Record<string, number>,
@@ -131,7 +131,7 @@ function sample2D(
     return values;
 }
 
-/** 黎曼 2D 左端点专用：采样 n×m 个角落点 */
+/** 黎曼 2D 左端点专用:采样 n×m 个角落点 */
 function sample2DCorner(
     expr: string,
     coeffs: Record<string, number>,

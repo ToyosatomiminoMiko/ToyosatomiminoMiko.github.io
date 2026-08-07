@@ -107,7 +107,7 @@ export class DetailPanel {
             (tab as HTMLElement).style.display = visible ? '' : 'none';
         });
 
-        // 如果当前激活的标签页不可见，切到第一个可见的
+        // 如果当前激活的标签页不可见,切到第一个可见的
         const activeEl = this._tabContainer.querySelector(
             `.detail-tab[data-tab="${this._activeTab}"]`,
         ) as HTMLElement | null;

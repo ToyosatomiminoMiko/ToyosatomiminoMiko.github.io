@@ -4,14 +4,14 @@ import type { MathLabEvents } from '../types';
 /**
  * SelectionManager — 单选状态管理
  *
- * 职责：
+ * 职责:
  *   1. 维护当前选中实体 { id, kind }
  *   2. 发射 'selection:changed' 事件通知其他 UI 组件
  */
 export class SelectionManager {
     private _eventBus: EventBus<MathLabEvents>;
 
-    /** 当前选中状态（无选中时为 null） */
+    /** 当前选中状态(无选中时为 null) */
     private _selected: { id: number; kind: string } | null = null;
 
     constructor(eventBus: EventBus<MathLabEvents>) {

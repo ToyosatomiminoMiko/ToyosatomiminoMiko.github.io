@@ -1,8 +1,8 @@
 /**
  * 泛型事件总线 — 跨层通信的桥梁
- * Core 层和 UI 层通过 EventBus 通信，互不直接引用
+ * Core 层和 UI 层通过 EventBus 通信,互不直接引用
  *
- * 使用方式：
+ * 使用方式:
  *   const bus = new EventBus<MathLabEvents>();
  *   bus.on('expr:added', ({ expr }) => { ... });   // expr 自动推断为 Expression
  *   bus.emit('expr:added', { expr });              // 第二个参数类型受约束

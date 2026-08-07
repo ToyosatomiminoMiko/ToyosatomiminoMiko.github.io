@@ -5,7 +5,7 @@ import type { ColorManager } from '../math_objects';
 
 /**
  * 表达式输入框控制器
- * 新增：📍 添加点按钮逻辑
+ * 新增:📍 添加点按钮逻辑
  */
 export class ExprInputController {
     eventBus: EventBus<MathLabEvents>;

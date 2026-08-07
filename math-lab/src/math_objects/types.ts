@@ -12,7 +12,7 @@ export type Range1D = [number, number];
 // 数学对象核心类型 —— discriminated union
 // ================================================================
 
-/** 系数（曲线/曲面自由参数） */
+/** 系数(曲线/曲面自由参数) */
 export interface Coefficient {
     name: string;
     value: number;
@@ -52,7 +52,7 @@ export interface PointEntity {
     enabled: boolean;
 }
 
-/** 空间向量（带起点和方向分量） */
+/** 空间向量(带起点和方向分量) */
 export interface VectorEntity {
     readonly kind: 'vector';
     readonly id: number;

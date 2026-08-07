@@ -69,7 +69,7 @@ export function computeGradient(
         norm < 1e-12 ? [0, 0, 1] : [nx / norm, ny / norm, nz / norm];
 
     // 切平面:只在 pin 时需要,这里懒构建
-    // 但为了接口兼容,仍返回 node（后续可优化掉）
+    // 但为了接口兼容,仍返回 node(后续可优化掉)
     const constantPart = f0 - fx * x0 - fy * y0;
     const tangentPlaneNode = math.parse(
         `(${constantPart}) + (${fx}) * x + (${fy}) * y`

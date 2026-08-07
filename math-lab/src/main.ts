@@ -60,7 +60,7 @@ const integralVisualizer = new IntegralVisualizer(sceneManager.getScene());
 const gradientVisualizer = new GradientVisualizer(sceneManager.getScene());
 
 // ============================================================
-// 3. UI 组件（注入 eventBus，部分暂用 any 兼容尚未更新的组件）
+// 3. UI 组件(注入 eventBus,部分暂用 any 兼容尚未更新的组件)
 // ============================================================
 const selectionManager = new SelectionManager(eventBus);
 const modeController = new ModeController(eventBus);
@@ -76,7 +76,7 @@ new DetailPanel(
 );
 
 // ============================================================
-// 4. 事件订阅（新事件名 + discriminated union 分发）
+// 4. 事件订阅(新事件名 + discriminated union 分发)
 // ============================================================
 
 // 模式切换 -> 更新相机 + 更新可见性
@@ -129,7 +129,7 @@ eventBus.on('coefficient:changed', ({ id }) => {
     const obj = objectManager.getAll().find(o => o.id === id);
     if (!obj) return;
 
-    // point / vector 按需全量重绘；curve / surface 按模式更新
+    // point / vector 按需全量重绘;curve / surface 按模式更新
     if (obj.kind === 'point') {
         plotter.drawPoint(obj);
     } else if (obj.kind === 'vector') {
@@ -145,7 +145,7 @@ eventBus.on('camera:changed', ({ camMode }) => {
 });
 
 // ============================================================
-// 4.5 初始绘制：绘制所有预设对象
+// 4.5 初始绘制:绘制所有预设对象
 // ============================================================
 const initialMode = modeController.getMode();
 const initialObjects = objectManager.getAll();
@@ -200,7 +200,7 @@ function animate(): void {
 animate();
 
 // ============================================================
-// 6. 左侧抽屉：滑入/滑出 + 宽度拖拽
+// 6. 左侧抽屉:滑入/滑出 + 宽度拖拽
 // ============================================================
 const sidebarToggleBtn = document.getElementById('sidebarToggleBtn') as HTMLButtonElement;
 const panel = document.getElementById('panel') as HTMLElement;

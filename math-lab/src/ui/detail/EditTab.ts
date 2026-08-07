@@ -48,7 +48,7 @@ export class EditTab implements Tab {
     private _buildHtml(obj: MathObject): string {
         let html = '';
 
-        // 表达式编辑框（仅 curve / surface）
+        // 表达式编辑框(仅 curve / surface)
         if (obj.kind === 'curve' || obj.kind === 'surface') {
             html += `
                 <div class="edit-row">
@@ -145,7 +145,7 @@ export class EditTab implements Tab {
                 </div>`;
         }
 
-        // 系数滑块（仅 curve / surface）
+        // 系数滑块(仅 curve / surface)
         if ((obj.kind === 'curve' || obj.kind === 'surface') && obj.coefficients.length > 0) {
             html += '<div class="coeff-sliders">';
             for (const c of obj.coefficients) {
@@ -214,7 +214,7 @@ export class EditTab implements Tab {
     }
 
     // ============================================================
-    //  点 / 向量提交（读取当前 DOM 值）
+    //  点 / 向量提交(读取当前 DOM 值)
     // ============================================================
 
     private _commitPointPosition(id: number): void {

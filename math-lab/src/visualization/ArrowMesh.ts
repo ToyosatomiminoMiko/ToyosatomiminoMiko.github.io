@@ -3,7 +3,7 @@ import * as THREE from 'three';
 /**
  * ArrowMesh — 3D 箭头封装
  *
- * 内部由圆柱体（杆）和圆锥体（头）组成,统一挂在一个 Group 下
+ * 内部由圆柱体(杆)和圆锥体(头)组成,统一挂在一个 Group 下
  * 外部通过 setTransform 设置起点和方向,自动计算缩放/旋转
  *
  * 默认参数:
@@ -60,7 +60,7 @@ export class ArrowMesh {
     /**
      * 核心方法:设置箭头的起点和方向
      * @param origin    起点世界坐标
-     * @param direction 方向向量（同时决定长度）
+     * @param direction 方向向量(同时决定长度)
      */
     setTransform(origin: THREE.Vector3, direction: THREE.Vector3): void {
         const length = direction.length();
@@ -71,12 +71,12 @@ export class ArrowMesh {
         }
         this.group.visible = true;
 
-        const headLength = 0.4;       // 头部高度（沿箭头方向）
+        const headLength = 0.4;       // 头部高度(沿箭头方向)
         const shaftLength = Math.max(0, length - headLength);
 
         // 1. 杆缩放:Y 轴方向拉伸到 shaftLength
         this._shaft.scale.set(1, shaftLength, 1);
-        // 杆中心偏移到 shaftLength/2 处（沿局部 Y 轴）
+        // 杆中心偏移到 shaftLength/2 处(沿局部 Y 轴)
         this._shaft.position.set(0, shaftLength / 2, 0);
 
         // 2. 头部放在方向末端
@@ -102,7 +102,7 @@ export class ArrowMesh {
         this._headMaterial.color.set(color);
     }
 
-    /** 设置自发光强度（用于选中高亮,0 为无发光,通常 0.3-0.5） */
+    /** 设置自发光强度(用于选中高亮,0 为无发光,通常 0.3-0.5) */
     setEmissive(intensity: number): void {
         const emissive = new THREE.Color().setScalar(intensity);
         this._shaftMaterial.emissive.copy(emissive);

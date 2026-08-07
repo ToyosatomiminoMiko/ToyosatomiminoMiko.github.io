@@ -1,4 +1,4 @@
-/// 按值域分层计算勒贝格积分（正部/负部通用）
+/// 按值域分层计算勒贝格积分(正部/负部通用)
 pub(crate) fn lebesgue_layer_sum(
     layers: usize,
     y_range: f64,
@@ -26,7 +26,7 @@ pub(crate) fn simpson_weight(idx: usize, total: usize) -> f64 {
 }
 
 // ================================================================
-// 基于预计算值数组的积分函数（零 FFI 回调）
+// 基于预计算值数组的积分函数(零 FFI 回调)
 // ================================================================
 
 // --- 一维 ---
@@ -157,7 +157,7 @@ pub fn riemann2d_left_from_values(
     sum * hx * hy
 }
 
-// --- 勒贝格（基于值数组，扫描在 Rust 内完成，零 FFI） ---
+// --- 勒贝格(基于值数组,扫描在 Rust 内完成,零 FFI) ---
 
 pub fn lebesgue1d_from_values(values: &[f64], a: f64, b: f64, layers: usize) -> f64 {
     let n = values.len() - 1;
@@ -178,7 +178,7 @@ pub fn lebesgue1d_from_values(values: &[f64], a: f64, b: f64, layers: usize) -> 
         return 0.0;
     }
 
-    // 扫描连续满足条件的区间，累计区间总长度
+    // 扫描连续满足条件的区间,累计区间总长度
     let scan_measure = |predicate: &dyn Fn(f64) -> bool| -> f64 {
         let mut total = 0.0;
         let mut in_interval = false;
@@ -221,7 +221,7 @@ pub fn lebesgue2d_from_values(
     let hx = (b - a) / grid_size as f64;
     let hy = (d - c) / grid_size as f64;
     let area = hx * hy;
-    // values 是 (grid_size+1) × (grid_size+1) 的网格点值，行主序
+    // values 是 (grid_size+1) × (grid_size+1) 的网格点值,行主序
 
     let mut z_min = f64::INFINITY;
     let mut z_max = f64::NEG_INFINITY;
@@ -235,7 +235,7 @@ pub fn lebesgue2d_from_values(
         return 0.0;
     }
 
-    // 以左下角点代表整个格子（与 1D 左端点法一致）
+    // 以左下角点代表整个格子(与 1D 左端点法一致)
     let measure_fn = |predicate: &dyn Fn(f64) -> bool| -> f64 {
         let mut m = 0.0;
         for j in 0..grid_size {

@@ -18,7 +18,7 @@ export function parseCurve(raw: string): { node: MathNode; coefficients: Coeffic
 }
 
 /**
- * 对曲线表达式求导（固定对 x 求导）
+ * 对曲线表达式求导(固定对 x 求导)
  */
 export function differentiateCurve(node: MathNode): MathNode {
     return math.derivative(node, 'x') as MathNode;

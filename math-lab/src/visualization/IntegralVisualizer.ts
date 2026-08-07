@@ -219,7 +219,7 @@ export class IntegralVisualizer {
         this.cache.set(obj.id + '_lebesgue', { type: '2d', objects: group });
     }
 
-    /** 3D 勒贝格积分可视化（等高线切片） */
+    /** 3D 勒贝格积分可视化(等高线切片) */
     visualize3DLebesgue(
         obj: MathObject,
         fn: (x: number, y: number) => number,
@@ -301,7 +301,7 @@ export class IntegralVisualizer {
         });
     }
 
-    /** 用 InstancedMesh 批量渲染柱子（减少 draw call） */
+    /** 用 InstancedMesh 批量渲染柱子(减少 draw call) */
     private _instancedMeshGroup(bars: BarDef[], opts: BarOptions = {}): THREE.Group {
         const { opacity, color, edgeOpacity, edgeColor } = opts;
         const boxGeo = new THREE.BoxGeometry(1, 1, 1);

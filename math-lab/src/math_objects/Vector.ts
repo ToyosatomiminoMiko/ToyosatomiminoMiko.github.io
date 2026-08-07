@@ -1,7 +1,7 @@
 import type { VectorEntity } from './types';
 
 /**
- * 创建一个空间向量实体（纯数据）
+ * 创建一个空间向量实体(纯数据)
  */
 export function createVector(
     id: number,
@@ -20,7 +20,7 @@ export function createVector(
 }
 
 /**
- * 更新向量方向和起点（返回新对象）
+ * 更新向量方向和起点(返回新对象)
  */
 export function transformVector(
     vec: VectorEntity,

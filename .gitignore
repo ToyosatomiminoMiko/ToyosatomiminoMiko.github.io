@@ -4,3 +4,4 @@ autorun.py
 prompt.md
 wasm
 dist/
+.vscode
