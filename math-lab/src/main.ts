@@ -11,7 +11,6 @@ import type { MathLabEvents, MathObject } from './types';
 // Config
 // ============================================================
 import { APP_CONFIG } from './config/appConfig';
-import { ColorManager, MathObjectManager } from './math_objects';
 
 // ============================================================
 // Core Layer
@@ -19,6 +18,7 @@ import { ColorManager, MathObjectManager } from './math_objects';
 import { SceneManager } from './core/SceneManager';
 import { CameraManager } from './core/CameraManager';
 import { Plotter } from './core/Plotter';
+import { ColorManager, MathObjectManager } from './math_objects';
 
 // ============================================================
 // Integration / Vector-field

@@ -13,7 +13,9 @@ export class SurfaceRenderer implements IRenderer {
     private mesh: SurfaceMesh | null = null;
     private userVisible = true;
     private modeVisible = false;
-
+    // 编译缓存
+    private _compiledNode: math.MathNode | null = null;
+    private _compiledFn: math.EvalFunction | null = null;
     constructor(
         private readonly surface: SurfaceExpr,
         private readonly range: [number, number] = [-6, 6],
@@ -25,7 +27,7 @@ export class SurfaceRenderer implements IRenderer {
     }
 
     draw(): void {
-        // 分段数变化时重建（罕见路径）
+        // 分段数变化时重建(罕见路径)
         if (this.mesh && (this.mesh.cols !== this.segments || this.mesh.rows !== this.segments)) {
             this.group.remove(this.mesh.group);
             this.mesh.dispose();
@@ -36,8 +38,11 @@ export class SurfaceRenderer implements IRenderer {
             this.mesh = new SurfaceMesh(this.segments, this.segments);
             this.group.add(this.mesh.group);
         }
-
-        const compiled = this.surface.node.compile();
+        if (this._compiledNode !== this.surface.node || !this._compiledFn) {
+            this._compiledFn = this.surface.node.compile();
+            this._compiledNode = this.surface.node;
+        }
+        const compiled = this._compiledFn!;
         this.mesh.update(
             compiled,
             this.surface.coefficients,

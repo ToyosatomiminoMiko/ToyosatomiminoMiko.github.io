@@ -16,12 +16,10 @@ export interface GradientResult {
     tangentPlaneNode: MathNode;
 }
 
-// 模块级缓存
-let cachedExpr = '';
-let surfaceCompiled: EvalFunction | null = null;
-let fxCompiled: EvalFunction | null = null;
-let fyCompiled: EvalFunction | null = null;
-
+const compiledCache = new WeakMap<
+    MathNode,
+    { surface: EvalFunction; fx: EvalFunction; fy: EvalFunction }
+>();
 /**
  * 对二元函数 z = f(x, y) 在点 (x₀, y₀) 处计算梯度,法向量和切平面
  *
@@ -46,34 +44,44 @@ export function computeGradient(
     y0: number,
     extraScope?: Record<string, number>
 ): GradientResult {
-    const exprStr = surfaceNode.toString();
+    let entry = compiledCache.get(surfaceNode);
 
-    if (exprStr !== cachedExpr) {
-        // 符号求导 + 编译
-        fxCompiled = math.derivative(surfaceNode, 'x').compile();
-        fyCompiled = math.derivative(surfaceNode, 'y').compile();
-        surfaceCompiled = surfaceNode.compile();
-        cachedExpr = exprStr;
+    if (!entry) {
+        // 对偏导做化简,缩小表达式树
+        const fxNode = math.simplify(math.derivative(surfaceNode, 'x'));
+        const fyNode = math.simplify(math.derivative(surfaceNode, 'y'));
+        entry = {
+            surface: surfaceNode.compile(),
+            fx: fxNode.compile(),
+            fy: fyNode.compile(),
+        };
+        compiledCache.set(surfaceNode, entry);
     }
 
     const scope: Record<string, number> = { x: x0, y: y0, ...(extraScope ?? {}) };
 
-    const f0 = surfaceCompiled!.evaluate(scope) as number;
-    const fx = fxCompiled!.evaluate(scope) as number;
-    const fy = fyCompiled!.evaluate(scope) as number;
+    const f0 = entry.surface.evaluate(scope) as number;
+    const fx = entry.fx.evaluate(scope) as number;
+    const fy = entry.fy.evaluate(scope) as number;
 
     // 法向量
     const nx = -fx, ny = -fy, nz = 1;
     const norm = Math.sqrt(nx * nx + ny * ny + nz * nz);
     const normalDirection: [number, number, number] =
         norm < 1e-12 ? [0, 0, 1] : [nx / norm, ny / norm, nz / norm];
-
-    // 切平面:只在 pin 时需要,这里懒构建
-    // 但为了接口兼容,仍返回 node(后续可优化掉)
+    // 切平面：用 mathjs API 构建,避免 string → parse
     const constantPart = f0 - fx * x0 - fy * y0;
-    const tangentPlaneNode = math.parse(
-        `(${constantPart}) + (${fx}) * x + (${fy}) * y`
-    );
+    const tangentPlaneNode = new math.OperatorNode('+', 'add', [
+        new math.ConstantNode(constantPart),
+        new math.OperatorNode('*', 'multiply', [
+            new math.ConstantNode(fx),
+            new math.SymbolNode('x'),
+        ]),
+        new math.OperatorNode('*', 'multiply', [
+            new math.ConstantNode(fy),
+            new math.SymbolNode('y'),
+        ]),
+    ]);
 
     return { fx, fy, f0, normalDirection, tangentPlaneNode };
 }

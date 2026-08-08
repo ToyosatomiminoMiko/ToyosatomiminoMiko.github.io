@@ -8,9 +8,11 @@ export class CurveRenderer implements IRenderer {
     private line: THREE.Line | null = null;
     private userVisible = true;
     private modeVisible = false;  // 由 Plotter 路由控制
-
+    // 编译缓存
+    private _compiledNode: math.MathNode | null = null;
+    private _compiledFn: math.EvalFunction | null = null;
     constructor(
-        public readonly curve: CurveExpr,
+        public curve: CurveExpr,
         private readonly xRange: [number, number] = [-8, 8],
         private readonly steps: number = 320,
     ) { }
@@ -20,10 +22,15 @@ export class CurveRenderer implements IRenderer {
     }
 
     /**
-     * 更新曲线 —— 复用 BufferGeometry / Material, 仅替换 position 数组
+     * 更新曲线: 复用 BufferGeometry / Material, 仅替换 position 数组
      */
     draw(): void {
-        const compiled = this.curve.node.compile();
+        // 仅当 node 引用变化时才重新编译
+        if (this._compiledNode !== this.curve.node || !this._compiledFn) {
+            this._compiledFn = this.curve.node.compile();
+            this._compiledNode = this.curve.node;
+        }
+        const compiled = this._compiledFn!;
         const points = this._sampleCurve(compiled);
 
         if (points.length < 2) {

@@ -14,6 +14,7 @@ import { differentiateSurface } from './Surface';
 import { extractCoefficients } from './coefficientUtils';
 import { ColorManager } from './ColorManager';
 import { APP_CONFIG } from '../config/appConfig';
+import * as math from 'mathjs';
 
 // 系数提取时的变量名集合
 const CURVE_VARS = new Set(['x']);
@@ -23,7 +24,8 @@ export class MathObjectManager {
     private _objects: MathObject[];
     private _nextId: number;
     private _colorManager: ColorManager;
-
+    // 导数结果缓存
+    private _derivCache = new WeakMap<math.MathNode, Map<string, math.MathNode>>();
     constructor(colorManager: ColorManager) {
         this._objects = [];
         this._nextId = 1;
@@ -106,6 +108,10 @@ export class MathObjectManager {
     remove(id: number): boolean {
         const idx = this._objects.findIndex(o => o.id === id);
         if (idx !== -1) {
+            const obj = this._objects[idx];
+            if (obj.kind === 'curve' || obj.kind === 'surface') {
+                this._clearDerivCacheFor(obj.node);
+            }
             this._objects.splice(idx, 1);
             return true;
         }
@@ -183,7 +189,16 @@ export class MathObjectManager {
 
     deriveCurve(id: number): CurveExpr {
         const source = this._findSource(id, 'curve');
-        const derivNode = differentiateCurve(source.node);
+        let inner = this._derivCache.get(source.node);
+        let derivNode = inner?.get('x');
+        if (!derivNode) {
+            derivNode = math.simplify(differentiateCurve(source.node));
+            if (!inner) {
+                inner = new Map();
+                this._derivCache.set(source.node, inner);
+            }
+            inner.set('x', derivNode);
+        }
 
         const deriv: CurveExpr = {
             kind: 'curve',
@@ -199,8 +214,16 @@ export class MathObjectManager {
 
     deriveSurface(id: number, variable: 'x' | 'y'): SurfaceExpr {
         const source = this._findSource(id, 'surface');
-        const derivNode = differentiateSurface(source.node, variable);
-
+        let inner = this._derivCache.get(source.node);
+        let derivNode = inner?.get(variable);
+        if (!derivNode) {
+            derivNode = math.simplify(differentiateSurface(source.node, variable));
+            if (!inner) {
+                inner = new Map();
+                this._derivCache.set(source.node, inner);
+            }
+            inner.set(variable, derivNode);
+        }
         const deriv: SurfaceExpr = {
             kind: 'surface',
             id: this._nextId++,
@@ -214,6 +237,10 @@ export class MathObjectManager {
     }
 
     // ========== 内部 ==========
+
+    private _clearDerivCacheFor(node: math.MathNode): void {
+        this._derivCache.delete(node);
+    }
 
     private _addDefaults(): void {
         const defaults = APP_CONFIG.defaultExpressions;
