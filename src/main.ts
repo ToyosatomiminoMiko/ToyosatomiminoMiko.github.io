@@ -5,7 +5,7 @@ import 'katex/dist/katex.min.css';
 // --- 导入 JS 依赖 ---
 import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 import { mountClock } from './clock';
-import { mountPages } from './page';
+//import { mountPages } from './page';
 import { mountRBT } from './rbt';
 import { OLEDCanvas } from './oled';
 
@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 挂载所有 Vue 应用
     mountClock();
-    mountPages();
+    //mountPages();
     mountRBT();
     new OLEDCanvas();
 });

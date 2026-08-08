@@ -1,4 +1,4 @@
-export function fmt_time(datetime) {
+export function fmt_time(datetime: Date): string {
     /* 转为字符串后用0填充2位 */
     const year = datetime.getFullYear().toString();
     const month = (datetime.getMonth() + 1).toString().padStart(2, '0');
