@@ -27,7 +27,8 @@ import { IntegralVisualizer } from './visualization/IntegralVisualizer';
 import { GradientVisualizer } from './visualization/GradientVisualizer';
 import { SelectionManager } from './ui/SelectionManager';
 import { DetailPanel } from './ui/DetailPanel';
-
+// 曲面三角形剔除.运行在主线程的wasm
+import { ensureReady } from './visualization/SurfaceMeshWasm';
 // ============================================================
 // UI Layer
 // ============================================================
@@ -154,28 +155,26 @@ eventBus.on('camera:changed', ({ camMode }) => {
 });
 
 // ============================================================
-// 4.5 初始绘制:绘制所有预设对象
+// 4.5 初始绘制:等待 WASM 就绪后绘制所有预设对象
 // ============================================================
 const initialMode = modeController.getMode();
 const initialObjects = objectManager.getAll();
-for (const obj of initialObjects) {
-    if (!obj.enabled) continue;
-    switch (obj.kind) {
-        case 'curve':
-            plotter.drawCurve(obj);
-            break;
-        case 'surface':
-            plotter.drawSurface(obj);
-            break;
-        case 'point':
-            plotter.drawPoint(obj);
-            break;
-        case 'vector':
-            plotter.drawVector(obj);
-            break;
+
+function drawAll() {
+    for (const obj of initialObjects) {
+        if (!obj.enabled) continue;
+        switch (obj.kind) {
+            case 'curve': plotter.drawCurve(obj); break;
+            case 'surface': plotter.drawSurface(obj); break;
+            case 'point': plotter.drawPoint(obj); break;
+            case 'vector': plotter.drawVector(obj); break;
+        }
     }
+    plotter.updateMode(initialMode);
 }
-plotter.updateMode(initialMode);
+
+// await wasm,就绪后再绘制 (setup 内的顶层代码用 .then)
+ensureReady().then(drawAll);
 
 // ============================================================
 // 5. OrbitControls + 动画循环

@@ -1,5 +1,7 @@
 use wasm_bindgen::prelude::*;
+// 实现模块
 mod integral_core;
+mod surface_utils;
 
 // ================================================================
 // 基于值数组的积分 零FFI回调 推荐使用
@@ -88,4 +90,10 @@ pub fn lebesgue2d_values(
     layers: usize,
 ) -> f64 {
     integral_core::lebesgue2d_from_values(values, (xa, xb), (ya, yb), grid_size, layers)
+}
+
+// 三角形剔除
+#[wasm_bindgen]
+pub fn filter_nan_triangles(full_indices: &[u32], z_values: &[f64]) -> Vec<u32> {
+    surface_utils::filter_nan_triangles(full_indices, z_values)
 }

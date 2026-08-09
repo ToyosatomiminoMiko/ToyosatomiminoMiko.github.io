@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Coefficient } from '../types';
+import { filter_nan_triangles } from './SurfaceMeshWasm';
 
 // ============================================================
 // 内部类型:mathjs 编译后的求值函数
@@ -69,7 +70,7 @@ class MathEvaluator {
 
 // ============================================================
 // SurfaceMesh — 可复用的 3D 曲面网格封装
-// 几何体只创建一次,后续调用 update() 仅修改 attribute 数据,
+// 几何体只创建一次,后续调用 update() 仅修改 attribute 数据
 // 大幅减少 GC 压力,适合高频交互(如拖动参数滑块)
 // ============================================================
 export class SurfaceMesh {
@@ -81,6 +82,8 @@ export class SurfaceMesh {
     mesh: THREE.Mesh;
     wireframe: THREE.Mesh;
     group: THREE.Group;
+    _fullIndices: Uint32Array;
+    _z64: Float64Array;
 
     /**
      * @param cols - x 方向网格分段数
@@ -94,6 +97,8 @@ export class SurfaceMesh {
         const vertexCount = (cols + 1) * (rows + 1);
         const posArray = new Float32Array(vertexCount * 3);
         const colorArray = new Float32Array(vertexCount * 3);
+        this._fullIndices = new Uint32Array(MathEvaluator.generateIndices(cols, rows));
+        this._z64 = new Float64Array(vertexCount); // 预分配 z64,复用数组
 
         this.geometry = new THREE.BufferGeometry();
         this.geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
@@ -213,19 +218,9 @@ export class SurfaceMesh {
         //       Three.js 的 computeVertexNormals 会把 NaN 通过顶点平均
         //       扩散到相邻的正常三角形,导致高光/阴影异常.
         // 修复:遍历所有三角形,只保留三个顶点 z 值均有限的三角形.
-        const oldIndices = MathEvaluator.generateIndices(this.cols, this.rows);
-        const newIndices: number[] = [];
-        for (let i = 0; i < oldIndices.length; i += 3) {
-            const a = oldIndices[i];
-            const b = oldIndices[i + 1];
-            const c = oldIndices[i + 2];
-            const za = zValues[a];
-            const zb = zValues[b];
-            const zc = zValues[c];
-            if (Number.isFinite(za) && Number.isFinite(zb) && Number.isFinite(zc)) {
-                newIndices.push(a, b, c);
-            }
-        }
+        const z64 = this._z64;
+        z64.set(zValues); // 直接覆盖,零分配
+        const newIndices = filter_nan_triangles(this._fullIndices, z64);
         this.geometry.setIndex(newIndices);
 
         // 第五步:重新计算法线(此时所有参与面均合法)
