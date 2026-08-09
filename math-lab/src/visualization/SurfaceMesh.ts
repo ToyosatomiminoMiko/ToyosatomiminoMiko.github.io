@@ -90,7 +90,7 @@ export class SurfaceMesh {
         this.cols = cols;
         this.rows = rows;
 
-        // --- 预分配 BufferGeometry ---
+        // 预分配 BufferGeometry
         const vertexCount = (cols + 1) * (rows + 1);
         const posArray = new Float32Array(vertexCount * 3);
         const colorArray = new Float32Array(vertexCount * 3);
@@ -103,7 +103,7 @@ export class SurfaceMesh {
         const fullIndices = MathEvaluator.generateIndices(cols, rows);
         this.geometry.setIndex(fullIndices);
 
-        // --- 材质:Phong + 顶点颜色 + 双面渲染 ---
+        // 材质:Phong + 顶点颜色 + 双面渲染
         this.material = new THREE.MeshPhongMaterial({
             vertexColors: true,
             side: THREE.DoubleSide,
@@ -114,7 +114,7 @@ export class SurfaceMesh {
             depthWrite: true, // 曲面主体保持深度写入
         });
 
-        // --- 独立线框 mesh,单独控制透明度与深度写入 ---
+        // 独立线框 mesh,单独控制透明度与深度写入
         this.wireframeMat = new THREE.MeshBasicMaterial({
             color: 0x88aaff,
             wireframe: true,
@@ -152,6 +152,7 @@ export class SurfaceMesh {
         yMin: number,
         yMax: number,
     ): { zMin: number; zMax: number } {
+        // performance.mark('surface-update-start');
         // 组装求值闭包 —— 内部保持 (x,y)=>z 的签名,MathEvaluator 无需改动
         const scope: Record<string, number> = {};
         for (const c of coefficients) scope[c.name] = c.value;
@@ -168,7 +169,7 @@ export class SurfaceMesh {
         posAttr.array.set(positions);
         posAttr.needsUpdate = true;
 
-        // --- 第二步:从采样结果中提取 z 值,计算全局极值 ---
+        // 第二步:从采样结果中提取 z 值,计算全局极值
         const vertexCount = (this.cols + 1) * (this.rows + 1);
         const zValues = new Float32Array(vertexCount);
         let zMin = Infinity;
@@ -182,7 +183,7 @@ export class SurfaceMesh {
             }
         }
 
-        // --- 第三步:基于 z 值映射 HSL 彩虹颜色 ---
+        // 第三步:基于 z 值映射 HSL 彩虹颜色
         const colAttr = this.geometry.attributes.color;
         const colors = colAttr.array;
         const range = zMax - zMin;
@@ -207,7 +208,7 @@ export class SurfaceMesh {
         }
         colAttr.needsUpdate = true;
 
-        // --- 第四步:剔除含 NaN 的三角形,防止法线污染 ---
+        // 第四步:剔除含 NaN 的三角形,防止法线污染
         // 原理:任何包含 NaN 顶点的三角形,其面法线为 NaN,
         //       Three.js 的 computeVertexNormals 会把 NaN 通过顶点平均
         //       扩散到相邻的正常三角形,导致高光/阴影异常.
@@ -227,9 +228,11 @@ export class SurfaceMesh {
         }
         this.geometry.setIndex(newIndices);
 
-        // --- 第五步:重新计算法线(此时所有参与面均合法)---
+        // 第五步:重新计算法线(此时所有参与面均合法)
         this.geometry.computeVertexNormals();
 
+        // performance.mark('surface-update-end');
+        // performance.measure('surface-update', 'surface-update-start', 'surface-update-end');
         return { zMin, zMax };
     }
 

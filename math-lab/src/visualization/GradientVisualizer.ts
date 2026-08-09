@@ -48,6 +48,7 @@ export class GradientVisualizer {
         normalDir: [number, number, number],
         baseColor: string,
     ): void {
+        // performance.mark('gradient-vis-start');
         const [nx, ny, nz] = normalDir;
 
         // --- 标记点:只移动不重建 ---
@@ -98,6 +99,8 @@ export class GradientVisualizer {
             new THREE.Vector3(nx, ny, nz),
         );
         this._plane.setRotationFromQuaternion(quat);
+        // performance.mark('gradient-vis-end');
+        // performance.measure('-gradient-vis', 'gradient-vis-start', 'gradient-vis-end');
     }
 
     /** 清除所有临时对象 */

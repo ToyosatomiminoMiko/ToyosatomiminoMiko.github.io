@@ -25,26 +25,21 @@ export class CurveRenderer implements IRenderer {
      * 更新曲线: 复用 BufferGeometry / Material, 仅替换 position 数组
      */
     draw(): void {
-        // 仅当 node 引用变化时才重新编译
+        // 编译缓存
         if (this._compiledNode !== this.curve.node || !this._compiledFn) {
             this._compiledFn = this.curve.node.compile();
             this._compiledNode = this.curve.node;
         }
-        const compiled = this._compiledFn!;
-        const points = this._sampleCurve(compiled);
 
-        if (points.length < 2) {
-            this.group.visible = false;
-            return;
-        }
+        // 预分配足够大的 buffer
+        const maxVerts = this.steps + 2;
+        const needed = maxVerts * 3;
 
-        // 仅首次创建 geometry + material
         if (!this.line) {
             const geometry = new THREE.BufferGeometry();
-            // 初始分配 points.length 个顶点,后续可能增长
             geometry.setAttribute(
                 'position',
-                new THREE.BufferAttribute(new Float32Array(points.length * 3), 3),
+                new THREE.BufferAttribute(new Float32Array(needed), 3),
             );
             const material = new THREE.LineBasicMaterial({
                 color: this.curve.color || '#ffffff',
@@ -56,31 +51,25 @@ export class CurveRenderer implements IRenderer {
             this.group.add(this.line);
         }
 
-        // 原地更新 position buffer
-        const posAttr = this.line.geometry.attributes['position'] as THREE.BufferAttribute;
-        const currentArray = posAttr.array as Float32Array;
-        const needed = points.length * 3;
-
-        // 如果当前 buffer 不够大,替换为更大的
-        let targetArray: Float32Array;
-        if (currentArray.length < needed) {
-            targetArray = new Float32Array(needed);
-            posAttr.array = targetArray;
-        } else {
-            targetArray = currentArray;
+        let posAttr = this.line.geometry.attributes['position'] as THREE.BufferAttribute;
+        if (posAttr.array.length < needed) {
+            posAttr.array = new Float32Array(needed);
         }
 
-        for (let i = 0; i < points.length; i++) {
-            const offset = i * 3;
-            targetArray[offset] = points[i].x;
-            targetArray[offset + 1] = points[i].y;
-            targetArray[offset + 2] = points[i].z;
+        // 直接写入,零分配
+        const pointCount = this._sampleCurveDirect(
+            this._compiledFn!,
+            posAttr.array as Float32Array,
+            0,
+        );
+
+        if (pointCount < 2) {
+            this.group.visible = false;
+            return;
         }
 
         posAttr.needsUpdate = true;
-        // 控制实际绘制范围（顶点数可能比 buffer 容量小）
-        this.line.geometry.setDrawRange(0, points.length);
-
+        this.line.geometry.setDrawRange(0, pointCount);
         this.group.visible = this.visible;
     }
 
@@ -112,20 +101,35 @@ export class CurveRenderer implements IRenderer {
     // -------------------------------------------------------
     // 内部:采样
     // -------------------------------------------------------
-    private _sampleCurve(compiled: math.EvalFunction): THREE.Vector3[] {
-        const result: THREE.Vector3[] = [];
+    /**
+     * 采样并直接写入 target Float32Array
+     * @returns 实际写入的顶点数
+     */
+    private _sampleCurveDirect(
+        compiled: math.EvalFunction,
+        target: Float32Array,
+        startOffset: number,
+    ): number {
         const [xMin, xMax] = this.xRange;
         const step = (xMax - xMin) / this.steps;
+        // scope 复用（已优化）
         const scope: Record<string, number> = {};
         for (const c of this.curve.coefficients) scope[c.name] = c.value;
 
+        let count = 0;
         for (let x = xMin; x <= xMax; x += step) {
+            scope.x = x;
             try {
-                scope.x = x;
-                const y = compiled.evaluate(scope);
-                if (isFinite(y)) result.push(new THREE.Vector3(x, y, 0));
+                const y = compiled.evaluate(scope) as number;
+                if (isFinite(y)) {
+                    const dest = startOffset + count * 3;
+                    target[dest] = x;
+                    target[dest + 1] = y;
+                    target[dest + 2] = 0;
+                    count++;
+                }
             } catch (_) { /* 跳过奇异点 */ }
         }
-        return result;
+        return count;
     }
 }

@@ -38,6 +38,12 @@ export class GradientTab implements Tab {
     }
 
     render(obj: MathObject): void {
+        // 先清理上一次渲染的残留
+        this._abortController?.abort();
+        this._abortController = null;
+        for (const cleanup of this._sliderCleanups) cleanup();
+        this._sliderCleanups.length = 0;
+
         if (obj.kind !== 'surface') {
             this._container.innerHTML =
                 '<div class="detail-hint">梯度计算仅适用于 3D 曲面</div>';
@@ -144,7 +150,7 @@ export class GradientTab implements Tab {
 
     private _updatePreview(obj: MathObject, x0: number, y0: number): void {
         if (obj.kind !== 'surface') return;
-
+        // performance.mark('gradient-preview-start');
         try {
             const scope: Record<string, number> = {};
             for (const c of obj.coefficients) {
@@ -175,6 +181,8 @@ export class GradientTab implements Tab {
                 infoDiv.innerHTML = `<span style="color:#ff6b8a;">⚠️ ${(err as Error).message}</span>`;
             }
         }
+        // performance.mark('gradient-preview-end');
+        // performance.measure('gradient', 'gradient-preview-start', 'gradient-preview-end');
     }
 
     // ============================================================

@@ -26,8 +26,8 @@ export class ExprListRenderer {
         // 数据变更 -> 重新渲染
         this.eventBus.on('mathobj:added', () => this.render());
         this.eventBus.on('mathobj:removed', () => this.render());
-        this.eventBus.on('mathobj:toggled', () => this.render());
-        this.eventBus.on('mathobj:updated', () => this.render());
+        this.eventBus.on('mathobj:toggled', ({ id }) => this._updateRow(id));
+        this.eventBus.on('mathobj:updated', ({ id }) => this._updateRow(id));
 
         // 选中变化 -> 更新行高亮
         this.eventBus.on('selection:changed', () => this._updateRowHighlight());
@@ -81,6 +81,48 @@ export class ExprListRenderer {
     // ============================================================
     //  内部
     // ============================================================
+
+    /**
+     * 增量更新单行:仅更新标签文本,颜色点,可见性按钮
+     * 避免全量 innerHTML 重建
+     */
+    private _updateRow(id: number): void {
+        const row = this.exprListEl.querySelector(`.expr-item[data-id="${id}"]`) as HTMLElement | null;
+        if (!row) {
+            // 行不存在(可能刚添加),回退到全量渲染
+            this.render();
+            return;
+        }
+
+        const obj = this.objectManager.getById(id);
+        if (!obj) {
+            // 对象已删除
+            this.render();
+            return;
+        }
+
+        // 更新标签文本
+        const labelEl = row.querySelector('.expr-label') as HTMLElement | null;
+        if (labelEl) {
+            const newLabel = this._formatLabel(obj);
+            labelEl.textContent = newLabel;  // textContent 自动处理转义
+            labelEl.title = newLabel;
+        }
+
+        // 更新颜色点
+        const dotEl = row.querySelector('.color-dot') as HTMLElement | null;
+        if (dotEl) {
+            dotEl.style.background = obj.color;
+        }
+
+        // 更新可见性按钮
+        const toggleBtn = row.querySelector('[data-action="toggle"]') as HTMLElement | null;
+        if (toggleBtn) {
+            const isVisible = obj.enabled;
+            toggleBtn.textContent = isVisible ? '1' : '0';
+            toggleBtn.title = isVisible ? 'hide' : 'show';
+        }
+    }
 
     private _updateRowHighlight(): void {
         const selected = this.selectionManager.getSelected();

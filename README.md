@@ -58,7 +58,7 @@
 
 ```mermaid
 graph TD
-    %% ===== 最上层：UI Layer =====
+    %% ===== 最上层:UI Layer =====
     subgraph UI["🧩 UI Layer (用户界面)"]
         ExprInput["ExprInputController<br/>表达式输入"]
         ExprList["ExprListRenderer<br/>对象列表渲染"]
@@ -68,19 +68,19 @@ graph TD
         SelectionMgr["SelectionManager<br/>选中管理"]
     end
 
-    %% ===== 中间：Service Layer =====
+    %% ===== 中间:Service Layer =====
     subgraph Service["🔁 Service Layer (通信层)"]
         EventBus["EventBus<br/>泛型事件总线"]
     end
 
-    %% ===== 核心：Core Layer =====
+    %% ===== 核心:Core Layer =====
     subgraph Core["⚙️ Core Layer (核心逻辑)"]
         SceneMgr["SceneManager<br/>场景/渲染器管理"]
         CameraMgr["CameraManager<br/>相机管理"]
         Plotter["Plotter<br/>增量式绘图器"]
     end
 
-    %% ===== 数据：Math Objects =====
+    %% ===== 数据:Math Objects =====
     subgraph Model["📦 Math Objects (数据模型)"]
         MathObjMgr["MathObjectManager<br/>对象生命周期管理"]
         ColorMgr["ColorManager<br/>调色板"]
@@ -91,7 +91,7 @@ graph TD
         Types["types.ts<br/>类型定义 (discriminated union)"]
     end
 
-    %% ===== 可视化：Visualization =====
+    %% ===== 可视化:Visualization =====
     subgraph Viz["🎨 Visualization (可视化层)"]
         IntegralVis["IntegralVisualizer<br/>积分区域可视化"]
         GradientVis["GradientVisualizer<br/>梯度场可视化"]
@@ -99,7 +99,7 @@ graph TD
         ArrowMesh["ArrowMesh<br/>箭头(向量)网格"]
     end
 
-    %% ===== 计算：Computation =====
+    %% ===== 计算:Computation =====
     subgraph Compute["🧮 Computation (计算层)"]
         IntegralWorker["IntegralWorker<br/>Web Worker 并行积分"]
         IntegralWasm["IntegralWasm<br/>WASM 积分接口"]

@@ -11,7 +11,6 @@ export class EditTab implements Tab {
     private _objectManager: MathObjectManager;
     private _eventBus: EventBus<MathLabEvents>;
     private _sliderCleanups: (() => void)[] = [];
-    private _coeffDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
     constructor(
         container: HTMLElement,
@@ -35,10 +34,6 @@ export class EditTab implements Tab {
     destroy(): void {
         for (const cleanup of this._sliderCleanups) cleanup();
         this._sliderCleanups = [];
-        if (this._coeffDebounceTimer) {
-            clearTimeout(this._coeffDebounceTimer);
-            this._coeffDebounceTimer = null;
-        }
     }
 
     // ============================================================
@@ -195,7 +190,7 @@ export class EditTab implements Tab {
             this._sliderCleanups.push(
                 SliderBinding.bindAll(this._container, (name, value) => {
                     this._objectManager.setCoefficient(obj.id, name, value);
-                    this._debouncedEmitCoefficient(obj.id);
+                    this._eventBus.emit('coefficient:changed', { id: obj.id });
                 }),
             );
         } else if (obj.kind === 'point') {
@@ -217,40 +212,28 @@ export class EditTab implements Tab {
     //  点 / 向量提交(读取当前 DOM 值)
     // ============================================================
 
+    /**
+     * 从html中获取值
+     */
+    private _getVal(name: string): number {
+        const el = this._container.querySelector(
+            `[data-coeff="${name}"].coeff-value`,
+        ) as HTMLInputElement | null;
+        return parseFloat(el?.value ?? '0');
+    }
+
     private _commitPointPosition(id: number): void {
-        const getVal = (name: string): number => {
-            const el = this._container.querySelector(
-                `[data-coeff="${name}"].coeff-value`,
-            ) as HTMLInputElement | null;
-            return parseFloat(el?.value ?? '0');
-        };
-        this._objectManager.updatePointPosition(id, getVal('x'), getVal('y'), getVal('z'));
-        this._debouncedEmitCoefficient(id);
+        this._objectManager.updatePointPosition(
+            id, this._getVal('x'), this._getVal('y'), this._getVal('z'));
+        this._eventBus.emit('coefficient:changed', { id });
     }
 
     private _commitVectorTransform(id: number): void {
-        const getVal = (name: string): number => {
-            const el = this._container.querySelector(
-                `[data-coeff="${name}"].coeff-value`,
-            ) as HTMLInputElement | null;
-            return parseFloat(el?.value ?? '0');
-        };
         this._objectManager.updateVectorTransform(
             id,
-            getVal('dx'), getVal('dy'), getVal('dz'),
-            getVal('ox'), getVal('oy'), getVal('oz'),
+            this._getVal('dx'), this._getVal('dy'), this._getVal('dz'),
+            this._getVal('ox'), this._getVal('oy'), this._getVal('oz'),
         );
-        this._debouncedEmitCoefficient(id);
-    }
-
-    // ============================================================
-    //  工具
-    // ============================================================
-
-    private _debouncedEmitCoefficient(id: number): void {
-        if (this._coeffDebounceTimer) clearTimeout(this._coeffDebounceTimer);
-        this._coeffDebounceTimer = setTimeout(() => {
-            this._eventBus.emit('coefficient:changed', { id });
-        }, 50);
+        this._eventBus.emit('coefficient:changed', { id });
     }
 }

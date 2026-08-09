@@ -187,7 +187,7 @@ class TreeDrawer {
             if (rightLeftBound >= rightBound) rightLeftBound = rightBound - this.minHorizontalGap * 0.8;
             this.placeNodeRecursive(node.right!, rightLeftBound, rightBound, y + this.yStep);
         }
-        // 无孩子：叶子节点不需递归
+        // 无孩子:叶子节点不需递归
     }
 
     layoutTree(root: RBNode): void {

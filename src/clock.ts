@@ -2,13 +2,11 @@
 2025.12.10.23:20:00
 APP: #app_led_clock
 LED Clock
-LED 时钟
 */
 import { createApp, ref, onMounted, onUnmounted } from 'vue';
 import { fmt_time } from './utils.js'; // 假设 fmt_time 接受 Date 返回 string
 
 // 定义数字段类型:每个数字由3列组成,每列为5位二进制数
-// 改用 Uint8Array 存储,每个字节存储一列
 type DigitSegments = Uint8Array; // 原三元组类型注释保留,实际使用 Uint8Array
 
 const pixel_color = '#0ff'; // 像素颜色

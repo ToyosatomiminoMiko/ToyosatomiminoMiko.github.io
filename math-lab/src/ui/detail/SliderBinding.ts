@@ -27,6 +27,7 @@ export class SliderBinding {
 
         // 通用处理:根据 slider 或 number 输入 统一回调
         const handleChange = (coeffName: string, rawValue: string) => {
+            // performance.mark('slider-input');
             const val = parseFloat(rawValue);
             if (isNaN(val)) return;
 
@@ -35,6 +36,8 @@ export class SliderBinding {
             timers.set(
                 coeffName,
                 setTimeout(() => {
+                    // performance.mark('slider-callback');
+                    // performance.measure('slider', 'slider-input', 'slider-callback');
                     onChange(coeffName, val);
                     timers.delete(coeffName);
                 }, debounceMs),

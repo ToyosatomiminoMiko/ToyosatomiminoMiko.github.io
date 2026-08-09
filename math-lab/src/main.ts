@@ -75,6 +75,25 @@ new DetailPanel(
     gradientVisualizer,
 );
 
+// 脏标记:系数变化时先标记,下一帧统一绘制
+const dirtyObjectIds = new Set<number>();
+
+function processDirtyDraws(): void {
+    if (dirtyObjectIds.size === 0) return;
+    const mode = modeController.getMode();
+    for (const id of dirtyObjectIds) {
+        const obj = objectManager.getAll().find(o => o.id === id);
+        if (!obj) continue;
+        if (obj.kind === 'point') {
+            plotter.drawPoint(obj);
+        } else if (obj.kind === 'vector') {
+            plotter.drawVector(obj);
+        } else {
+            plotter.updateObject(obj, mode);
+        }
+    }
+    dirtyObjectIds.clear();
+}
 // ============================================================
 // 4. 事件订阅(新事件名 + discriminated union 分发)
 // ============================================================
@@ -126,17 +145,7 @@ eventBus.on('mathobj:updated', ({ id }) => {
 
 // 系数滑块变化 -> 重绘目标
 eventBus.on('coefficient:changed', ({ id }) => {
-    const obj = objectManager.getAll().find(o => o.id === id);
-    if (!obj) return;
-
-    // point / vector 按需全量重绘;curve / surface 按模式更新
-    if (obj.kind === 'point') {
-        plotter.drawPoint(obj);
-    } else if (obj.kind === 'vector') {
-        plotter.drawVector(obj);
-    } else {
-        plotter.updateObject(obj, modeController.getMode());
-    }
+    dirtyObjectIds.add(id);
 });
 
 // 相机投影模式切换
@@ -194,8 +203,17 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
 // 动画循环
 function animate(): void {
     requestAnimationFrame(animate);
+    // performance.mark('frame-start');
     controls.update();
+    // performance.mark('controls-updated');
+    processDirtyDraws();
+    // performance.mark('dirty-draws');
     sceneManager.render(cameraManager.getCamera());
+    // performance.mark('render-done');
+    // performance.measure('frame', 'frame-start', 'render-done');
+    // performance.measure('-controls.update', 'frame-start', 'controls-updated');
+    // performance.measure('-processDirtyDraws', 'controls-updated', 'dirty-draws');
+    // performance.measure('-renderer.render', 'dirty-draws', 'render-done');
 }
 animate();
 

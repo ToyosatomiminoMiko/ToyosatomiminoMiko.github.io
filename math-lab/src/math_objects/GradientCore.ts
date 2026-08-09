@@ -44,6 +44,7 @@ export function computeGradient(
     y0: number,
     extraScope?: Record<string, number>
 ): GradientResult {
+    // performance.mark('gradient-core-start');
     let entry = compiledCache.get(surfaceNode);
 
     if (!entry) {
@@ -69,7 +70,7 @@ export function computeGradient(
     const norm = Math.sqrt(nx * nx + ny * ny + nz * nz);
     const normalDirection: [number, number, number] =
         norm < 1e-12 ? [0, 0, 1] : [nx / norm, ny / norm, nz / norm];
-    // 切平面：用 mathjs API 构建,避免 string → parse
+    // 切平面:用 mathjs API 构建,避免 string → parse
     const constantPart = f0 - fx * x0 - fy * y0;
     const tangentPlaneNode = new math.OperatorNode('+', 'add', [
         new math.ConstantNode(constantPart),
@@ -82,6 +83,7 @@ export function computeGradient(
             new math.SymbolNode('y'),
         ]),
     ]);
-
+    // performance.mark('gradient-core-end');
+    // performance.measure('-gradient-core', 'gradient-core-start', 'gradient-core-end');
     return { fx, fy, f0, normalDirection, tangentPlaneNode };
 }
