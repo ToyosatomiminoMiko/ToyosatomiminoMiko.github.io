@@ -9,7 +9,7 @@ import init, {
     simpson2d_values,
     riemann2d_left_values,
     lebesgue2d_values,
-} from "../wasm/ml_wasm.js";
+} from "../wasm/ml_wasm";
 import * as math from 'mathjs';
 
 // ---------- 类型 ----------

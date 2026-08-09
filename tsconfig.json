@@ -14,7 +14,7 @@
         "forceConsistentCasingInFileNames": true,
         "resolveJsonModule": true,
         "isolatedModules": true,
-        "allowJs": true,
+        "allowJs": false,
         "checkJs": false,
         "paths": {
             "@/*": [
