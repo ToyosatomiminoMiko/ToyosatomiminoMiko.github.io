@@ -101,16 +101,19 @@ export class SurfaceMesh {
 
         // positions 写入
         const posAttr = this.geometry.attributes.position;
-        posAttr.array.set(new Float32Array(result.positions));
+        posAttr.array.set(result.positions);
         posAttr.needsUpdate = true;
 
         // colors 写入
         const colAttr = this.geometry.attributes.color;
-        colAttr.array.set(new Float32Array(result.colors));
+        colAttr.array.set(result.colors);
         colAttr.needsUpdate = true;
 
         // 索引更新
         this.geometry.setIndex(Array.from(result.valid_indices));
+        // 类型"Uint32Array<ArrayBufferLike>"的参数不能赋给类型
+        // "number[] | BufferAttribute<BufferAttributeEventMap> | null"的参数
+        // this.geometry.setIndex(result.valid_indices);
 
         // 重算法线
         this.geometry.computeVertexNormals();

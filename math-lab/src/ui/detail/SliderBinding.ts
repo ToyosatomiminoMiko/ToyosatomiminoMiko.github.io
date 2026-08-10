@@ -21,7 +21,7 @@ export class SliderBinding {
     ): () => void {
         const abortController = new AbortController();
         const signal = abortController.signal;
-        const debounceMs = options?.debounceMs ?? 50; // 默认 50ms 防抖
+        const debounceMs = options?.debounceMs ?? 8; // 50 -> 16ms(1f)
 
         const timers = new Map<string, ReturnType<typeof setTimeout>>();
 

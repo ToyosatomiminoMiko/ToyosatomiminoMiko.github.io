@@ -60,11 +60,20 @@ export class IntegralVisualizer {
     }
 
     clear(id: number): void {
+        // 清除黎曼可视化缓存
         const entry = this.cache.get(id);
         if (entry) {
             this.group.remove(entry.objects);
             this._disposeGroup(entry.objects);
             this.cache.delete(id);
+        }
+        // 清除勒贝格可视化缓存;键名后缀为 '_lebesgue'
+        const lebesgueKey = id + '_lebesgue';
+        const lebesgueEntry = this.cache.get(lebesgueKey);
+        if (lebesgueEntry) {
+            this.group.remove(lebesgueEntry.objects);
+            this._disposeGroup(lebesgueEntry.objects);
+            this.cache.delete(lebesgueKey);
         }
     }
 
@@ -216,6 +225,7 @@ export class IntegralVisualizer {
         if (strips.length === 0) return;
         const group = this._instancedMeshGroup(strips, { opacity: OPACITY_LEBESGUE });
         this.group.add(group);
+        // id + 后缀记得清理
         this.cache.set(obj.id + '_lebesgue', { type: '2d', objects: group });
     }
 
@@ -280,6 +290,7 @@ export class IntegralVisualizer {
         if (slices.length === 0) return;
         const group = this._instancedMeshGroup(slices, { opacity: OPACITY_LEBESGUE - 0.1 });
         this.group.add(group);
+        // id + 后缀
         this.cache.set(obj.id + '_lebesgue', { type: '3d', objects: group });
     }
 
