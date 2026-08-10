@@ -1,3 +1,8 @@
+use evalexpr::{
+    build_operator_tree, ContextWithMutableFunctions, ContextWithMutableVariables, Function,
+    HashMapContext, Value,
+};
+
 /*
 剔除所有包含 NaN z 值的三角形
 
@@ -34,4 +39,206 @@ pub fn filter_nan_triangles(full_indices: &[u32], z_values: &[f64]) -> Vec<u32> 
         }
     }
     filtered
+}
+
+pub fn generate_full_indices(cols: usize, rows: usize) -> Vec<u32> {
+    let mut indices = Vec::with_capacity(cols * rows * 6);
+    for j in 0..rows {
+        for i in 0..cols {
+            let a = (j * (cols + 1) + i) as u32;
+            let b = (j * (cols + 1) + i + 1) as u32;
+            let c = ((j + 1) * (cols + 1) + i) as u32;
+            let d = ((j + 1) * (cols + 1) + i + 1) as u32;
+            indices.extend_from_slice(&[a, b, d, a, d, c]);
+        }
+    }
+    indices
+}
+// ================================================================
+// HSL -> RGB 辅助函数 (标准算法, 对齐 Three.js Color.setHSL)
+// ================================================================
+
+// h, s, l 均在 [0, 1] 范围, 返回 (r, g, b) 各分量 ∈ [0, 1]
+fn hsl_to_rgb(h: f64, s: f64, l: f64) -> (f64, f64, f64) {
+    if s == 0.0 {
+        return (l, l, l);
+    }
+    let q = if l < 0.5 {
+        l * (1.0 + s)
+    } else {
+        l + s - l * s
+    };
+    let p = 2.0 * l - q;
+    let r = hue_to_rgb(p, q, h + 1.0 / 3.0);
+    let g = hue_to_rgb(p, q, h);
+    let b = hue_to_rgb(p, q, h - 1.0 / 3.0);
+    (r, g, b)
+}
+
+fn hue_to_rgb(p: f64, q: f64, t: f64) -> f64 {
+    let mut t = t;
+    if t < 0.0 {
+        t += 1.0;
+    }
+    if t > 1.0 {
+        t -= 1.0;
+    }
+    if t < 1.0 / 6.0 {
+        return p + (q - p) * 6.0 * t;
+    }
+    if t < 1.0 / 2.0 {
+        return q;
+    }
+    if t < 2.0 / 3.0 {
+        return p + (q - p) * (2.0 / 3.0 - t) * 6.0;
+    }
+    p
+}
+
+// ================================================================
+// 统一后处理结果结构体
+// ================================================================
+pub struct SurfaceSampleResult {
+    pub positions: Vec<f32>,
+    pub colors: Vec<f32>,
+    pub valid_indices: Vec<u32>,
+    pub z_min: f64,
+    pub z_max: f64,
+}
+// ================================================================
+// 统一后处理: 极值扫描 + HSL颜色映射 + NaN三角形剔除
+// ================================================================
+
+// 向 context 中注册 evalexpr 默认不包含的常用数学函数
+// HashMapContext 内置只有基础算术,sin/cos/exp 等需要手动注册
+fn register_builtins(ctx: &mut HashMapContext) {
+    let funcs: &[(&str, fn(f64) -> f64)] = &[
+        ("sin", f64::sin),
+        ("cos", f64::cos),
+        ("tan", f64::tan),
+        ("asin", f64::asin),
+        ("acos", f64::acos),
+        ("atan", f64::atan),
+        ("sinh", f64::sinh),
+        ("cosh", f64::cosh),
+        ("tanh", f64::tanh),
+        ("exp", f64::exp),
+        ("ln", f64::ln),
+        ("log10", f64::log10),
+        ("log2", f64::log2),
+        ("sqrt", f64::sqrt),
+        ("abs", f64::abs),
+    ];
+
+    for &(name, f) in funcs {
+        ctx.set_function(
+            name.to_string(),
+            Function::new(move |arg: &Value| Ok(Value::Float(f(arg.as_float()?)))),
+        )
+        .unwrap(); // <- 这里必须接 .unwrap();
+    }
+}
+/*
+输入采样后的扁平坐标数组 positions ([x0,y0,z0, x1,y1,z1, ...])
+以及完整三角索引 full_indices, 一次调用完成:
+1. 提取所有 z 值 + 全局极值
+2. HSL 彩虹颜色映射
+3. 剔除含 NaN 的三角形
+*/
+pub fn sample_and_process_surface(
+    expr: &str,
+    coeff_names: &[String],
+    coeff_values: &[f64],
+    x_min: f64,
+    x_max: f64,
+    y_min: f64,
+    y_max: f64,
+    cols: u32,
+    rows: u32,
+) -> Result<SurfaceSampleResult, String> {
+    // 预编译 AST
+    let node = build_operator_tree(expr).map_err(|e| format!("表达式解析失败: {}", e))?;
+
+    // 构建 context
+    let mut ctx = HashMapContext::new();
+    // 注入系数常量
+    for (name, &val) in coeff_names.iter().zip(coeff_values.iter()) {
+        ctx.set_value(name.clone(), Value::Float(val))
+            .map_err(|e| format!("设置系数'{}'失败: {}", name, e))?;
+    }
+    register_builtins(&mut ctx);
+
+    // 采样循环
+    let total = ((cols + 1) * (rows + 1)) as usize;
+    let mut positions = Vec::with_capacity(total * 3);
+    let mut z_vals = Vec::with_capacity(total);
+    let mut z_min = f64::INFINITY;
+    let mut z_max = f64::NEG_INFINITY;
+
+    for j in 0..=rows {
+        let y = y_min + (y_max - y_min) * (j as f64 / rows as f64);
+        for i in 0..=cols {
+            let x = x_min + (x_max - x_min) * (i as f64 / cols as f64);
+
+            ctx.set_value("x".to_string(), Value::Float(x)).unwrap();
+            ctx.set_value("y".to_string(), Value::Float(y)).unwrap();
+
+            let z: f64 = match node.eval_with_context(&ctx) {
+                Ok(Value::Float(v)) if v.is_finite() => v,
+                Ok(Value::Int(v)) => v as f64,
+                _ => f64::NAN,
+            };
+
+            positions.push(x as f32);
+            positions.push(y as f32);
+            positions.push(z as f32);
+            z_vals.push(z);
+
+            if z.is_finite() {
+                z_min = z_min.min(z);
+                z_max = z_max.max(z);
+            }
+        }
+    }
+
+    // 退化处理
+    if !z_min.is_finite() || !z_max.is_finite() {
+        z_min = 0.0;
+        z_max = 1.0;
+    }
+
+    // 后处理(颜色映射 + NaN 三角形剔除)
+    let range = z_max - z_min;
+    let vertex_count = z_vals.len();
+    let mut colors = Vec::with_capacity(vertex_count * 3);
+
+    for &z in &z_vals {
+        if z.is_finite() {
+            let t = if range > 0.0 {
+                (z - z_min) / range
+            } else {
+                0.5
+            };
+            let hue = 0.66 - t * 0.66;
+            let (r, g, b) = hsl_to_rgb(hue, 0.9, 0.5 + t * 0.3);
+            colors.push(r as f32);
+            colors.push(g as f32);
+            colors.push(b as f32);
+        } else {
+            colors.push(0.0);
+            colors.push(0.0);
+            colors.push(0.0);
+        }
+    }
+
+    let full_indices = generate_full_indices(cols as usize, rows as usize);
+    let valid_indices = filter_nan_triangles(&full_indices, &z_vals);
+
+    Ok(SurfaceSampleResult {
+        positions,
+        colors,
+        valid_indices,
+        z_min,
+        z_max,
+    })
 }

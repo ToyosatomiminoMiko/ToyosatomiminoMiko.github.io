@@ -6,7 +6,7 @@ import * as THREE from 'three';
  * - 生命周期: new -> draw/update -> setVisible -> dispose
  */
 export interface IRenderer {
-    /** THREE.Group 容器，挂载到场景中 */
+    /** THREE.Group 容器,挂载到场景中 */
     readonly group: THREE.Group;
 
     /** 当前可见性（含模式过滤后的结果） */
@@ -15,7 +15,7 @@ export interface IRenderer {
     /**
      * 更新渲染内容
      * - 首次调用等同于"创建"
-     * - 后续调用应复用几何体和材质，只更新数据
+     * - 后续调用应复用几何体和材质,只更新数据
      */
     draw(): void;
 

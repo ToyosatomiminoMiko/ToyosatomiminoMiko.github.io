@@ -25,7 +25,7 @@ export class PointRenderer implements IRenderer {
     }
 
     get visible(): boolean {
-        // point 不受 2D/3D 模式限制，始终显示
+        // point 不受 2D/3D 模式限制,始终显示
         return this.point.enabled;
     }
 
@@ -36,9 +36,9 @@ export class PointRenderer implements IRenderer {
     }
 
     setVisible(v: boolean): void {
-        // point 的 enabled 由 MathObjectManager 管理，这里同步
+        // point 的 enabled 由 MathObjectManager 管理,这里同步
         // 注意: PointEntity.enabled 可能已被外部修改
-        // 这里只控制 group.visible，不修改 point.enabled
+        // 这里只控制 group.visible,不修改 point.enabled
         this.group.visible = v;
     }
 

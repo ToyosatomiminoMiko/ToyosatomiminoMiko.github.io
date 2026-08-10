@@ -13,9 +13,6 @@ export class SurfaceRenderer implements IRenderer {
     private mesh: SurfaceMesh | null = null;
     private userVisible = true;
     private modeVisible = false;
-    // 编译缓存
-    private _compiledNode: math.MathNode | null = null;
-    private _compiledFn: math.EvalFunction | null = null;
     constructor(
         private readonly surface: SurfaceExpr,
         private readonly range: [number, number] = [-6, 6],
@@ -38,13 +35,11 @@ export class SurfaceRenderer implements IRenderer {
             this.mesh = new SurfaceMesh(this.segments, this.segments);
             this.group.add(this.mesh.group);
         }
-        if (this._compiledNode !== this.surface.node || !this._compiledFn) {
-            this._compiledFn = this.surface.node.compile();
-            this._compiledNode = this.surface.node;
-        }
-        const compiled = this._compiledFn!;
+        // 不再需要 compile,改成 toString 标准化.自动处理隐式乘法,e^x 等语法糖
+        const expr = this.surface.node.toString();
+
         this.mesh.update(
-            compiled,
+            expr, // 字符串,不再是 CompiledFn
             this.surface.coefficients,
             this.range[0], this.range[1],
             this.range[0], this.range[1],
