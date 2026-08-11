@@ -112,7 +112,7 @@ export class CurveRenderer implements IRenderer {
     ): number {
         const [xMin, xMax] = this.xRange;
         const step = (xMax - xMin) / this.steps;
-        // scope 复用（已优化）
+        // scope 复用(已优化)
         const scope: Record<string, number> = {};
         for (const c of this.curve.coefficients) scope[c.name] = c.value;
 

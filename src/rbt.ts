@@ -14,7 +14,7 @@ class RBNode {
     color: Color;
     left: RBNode | null;
     right: RBNode | null;
-    // 布局时添加的坐标属性（由 TreeDrawer 设置）
+    // 布局时添加的坐标属性(由 TreeDrawer 设置)
     x?: number;
     y?: number;
 

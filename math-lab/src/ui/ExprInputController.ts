@@ -50,6 +50,10 @@ export class ExprInputController {
 
     private _updateDimensionHint(): void {
         const type = this.exprTypeSelect.value;
+        if (type === 'vector_field') {
+            this.dimensionHint.textContent = '向量场 F(x,y,z) = [P, Q, R]，分量用逗号分隔';
+            return;
+        }
         this.dimensionHint.textContent =
             type === '2d'
                 ? '一元函数 y = f(x)'
@@ -63,13 +67,26 @@ export class ExprInputController {
             return;
         }
 
-        const type = this.exprTypeSelect.value as '2d' | '3d';
+        const type = this.exprTypeSelect.value as '2d' | '3d' | 'vector_field';
         const color = this.colorPicker.value;
 
-        const object =
-            type === '2d'
+        let object;
+
+        if (type === 'vector_field') {
+            const parts = fnStr.split(',').map(s => s.trim());
+            if (parts.length !== 3) {
+                alert('向量场需要三个分量,用逗号分隔:P, Q, R\n例如: y, -x, 0');
+                return;
+            }
+            object = this.objectManager.addVectorField(
+                parts as [string, string, string],
+                undefined, undefined, color,
+            );
+        } else {
+            object = type === '2d'
                 ? this.objectManager.addCurve(fnStr, color)
                 : this.objectManager.addSurface(fnStr, color);
+        }
 
         this.exprInput.value = '';
         this.exprInput.focus();

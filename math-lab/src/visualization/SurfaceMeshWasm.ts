@@ -34,7 +34,7 @@ export function sample_and_process(
 }
 
 /**
- * 生成完整三角索引数组，供构造函数初始化几何体
+ * 生成完整三角索引数组,供构造函数初始化几何体
  */
 export function generate_full_indices(cols: number, rows: number): number[] {
     if (!ready) {

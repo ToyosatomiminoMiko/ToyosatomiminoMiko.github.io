@@ -8,6 +8,7 @@ export type {
     SurfaceExpr,
     PointEntity,
     VectorEntity,
+    VectorFieldExpr,
     MathObject,
     Integral1DFn,
     Integral2DFn,
@@ -18,6 +19,6 @@ export type {
 } from './math_objects/types';
 
 // 向后兼容别名(过渡期使用,后续逐步消除)
-import type { MathObject } from './math_objects/types';
+import type { MathObject, VectorFieldExpr } from './math_objects/types';
 /** @deprecated 使用 MathObject 替代 */
 export type Expression = MathObject;

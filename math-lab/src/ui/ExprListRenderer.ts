@@ -185,6 +185,8 @@ export class ExprListRenderer {
                 return `Point(${obj.x.toFixed(1)}, ${obj.y.toFixed(1)}, ${obj.z.toFixed(1)})`;
             case 'vector':
                 return `Vector(${obj.direction.x.toFixed(1)},${obj.direction.y.toFixed(1)},${obj.direction.z.toFixed(1)})@(${obj.origin.x.toFixed(1)},${obj.origin.y.toFixed(1)},${obj.origin.z.toFixed(1)})`;
+            case 'vector_field':
+                return `F = [${obj.components.join(', ')}]`;
         }
     }
 
@@ -194,6 +196,7 @@ export class ExprListRenderer {
             case 'surface': return '3D';
             case 'point': return 'P';
             case 'vector': return 'Vec';
+            case 'vector_field': return 'VF';
             default: return kind;
         }
     }

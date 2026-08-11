@@ -9,6 +9,7 @@ import type { Tab } from './detail/Tab';
 import { DerivativeTab } from './detail/DerivativeTab';
 import { GradientTab } from './detail/GradientTab';
 import { IntegralTab } from './detail/IntegralTab';
+import { VectorFieldTab } from './detail/VectorFieldTab';
 
 /**
  * DetailPanel - 详情面板
@@ -135,6 +136,7 @@ export class DetailPanel {
             case 'derivative': return kind === 'curve' || kind === 'surface';
             case 'integral': return kind === 'curve' || kind === 'surface';
             case 'gradient': return kind === 'surface';
+            case 'vector_field': return kind === 'vector_field';
             default: return false;
         }
     }
@@ -193,6 +195,13 @@ export class DetailPanel {
                     this._eventBus,
                     this._selectionManager,
                     this._gradientVisualizer,
+                );
+                break;
+            case 'vector_field':
+                this._currentTab = new VectorFieldTab(
+                    this._contentContainer,
+                    this._objectManager,
+                    this._eventBus,
                 );
                 break;
         }

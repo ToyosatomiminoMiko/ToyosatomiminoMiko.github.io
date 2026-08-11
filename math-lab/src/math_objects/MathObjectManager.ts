@@ -4,6 +4,7 @@ import type {
     SurfaceExpr,
     PointEntity,
     VectorEntity,
+    VectorFieldExpr,
 } from './types';
 import { parseCurve } from './Curve';
 import { parseSurface } from './Surface';
@@ -11,6 +12,7 @@ import { createPoint, movePoint } from './Point';
 import { createVector, transformVector } from './Vector';
 import { differentiateCurve } from './Curve';
 import { differentiateSurface } from './Surface';
+import { parseVectorField } from './VectorField';
 import { extractCoefficients } from './coefficientUtils';
 import { ColorManager } from './ColorManager';
 import { APP_CONFIG } from '../config/appConfig';
@@ -103,6 +105,31 @@ export class MathObjectManager {
         return entity;
     }
 
+    addVectorField(
+        components: [string, string, string],
+        gridSize: [number, number, number] = [8, 8, 8],
+        range?: { x: [number, number]; y: [number, number]; z: [number, number] },
+        color?: string,
+    ): VectorFieldExpr {
+        const { nodeP, nodeQ, nodeR, coefficients } = parseVectorField(components);
+
+        const expr: VectorFieldExpr = {
+            kind: 'vector_field',
+            id: this._nextId++,
+            components,
+            nodeP,
+            nodeQ,
+            nodeR,
+            coefficients,
+            color: color || this._colorManager.next(),
+            enabled: true,
+            gridSize,
+            glyphScale: 1.0,
+            range: range ?? { x: [-4, 4], y: [-4, 4], z: [-4, 4] },
+        };
+        this._objects.push(expr);
+        return expr;
+    }
     // ========== 删除 / 可见性 ==========
 
     remove(id: number): boolean {
@@ -151,7 +178,7 @@ export class MathObjectManager {
 
     setCoefficient(id: number, name: string, value: number): boolean {
         const obj = this._objects.find(o => o.id === id);
-        if (!obj || (obj.kind !== 'curve' && obj.kind !== 'surface')) return false;
+        if (!obj || (obj.kind !== 'curve' && obj.kind !== 'surface' && obj.kind !== 'vector_field')) return false;
         const coeff = obj.coefficients.find(c => c.name === name);
         if (coeff) {
             coeff.value = value;

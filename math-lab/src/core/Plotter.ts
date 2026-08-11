@@ -4,10 +4,11 @@ import { CurveRenderer } from './renderers/CurveRenderer';
 import { SurfaceRenderer } from './renderers/SurfaceRenderer';
 import { PointRenderer } from './renderers/PointRenderer';
 import { VectorRenderer } from './renderers/VectorRenderer';
-import type { MathObject, CurveExpr, SurfaceExpr, PointEntity, VectorEntity } from '../types';
+import type { MathObject, CurveExpr, SurfaceExpr, PointEntity, VectorEntity, VectorFieldExpr } from '../types';
+import { VectorFieldRenderer } from './renderers/VectorFieldRenderer';
 
 /**
- * 绘图门面 —— 将四种数学对象路由到对应的专属渲染器
+ * 绘图门面 -- 将四种数学对象路由到对应的专属渲染器
  *
  * 职责:
  * - 管理 rendererMap<id, IRenderer> 的增删查
@@ -29,13 +30,13 @@ export class Plotter {
     }
 
     // ============================================================
-    //  公开 API（签名与旧版完全兼容）
+    //  公开 API(签名与旧版完全兼容)
     // ============================================================
 
     drawCurve(curve: CurveExpr): void {
         let renderer = this.rendererMap.get(curve.id);
         if (!(renderer instanceof CurveRenderer)) {
-            // 之前是另一种类型或不存在 —— 清理旧的,创建新的
+            // 之前是另一种类型或不存在 -- 清理旧的,创建新的
             renderer?.dispose();
             if (renderer) this.plotContainer.remove(renderer.group);
 
@@ -96,6 +97,22 @@ export class Plotter {
         renderer.draw();
     }
 
+    drawVectorField(vf: VectorFieldExpr): void {
+        let renderer = this.rendererMap.get(vf.id);
+        if (!(renderer instanceof VectorFieldRenderer)) {
+            renderer?.dispose();
+            if (renderer) this.plotContainer.remove(renderer.group);
+
+            renderer = new VectorFieldRenderer(vf);
+            this.plotContainer.add(renderer.group);
+            this.rendererMap.set(vf.id, renderer);
+        }
+        (renderer as VectorFieldRenderer).updateRef(vf);
+        this._syncModeVisibility(renderer);
+        renderer.setVisible(vf.enabled);
+        renderer.draw();
+    }
+
     remove(id: number): void {
         const renderer = this.rendererMap.get(id);
         if (!renderer) return;
@@ -109,7 +126,7 @@ export class Plotter {
     }
 
     /**
-     * 根据对象数据刷新绘制（表达式字符串改变 / 模式切换时调用）
+     * 根据对象数据刷新绘制(表达式字符串改变 / 模式切换时调用)
      */
     updateObject(obj: MathObject, mode: '2d' | '3d'): void {
         switch (obj.kind) {
@@ -124,6 +141,9 @@ export class Plotter {
                 break;
             case 'vector':
                 this.drawVector(obj);
+                break;
+            case 'vector_field':
+                if (mode === '3d') this.drawVectorField(obj);
                 break;
         }
     }
@@ -157,13 +177,14 @@ export class Plotter {
             renderer.setModeVisible(this.currentMode === '2d');
         } else if (renderer instanceof SurfaceRenderer) {
             renderer.setModeVisible(this.currentMode === '3d');
+        } else if (renderer instanceof VectorFieldRenderer) {
+            renderer.setModeVisible(this.currentMode === '3d');
+            // PointRenderer / VectorRenderer 没有 setModeVisible,group 始终按 userVisible
         }
-        // PointRenderer / VectorRenderer 没有 setModeVisible,group 始终按 userVisible
     }
-
     /**
      * 由于 CurveRenderer 构造函数持有 CurveExpr 引用,
-     * 当原对象被替换（derive 生成新对象复用了 id）时,需要更新内部引用。
+     * 当原对象被替换(derive 生成新对象复用了 id)时,需要更新内部引用.
      */
     private _refreshCurveRenderer(curve: CurveExpr, renderer: CurveRenderer): void {
         renderer.updateRef(curve);

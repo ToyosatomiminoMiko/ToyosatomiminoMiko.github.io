@@ -9,6 +9,7 @@ export type {
     SurfaceExpr,
     PointEntity,
     VectorEntity,
+    VectorFieldExpr,
     MathObject,
     Integral1DFn,
     Integral2DFn,
@@ -44,3 +45,5 @@ export { ColorManager } from './ColorManager';
 // 梯度计算
 export { computeGradient } from './GradientCore';
 export type { GradientResult } from './GradientCore';
+
+export { parseVectorField, sampleVectorField } from './VectorField';

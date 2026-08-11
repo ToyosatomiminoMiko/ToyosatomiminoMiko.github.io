@@ -62,8 +62,39 @@ export interface VectorEntity {
     enabled: boolean;
 }
 
-/** 四种数学对象的联合类型 */
-export type MathObject = CurveExpr | SurfaceExpr | PointEntity | VectorEntity;
+/** 向量场: 三元向量函数 F(x,y,z) = [P, Q, R] */
+export interface VectorFieldExpr {
+    readonly kind: 'vector_field';
+    readonly id: number;
+    /** 三个分量表达式字符串 */
+    components: [string, string, string];
+    /** 编译后的 mathjs 节点 */
+    nodeP: MathNode;
+    nodeQ: MathNode;
+    nodeR: MathNode;
+    /** 自由参数 */
+    coefficients: Coefficient[];
+    /** 箭头颜色 */
+    color: string;
+    /** 启用/隐藏 */
+    enabled: boolean;
+    /** 采样网格参数 */
+    gridSize: [number, number, number];   // 默认 8×8×8
+    range: {
+        x: [number, number];
+        y: [number, number];
+        z: [number, number];
+    };
+    /** 箭头缩放因子 */
+    glyphScale: number;
+}
+
+/** 数学对象联合类型 */
+export type MathObject = CurveExpr
+    | SurfaceExpr
+    | PointEntity
+    | VectorEntity
+    | VectorFieldExpr;
 
 // ================================================================
 // 视图 / 相机类型

@@ -120,6 +120,9 @@ eventBus.on('mathobj:added', ({ object }: { object: MathObject }) => {
         case 'vector':
             plotter.drawVector(object);
             break;
+        case 'vector_field':
+            plotter.drawVectorField(object);
+            break;
     }
 });
 
@@ -168,6 +171,7 @@ function drawAll() {
             case 'surface': plotter.drawSurface(obj); break;
             case 'point': plotter.drawPoint(obj); break;
             case 'vector': plotter.drawVector(obj); break;
+            case 'vector_field': plotter.drawVectorField(obj); break;
         }
     }
     plotter.updateMode(initialMode);

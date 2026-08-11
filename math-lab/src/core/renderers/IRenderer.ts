@@ -9,7 +9,7 @@ export interface IRenderer {
     /** THREE.Group 容器,挂载到场景中 */
     readonly group: THREE.Group;
 
-    /** 当前可见性（含模式过滤后的结果） */
+    /** 当前可见性(含模式过滤后的结果) */
     readonly visible: boolean;
 
     /**
