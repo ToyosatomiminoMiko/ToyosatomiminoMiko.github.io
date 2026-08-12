@@ -340,3 +340,10 @@ DetailPanel – 详情面板样式
     gap: 8px;
     margin-top: 8px;
 }
+
+#gradResultInfo {
+    font-size: 20px;
+    color: #fff;
+    margin: 8px 0;
+    min-height: 48px;
+}

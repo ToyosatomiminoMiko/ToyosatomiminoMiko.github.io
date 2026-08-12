@@ -4,6 +4,7 @@ import type { MathObjectManager } from '../../math_objects/MathObjectManager';
 import type { EventBus } from '../../service/EventBus';
 import type { MathLabEvents } from '../../types';
 import { SliderBinding } from './SliderBinding';
+import { parseVectorField } from '../../math_objects/VectorField';
 import { escapeHtml } from './utils';
 
 export class VectorFieldTab implements Tab {
@@ -126,6 +127,7 @@ export class VectorFieldTab implements Tab {
         if (obj.kind !== 'vector_field') return;
 
         // 更新分量按钮
+        // 更新分量按钮
         this._container.querySelector('#vfUpdateBtn')?.addEventListener('click', () => {
             const inputs = this._container.querySelectorAll<HTMLInputElement>('[data-comp]');
             const newComps: [string, string, string] = ['', '', ''];
@@ -133,10 +135,19 @@ export class VectorFieldTab implements Tab {
                 const idx = parseInt(inp.dataset.comp!);
                 newComps[idx] = inp.value.trim() || obj.components[idx];
             });
-            // TODO: 通过 objectManager 更新分量后触发重绘
-            // 目前最简单方式：直接修改 obj.components 并 emit mathobj:updated
-            (obj as any).components = newComps;
-            this._eventBus.emit('mathobj:updated', { id: obj.id });
+
+            // 重新解析分量表达式
+            const { nodeP, nodeQ, nodeR, coefficients } = parseVectorField(newComps);
+            obj.components = newComps;
+            (obj as any).nodeP = nodeP;
+            (obj as any).nodeQ = nodeQ;
+            (obj as any).nodeR = nodeR;
+            obj.coefficients.length = 0;
+            obj.coefficients.push(...coefficients);
+
+            // 重新渲染滑块区域(系数可能变了)
+            this.destroy();
+            this.render(obj);
         });
 
         // 滑块

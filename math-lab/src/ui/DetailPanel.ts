@@ -213,7 +213,7 @@ export class DetailPanel {
     private _syncColorPicker(): void {
         const selected = this._selectionManager.getSelected();
         const obj = selected ? this._objectManager.getById(selected.id) : null;
-        if (obj && ['curve', 'surface', 'point', 'vector'].includes(obj.kind)) {
+        if (obj && ['curve', 'surface', 'point', 'vector', 'vector_field'].includes(obj.kind)) {
             this._colorPicker.style.display = 'flex';
             this._colorInput.value = obj.color;
         } else {

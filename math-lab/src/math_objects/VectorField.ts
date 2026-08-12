@@ -1,40 +1,6 @@
 import { parse, type MathNode } from 'mathjs';
 import type { Coefficient } from './types';
-
-/**
- * 从单个 MathNode 中提取所有自由变量的名称(排除 x, y, z 和数字常量)
- */
-function extractCoefficientsFromNode(node: MathNode): string[] {
-    const names = new Set<string>();
-
-    function traverse(n: MathNode) {
-        if (n.type === 'SymbolNode') {
-            const name = (n as any).name as string;
-            if (!['x', 'y', 'z'].includes(name) && !isBuiltInConstant(name)) {
-                names.add(name);
-            }
-        }
-        // 递归遍历子节点(OperatorNode / FunctionNode 等有 args)
-        const children = (n as any).args as MathNode[] | undefined;
-        children?.forEach(traverse);
-    }
-
-    traverse(node);
-    return Array.from(names);
-}
-
-/**
- * 判断是否为 Math.js 内置常量或函数名(可根据需要扩充)
- */
-function isBuiltInConstant(name: string): boolean {
-    const builtIns = new Set([
-        'pi', 'PI', 'e', 'E', 'true', 'false', 'null',
-        'sin', 'cos', 'tan', 'asin', 'acos', 'atan',
-        'sinh', 'cosh', 'tanh', 'exp', 'log', 'log10',
-        'sqrt', 'abs', 'ceil', 'floor', 'round',
-    ]);
-    return builtIns.has(name);
-}
+import { extractCoefficients } from './coefficientUtils';
 
 /**
  * 合并三个分量表达式中提取的系数,去重并生成 Coefficient 对象
@@ -65,6 +31,7 @@ function mergeCoefficients(
  * 解析向量场三个分量表达式字符串
  * 返回编译后的 MathNode 和提取出的系数列表
  */
+// 修改 parseVectorField 函数体(约第 56-76 行)
 export function parseVectorField(components: [string, string, string]): {
     nodeP: MathNode;
     nodeQ: MathNode;
@@ -73,17 +40,16 @@ export function parseVectorField(components: [string, string, string]): {
 } {
     const [pStr, qStr, rStr] = components;
 
-    // 解析表达式为 MathNode
     const nodeP = parse(pStr);
     const nodeQ = parse(qStr);
     const nodeR = parse(rStr);
 
-    // 分别提取系数
-    const namesP = extractCoefficientsFromNode(nodeP);
-    const namesQ = extractCoefficientsFromNode(nodeQ);
-    const namesR = extractCoefficientsFromNode(nodeR);
+    // 使用统一的系数提取(排除 x, y, z)
+    const VECTOR_VARS = new Set(['x', 'y', 'z']);
+    const namesP = extractCoefficients(nodeP, VECTOR_VARS).map(c => c.name);
+    const namesQ = extractCoefficients(nodeQ, VECTOR_VARS).map(c => c.name);
+    const namesR = extractCoefficients(nodeR, VECTOR_VARS).map(c => c.name);
 
-    // 合并去重
     const coefficients = mergeCoefficients(namesP, namesQ, namesR);
 
     return { nodeP, nodeQ, nodeR, coefficients };

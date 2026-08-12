@@ -78,8 +78,7 @@ export class GradientTab implements Tab {
                 </div>
             </div>
 
-            <div id="gradResultInfo"
-                 style="font-size:12px;color:#7a8bb5;margin:8px 0;min-height:48px;">
+            <div id="gradResultInfo">
                 拖动滑块以预览梯度
             </div>
 

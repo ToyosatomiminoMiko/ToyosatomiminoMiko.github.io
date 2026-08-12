@@ -27,4 +27,12 @@ export interface IRenderer {
 
     /** 释放所有 GPU 资源 (geometry / material / mesh) */
     dispose(): void;
+
+    //  可选扩展(不强制所有渲染器实现)
+    /**
+     * 模式可见性过滤
+     * - 实现此方法表明该渲染器需要区分 2D/3D 模式可见性
+     * - 不应实现的不需要此方法，始终按 userVisible 控制
+     */
+    setModeVisible?(v: boolean): void;
 }

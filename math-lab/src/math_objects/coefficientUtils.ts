@@ -6,10 +6,11 @@ import type { Coefficient } from './types';
 // 内置变量与函数名黑名单 —— 系数提取时排除
 // ============================================================
 const BUILTIN_SYMBOLS = new Set([
-    'sin', 'cos', 'tan', 'exp', 'log', 'sqrt', 'abs',
+    'sin', 'cos', 'tan', 'exp', 'log', 'log10', 'sqrt', 'abs',
     'asin', 'acos', 'atan', 'sinh', 'cosh', 'tanh',
     'floor', 'ceil', 'round', 'sign', 'pow', 'max', 'min',
-    'PI', 'E', 'i', 'Infinity', 'NaN',
+    'pi', 'PI', 'e', 'E', 'i', 'Infinity', 'NaN',
+    'true', 'false', 'null',
 ]);
 
 /**

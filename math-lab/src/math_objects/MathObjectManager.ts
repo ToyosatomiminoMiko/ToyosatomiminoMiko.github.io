@@ -178,8 +178,9 @@ export class MathObjectManager {
 
     setCoefficient(id: number, name: string, value: number): boolean {
         const obj = this._objects.find(o => o.id === id);
-        if (!obj || (obj.kind !== 'curve' && obj.kind !== 'surface' && obj.kind !== 'vector_field')) return false;
-        const coeff = obj.coefficients.find(c => c.name === name);
+        if (!obj || !('coefficients' in obj)) return false;
+        const withCoeff = obj as unknown as { coefficients: { name: string; value: number }[] };
+        const coeff = withCoeff.coefficients.find(c => c.name === name);
         if (coeff) {
             coeff.value = value;
             return true;

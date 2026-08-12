@@ -4,7 +4,7 @@
  *
  * 使用方式:
  *   const bus = new EventBus<MathLabEvents>();
- *   bus.on('expr:added', ({ expr }) => { ... });   // expr 自动推断为 Expression
+ *   bus.on('expr:added', ({ expr }) => { ... });
  *   bus.emit('expr:added', { expr });              // 第二个参数类型受约束
  */
 export class EventBus<Events extends Record<string, any>> {

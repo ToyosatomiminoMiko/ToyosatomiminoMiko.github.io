@@ -147,7 +147,7 @@ export class CameraManager {
 
     /**
      * 核心: 根据当前 mode + viewMode 应用相机参数
-     * 包括位置、朝向、投影矩阵,并同步 OrbitControls
+     * 包括位置,朝向,投影矩阵,并同步 OrbitControls
      */
     private _applyView(): void {
         const vp = this.viewPositions[this.viewMode];

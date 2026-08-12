@@ -4,7 +4,7 @@ import type { MathObject } from '../../math_objects/types';
 export interface Tab {
     /** 渲染标签页内容到 container */
     render(obj: MathObject): void;
-    /** 清理事件监听器、定时器等 */
+    /** 清理事件监听器,定时器等 */
     destroy(): void;
     /** 该标签页对当前选中的 kind 是否可见 */
     isVisible(kind: string | null): boolean;

@@ -35,11 +35,11 @@ export class VectorFieldMesh {
 
         // ---------- 创建几何体(底部在原点,沿 +Y 方向延伸)----------
         // 杆:高为1,半径为 shaftRadius
-        const shaftGeo = new THREE.CylinderGeometry(this.shaftRadius, this.shaftRadius, 1, 8);
+        const shaftGeo = new THREE.CylinderGeometry(1, 1, 1, 8);
         shaftGeo.translate(0, 0.5, 0); // 底部在原点,顶部在 (0,1,0)
 
         // 头:高为1,底部半径为 headRadius
-        const headGeo = new THREE.ConeGeometry(this.headRadius, 1, 8);
+        const headGeo = new THREE.ConeGeometry(1, 1, 8);
         headGeo.translate(0, 0.5, 0); // 底部在原点,尖端在 (0,1,0)
 
         // ---------- 材质 ----------
