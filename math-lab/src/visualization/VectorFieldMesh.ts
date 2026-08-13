@@ -19,6 +19,7 @@ export class VectorFieldMesh {
     private readonly matrix = new THREE.Matrix4();
     private readonly position = new THREE.Vector3();
     private readonly scale = new THREE.Vector3();
+    private readonly up = new THREE.Vector3(0, 1, 0);
 
     constructor(
         positions: Float32Array, // [px0, py0, pz0, ...]
@@ -98,7 +99,7 @@ export class VectorFieldMesh {
             dir.set(vx, vy, vz);
             if (!hidden) {
                 dir.divideScalar(len);
-                quat.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+                quat.setFromUnitVectors(this.up, dir);
             } else {
                 // 隐藏时方向任意,但缩放为0即可
                 quat.identity();
@@ -152,11 +153,17 @@ export class VectorFieldMesh {
      * 释放GPU资源
      */
     public dispose(): void {
+        // 触发 'dispose' 事件,释放 instanceMatrix 对应的 GPU buffer
+        this.shaftInstanced.dispose();
+        this.headInstanced.dispose();
+
+        // 释放几何体
         this.shaftInstanced.geometry.dispose();
-        (this.shaftInstanced.material as THREE.MeshStandardMaterial).dispose();
         this.headInstanced.geometry.dispose();
-        (this.headInstanced.material as THREE.MeshStandardMaterial).dispose();
-        // 从group中移除
+
+        // 两个实例网格共用同一个 material,只释放一次即可
+        (this.shaftInstanced.material as THREE.MeshStandardMaterial).dispose();
+
         this.group.remove(this.shaftInstanced);
         this.group.remove(this.headInstanced);
     }

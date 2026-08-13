@@ -83,7 +83,7 @@ function processDirtyDraws(): void {
     if (dirtyObjectIds.size === 0) return;
     const mode = modeController.getMode();
     for (const id of dirtyObjectIds) {
-        const obj = objectManager.getAll().find(o => o.id === id);
+        const obj = objectManager.getById(id);
         if (!obj) continue;
         if (obj.kind === 'point') {
             plotter.drawPoint(obj);
@@ -133,7 +133,7 @@ eventBus.on('mathobj:removed', ({ id }) => {
 
 // 切换可见性 -> 仅设置 Group.visible
 eventBus.on('mathobj:toggled', ({ id }) => {
-    const obj = objectManager.getAll().find(o => o.id === id);
+    const obj = objectManager.getById(id);
     if (obj) {
         plotter.setVisible(id, obj.enabled);
     }
@@ -141,7 +141,7 @@ eventBus.on('mathobj:toggled', ({ id }) => {
 
 // 修改表达式 -> 重建目标
 eventBus.on('mathobj:updated', ({ id }) => {
-    const obj = objectManager.getAll().find(o => o.id === id);
+    const obj = objectManager.getById(id);
     if (obj) {
         plotter.updateObject(obj, modeController.getMode());
     }
