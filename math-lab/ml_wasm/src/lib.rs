@@ -105,6 +105,7 @@ pub struct SurfaceSampleResult {
     pub positions: Vec<f32>,
     pub colors: Vec<f32>,
     pub valid_indices: Vec<u32>,
+    pub normals: Vec<f32>,
     pub z_min: f64,
     pub z_max: f64,
 }
@@ -138,6 +139,7 @@ pub fn sample_and_process_surface(
         positions: result.positions,
         colors: result.colors,
         valid_indices: result.valid_indices,
+        normals: result.normals,
         z_min: result.z_min,
         z_max: result.z_max,
     })

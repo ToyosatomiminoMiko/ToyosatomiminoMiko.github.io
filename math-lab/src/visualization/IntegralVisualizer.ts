@@ -301,7 +301,17 @@ export class IntegralVisualizer {
     /** 递归释放 Group 中所有 Mesh 的 GPU 资源 */
     private _disposeGroup(group: THREE.Object3D): void {
         group.traverse((node) => {
-            if (node instanceof THREE.Mesh) {
+            if (node instanceof THREE.InstancedMesh) {
+                // 先释放 InstancedMesh 自己的 instanceMatrix/instanceColor,
+                // 再释放共享的 geometry 和 material
+                node.dispose();
+                node.geometry?.dispose();
+                if (Array.isArray(node.material)) {
+                    node.material.forEach(m => m.dispose());
+                } else {
+                    node.material?.dispose();
+                }
+            } else if (node instanceof THREE.Mesh) {
                 node.geometry?.dispose();
                 if (Array.isArray(node.material)) {
                     node.material.forEach(m => m.dispose());

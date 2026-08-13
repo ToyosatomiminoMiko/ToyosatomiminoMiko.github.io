@@ -190,6 +190,26 @@ controls.target.set(0, 0, 0);
 controls.update();
 cameraManager.setControls(controls);
 
+// 拖动系数滑块时暂时禁用 OrbitControls
+// 这样相机旋转不会和滑块重绘竞争同一个主线程,拖动会更稳定
+const pauseControls = (): void => {
+    controls.enabled = false;
+};
+
+const resumeControls = (): void => {
+    controls.enabled = true;
+};
+
+document.addEventListener('pointerdown', (event: PointerEvent) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('.coeff-row')) {
+        pauseControls();
+    }
+});
+
+document.addEventListener('pointerup', resumeControls);
+document.addEventListener('pointercancel', resumeControls);
+
 // 窗口自适应
 window.addEventListener('resize', () => {
     const { width, height } = sceneManager.resize();

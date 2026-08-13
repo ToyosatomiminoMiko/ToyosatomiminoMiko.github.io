@@ -102,6 +102,7 @@ pub struct SurfaceSampleResult {
     pub positions: Vec<f32>,
     pub colors: Vec<f32>,
     pub valid_indices: Vec<u32>,
+    pub normals: Vec<f32>,
     pub z_min: f64,
     pub z_max: f64,
 }
@@ -233,12 +234,82 @@ pub fn sample_and_process_surface(
 
     let full_indices = generate_full_indices(cols as usize, rows as usize);
     let valid_indices = filter_nan_triangles(&full_indices, &z_vals);
+    let normals = compute_vertex_normals(&positions, &valid_indices);
 
     Ok(SurfaceSampleResult {
         positions,
         colors,
         valid_indices,
+        normals,
         z_min,
         z_max,
     })
+}
+
+// ================================================================
+// 顶点法线计算
+// ================================================================
+
+/// 根据有效三角形索引计算平滑顶点法线
+///
+/// 与 Three.js `BufferGeometry.computeVertexNormals()` 的思路一致:
+/// 对共享同一顶点的所有三角形面法线做累加,最后归一化
+/// 放在 Rust/WASM 中计算,可以避免主线程做 O(顶点数) 的 CPU 遍历
+pub fn compute_vertex_normals(positions: &[f32], valid_indices: &[u32]) -> Vec<f32> {
+    let mut normals = vec![0.0f32; positions.len()];
+
+    // 第一遍:累加每个三角形对三个顶点的贡献
+    for triangle in valid_indices.chunks_exact(3) {
+        let ia = triangle[0] as usize;
+        let ib = triangle[1] as usize;
+        let ic = triangle[2] as usize;
+
+        // 索引理论上都在合法范围内,这里做防御性检查
+        if ia >= positions.len() / 3
+            || ib >= positions.len() / 3
+            || ic >= positions.len() / 3
+        {
+            continue;
+        }
+
+        let a = (positions[ia * 3], positions[ia * 3 + 1], positions[ia * 3 + 2]);
+        let b = (positions[ib * 3], positions[ib * 3 + 1], positions[ib * 3 + 2]);
+        let c = (positions[ic * 3], positions[ic * 3 + 1], positions[ic * 3 + 2]);
+
+        let abx = b.0 - a.0;
+        let aby = b.1 - a.1;
+        let abz = b.2 - a.2;
+        let acx = c.0 - a.0;
+        let acy = c.1 - a.1;
+        let acz = c.2 - a.2;
+
+        let nx = aby * acz - abz * acy;
+        let ny = abz * acx - abx * acz;
+        let nz = abx * acy - aby * acx;
+
+        normals[ia * 3] += nx;
+        normals[ia * 3 + 1] += ny;
+        normals[ia * 3 + 2] += nz;
+        normals[ib * 3] += nx;
+        normals[ib * 3 + 1] += ny;
+        normals[ib * 3 + 2] += nz;
+        normals[ic * 3] += nx;
+        normals[ic * 3 + 1] += ny;
+        normals[ic * 3 + 2] += nz;
+    }
+
+    // 第二遍:归一化,零向量保留为零
+    for normal in normals.chunks_exact_mut(3) {
+        let x = normal[0];
+        let y = normal[1];
+        let z = normal[2];
+        let length = (x * x + y * y + z * z).sqrt();
+        if length > 1e-8 {
+            normal[0] = x / length;
+            normal[1] = y / length;
+            normal[2] = z / length;
+        }
+    }
+
+    normals
 }

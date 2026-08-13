@@ -6,7 +6,8 @@ import type { SurfaceExpr } from '../../math_objects/types';
 /**
  * 曲面渲染器
  * - 复用 SurfaceMesh,仅分段数变化时才重建
- * - draw() 仅触发 SurfaceMesh.update(),零 GC 压力
+ * - draw() 触发 SurfaceMesh.update(),后者把重采样交给 Worker,
+ *   主线程只等待结果并更新 BufferGeometry
  */
 export class SurfaceRenderer implements IRenderer {
     readonly group = new THREE.Group();

@@ -17,6 +17,7 @@ export class VectorFieldMesh {
     private readonly direction = new THREE.Vector3();
     private readonly quaternion = new THREE.Quaternion();
     private readonly matrix = new THREE.Matrix4();
+    private readonly headMatrix = new THREE.Matrix4();
     private readonly position = new THREE.Vector3();
     private readonly scale = new THREE.Vector3();
     private readonly up = new THREE.Vector3(0, 1, 0);
@@ -74,7 +75,7 @@ export class VectorFieldMesh {
         }
 
         const shaftMatrix = this.matrix;
-        const headMatrix = new THREE.Matrix4(); // 独立矩阵,避免相互影响
+        const headMatrix = this.headMatrix;
         const dir = this.direction;
         const quat = this.quaternion;
         const pos = this.position;
