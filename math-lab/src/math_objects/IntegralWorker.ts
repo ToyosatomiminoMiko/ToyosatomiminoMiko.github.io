@@ -11,6 +11,7 @@ import init, {
     lebesgue2d_values,
 } from "../wasm/ml_wasm";
 import * as math from 'mathjs';
+import { compilationCache } from './CompilationCache';
 
 // ---------- 类型 ----------
 
@@ -37,17 +38,22 @@ type IntegralResponse = {
     id: number;
     value?: number;
     error?: string;
+    samples?: Float64Array;
+    sampleShape?: '1d-grid' | '1d-mid' | '2d-grid' | '2d-corner';
+    n?: number;
+    m?: number;
+};
+
+type IntegralComputeResult = {
+    value: number;
+    samples: Float64Array;
+    sampleShape: IntegralResponse['sampleShape'];
+    n: number;
+    m?: number;
 };
 
 // ---------- WASM 初始化 ----------
 const wasmInit = init();
-
-// ---------- 表达式编译缓存 ----------
-let compiledCache: {
-    expr: string;
-    coeffsKey: string;
-    compiled: math.EvalFunction;
-} | null = null;
 
 function coeffsToKey(coeffs: Record<string, number>): string {
     return JSON.stringify(coeffs, Object.keys(coeffs).sort());
@@ -55,13 +61,7 @@ function coeffsToKey(coeffs: Record<string, number>): string {
 
 function getCompiled(expr: string, coeffs: Record<string, number>): math.EvalFunction {
     const key = coeffsToKey(coeffs);
-    if (compiledCache && compiledCache.expr === expr && compiledCache.coeffsKey === key) {
-        return compiledCache.compiled;
-    }
-    const node = math.parse(expr);
-    const compiled = node.compile();
-    compiledCache = { expr, coeffsKey: key, compiled };
-    return compiled;
+    return compilationCache.getByExpr(expr, key, () => math.parse(expr).compile());
 }
 
 // ---------- 1D 采样 ----------
@@ -161,8 +161,15 @@ self.onmessage = async (e: MessageEvent<IntegralRequest>) => {
     const req = e.data;
     try {
         await wasmInit;
-        const value = compute(req);
-        const resp: IntegralResponse = { id: req.id, value };
+        const result = compute(req);
+        const resp: IntegralResponse = {
+            id: req.id,
+            value: result.value,
+            samples: result.samples,
+            sampleShape: result.sampleShape,
+            n: result.n,
+            m: result.m,
+        };
         self.postMessage(resp);
     } catch (err) {
         const resp: IntegralResponse = {
@@ -175,55 +182,109 @@ self.onmessage = async (e: MessageEvent<IntegralRequest>) => {
 
 // ---------- 路由分发 ----------
 
-function compute(req: IntegralRequest): number {
+function compute(req: IntegralRequest): IntegralComputeResult {
     const { method, expr, coeffs } = req;
 
     switch (method) {
         // ---- 一维 ----
         case 'trapz1d': {
             const vals = sample1D(expr, coeffs, req.a!, req.b!, req.n!);
-            return trapz1d_values(vals, req.a!, req.b!);
+            return {
+                value: trapz1d_values(vals, req.a!, req.b!),
+                samples: vals,
+                sampleShape: '1d-grid',
+                n: req.n!,
+            };
         }
         case 'simpson1d': {
             if (req.n! % 2 !== 0) throw new Error('辛普森法要求 N 为偶数');
             const vals = sample1D(expr, coeffs, req.a!, req.b!, req.n!);
-            return simpson1d_values(vals, req.a!, req.b!);
+            return {
+                value: simpson1d_values(vals, req.a!, req.b!),
+                samples: vals,
+                sampleShape: '1d-grid',
+                n: req.n!,
+            };
         }
         case 'riemann1d_left': {
             const vals = sample1D(expr, coeffs, req.a!, req.b!, req.n!);
-            return riemann1d_left_values(vals, req.a!, req.b!);
+            return {
+                value: riemann1d_left_values(vals, req.a!, req.b!),
+                samples: vals,
+                sampleShape: '1d-grid',
+                n: req.n!,
+            };
         }
         case 'riemann1d_right': {
             const vals = sample1D(expr, coeffs, req.a!, req.b!, req.n!);
-            return riemann1d_right_values(vals, req.a!, req.b!);
+            return {
+                value: riemann1d_right_values(vals, req.a!, req.b!),
+                samples: vals,
+                sampleShape: '1d-grid',
+                n: req.n!,
+            };
         }
         case 'riemann1d_mid': {
             const vals = sampleMid1D(expr, coeffs, req.a!, req.b!, req.n!);
-            return riemann1d_mid_values(vals, req.a!, req.b!);
+            return {
+                value: riemann1d_mid_values(vals, req.a!, req.b!),
+                samples: vals,
+                sampleShape: '1d-mid',
+                n: req.n!,
+            };
         }
         case 'lebesgue1d': {
             const vals = sample1D(expr, coeffs, req.a!, req.b!, req.sampleN!);
-            return lebesgue1d_values(vals, req.a!, req.b!, req.layers!);
+            return {
+                value: lebesgue1d_values(vals, req.a!, req.b!, req.layers!),
+                samples: vals,
+                sampleShape: '1d-grid',
+                n: req.sampleN!,
+            };
         }
 
         // ---- 二维 ----
         case 'trapz2d': {
             const vals = sample2D(expr, coeffs, req.xa!, req.xb!, req.ya!, req.yb!, req.n!, req.m!);
-            return trapz2d_values(vals, req.xa!, req.xb!, req.ya!, req.yb!, req.n!, req.m!);
+            return {
+                value: trapz2d_values(vals, req.xa!, req.xb!, req.ya!, req.yb!, req.n!, req.m!),
+                samples: vals,
+                sampleShape: '2d-grid',
+                n: req.n!,
+                m: req.m!,
+            };
         }
         case 'simpson2d': {
             if (req.n! % 2 !== 0 || req.m! % 2 !== 0)
                 throw new Error('辛普森法要求 N, M 均为偶数');
             const vals = sample2D(expr, coeffs, req.xa!, req.xb!, req.ya!, req.yb!, req.n!, req.m!);
-            return simpson2d_values(vals, req.xa!, req.xb!, req.ya!, req.yb!, req.n!, req.m!);
+            return {
+                value: simpson2d_values(vals, req.xa!, req.xb!, req.ya!, req.yb!, req.n!, req.m!),
+                samples: vals,
+                sampleShape: '2d-grid',
+                n: req.n!,
+                m: req.m!,
+            };
         }
         case 'riemann2d_left': {
             const vals = sample2DCorner(expr, coeffs, req.xa!, req.xb!, req.ya!, req.yb!, req.n!, req.m!);
-            return riemann2d_left_values(vals, req.xa!, req.xb!, req.ya!, req.yb!, req.n!, req.m!);
+            return {
+                value: riemann2d_left_values(vals, req.xa!, req.xb!, req.ya!, req.yb!, req.n!, req.m!),
+                samples: vals,
+                sampleShape: '2d-corner',
+                n: req.n!,
+                m: req.m!,
+            };
         }
         case 'lebesgue2d': {
             const vals = sample2D(expr, coeffs, req.xa!, req.xb!, req.ya!, req.yb!, req.sampleN!, req.sampleN!);
-            return lebesgue2d_values(vals, req.xa!, req.xb!, req.ya!, req.yb!, req.sampleN!, req.layers!);
+            return {
+                value: lebesgue2d_values(vals, req.xa!, req.xb!, req.ya!, req.yb!, req.sampleN!, req.layers!),
+                samples: vals,
+                sampleShape: '2d-grid',
+                n: req.sampleN!,
+                m: req.sampleN!,
+            };
         }
 
         default:

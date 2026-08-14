@@ -2,6 +2,7 @@ import { EventBus } from '../service/EventBus';
 import type { MathLabEvents } from '../types';
 import type { MathObjectManager } from '../math_objects';
 import type { ColorManager } from '../math_objects';
+import { notifyError } from './error';
 
 /**
  * 表达式输入框控制器
@@ -75,7 +76,7 @@ export class ExprInputController {
         if (type === 'vector_field') {
             const parts = fnStr.split(',').map(s => s.trim());
             if (parts.length !== 3) {
-                alert('向量场需要三个分量,用逗号分隔:P, Q, R\n例如: y, -x, 0');
+                notifyError('向量场需要三个分量,用逗号分隔:P, Q, R\n例如: y, -x, 0');
                 return;
             }
             object = this.objectManager.addVectorField(

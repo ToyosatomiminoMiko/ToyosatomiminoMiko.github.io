@@ -4,6 +4,7 @@ import type { MathObjectManager } from '../../math_objects/MathObjectManager';
 import type { EventBus } from '../../service/EventBus';
 import type { MathLabEvents } from '../../types';
 import type { SelectionManager } from '../SelectionManager';
+import { reportError } from '../error';
 
 export class DerivativeTab implements Tab {
     private _container: HTMLElement;
@@ -84,7 +85,7 @@ export class DerivativeTab implements Tab {
             this._eventBus.emit('mathobj:added', { object: deriv });
             this._selectionManager.select(deriv.id, deriv.kind);
         } catch (err) {
-            alert(`求导失败: ${(err as Error).message}`);
+            reportError(err, '求导');
         }
     }
 }

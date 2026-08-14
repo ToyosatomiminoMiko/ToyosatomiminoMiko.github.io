@@ -10,9 +10,10 @@ import { ArrowMesh } from '../../visualization/ArrowMesh';
  */
 export class VectorRenderer implements IRenderer {
     readonly group: THREE.Group;
+    readonly mode = 'both' as const;
     private arrow: ArrowMesh;
 
-    constructor(private readonly vector: VectorEntity) {
+    constructor(private vector: VectorEntity) {
         this.arrow = new ArrowMesh(vector.color);
         this.group = this.arrow.group;
     }
@@ -43,7 +44,7 @@ export class VectorRenderer implements IRenderer {
     }
 
     updateRef(vector: VectorEntity): void {
-        (this as any).vector = vector;
+        this.vector = vector;
     }
 
     dispose(): void {

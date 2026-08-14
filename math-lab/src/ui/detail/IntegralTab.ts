@@ -4,6 +4,7 @@ import type { MathObjectManager } from '../../math_objects/MathObjectManager';
 import type { EventBus } from '../../service/EventBus';
 import type { MathLabEvents } from '../../types';
 import type { IntegralVisualizer } from '../../visualization/IntegralVisualizer';
+import { notifyError, reportError } from '../error';
 import {
     trapz1d,
     trapz2d,
@@ -14,6 +15,7 @@ import {
     lebesgue1d,
     lebesgue2d,
 } from '../../math_objects/IntegralWasm';
+import type { IntegralResult } from '../../math_objects/IntegralWasm';
 
 type IntegralMethod = 'trapezoid' | 'simpson' | 'riemann' | 'lebesgue';
 
@@ -24,6 +26,7 @@ export class IntegralTab implements Tab {
     private _integralVisualizer: IntegralVisualizer;
     private _method: IntegralMethod = 'riemann';
     private _abortController: AbortController | null = null;
+    private _requestSeq = 0;
 
     constructor(
         container: HTMLElement,
@@ -78,7 +81,7 @@ export class IntegralTab implements Tab {
                 }
             }
             this._doIntegral(obj).catch(err => {
-                console.error('[积分WASM] 计算失败:', err);
+                reportError(err, '积分计算');
             });
         }, { signal: this._abortController!.signal });
     }
@@ -174,11 +177,12 @@ export class IntegralTab implements Tab {
     private async _doIntegral(obj: MathObject): Promise<void> {
         if (obj.kind !== 'curve' && obj.kind !== 'surface') return;
 
+        const requestId = ++this._requestSeq;
         this._integralVisualizer.clearAll();
         const resultDiv = this._container.querySelector<HTMLElement>('#singleIntegralResult');
 
         try {
-            let val: number;
+            let integralResult: IntegralResult;
             const segments = parseInt(
                 this._container.querySelector<HTMLInputElement>('#segInt')?.value || '32',
             );
@@ -199,21 +203,29 @@ export class IntegralTab implements Tab {
                 const b = parseFloat(
                     this._container.querySelector<HTMLInputElement>('#xMaxInt')?.value || '4',
                 );
-                if (a >= b) { alert('请输入有效区间 a < b'); return; }
+                if (a >= b) { notifyError('请输入有效区间 a < b'); return; }
 
                 if (method === 'trapezoid') {
-                    val = await trapz1d(obj.node.toString(), coeffsObj, a, b, segments);
+                    integralResult = await trapz1d(obj.node.toString(), coeffsObj, a, b, segments);
                 } else if (method === 'simpson') {
-                    val = await simpson1d(obj.node.toString(), coeffsObj, a, b, segments);
+                    integralResult = await simpson1d(obj.node.toString(), coeffsObj, a, b, segments);
                 } else if (method === 'riemann') {
-                    val = await riemann1dLeft(obj.node.toString(), coeffsObj, a, b, segments);
+                    integralResult = await riemann1dLeft(obj.node.toString(), coeffsObj, a, b, segments);
                 } else {
                     const sampleN = segments * 20;
                     const valueLayers = Math.min(32, sampleN);
-                    val = await lebesgue1d(obj.node.toString(), coeffsObj, a, b, valueLayers, sampleN);
+                    integralResult = await lebesgue1d(obj.node.toString(), coeffsObj, a, b, valueLayers, sampleN);
                 }
 
-                const fn1d = fn as (x: number) => number;
+                if (requestId !== this._requestSeq) return;
+
+                const val = integralResult.value;
+                const fn1d = this._makeVisual1D(
+                    integralResult,
+                    a,
+                    b,
+                    fn as (x: number) => number,
+                );
                 if (method === 'lebesgue') {
                     const sampleN = segments * 20;
                     const valueLayers = Math.min(32, sampleN);
@@ -235,27 +247,45 @@ export class IntegralTab implements Tab {
                 const yMax = parseFloat(
                     this._container.querySelector<HTMLInputElement>('#yMaxInt')?.value || '3',
                 );
-                if (xMin >= xMax || yMin >= yMax) { alert('请输入有效区间'); return; }
+                if (xMin >= xMax || yMin >= yMax) { notifyError('请输入有效区间'); return; }
 
-                const fn2d = fn as (x: number, y: number) => number;
+                const fallback2d = fn as (x: number, y: number) => number;
+                let visualFn2d = fallback2d;
 
                 if (method === 'trapezoid') {
-                    val = await trapz2d(obj.node.toString(), coeffsObj, [xMin, xMax], [yMin, yMax], segments, segments);
-                    this._integralVisualizer.visualize3DRiemann(obj, fn2d, [xMin, xMax], [yMin, yMax], segments, segments);
+                    integralResult = await trapz2d(obj.node.toString(), coeffsObj, [xMin, xMax], [yMin, yMax], segments, segments);
+                    if (requestId !== this._requestSeq) return;
+                    visualFn2d = this._makeVisual2D(integralResult, xMin, xMax, yMin, yMax, fallback2d);
+                    this._integralVisualizer.visualize3DRiemann(obj, visualFn2d, [xMin, xMax], [yMin, yMax], segments, segments);
                 } else if (method === 'simpson') {
-                    val = await simpson2d(obj.node.toString(), coeffsObj, [xMin, xMax], [yMin, yMax], segments, segments);
-                    this._integralVisualizer.visualize3DRiemann(obj, fn2d, [xMin, xMax], [yMin, yMax], segments, segments);
+                    integralResult = await simpson2d(obj.node.toString(), coeffsObj, [xMin, xMax], [yMin, yMax], segments, segments);
+                    if (requestId !== this._requestSeq) return;
+                    visualFn2d = this._makeVisual2D(integralResult, xMin, xMax, yMin, yMax, fallback2d);
+                    this._integralVisualizer.visualize3DRiemann(obj, visualFn2d, [xMin, xMax], [yMin, yMax], segments, segments);
                 } else if (method === 'riemann') {
-                    val = await riemann2dLeft(obj.node.toString(), coeffsObj, [xMin, xMax], [yMin, yMax], segments, segments);
-                    this._integralVisualizer.visualize3DRiemann(obj, fn2d, [xMin, xMax], [yMin, yMax], segments, segments);
+                    integralResult = await riemann2dLeft(obj.node.toString(), coeffsObj, [xMin, xMax], [yMin, yMax], segments, segments);
+                    if (requestId !== this._requestSeq) return;
+                    visualFn2d = this._makeVisual2D(integralResult, xMin, xMax, yMin, yMax, fallback2d);
+                    this._integralVisualizer.visualize3DRiemann(obj, visualFn2d, [xMin, xMax], [yMin, yMax], segments, segments);
                 } else {
                     const sampleGrid = segments * 4;       // 采样网格
                     const valueLayers = Math.min(32, segments); // 值域分层
-                    val = await lebesgue2d(obj.node.toString(), coeffsObj, [xMin, xMax], [yMin, yMax], valueLayers, sampleGrid);
-                    this._integralVisualizer.visualize3DLebesgue(obj, fn2d, [xMin, xMax], [yMin, yMax], sampleGrid);
+                    integralResult = await lebesgue2d(obj.node.toString(), coeffsObj, [xMin, xMax], [yMin, yMax], valueLayers, sampleGrid);
+                    if (requestId !== this._requestSeq) return;
+                    visualFn2d = this._makeVisual2D(integralResult, xMin, xMax, yMin, yMax, fallback2d);
+                    this._integralVisualizer.visualize3DLebesgue(
+                        obj,
+                        visualFn2d,
+                        [xMin, xMax],
+                        [yMin, yMax],
+                        valueLayers,
+                        sampleGrid,
+                    );
                 }
             }
 
+            if (requestId !== this._requestSeq) return;
+            const val = integralResult.value;
             if (resultDiv) {
                 resultDiv.textContent = `积分结果: S = ${val.toFixed(6)}`;
             }
@@ -265,7 +295,7 @@ export class IntegralTab implements Tab {
                 total: val,
             });
         } catch (e) {
-            console.warn('[积分] 计算失败:', obj.kind === 'curve' || obj.kind === 'surface' ? obj.node.toString() : '', e);
+            reportError(e, '积分计算');
             if (resultDiv) resultDiv.textContent = '积分计算失败';
         }
     }
@@ -295,5 +325,59 @@ export class IntegralTab implements Tab {
                 return compiled.evaluate(scope);
             };
         }
+    }
+
+    /** 优先使用 Worker 返回的 1D 采样做可视化，失败时回退到 mathjs 求值。 */
+    private _makeVisual1D(
+        result: IntegralResult,
+        a: number,
+        b: number,
+        fallback: (x: number) => number,
+    ): (x: number) => number {
+        const { samples, sampleShape } = result;
+        if (!samples || sampleShape !== '1d-grid') return fallback;
+
+        const n = result.n ?? 0;
+        const h = n > 0 ? (b - a) / n : 0;
+        return (x: number): number => {
+            if (n === 0 || h === 0) return samples[0];
+            const i = Math.max(0, Math.min(n, Math.round((x - a) / h)));
+            return samples[i];
+        };
+    }
+
+    /** 优先使用 Worker 返回的 2D 采样做可视化，失败时回退到 mathjs 求值。 */
+    private _makeVisual2D(
+        result: IntegralResult,
+        xMin: number,
+        xMax: number,
+        yMin: number,
+        yMax: number,
+        fallback: (x: number, y: number) => number,
+    ): (x: number, y: number) => number {
+        const { samples, sampleShape } = result;
+        if (!samples || (sampleShape !== '2d-grid' && sampleShape !== '2d-corner')) {
+            return fallback;
+        }
+
+        const n = result.n ?? 0;
+        const m = result.m ?? 0;
+        const hx = n > 0 ? (xMax - xMin) / n : 0;
+        const hy = m > 0 ? (yMax - yMin) / m : 0;
+
+        if (sampleShape === '2d-grid') {
+            const stride = n + 1;
+            return (x: number, y: number): number => {
+                const i = Math.max(0, Math.min(n, Math.round((x - xMin) / hx)));
+                const j = Math.max(0, Math.min(m, Math.round((y - yMin) / hy)));
+                return samples[j * stride + i];
+            };
+        }
+
+        return (x: number, y: number): number => {
+            const i = Math.max(0, Math.min(n - 1, Math.round((x - xMin) / hx)));
+            const j = Math.max(0, Math.min(m - 1, Math.round((y - yMin) / hy)));
+            return samples[j * n + i];
+        };
     }
 }

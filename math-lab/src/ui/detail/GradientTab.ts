@@ -8,6 +8,7 @@ import type { GradientVisualizer } from '../../visualization/GradientVisualizer'
 import { computeGradient } from '../../math_objects/GradientCore';
 import { SliderBinding } from './SliderBinding';
 import { escapeHtml } from './utils';
+import { reportError } from '../error';
 
 export class GradientTab implements Tab {
     private _container: HTMLElement;
@@ -220,7 +221,7 @@ export class GradientTab implements Tab {
             // 3. 自动选中法线箭头
             this._selectionManager.select(arrowExpr.id, 'vector');
         } catch (err) {
-            alert(`梯度固定失败: ${(err as Error).message}`);
+            reportError(err, '固定梯度');
         }
     }
 

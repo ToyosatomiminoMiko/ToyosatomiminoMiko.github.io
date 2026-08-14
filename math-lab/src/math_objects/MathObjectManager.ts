@@ -8,41 +8,39 @@ import type {
 } from './types';
 import { parseCurve } from './Curve';
 import { parseSurface } from './Surface';
-import { createPoint, movePoint } from './Point';
-import { createVector, transformVector } from './Vector';
-import { differentiateCurve } from './Curve';
-import { differentiateSurface } from './Surface';
+import { movePoint } from './Point';
+import { transformVector } from './Vector';
 import { parseVectorField } from './VectorField';
 import { extractCoefficients } from './coefficientUtils';
 import { ColorManager } from './ColorManager';
+import { DerivativeService } from './DerivativeService';
+import { MathObjectFactory } from './MathObjectFactory';
+import { MathObjectRepository } from './MathObjectRepository';
 import { APP_CONFIG } from '../config/appConfig';
-import * as math from 'mathjs';
-
-// 系数提取时的变量名集合
-const CURVE_VARS = new Set(['x']);
-const SURFACE_VARS = new Set(['x', 'y']);
 
 export class MathObjectManager {
-    private _objects: MathObject[];
+    private _repository: MathObjectRepository;
     private _nextId: number;
     private _colorManager: ColorManager;
-    // 导数结果缓存
-    private _derivCache = new WeakMap<math.MathNode, Map<string, math.MathNode>>();
+    private _derivativeService: DerivativeService;
+    private _objectFactory: MathObjectFactory;
     constructor(colorManager: ColorManager) {
-        this._objects = [];
+        this._repository = new MathObjectRepository();
         this._nextId = 1;
         this._colorManager = colorManager;
+        this._derivativeService = new DerivativeService();
+        this._objectFactory = new MathObjectFactory(colorManager);
         this._addDefaults();
     }
 
     // ========== 查询 ==========
 
     getById(id: number): MathObject | undefined {
-        return this._objects.find(o => o.id === id);
+        return this._repository.getById(id);
     }
 
     getAll(): MathObject[] {
-        return this._objects;
+        return this._repository.getAll();
     }
 
     getByKind(kind: 'curve'): CurveExpr[];
@@ -50,7 +48,7 @@ export class MathObjectManager {
     getByKind(kind: 'point'): PointEntity[];
     getByKind(kind: 'vector'): VectorEntity[];
     getByKind(kind: MathObject['kind']): MathObject[] {
-        return this._objects.filter(o => o.kind === kind);
+        return this._repository.getByKind(kind);
     }
 
     // ========== 添加 ==========
@@ -65,7 +63,7 @@ export class MathObjectManager {
             color: color || this._colorManager.next(),
             enabled: true,
         };
-        this._objects.push(expr);
+        this._repository.add(expr);
         return expr;
     }
 
@@ -79,16 +77,16 @@ export class MathObjectManager {
             color: color || this._colorManager.next(),
             enabled: true,
         };
-        this._objects.push(expr);
+        this._repository.add(expr);
         return expr;
     }
 
     addPoint(x: number, y: number, z: number, color?: string): PointEntity {
-        const entity = createPoint(
+        const entity = this._objectFactory.createPoint(
             this._nextId++, x, y, z,
-            color || this._colorManager.next(),
+            color,
         );
-        this._objects.push(entity);
+        this._repository.add(entity);
         return entity;
     }
 
@@ -97,11 +95,11 @@ export class MathObjectManager {
         ox: number, oy: number, oz: number,
         color?: string,
     ): VectorEntity {
-        const entity = createVector(
+        const entity = this._objectFactory.createVector(
             this._nextId++, dx, dy, dz, ox, oy, oz,
-            color || this._colorManager.next(),
+            color,
         );
-        this._objects.push(entity);
+        this._repository.add(entity);
         return entity;
     }
 
@@ -127,26 +125,22 @@ export class MathObjectManager {
             glyphScale: 1.0,
             range: range ?? { x: [-4, 4], y: [-4, 4], z: [-4, 4] },
         };
-        this._objects.push(expr);
+        this._repository.add(expr);
         return expr;
     }
     // ========== 删除 / 可见性 ==========
 
     remove(id: number): boolean {
-        const idx = this._objects.findIndex(o => o.id === id);
-        if (idx !== -1) {
-            const obj = this._objects[idx];
-            if (obj.kind === 'curve' || obj.kind === 'surface') {
-                this._clearDerivCacheFor(obj.node);
-            }
-            this._objects.splice(idx, 1);
-            return true;
+        const obj = this._repository.remove(id);
+        if (!obj) return false;
+        if (obj.kind === 'curve' || obj.kind === 'surface') {
+            this._derivativeService.clearFor(obj.node);
         }
-        return false;
+        return true;
     }
 
     toggle(id: number): boolean {
-        const obj = this._objects.find(o => o.id === id);
+        const obj = this._repository.getById(id);
         if (obj) {
             obj.enabled = !obj.enabled;
             return obj.enabled;
@@ -157,7 +151,7 @@ export class MathObjectManager {
     // ========== 更新 ==========
 
     updateFn(id: number, newRaw: string): boolean {
-        const obj = this._objects.find(o => o.id === id);
+        const obj = this._repository.getById(id);
         if (!obj || (obj.kind !== 'curve' && obj.kind !== 'surface')) return false;
 
         try {
@@ -177,7 +171,7 @@ export class MathObjectManager {
     }
 
     setCoefficient(id: number, name: string, value: number): boolean {
-        const obj = this._objects.find(o => o.id === id);
+        const obj = this._repository.getById(id);
         if (!obj || !('coefficients' in obj)) return false;
         const withCoeff = obj as unknown as { coefficients: { name: string; value: number }[] };
         const coeff = withCoeff.coefficients.find(c => c.name === name);
@@ -189,14 +183,14 @@ export class MathObjectManager {
     }
 
     updateColor(id: number, color: string): boolean {
-        const obj = this._objects.find(o => o.id === id);
+        const obj = this._repository.getById(id);
         if (!obj) return false;
         obj.color = color;
         return true;
     }
 
     updatePointPosition(id: number, x: number, y: number, z: number): boolean {
-        const obj = this._objects.find(o => o.id === id);
+        const obj = this._repository.getById(id);
         if (!obj || obj.kind !== 'point') return false;
         Object.assign(obj, movePoint(obj, x, y, z));
         return true;
@@ -207,7 +201,7 @@ export class MathObjectManager {
         dx: number, dy: number, dz: number,
         ox: number, oy: number, oz: number,
     ): boolean {
-        const obj = this._objects.find(o => o.id === id);
+        const obj = this._repository.getById(id);
         if (!obj || obj.kind !== 'vector') return false;
         Object.assign(obj, transformVector(obj, dx, dy, dz, ox, oy, oz));
         return true;
@@ -217,58 +211,36 @@ export class MathObjectManager {
 
     deriveCurve(id: number): CurveExpr {
         const source = this._findSource(id, 'curve');
-        let inner = this._derivCache.get(source.node);
-        let derivNode = inner?.get('x');
-        if (!derivNode) {
-            derivNode = math.simplify(differentiateCurve(source.node));
-            if (!inner) {
-                inner = new Map();
-                this._derivCache.set(source.node, inner);
-            }
-            inner.set('x', derivNode);
-        }
+        const derivNode = this._derivativeService.deriveCurveNode(source);
 
         const deriv: CurveExpr = {
             kind: 'curve',
             id: this._nextId++,
             node: derivNode,
-            coefficients: extractCoefficients(derivNode, CURVE_VARS),
+            coefficients: extractCoefficients(derivNode, new Set(['x'])),
             color: this._colorManager.next(),
             enabled: true,
         };
-        this._objects.push(deriv);
+        this._repository.add(deriv);
         return deriv;
     }
 
     deriveSurface(id: number, variable: 'x' | 'y'): SurfaceExpr {
         const source = this._findSource(id, 'surface');
-        let inner = this._derivCache.get(source.node);
-        let derivNode = inner?.get(variable);
-        if (!derivNode) {
-            derivNode = math.simplify(differentiateSurface(source.node, variable));
-            if (!inner) {
-                inner = new Map();
-                this._derivCache.set(source.node, inner);
-            }
-            inner.set(variable, derivNode);
-        }
+        const derivNode = this._derivativeService.deriveSurfaceNode(source, variable);
         const deriv: SurfaceExpr = {
             kind: 'surface',
             id: this._nextId++,
             node: derivNode,
-            coefficients: extractCoefficients(derivNode, SURFACE_VARS),
+            coefficients: extractCoefficients(derivNode, new Set(['x', 'y'])),
             color: this._colorManager.next(),
             enabled: true,
         };
-        this._objects.push(deriv);
+        this._repository.add(deriv);
         return deriv;
     }
 
     // ========== 内部 ==========
-
-    private _clearDerivCacheFor(node: math.MathNode): void {
-        this._derivCache.delete(node);
-    }
 
     private _addDefaults(): void {
         const defaults = APP_CONFIG.defaultExpressions;
@@ -284,7 +256,7 @@ export class MathObjectManager {
         id: number,
         expectedKind: T,
     ): Extract<MathObject, { kind: T }> {
-        const obj = this._objects.find(o => o.id === id);
+        const obj = this._repository.getById(id);
         if (!obj) throw new Error('源对象不存在');
         if (obj.kind !== expectedKind) {
             throw new Error(`对象不是 ${expectedKind} 类型`);

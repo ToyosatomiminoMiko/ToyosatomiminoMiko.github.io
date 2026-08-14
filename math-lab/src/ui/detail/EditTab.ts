@@ -5,6 +5,7 @@ import type { EventBus } from '../../service/EventBus';
 import type { MathLabEvents } from '../../types';
 import { SliderBinding } from './SliderBinding';
 import { escapeHtml } from './utils';
+import { reportError } from '../error';
 
 export class EditTab implements Tab {
     private _container: HTMLElement;
@@ -178,7 +179,7 @@ export class EditTab implements Tab {
                 this._objectManager.updateFn(obj.id, newRaw);
                 this._eventBus.emit('mathobj:updated', { id: obj.id });
             } catch (err) {
-                alert((err as Error).message);
+                reportError(err, '编辑表达式');
             }
         });
         editInput?.addEventListener('keydown', (e: KeyboardEvent) => {

@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { APP_CONFIG } from '../config/appConfig';
 import type { CamMode, ViewMode } from '../types';
-import type { SceneManager } from './SceneManager';
 // OrbitControls 没有独立类型包,从 three/examples 导入类型
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
@@ -14,7 +13,6 @@ import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js
  * ============================================================
  */
 export class CameraManager {
-    sceneManager: SceneManager;
     container: HTMLElement;
     aspect: number;
 
@@ -34,9 +32,8 @@ export class CameraManager {
     /** 预置视角位置 */
     viewPositions: Record<ViewMode, { pos: THREE.Vector3; target: THREE.Vector3 }>;
 
-    constructor(sceneManager: SceneManager) {
-        this.sceneManager = sceneManager;
-        this.container = sceneManager.container;
+    constructor(container: HTMLElement) {
+        this.container = container;
 
         // 当前容器宽高比
         this.aspect = this.container.clientWidth / this.container.clientHeight;
@@ -139,6 +136,12 @@ export class CameraManager {
     /** 获取当前激活的相机 */
     getCamera(): THREE.Camera {
         return this.activeCamera;
+    }
+
+    /** 释放 OrbitControls 占用的资源。单页应用通常不需要，但保留完整生命周期。 */
+    dispose(): void {
+        this.controls?.dispose();
+        this.controls = null;
     }
 
     // =====================================================

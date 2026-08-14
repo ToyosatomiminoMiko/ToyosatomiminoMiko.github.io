@@ -1,16 +1,15 @@
 import * as THREE from 'three';
-import * as math from 'mathjs';
+import type { EvalFunction } from 'mathjs';
 import type { IRenderer } from './IRenderer';
 import type { CurveExpr } from '../../math_objects/types';
+import { compilationCache } from '../../math_objects/CompilationCache';
 
 export class CurveRenderer implements IRenderer {
     readonly group = new THREE.Group();
+    readonly mode = '2d' as const;
     private line: THREE.Line | null = null;
     private userVisible = true;
     private modeVisible = false;  // 由 Plotter 路由控制
-    // 编译缓存
-    private _compiledNode: math.MathNode | null = null;
-    private _compiledFn: math.EvalFunction | null = null;
     constructor(
         public curve: CurveExpr,
         private readonly xRange: [number, number] = [-8, 8],
@@ -25,11 +24,7 @@ export class CurveRenderer implements IRenderer {
      * 更新曲线: 复用 BufferGeometry / Material, 仅替换 position 数组
      */
     draw(): void {
-        // 编译缓存
-        if (this._compiledNode !== this.curve.node || !this._compiledFn) {
-            this._compiledFn = this.curve.node.compile();
-            this._compiledNode = this.curve.node;
-        }
+        const compiled = compilationCache.getByNode(this.curve.node);
 
         // 预分配足够大的 buffer
         const maxVerts = this.steps + 2;
@@ -58,7 +53,7 @@ export class CurveRenderer implements IRenderer {
 
         // 直接写入,零分配
         const pointCount = this._sampleCurveDirect(
-            this._compiledFn!,
+            compiled,
             posAttr.array as Float32Array,
             0,
         );
@@ -86,7 +81,7 @@ export class CurveRenderer implements IRenderer {
 
     /** 更新数学对象引用(系数/颜色变化时由 Plotter 调用) */
     updateRef(curve: CurveExpr): void {
-        (this as any).curve = curve;
+        this.curve = curve;
     }
 
     dispose(): void {
@@ -106,7 +101,7 @@ export class CurveRenderer implements IRenderer {
      * @returns 实际写入的顶点数
      */
     private _sampleCurveDirect(
-        compiled: math.EvalFunction,
+        compiled: EvalFunction,
         target: Float32Array,
         startOffset: number,
     ): number {

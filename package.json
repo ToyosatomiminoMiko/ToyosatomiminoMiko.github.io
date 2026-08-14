@@ -15,6 +15,7 @@
     "@types/three": "^0.185.3",
     "typescript": "^7.0.2",
     "vite": "^8.2.0",
+    "vitest": "^4.1.10",
     "vue-tsc": "^3.3.9"
   },
   "scripts": {
@@ -22,6 +23,7 @@
     "__build": "vue-tsc --noEmit && vite build",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run"
   }
 }

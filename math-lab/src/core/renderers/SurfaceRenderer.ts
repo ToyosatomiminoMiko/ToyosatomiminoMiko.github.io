@@ -11,11 +11,12 @@ import type { SurfaceExpr } from '../../math_objects/types';
  */
 export class SurfaceRenderer implements IRenderer {
     readonly group = new THREE.Group();
+    readonly mode = '3d' as const;
     private mesh: SurfaceMesh | null = null;
     private userVisible = true;
     private modeVisible = false;
     constructor(
-        private readonly surface: SurfaceExpr,
+        private surface: SurfaceExpr,
         private readonly range: [number, number] = [-6, 6],
         private segments: number = 64,
     ) { }
@@ -61,7 +62,7 @@ export class SurfaceRenderer implements IRenderer {
     }
 
     updateRef(surface: SurfaceExpr): void {
-        (this as any).surface = surface;
+        this.surface = surface;
     }
 
     dispose(): void {

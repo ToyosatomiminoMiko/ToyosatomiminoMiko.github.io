@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 
+export type RendererMode = '2d' | '3d' | 'both';
+
 /**
  * 渲染器抽象接口
  * - 每个具体渲染器负责一种数学对象的 WebGL 表现
@@ -8,6 +10,9 @@ import * as THREE from 'three';
 export interface IRenderer {
     /** THREE.Group 容器,挂载到场景中 */
     readonly group: THREE.Group;
+
+    /** 渲染器所属视图模式;both 表示 2D/3D 均可见 */
+    readonly mode: RendererMode;
 
     /** 当前可见性(含模式过滤后的结果) */
     readonly visible: boolean;

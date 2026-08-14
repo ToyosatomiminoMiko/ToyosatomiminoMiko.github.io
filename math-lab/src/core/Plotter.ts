@@ -127,14 +127,9 @@ export class Plotter {
     public updateMode(mode: '2d' | '3d'): void {
         this.currentMode = mode;
         for (const renderer of this.rendererMap.values()) {
-            // 通过 setModeVisible 方法本身聚合模式判断 --
-            // 有该方法的渲染器声明了自己需要模式过滤
+            // 每个渲染器声明自己的 mode，不再依赖 instanceof 分支
             if (typeof renderer.setModeVisible === 'function') {
-                const is2d = renderer instanceof CurveRenderer;
-                const is3d = renderer instanceof SurfaceRenderer || renderer instanceof VectorFieldRenderer;
-                renderer.setModeVisible(
-                    (mode === '2d' && is2d) || (mode === '3d' && is3d),
-                );
+                renderer.setModeVisible(this._isModeVisible(renderer, mode));
             }
         }
     }
@@ -185,14 +180,17 @@ export class Plotter {
         // 更新内部数据引用
         renderer.updateRef?.(data);
 
-        // 防御式模式可见性判断 -- 不依赖调用方是否做了模式守卫
+        // 防御式模式可见性判断
         if (typeof renderer.setModeVisible === 'function') {
-            const is2d = this.currentMode === '2d' && renderer instanceof CurveRenderer;
-            const is3d = this.currentMode === '3d' && (renderer instanceof SurfaceRenderer || renderer instanceof VectorFieldRenderer);
-            renderer.setModeVisible(is2d || is3d);
+            renderer.setModeVisible(this._isModeVisible(renderer, this.currentMode));
         }
 
         renderer.setVisible(data.enabled);
         renderer.draw();
+    }
+
+    /** 根据渲染器声明的 mode 判断当前视图模式是否可见 */
+    private _isModeVisible(renderer: IRenderer, mode: '2d' | '3d'): boolean {
+        return renderer.mode === 'both' || renderer.mode === mode;
     }
 }

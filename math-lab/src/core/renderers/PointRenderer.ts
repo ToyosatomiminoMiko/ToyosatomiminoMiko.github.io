@@ -9,10 +9,11 @@ import type { PointEntity } from '../../math_objects/types';
  */
 export class PointRenderer implements IRenderer {
     readonly group = new THREE.Group();
+    readonly mode = 'both' as const;
     private sphere: THREE.Mesh;
     private material: THREE.MeshPhongMaterial;
 
-    constructor(private readonly point: PointEntity) {
+    constructor(private point: PointEntity) {
         const geo = new THREE.SphereGeometry(0.2, 16, 16);
         this.material = new THREE.MeshPhongMaterial({
             color: point.color,
@@ -43,7 +44,7 @@ export class PointRenderer implements IRenderer {
     }
 
     updateRef(point: PointEntity): void {
-        (this as any).point = point;
+        this.point = point;
     }
 
     dispose(): void {

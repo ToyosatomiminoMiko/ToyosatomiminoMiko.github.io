@@ -4,6 +4,7 @@ import { generate_full_indices } from './SurfaceMeshWasm';
 import {
     surfaceComputeClient,
 } from './SurfaceComputeClient';
+import { logWarning } from '../service/logger';
 import type {
     SurfaceWorkerRequest,
     SurfaceWorkerResponse,
@@ -156,7 +157,7 @@ export class SurfaceMesh {
             .then((result) => this._applyResult(requestId, result))
             .catch((error: Error) => {
                 if (this._disposed || requestId !== this._latestRequestId) return;
-                console.warn('[SurfaceMesh] 曲面采样失败:', error.message);
+                logWarning('SurfaceMesh', '曲面采样失败:', error.message);
             })
             .finally(() => {
                 if (this._disposed) return;

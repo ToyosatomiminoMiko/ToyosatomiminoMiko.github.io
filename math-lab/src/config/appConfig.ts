@@ -16,7 +16,7 @@ export const APP_CONFIG = {
             { fn: 'cos(x)', color: '#ff6b8a' },
         ],
         '3d': [
-            { fn: 'sin(x) * cos(y)', color: '#ffd93d' },
+            { fn: 'sin(x*a) * cos(y*b)', color: '#ffd93d' },
             { fn: 'exp(-(x*x + y*y) / a) * b', color: '#6bffb8' },
             { fn: 'x ^ 2 * a + y ^ 2 * b + c', color: '#a78bfa' },
         ],

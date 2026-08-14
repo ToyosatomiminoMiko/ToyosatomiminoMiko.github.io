@@ -1,5 +1,6 @@
 import * as math from 'mathjs';
-import type { MathNode, EvalFunction } from 'mathjs';
+import type { MathNode } from 'mathjs';
+import { compilationCache } from './CompilationCache';
 /**
  * 梯度计算结果
  */
@@ -16,10 +17,7 @@ export interface GradientResult {
     tangentPlaneNode: MathNode;
 }
 
-const compiledCache = new WeakMap<
-    MathNode,
-    { surface: EvalFunction; fx: EvalFunction; fy: EvalFunction }
->();
+const partialCache = new WeakMap<MathNode, { fxNode: MathNode; fyNode: MathNode }>();
 /**
  * 对二元函数 z = f(x, y) 在点 (x₀, y₀) 处计算梯度,法向量和切平面
  *
@@ -45,25 +43,24 @@ export function computeGradient(
     extraScope?: Record<string, number>
 ): GradientResult {
     // performance.mark('gradient-core-start');
-    let entry = compiledCache.get(surfaceNode);
+    let partials = partialCache.get(surfaceNode);
 
-    if (!entry) {
+    if (!partials) {
         // 对偏导做化简,缩小表达式树
         const fxNode = math.simplify(math.derivative(surfaceNode, 'x'));
         const fyNode = math.simplify(math.derivative(surfaceNode, 'y'));
-        entry = {
-            surface: surfaceNode.compile(),
-            fx: fxNode.compile(),
-            fy: fyNode.compile(),
-        };
-        compiledCache.set(surfaceNode, entry);
+        partials = { fxNode, fyNode };
+        partialCache.set(surfaceNode, partials);
     }
 
+    const surface = compilationCache.getByNode(surfaceNode);
+    const fxCompiled = compilationCache.getByNode(partials.fxNode);
+    const fyCompiled = compilationCache.getByNode(partials.fyNode);
     const scope: Record<string, number> = { x: x0, y: y0, ...(extraScope ?? {}) };
 
-    const f0 = entry.surface.evaluate(scope) as number;
-    const fx = entry.fx.evaluate(scope) as number;
-    const fy = entry.fy.evaluate(scope) as number;
+    const f0 = surface.evaluate(scope) as number;
+    const fx = fxCompiled.evaluate(scope) as number;
+    const fy = fyCompiled.evaluate(scope) as number;
 
     // 法向量
     const nx = -fx, ny = -fy, nz = 1;

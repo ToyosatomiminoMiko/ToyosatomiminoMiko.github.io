@@ -81,8 +81,10 @@ export class GradientVisualizer {
 
         // --- 切平面:只改位置和旋转 ---
         if (!this._plane) {
-            const size = 2.0;
-            const geo = new THREE.PlaneGeometry(size * 2, size * 2);
+            // 平面尺寸随局部梯度大小略微缩放，避免陡峭曲面上的切平面过小。
+            const gradientMagnitude = Math.sqrt(fx * fx + fy * fy);
+            const halfSize = Math.min(4.0, Math.max(1.0, 0.8 + gradientMagnitude * 0.25));
+            const geo = new THREE.PlaneGeometry(halfSize * 2, halfSize * 2);
             const mat = new THREE.MeshPhongMaterial({
                 color: 0x44aaff,
                 side: THREE.DoubleSide,

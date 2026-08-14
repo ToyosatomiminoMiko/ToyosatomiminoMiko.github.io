@@ -11,6 +11,7 @@ import { VectorFieldMesh } from '../../visualization/VectorFieldMesh';
  */
 export class VectorFieldRenderer implements IRenderer {
     readonly group: THREE.Group;
+    readonly mode = '3d' as const;
     private _mesh: VectorFieldMesh | null = null;
 
     // 网格坐标缓存:只有在 range 或 gridSize 变化时才重建

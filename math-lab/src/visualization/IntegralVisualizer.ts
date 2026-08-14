@@ -10,6 +10,10 @@ const OPACITY_RIEMANN = 0.5;
 const OPACITY_LEBESGUE = 0.5;
 const EDGE_OPACITY_RIEMANN = 0.4;
 
+// 所有柱条共享同一个单位立方体及其线框几何体，避免每次可视化重复分配。
+const SHARED_BOX_GEOMETRY = new THREE.BoxGeometry(1, 1, 1);
+const SHARED_EDGE_GEOMETRY = new THREE.EdgesGeometry(SHARED_BOX_GEOMETRY);
+
 // ============================================================
 // 内部类型
 // ============================================================
@@ -235,6 +239,7 @@ export class IntegralVisualizer {
         fn: (x: number, y: number) => number,
         xRange: [number, number],
         yRange: [number, number],
+        layers: number,
         res: number,
     ): void {
         const [xMin, xMax] = xRange;
@@ -245,25 +250,24 @@ export class IntegralVisualizer {
 
         let zMin = Infinity;
         let zMax = -Infinity;
-        const grid: number[][] = [];
+        const stride = res + 1;
+        const grid = new Float64Array(stride * stride);
         for (let j = 0; j <= res; j++) {
             const y = yMin + j * hy;
-            const row: number[] = [];
             for (let i = 0; i <= res; i++) {
                 const z = fn(xMin + i * hx, y);
                 if (isFinite(z)) {
-                    row.push(z);
+                    grid[j * stride + i] = z;
                     if (z < zMin) zMin = z;
                     if (z > zMax) zMax = z;
                 } else {
-                    row.push(NaN);
+                    grid[j * stride + i] = NaN;
                 }
             }
-            grid.push(row);
         }
         if (!isFinite(zMin) || !isFinite(zMax)) return;
 
-        const slices = this._layerLoop(zMin, zMax, res, baseColor, 0,
+        const slices = this._layerLoop(zMin, zMax, layers, baseColor, 0,
             (threshold, centerZ, _k, color, _dy) => {
                 const result: BarDef[] = [];
                 const predicate = centerZ >= 0
@@ -272,7 +276,7 @@ export class IntegralVisualizer {
 
                 for (let j = 0; j < res; j++) {
                     for (let i = 0; i < res; i++) {
-                        const z00 = grid[j][i];
+                        const z00 = grid[j * stride + i];
                         if (!isFinite(z00)) continue;
                         if (predicate(z00)) {
                             result.push({
@@ -302,10 +306,9 @@ export class IntegralVisualizer {
     private _disposeGroup(group: THREE.Object3D): void {
         group.traverse((node) => {
             if (node instanceof THREE.InstancedMesh) {
-                // 先释放 InstancedMesh 自己的 instanceMatrix/instanceColor,
-                // 再释放共享的 geometry 和 material
+                // 释放 InstancedMesh 自己的 instanceMatrix/instanceColor。
+                // geometry 是共享的，不能在这里 dispose。
                 node.dispose();
-                node.geometry?.dispose();
                 if (Array.isArray(node.material)) {
                     node.material.forEach(m => m.dispose());
                 } else {
@@ -325,14 +328,13 @@ export class IntegralVisualizer {
     /** 用 InstancedMesh 批量渲染柱子(减少 draw call) */
     private _instancedMeshGroup(bars: BarDef[], opts: BarOptions = {}): THREE.Group {
         const { opacity, color, edgeOpacity, edgeColor } = opts;
-        const boxGeo = new THREE.BoxGeometry(1, 1, 1);
         const mat = new THREE.MeshPhongMaterial({
             transparent: true,
             opacity: opacity ?? 0.6,
             side: THREE.DoubleSide,
         });
 
-        const mesh = new THREE.InstancedMesh(boxGeo, mat, bars.length);
+        const mesh = new THREE.InstancedMesh(SHARED_BOX_GEOMETRY, mat, bars.length);
         const dummy = new THREE.Object3D();
         for (let i = 0; i < bars.length; i++) {
             const b = bars[i];
@@ -352,13 +354,12 @@ export class IntegralVisualizer {
 
         // 可选线框
         if (edgeOpacity && edgeOpacity > 0) {
-            const edgeGeo = new THREE.EdgesGeometry(boxGeo);
             const edgeMat = new THREE.LineBasicMaterial({
                 color: edgeColor ?? color ?? 0xffffff,
                 transparent: true,
                 opacity: edgeOpacity,
             });
-            const wireMesh = new THREE.InstancedMesh(edgeGeo, edgeMat, bars.length);
+            const wireMesh = new THREE.InstancedMesh(SHARED_EDGE_GEOMETRY, edgeMat, bars.length);
             for (let i = 0; i < bars.length; i++) {
                 const b = bars[i];
                 dummy.position.set(b.pos[0], b.pos[1], b.pos[2]);
