@@ -16,6 +16,11 @@ import {
     scale4,
     translate4,
 } from '../tensor/SceneTransform';
+import {
+    evaluate_curl_point as wasmEvaluateCurlPoint,
+    evaluate_divergence_point as wasmEvaluateDivergencePoint,
+    evaluate_gradient_point as wasmEvaluateGradientPoint,
+} from '../wasm/ml_wasm';
 
 export interface ParamDeclaration {
     name: string;
@@ -347,10 +352,27 @@ function resolveObjectTransform(
     return transform ? cloneMat4(transform) : null;
 }
 
-function evaluateDerivative(node: MathNode, variable: string, scope: Record<string, number>): number {
-    const derivative = math.derivative(node, variable);
-    const value = derivative.compile().evaluate(scope);
-    return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+function derivativeExpression(node: MathNode, variable: string): string {
+    return toRustExpression(math.derivative(node, variable));
+}
+
+function toRustExpression(node: MathNode): string {
+    const replaced = node.transform((current) => {
+        if (current.type === 'SymbolNode') {
+            const symbol = current as unknown as { name: string };
+            if (symbol.name === 'pi') return new math.ConstantNode(Math.PI);
+            if (symbol.name === 'e') return new math.ConstantNode(Math.E);
+        }
+        return current;
+    });
+    return replaced.toString();
+}
+
+function coefficientArgs(source: { coefficients: Coefficient[] }): [string[], Float64Array] {
+    return [
+        source.coefficients.map((coefficient) => coefficient.name),
+        new Float64Array(source.coefficients.map((coefficient) => coefficient.value)),
+    ];
 }
 
 function normalizeVector(vector: [number, number, number]): [number, number, number] {
@@ -393,38 +415,55 @@ function compileAnalyses(
             atValues[1] ?? 0,
             atValues[2] ?? 0,
         ];
-        const scope: Record<string, number> = { ...atScope, x: at[0], y: at[1], z: at[2] };
         const show = parseShowOption(statement.options);
 
         if (statement.op === 'gradient' && (source.kind === 'curve' || source.kind === 'surface')) {
-            const fx = evaluateDerivative(source.node, 'x', scope);
-            const fy = evaluateDerivative(source.node, 'y', scope);
-            const f0 = source.node.compile().evaluate(scope) as number;
-            const vector = normalizeVector([-fx, -fy, 1]);
+            const [coeffNames, coeffValues] = coefficientArgs(source);
+            const result = wasmEvaluateGradientPoint(
+                toRustExpression(source.node),
+                derivativeExpression(source.node, 'x'),
+                source.kind === 'surface' ? derivativeExpression(source.node, 'y') : '0',
+                coeffNames,
+                coeffValues,
+                at[0],
+                at[1],
+            );
+            const f0 = result.f0;
+            const vector = normalizeVector([-result.fx, -result.fy, 1]);
             results.push({ name: statement.name, op: 'gradient', point: [at[0], at[1], f0], vector, scalar: f0, show });
             continue;
         }
 
         if ((statement.op === 'divergence' || statement.op === 'curl') && source.kind === 'vector_field') {
-            const dPdx = evaluateDerivative(source.nodeP, 'x', scope);
-            const dQdy = evaluateDerivative(source.nodeQ, 'y', scope);
-            const dRdz = evaluateDerivative(source.nodeR, 'z', scope);
+            const [coeffNames, coeffValues] = coefficientArgs(source);
 
             if (statement.op === 'divergence') {
-                const scalar = dPdx + dQdy + dRdz;
+                const scalar = wasmEvaluateDivergencePoint(
+                    derivativeExpression(source.nodeP, 'x'),
+                    derivativeExpression(source.nodeQ, 'y'),
+                    derivativeExpression(source.nodeR, 'z'),
+                    coeffNames,
+                    coeffValues,
+                    at[0],
+                    at[1],
+                    at[2],
+                );
                 results.push({ name: statement.name, op: 'divergence', point: at, vector: [0, 0, 0], scalar, show });
             } else {
-                const dRdy = evaluateDerivative(source.nodeR, 'y', scope);
-                const dQdz = evaluateDerivative(source.nodeQ, 'z', scope);
-                const dPdz = evaluateDerivative(source.nodeP, 'z', scope);
-                const dRdx = evaluateDerivative(source.nodeR, 'x', scope);
-                const dQdx = evaluateDerivative(source.nodeQ, 'x', scope);
-                const dPdy = evaluateDerivative(source.nodeP, 'y', scope);
-                const vector: [number, number, number] = [
-                    dRdy - dQdz,
-                    dPdz - dRdx,
-                    dQdx - dPdy,
-                ];
+                const result = wasmEvaluateCurlPoint(
+                    derivativeExpression(source.nodeR, 'y'),
+                    derivativeExpression(source.nodeQ, 'z'),
+                    derivativeExpression(source.nodeP, 'z'),
+                    derivativeExpression(source.nodeR, 'x'),
+                    derivativeExpression(source.nodeQ, 'x'),
+                    derivativeExpression(source.nodeP, 'y'),
+                    coeffNames,
+                    coeffValues,
+                    at[0],
+                    at[1],
+                    at[2],
+                );
+                const vector: [number, number, number] = [result.x, result.y, result.z];
                 results.push({ name: statement.name, op: 'curl', point: at, vector, scalar: null, show });
             }
             continue;

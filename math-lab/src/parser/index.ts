@@ -1,4 +1,4 @@
-import init, {
+import {
     mat4_apply_point as wasmMat4ApplyPoint,
     mat4_identity as wasmMat4Identity,
     mat4_multiply as wasmMat4Multiply,
@@ -7,21 +7,13 @@ import init, {
     mat4_translate as wasmMat4Translate,
     parse_miko as wasmParseMiko,
 } from '../wasm/ml_wasm';
+import { ensureWasmReady } from '../wasmRuntime';
 import type { AstProgram } from '../ast/types';
 import { normalizeMatlabSyntax } from './matlabCompat';
 import {
     registerMatrixWasmBackend,
     type MatrixWasmBackend,
 } from '../tensor/SceneTransform';
-
-let wasmReady: Promise<unknown> | null = null;
-
-function ensureInit(): Promise<unknown> {
-    if (!wasmReady) {
-        wasmReady = init();
-    }
-    return wasmReady;
-}
 
 function toMat4(values: Float64Array): number[][] {
     return [
@@ -53,7 +45,7 @@ function registerWasmMatrixBackend(): void {
 
 /** 调用 Rust pest 解析器，把 `.miko` 源码解析成 JSON AST. */
 export async function parseMiko(source: string): Promise<AstProgram> {
-    await ensureInit();
+    await ensureWasmReady();
     registerWasmMatrixBackend();
     return JSON.parse(wasmParseMiko(source)) as AstProgram;
 }

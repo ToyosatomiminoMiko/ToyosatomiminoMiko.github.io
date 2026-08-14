@@ -1,6 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { compileScene } from './DslCompiler';
+import { evaluate_gradient_point } from '../wasm/ml_wasm';
 import type { AstProgram } from '../ast/types';
+
+vi.mock('../wasm/ml_wasm', () => ({
+    evaluate_gradient_point: vi.fn(() => ({ f0: 0, fx: 0, fy: 0 })),
+    evaluate_divergence_point: vi.fn(() => 0),
+    evaluate_curl_point: vi.fn(() => ({ x: 0, y: 0, z: 0 })),
+}));
 
 const ast: AstProgram = {
     statements: [
@@ -82,6 +89,15 @@ describe('compileScene', () => {
         expect(scene.analyses[0].point[0]).toBe(2);
         expect(scene.analyses[0].point[1]).toBe(2);
         expect(scene.analyses[0].show).toContain('tangent_plane');
+        expect(evaluate_gradient_point).toHaveBeenCalledWith(
+            'sin(x * a)',
+            'a * cos(x * a)',
+            '0',
+            ['a'],
+            expect.any(Float64Array),
+            2,
+            2,
+        );
         expect(scene.integrals).toHaveLength(1);
         expect(scene.integrals[0].method).toBe('riemann');
         expect(scene.integrals[0].sourceKind).toBe('curve');
