@@ -2,13 +2,11 @@ import * as math from 'mathjs';
 import type { MathNode } from 'mathjs';
 import type { AstProgram, IntegralStatement, ObjectStatement, OptionPair } from '../ast/types';
 import type {
-    CamMode,
     Coefficient,
     CurveExpr,
     MathObject,
     SurfaceExpr,
     VectorFieldExpr,
-    ViewHome,
 } from '../math_objects/types';
 import { extractCoefficients } from '../math_objects/coefficientUtils';
 import { multiply4x4 } from '../tensor/SceneTransform';
@@ -49,16 +47,10 @@ export interface CompiledScene {
     objectTransforms: Map<number, number[][]>;
     analyses: AnalysisResult[];
     integrals: IntegralTask[];
-    camera: {
-        projection: CamMode;
-        rotationLock: boolean;
-        home: ViewHome;
-    };
 }
 
 type Mat4 = number[][];
 
-const VIEW_HOMES = new Set<ViewHome>(['top', 'bottom', 'front', 'back', 'left', 'right', 'isometric']);
 const COLOR_PALETTE = ['#6dd5ff', '#ff6b8a', '#ffd93d', '#6bffb8', '#c084fc', '#fb923c'];
 const INTEGRAL_METHODS = new Set<IntegralMethod>(['trapezoid', 'simpson', 'riemann', 'lebesgue']);
 const SHOW_KINDS = new Set(['point', 'normal', 'tangent_plane']);
@@ -130,6 +122,16 @@ function collectParams(ast: AstProgram): Map<string, ParamDeclaration> {
         });
     }
     return params;
+}
+
+function applyParamOverrides(
+    params: Map<string, ParamDeclaration>,
+    overrides: Record<string, number>,
+): void {
+    for (const [name, value] of Object.entries(overrides)) {
+        const param = params.get(name);
+        if (param) param.value = value;
+    }
 }
 
 function buildCoefficients(
@@ -322,9 +324,9 @@ function rotate4(values: number[]): Mat4 {
     return multiply4x4(multiply4x4(rzM, ryM), rxM);
 }
 
-function evaluateNumber(raw: string): number | null {
+function evaluateNumber(raw: string, scope?: Record<string, number>): number | null {
     try {
-        const value = math.evaluate(raw);
+        const value = scope === undefined ? math.evaluate(raw) : math.evaluate(raw, scope);
         return typeof value === 'number' && Number.isFinite(value) ? value : null;
     } catch {
         return null;
@@ -414,6 +416,7 @@ function normalizeVector(vector: [number, number, number]): [number, number, num
 function compileAnalyses(
     ast: AstProgram,
     objectByName: Map<string, MathObject>,
+    params: Map<string, ParamDeclaration>,
 ): AnalysisResult[] {
     const results: AnalysisResult[] = [];
 
@@ -429,14 +432,23 @@ function compileAnalyses(
             throw new Error(`分析算子 ${statement.op} 暂未实现`);
         }
 
-        const rawAt = statement.at ? statement.at.map(Number) : [0, 0, 0];
-        const at: [number, number, number] = [rawAt[0] ?? 0, rawAt[1] ?? 0, rawAt[2] ?? 0];
-        const scope: Record<string, number> = { x: at[0], y: at[1], z: at[2] };
-        const show = parseShowOption(statement.options);
-
+        const atScope: Record<string, number> = {};
+        for (const [name, param] of params) atScope[name] = param.value;
         if (source.kind === 'curve' || source.kind === 'surface' || source.kind === 'vector_field') {
-            for (const coefficient of source.coefficients) scope[coefficient.name] = coefficient.value;
+            for (const coefficient of source.coefficients) {
+                atScope[coefficient.name] = coefficient.value;
+            }
         }
+
+        const rawAt = statement.at ?? [];
+        const atValues = rawAt.map((raw) => evaluateNumber(raw, atScope) ?? 0);
+        const at: [number, number, number] = [
+            atValues[0] ?? 0,
+            atValues[1] ?? 0,
+            atValues[2] ?? 0,
+        ];
+        const scope: Record<string, number> = { ...atScope, x: at[0], y: at[1], z: at[2] };
+        const show = parseShowOption(statement.options);
 
         if (statement.op === 'gradient' && (source.kind === 'curve' || source.kind === 'surface')) {
             const fx = evaluateDerivative(source.node, 'x', scope);
@@ -545,11 +557,6 @@ export function compileScene(ast: AstProgram, paramOverrides: Record<string, num
     const objects: MathObject[] = [];
     const objectTransforms = new Map<number, Mat4>();
     const integrals: IntegralTask[] = [];
-    const camera: CompiledScene['camera'] = {
-        projection: 'perspective',
-        rotationLock: false,
-        home: 'isometric',
-    };
 
     for (const statement of ast.statements) {
         if (statement.type === 'tensor' && statement.kind === 'matrix') {
@@ -574,17 +581,6 @@ export function compileScene(ast: AstProgram, paramOverrides: Record<string, num
     const objectByName = new Map<string, MathObject>();
     let nextId = 1;
     for (const statement of ast.statements) {
-        if (statement.type === 'camera') {
-            const projection = findOption(statement.options, 'projection');
-            const rotationLock = findOption(statement.options, 'rotation_lock');
-            const home = findOption(statement.options, 'home');
-
-            if (projection === 'orthographic') camera.projection = 'orthographic';
-            if (rotationLock === 'true' || rotationLock === '1') camera.rotationLock = true;
-            if (home && VIEW_HOMES.has(home as ViewHome)) camera.home = home as ViewHome;
-            continue;
-        }
-
         if (statement.type === 'object') {
             const object = compileObject(statement, nextId, params, paramOverrides);
             if (object) {
@@ -616,6 +612,8 @@ export function compileScene(ast: AstProgram, paramOverrides: Record<string, num
         }
     }
 
+    applyParamOverrides(params, paramOverrides);
+
     for (const statement of ast.statements) {
         if (statement.type !== 'integral') continue;
         integrals.push(compileIntegralTask(statement, objectByName));
@@ -625,8 +623,7 @@ export function compileScene(ast: AstProgram, paramOverrides: Record<string, num
         params: [...params.values()],
         objects,
         objectTransforms,
-        analyses: compileAnalyses(ast, objectByName),
+        analyses: compileAnalyses(ast, objectByName, params),
         integrals,
-        camera,
     };
 }

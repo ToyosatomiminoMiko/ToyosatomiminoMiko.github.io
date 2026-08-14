@@ -12,12 +12,10 @@ const ast: AstProgram = {
             span: { start: 0, end: 0 },
         },
         {
-            type: 'camera',
-            options: [
-                { name: 'projection', value: 'orthographic' },
-                { name: 'rotation_lock', value: 'true' },
-                { name: 'home', value: 'front' },
-            ],
+            type: 'param',
+            name: 'b',
+            value: '1',
+            ui: { min: '-3', max: '3', step: '0.1' },
             span: { start: 0, end: 0 },
         },
         {
@@ -48,6 +46,16 @@ const ast: AstProgram = {
             span: { start: 0, end: 0 },
         },
         {
+            type: 'analysis',
+            op: 'gradient',
+            name: 'g',
+            call: 'grad',
+            source: 'c',
+            at: ['a', 'b + 1'],
+            options: [{ name: 'show', value: '[point, normal, tangent_plane]' }],
+            span: { start: 0, end: 0 },
+        },
+        {
             type: 'integral',
             name: 'I',
             source: 'c',
@@ -62,20 +70,28 @@ const ast: AstProgram = {
 };
 
 describe('compileScene', () => {
-    it('compiles core DSL objects and camera state', () => {
+    it('compiles core DSL objects and integral state', () => {
         const scene = compileScene(ast);
 
-        expect(scene.params).toHaveLength(1);
+        expect(scene.params).toHaveLength(2);
         expect(scene.objects).toHaveLength(3);
         expect(scene.objects[0].kind).toBe('curve');
         expect(scene.objects[1].kind).toBe('surface');
         expect(scene.objects[2].kind).toBe('vector_field');
-        expect(scene.camera.projection).toBe('orthographic');
-        expect(scene.camera.rotationLock).toBe(true);
-        expect(scene.camera.home).toBe('front');
+        expect(scene.analyses).toHaveLength(1);
+        expect(scene.analyses[0].point[0]).toBe(2);
+        expect(scene.analyses[0].point[1]).toBe(2);
+        expect(scene.analyses[0].show).toContain('tangent_plane');
         expect(scene.integrals).toHaveLength(1);
         expect(scene.integrals[0].method).toBe('riemann');
         expect(scene.integrals[0].sourceKind).toBe('curve');
+    });
+
+    it('evaluates analysis at expressions with current parameter overrides', () => {
+        const scene = compileScene(ast, { b: 3 });
+
+        expect(scene.analyses[0].point[0]).toBe(2);
+        expect(scene.analyses[0].point[1]).toBe(4);
     });
 
     it('rejects unimplemented differential operators instead of ignoring them', () => {
@@ -96,5 +112,21 @@ describe('compileScene', () => {
         };
 
         expect(() => compileScene(badAst)).toThrow('暂未实现');
+    });
+
+    it('compiles a transform chain with pi and function calls', () => {
+        const transformAst: AstProgram = {
+            statements: [
+                {
+                    type: 'tensor',
+                    kind: 'transform',
+                    name: 'T2',
+                    expr: 'translate([2, 1, 0]) * rotate([0, 0, pi / 4]) * scale([1.5, 1, 1])',
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        expect(() => compileScene(transformAst)).not.toThrow();
     });
 });

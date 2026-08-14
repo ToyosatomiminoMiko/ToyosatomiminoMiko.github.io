@@ -18,12 +18,6 @@ export interface ParamStatement {
     span: SourceSpan;
 }
 
-export interface CameraStatement {
-    type: 'camera';
-    options: OptionPair[];
-    span: SourceSpan;
-}
-
 export type TensorKind = 'scalar' | 'vector' | 'matrix' | 'transform';
 
 export interface TensorStatement {
@@ -66,7 +60,6 @@ export interface IntegralStatement {
 
 export type AstStatement =
     | ParamStatement
-    | CameraStatement
     | TensorStatement
     | ObjectStatement
     | AnalysisStatement

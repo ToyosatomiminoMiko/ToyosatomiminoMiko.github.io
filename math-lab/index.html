@@ -20,22 +20,18 @@
             </header>
             <section id="editor-panel">
                 <textarea id="dsl-editor" spellcheck="false">
-param a = 2 in [-5, 5, 0.1];
-param b = 1 in [-3, 3, 0.1];
+param a = 1 in [-5, 5, 0.1];
+param b = 1 in [-5, 5, 0.1];
+param j = 0 in [-5, 5, 0.1];
+param k = 0 in [-5, 5, 0.1];
 
-camera {
-    projection = perspective;
-    rotation_lock = false;
-    home = isometric;
-}
-
-curve c1 = sin(x * a) {
+curve c1 = sin(x * a) * cos(x * b) {
     color = "#6dd5ff";
     range = [-8, 8];
     segments = 256;
 }
 
-surface s1 = sin(x) * cos(y * b) {
+surface s1 = sin(x * a) * cos(y * b) {
     color = "#ff6b8a";
     range = [-6, 6, -6, 6];
     segments = 96;
@@ -69,7 +65,7 @@ surface s3 = sin(x) * cos(y) {
     segments = 96;
 }
 
-gradient g = grad(s1) at [0.2, -0.5] {
+gradient g = grad(s1) at [j, k] {
     show = [point, normal, tangent_plane];
 }
 
@@ -109,9 +105,6 @@ integral I2 = integral(s1) {
                         <span class="slider"></span>
                     </label>
                     <span class="cam-label" data-cam="orthographic">正交</span>
-                </div>
-
-                <div class="cam-toggle">
                     <span>锁定旋转</span>
                     <label class="switch">
                         <input type="checkbox" id="rotationLockToggle">

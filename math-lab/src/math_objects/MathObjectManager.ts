@@ -30,7 +30,6 @@ export class MathObjectManager {
         this._colorManager = colorManager;
         this._derivativeService = new DerivativeService();
         this._objectFactory = new MathObjectFactory(colorManager);
-        this._addDefaults();
     }
 
     // ========== 查询 ==========
@@ -241,16 +240,6 @@ export class MathObjectManager {
     }
 
     // ========== 内部 ==========
-
-    private _addDefaults(): void {
-        const defaults = APP_CONFIG.defaultExpressions;
-        defaults['2d'].forEach(item => {
-            this.addCurve(item.fn, item.color);
-        });
-        defaults['3d'].forEach(item => {
-            this.addSurface(item.fn, item.color);
-        });
-    }
 
     private _findSource<T extends MathObject['kind']>(
         id: number,

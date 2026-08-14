@@ -10,18 +10,6 @@ export const APP_CONFIG = {
         '#2dd4bf', '#e879f9', '#facc15', '#4ade80',
     ] as readonly string[],
 
-    defaultExpressions: {
-        '2d': [
-            { fn: 'sin(x)', color: '#6dd5ff' },
-            { fn: 'cos(x)', color: '#ff6b8a' },
-        ],
-        '3d': [
-            { fn: 'sin(x*a) * cos(y*b)', color: '#ffd93d' },
-            { fn: 'exp(-(x*x + y*y) / a) * b', color: '#6bffb8' },
-            { fn: 'x ^ 2 * a + y ^ 2 * b + c', color: '#a78bfa' },
-        ],
-    },
-
     camera: {
         defaultMode: 'perspective' as const,
         frustumSize: 14,

@@ -19,9 +19,6 @@ param_value = @{ (!( " in" ~ (" " | "\t")* ~ "[" | ";" | "{" | "}") ~ ANY)+ }
 param_stmt = { "param" ~ ident ~ "=" ~ param_value ~ param_ui? ~ ";" }
 param_ui = { "in" ~ "[" ~ number ~ "," ~ number ~ "," ~ number ~ "]" }
 
-camera_stmt = { "camera" ~ "{" ~ camera_option* ~ "}" }
-camera_option = { ident ~ "=" ~ value ~ ";" }
-
 tensor_kind = { "scalar" | "vector" | "matrix" | "transform" }
 tensor_stmt = { tensor_kind ~ ident ~ "=" ~ expr ~ ";" }
 
@@ -35,7 +32,8 @@ value = @{ (!(";" | "}") ~ ANY)+ }
 analysis_op = { "gradient" | "divergence" | "curl" | "jacobian" | "laplacian" }
 op_call = { ident ~ "(" ~ op_arg ~ ")" ~ at? }
 op_arg = @{ (!")" ~ ANY)+ }
-at = { "at" ~ "[" ~ number ~ ("," ~ number)+ ~ "]" }
+at = { "at" ~ "[" ~ at_arg ~ ("," ~ at_arg)+ ~ "]" }
+at_arg = @{ (!( "," | "]") ~ ANY)+ }
 analysis_stmt = { analysis_op ~ ident ~ "=" ~ op_call ~ analysis_end }
 analysis_end = { options ~ ";"? | ";" }
 
@@ -43,5 +41,5 @@ integral_stmt = { "integral" ~ ident ~ "=" ~ integral_call ~ integral_end }
 integral_call = { "integral" ~ "(" ~ ident ~ ")" }
 integral_end = { options ~ ";"? | ";" }
 
-statement = _{ param_stmt | camera_stmt | tensor_stmt | object_stmt | analysis_stmt | integral_stmt }
+statement = _{ param_stmt | tensor_stmt | object_stmt | analysis_stmt | integral_stmt }
 program = { SOI ~ statement* ~ EOI }

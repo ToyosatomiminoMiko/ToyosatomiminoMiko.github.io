@@ -42,7 +42,7 @@ fn pair_ident(pair: &Pair<'_, Rule>) -> String {
 fn option_pairs(pair: &Pair<'_, Rule>) -> Vec<(String, String)> {
     pair.clone()
         .into_inner()
-        .filter(|child| child.as_rule() == Rule::option || child.as_rule() == Rule::camera_option)
+        .filter(|child| child.as_rule() == Rule::option)
         .map(|child| {
             let mut name = String::new();
             let mut value = String::new();
@@ -118,15 +118,6 @@ fn param_to_json(pair: &Pair<'_, Rule>) -> String {
     format!("{{{}}}", fields.join(","))
 }
 
-fn camera_to_json(pair: &Pair<'_, Rule>) -> String {
-    let options = option_pairs(pair);
-    format!(
-        "{{\"type\":\"camera\",\"options\":{},{}}}",
-        options_json(&options),
-        span_json(pair)
-    )
-}
-
 fn tensor_to_json(pair: &Pair<'_, Rule>) -> String {
     let mut kind = String::new();
     let mut name = String::new();
@@ -200,12 +191,12 @@ fn analysis_to_json(pair: &Pair<'_, Rule>) -> String {
                         Rule::ident => call = inner.as_str().to_string(),
                         Rule::op_arg => source = inner.as_str().trim().to_string(),
                         Rule::at => {
-                            let nums: Vec<String> = inner
+                            let args: Vec<String> = inner
                                 .into_inner()
-                                .filter(|n| n.as_rule() == Rule::number)
-                                .map(|n| n.as_str().to_string())
+                                .filter(|n| n.as_rule() == Rule::at_arg)
+                                .map(|n| n.as_str().trim().to_string())
                                 .collect();
-                            at = Some(nums);
+                            at = Some(args);
                         }
                         _ => {}
                     }
@@ -231,10 +222,10 @@ fn analysis_to_json(pair: &Pair<'_, Rule>) -> String {
     ];
 
     match &at {
-        Some(nums) => {
-            let items: Vec<String> = nums
+        Some(args) => {
+            let items: Vec<String> = args
                 .iter()
-                .map(|n| format!("\"{}\"", json_escape(n)))
+                .map(|value| format!("\"{}\"", json_escape(value)))
                 .collect();
             fields.push(format!("\"at\":[{}]", items.join(",")));
         }
@@ -285,7 +276,6 @@ fn integral_to_json(pair: &Pair<'_, Rule>) -> String {
 fn statement_to_json(pair: Pair<'_, Rule>) -> String {
     match pair.as_rule() {
         Rule::param_stmt => param_to_json(&pair),
-        Rule::camera_stmt => camera_to_json(&pair),
         Rule::tensor_stmt => tensor_to_json(&pair),
         Rule::object_stmt => object_to_json(&pair),
         Rule::analysis_stmt => analysis_to_json(&pair),
@@ -313,15 +303,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parses_param_camera_tensor_object() {
+    fn parses_param_tensor_object_and_integral() {
         let src = r##"
 // 这是单行注释
 param a = 2 in [-5, 5, 0.1];
-camera {
-    projection = perspective;
-    rotation_lock = false;
-    home = isometric;
-}
 scalar k = 2.5;
 vector v = [1, 2, 3];
 matrix M = [[1, 0], [0, 1]];
@@ -341,7 +326,7 @@ vector_field F = [y, -x, 0] {
     grid = [8, 8, 8];
     scale = 1.2;
 }
-gradient g = grad(s1) at [0.2, -0.5] {
+gradient g = grad(s1) at [a, b + 1] {
     show = [point, normal, tangent_plane];
 }
 curl c = curl(F) at [1, 2, 3];
@@ -359,7 +344,6 @@ integral I2 = integral(s1) {
 "##;
         let json = parse_to_json(src).unwrap();
         assert!(json.contains("\"type\":\"param\""));
-        assert!(json.contains("\"type\":\"camera\""));
         assert!(json.contains("\"type\":\"tensor\""));
         assert!(json.contains("\"type\":\"object\""));
         assert!(json.contains("\"type\":\"analysis\""));

@@ -20,20 +20,15 @@ Math-lab 的当前入口是 `index.html`，它加载 `src/main.ts`，再由
 ```text
 param a = 2 in [-5, 5, 0.1];
 param b = 1 in [-3, 3, 0.1];
+param k = 1.5 in [-4, 4, 0.1];
 
-camera {
-    projection = perspective;
-    rotation_lock = false;
-    home = isometric;
-}
-
-curve c1 = sin(x * a) {
+curve c1 = sin(x * a) * cos(k * x) {
     color = "#6dd5ff";
     range = [-8, 8];
     segments = 256;
 }
 
-surface s1 = sin(x) * cos(y * b) {
+surface s1 = sin(x * k) * cos(y * b) {
     color = "#ff6b8a";
     range = [-6, 6, -6, 6];
     segments = 96;
@@ -45,7 +40,7 @@ vector_field F = [y, -x, a] {
     scale = 1.2;
 }
 
-gradient g = grad(s1) at [0.2, -0.5] {
+gradient g = grad(s1) at [a, b] {
     show = [point, normal, tangent_plane];
 }
 
@@ -69,13 +64,18 @@ integral I2 = integral(s1) {
 ## 当前支持范围
 
 - `param`：参数面板与实时刷新
-- `camera`：透视/正交、旋转锁定、初始视角，已由 `DslApp` 应用
 - `curve` / `surface` / `vector_field`：基础几何对象
 - `matrix` / `transform`：对象场景变换
 - `gradient` / `divergence` / `curl`：点分析
 - `gradient` 的 `show = [point, normal, tangent_plane]`：已支持
 - `integral`：一维/二维数值积分和黎曼/勒贝格可视化，方法为
   `trapezoid`、`simpson`、`riemann`、`lebesgue`
+
+相机状态不进入 DSL：透视/正交与旋转锁定由右侧 UI 开关控制，
+`camera:view` 按钮只负责预设视角。
+
+系数名不限于 `a`、`b`、`c`。只要不是 `sin`、`pi`、`e` 等内置符号，
+`k`、`omega`、`theta` 这类标识符都会被识别为自由参数。
 
 ## 明确不支持但会报错
 

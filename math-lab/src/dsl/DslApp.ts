@@ -103,7 +103,6 @@ export class DslApp {
             );
 
             if (scene) {
-                this._applyCamera(scene.camera);
                 for (const analysis of scene.analyses) {
                     if (analysis.op === 'divergence') {
                         this._addDiagnostic('info', `${analysis.name}: divergence = ${analysis.scalar}`);
@@ -156,16 +155,6 @@ export class DslApp {
         this.controls?.update();
         this.sceneManager.render(this.cameraManager.getCamera());
     };
-
-    private _applyCamera(camera: {
-        projection: 'perspective' | 'orthographic';
-        rotationLock: boolean;
-        home: 'top' | 'bottom' | 'front' | 'back' | 'left' | 'right' | 'isometric';
-    }): void {
-        this.cameraManager.setCameraMode(camera.projection);
-        this.cameraManager.setView(camera.home);
-        this.cameraManager.setRotationLock(camera.rotationLock);
-    }
 
     private _refreshObjects(): ReturnType<typeof compileScene> | null {
         if (!this.currentAst) return null;
