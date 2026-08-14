@@ -3,7 +3,9 @@ use wasm_bindgen::prelude::*;
 mod field_core;
 mod integral_core;
 mod parser_wasm;
+mod sampling_core;
 mod surface_utils;
+mod transform_core;
 
 // ================================================================
 // .miko DSL 解析器
@@ -12,6 +14,100 @@ mod surface_utils;
 #[wasm_bindgen]
 pub fn parse_miko(source: &str) -> Result<String, JsValue> {
     parser_wasm::parse_to_json(source).map_err(|e| JsValue::from_str(&e))
+}
+
+// ================================================================
+// 4x4 矩阵变换
+// ================================================================
+
+fn mat4_error(message: impl Into<String>) -> JsValue {
+    JsValue::from_str(&message.into())
+}
+
+#[wasm_bindgen]
+pub fn mat4_identity() -> Vec<f64> {
+    transform_core::identity4().to_vec()
+}
+
+#[wasm_bindgen]
+pub fn mat4_translate(tx: f64, ty: f64, tz: f64) -> Vec<f64> {
+    transform_core::translate4(tx, ty, tz).to_vec()
+}
+
+#[wasm_bindgen]
+pub fn mat4_scale(sx: f64, sy: f64, sz: f64) -> Vec<f64> {
+    transform_core::scale4(sx, sy, sz).to_vec()
+}
+
+#[wasm_bindgen]
+pub fn mat4_rotate(rx: f64, ry: f64, rz: f64) -> Vec<f64> {
+    transform_core::rotate4(rx, ry, rz).to_vec()
+}
+
+#[wasm_bindgen]
+pub fn mat4_multiply(a: Vec<f64>, b: Vec<f64>) -> Result<Vec<f64>, JsValue> {
+    let a = transform_core::from_flat(a).map_err(mat4_error)?;
+    let b = transform_core::from_flat(b).map_err(mat4_error)?;
+    Ok(transform_core::multiply4x4(a, b).to_vec())
+}
+
+#[wasm_bindgen]
+pub fn mat4_apply_point(matrix: Vec<f64>, x: f64, y: f64, z: f64) -> Result<Vec<f64>, JsValue> {
+    let matrix = transform_core::from_flat(matrix).map_err(mat4_error)?;
+    Ok(transform_core::apply_to_point(matrix, x, y, z).to_vec())
+}
+
+// ================================================================
+// 曲线 / 向量场采样
+// ================================================================
+
+#[wasm_bindgen]
+pub fn sample_curve(
+    expr: &str,
+    coeff_names: Vec<String>,
+    coeff_values: Vec<f64>,
+    x_min: f64,
+    x_max: f64,
+    steps: usize,
+) -> Result<Vec<f32>, JsValue> {
+    sampling_core::sample_curve(expr, &coeff_names, &coeff_values, x_min, x_max, steps)
+        .map_err(mat4_error)
+}
+
+#[wasm_bindgen]
+pub fn sample_vector_field(
+    p_expr: &str,
+    q_expr: &str,
+    r_expr: &str,
+    coeff_names: Vec<String>,
+    coeff_values: Vec<f64>,
+    x_min: f64,
+    x_max: f64,
+    y_min: f64,
+    y_max: f64,
+    z_min: f64,
+    z_max: f64,
+    nx: usize,
+    ny: usize,
+    nz: usize,
+) -> Result<Vec<f32>, JsValue> {
+    sampling_core::sample_vector_field(
+        p_expr,
+        q_expr,
+        r_expr,
+        &coeff_names,
+        &coeff_values,
+        x_min,
+        x_max,
+        y_min,
+        y_max,
+        z_min,
+        z_max,
+        nx,
+        ny,
+        nz,
+    )
+    .map_err(mat4_error)
 }
 
 // ================================================================

@@ -1,6 +1,17 @@
 import { parse, type MathNode } from 'mathjs';
 import type { Coefficient } from './types';
 import { extractCoefficients } from './coefficientUtils';
+import init, { sample_vector_field as wasmSampleVectorField } from '../wasm/ml_wasm';
+import { logWarning } from '../service/logger';
+
+let wasmReady = false;
+const wasmInit = init().then(() => {
+    wasmReady = true;
+}).catch(() => {
+    wasmReady = false;
+});
+
+void wasmInit;
 
 /**
  * 合并三个分量表达式中提取的系数,去重并生成 Coefficient 对象
@@ -64,6 +75,33 @@ export function parseVectorField(components: [string, string, string]): {
  * @returns Float32Array,长度为 nx*ny*nz*3,存储顺序为 [vx, vy, vz, vx, vy, vz, ...]
  */
 export function sampleVectorField(
+    nodes: { P: MathNode; Q: MathNode; R: MathNode },
+    coefficients: Coefficient[],
+    range: { x: [number, number]; y: [number, number]; z: [number, number] },
+    gridSize: [number, number, number],
+): Float32Array {
+    if (wasmReady) {
+        try {
+            return wasmSampleVectorField(
+                nodes.P.toString(),
+                nodes.Q.toString(),
+                nodes.R.toString(),
+                coefficients.map((coefficient) => coefficient.name),
+                new Float64Array(coefficients.map((coefficient) => coefficient.value)),
+                range.x[0], range.x[1],
+                range.y[0], range.y[1],
+                range.z[0], range.z[1],
+                gridSize[0], gridSize[1], gridSize[2],
+            );
+        } catch (error) {
+            logWarning('VectorField', 'WASM 向量场采样失败,回退到 mathjs:', error);
+        }
+    }
+
+    return sampleVectorFieldFallback(nodes, coefficients, range, gridSize);
+}
+
+function sampleVectorFieldFallback(
     nodes: { P: MathNode; Q: MathNode; R: MathNode },
     coefficients: Coefficient[],
     range: { x: [number, number]; y: [number, number]; z: [number, number] },

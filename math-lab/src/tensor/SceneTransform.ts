@@ -19,6 +19,23 @@ export interface SceneTransform {
     source?: TransformSource;
 }
 
+type Mat4 = number[][];
+
+export interface MatrixWasmBackend {
+    identity(): Mat4;
+    translate(values: number[]): Mat4;
+    scale(values: number[]): Mat4;
+    rotate(values: number[]): Mat4;
+    multiply(a: Mat4, b: Mat4): Mat4;
+    apply(matrix: Mat4, point: number[]): number[];
+}
+
+let matrixBackend: MatrixWasmBackend | null = null;
+
+export function registerMatrixWasmBackend(backend: MatrixWasmBackend): void {
+    matrixBackend = backend;
+}
+
 function clone4x4(matrix: number[][]): number[][] {
     return matrix.map((row) => [...row]);
 }
@@ -60,8 +77,76 @@ export function matrix4(transform: SceneTransform): MatrixTensorValue {
     };
 }
 
+/** 单位 4x4 矩阵。 */
+export function identity4(): Mat4 {
+    return matrixBackend?.identity() ?? [
+        [1, 0, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 1, 0],
+        [0, 0, 0, 1],
+    ];
+}
+
+/** 平移矩阵。 */
+export function translate4(values: number[]): Mat4 {
+    return matrixBackend?.translate(values) ?? [
+        [1, 0, 0, values[0] ?? 0],
+        [0, 1, 0, values[1] ?? 0],
+        [0, 0, 1, values[2] ?? 0],
+        [0, 0, 0, 1],
+    ];
+}
+
+/** 缩放矩阵。 */
+export function scale4(values: number[]): Mat4 {
+    return matrixBackend?.scale(values) ?? [
+        [values[0] ?? 1, 0, 0, 0],
+        [0, values[1] ?? 1, 0, 0],
+        [0, 0, values[2] ?? 1, 0],
+        [0, 0, 0, 1],
+    ];
+}
+
+/** 旋转矩阵,顺序与旧实现一致: Rz * Ry * Rx。 */
+export function rotate4(values: number[]): Mat4 {
+    if (matrixBackend) return matrixBackend.rotate(values);
+
+    const rx = values[0] ?? 0;
+    const ry = values[1] ?? 0;
+    const rz = values[2] ?? 0;
+    const cx = Math.cos(rx);
+    const sx = Math.sin(rx);
+    const cy = Math.cos(ry);
+    const sy = Math.sin(ry);
+    const cz = Math.cos(rz);
+    const sz = Math.sin(rz);
+
+    const rxM: Mat4 = [
+        [1, 0, 0, 0],
+        [0, cx, -sx, 0],
+        [0, sx, cx, 0],
+        [0, 0, 0, 1],
+    ];
+    const ryM: Mat4 = [
+        [cy, 0, sy, 0],
+        [0, 1, 0, 0],
+        [-sy, 0, cy, 0],
+        [0, 0, 0, 1],
+    ];
+    const rzM: Mat4 = [
+        [cz, -sz, 0, 0],
+        [sz, cz, 0, 0],
+        [0, 0, 1, 0],
+        [0, 0, 0, 1],
+    ];
+
+    return multiply4x4(multiply4x4(rzM, ryM), rxM);
+}
+
 /** 两个 4x4 矩阵相乘,结果仍为行主序 4x4. */
 export function multiply4x4(a: number[][], b: number[][]): number[][] {
+    if (matrixBackend) return matrixBackend.multiply(a, b);
+
     assert4x4(a);
     assert4x4(b);
 
@@ -103,6 +188,11 @@ export function apply(transform: SceneTransform, point: VectorTensorValue): Vect
     const values = point.values;
     if (values.length !== 3) {
         throw new TypeError('apply(transform, point) 需要 3 分量向量');
+    }
+
+    if (matrixBackend) {
+        const out = matrixBackend.apply(transform.matrix, values);
+        return { kind: 'vector', values: [out[0], out[1], out[2]] };
     }
 
     const v = [values[0], values[1], values[2], 1];

@@ -9,7 +9,13 @@ import type {
     VectorFieldExpr,
 } from '../math_objects/types';
 import { extractCoefficients } from '../math_objects/coefficientUtils';
-import { multiply4x4 } from '../tensor/SceneTransform';
+import {
+    identity4,
+    multiply4x4,
+    rotate4,
+    scale4,
+    translate4,
+} from '../tensor/SceneTransform';
 
 export interface ParamDeclaration {
     name: string;
@@ -262,66 +268,6 @@ function compileObject(
 
 function cloneMat4(matrix: Mat4): Mat4 {
     return matrix.map((row) => [...row]);
-}
-
-function identity4(): Mat4 {
-    return [
-        [1, 0, 0, 0],
-        [0, 1, 0, 0],
-        [0, 0, 1, 0],
-        [0, 0, 0, 1],
-    ];
-}
-
-function translate4(values: number[]): Mat4 {
-    return [
-        [1, 0, 0, values[0] ?? 0],
-        [0, 1, 0, values[1] ?? 0],
-        [0, 0, 1, values[2] ?? 0],
-        [0, 0, 0, 1],
-    ];
-}
-
-function scale4(values: number[]): Mat4 {
-    return [
-        [values[0] ?? 1, 0, 0, 0],
-        [0, values[1] ?? 1, 0, 0],
-        [0, 0, values[2] ?? 1, 0],
-        [0, 0, 0, 1],
-    ];
-}
-
-function rotate4(values: number[]): Mat4 {
-    const rx = values[0] ?? 0;
-    const ry = values[1] ?? 0;
-    const rz = values[2] ?? 0;
-    const cx = Math.cos(rx);
-    const sx = Math.sin(rx);
-    const cy = Math.cos(ry);
-    const sy = Math.sin(ry);
-    const cz = Math.cos(rz);
-    const sz = Math.sin(rz);
-
-    const rxM: Mat4 = [
-        [1, 0, 0, 0],
-        [0, cx, -sx, 0],
-        [0, sx, cx, 0],
-        [0, 0, 0, 1],
-    ];
-    const ryM: Mat4 = [
-        [cy, 0, sy, 0],
-        [0, 1, 0, 0],
-        [-sy, 0, cy, 0],
-        [0, 0, 0, 1],
-    ];
-    const rzM: Mat4 = [
-        [cz, -sz, 0, 0],
-        [sz, cz, 0, 0],
-        [0, 0, 1, 0],
-        [0, 0, 0, 1],
-    ];
-
-    return multiply4x4(multiply4x4(rzM, ryM), rxM);
 }
 
 function evaluateNumber(raw: string, scope?: Record<string, number>): number | null {

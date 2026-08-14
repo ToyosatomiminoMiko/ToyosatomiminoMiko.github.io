@@ -3,6 +3,17 @@ import type { EvalFunction } from 'mathjs';
 import type { IRenderer } from './IRenderer';
 import type { CurveExpr } from '../../math_objects/types';
 import { compilationCache } from '../../math_objects/CompilationCache';
+import init, { sample_curve as wasmSampleCurve } from '../../wasm/ml_wasm';
+import { logWarning } from '../../service/logger';
+
+let wasmReady = false;
+const wasmInit = init().then(() => {
+    wasmReady = true;
+}).catch(() => {
+    wasmReady = false;
+});
+
+void wasmInit;
 
 export class CurveRenderer implements IRenderer {
     readonly group = new THREE.Group();
@@ -52,11 +63,10 @@ export class CurveRenderer implements IRenderer {
         }
 
         // 直接写入,零分配
-        const pointCount = this._sampleCurveDirect(
-            compiled,
-            posAttr.array as Float32Array,
-            0,
-        );
+        const target = posAttr.array as Float32Array;
+        const pointCount = wasmReady
+            ? this._sampleCurveWasm(target)
+            : this._sampleCurveDirect(compiled, target, 0);
 
         if (pointCount < 2) {
             this.group.visible = false;
@@ -120,5 +130,36 @@ export class CurveRenderer implements IRenderer {
             } catch (_) { /* 跳过奇异点 */ }
         }
         return count;
+    }
+
+    /**
+     * 使用 Rust/WASM 采样曲线,并直接写入目标数组.
+     *
+     * 返回实际写入的顶点数.若 WASM 调用失败,则回退到 mathjs 采样.
+     */
+    private _sampleCurveWasm(target: Float32Array): number {
+        try {
+            const sampled = wasmSampleCurve(
+                this.curve.node.toString(),
+                this.curve.coefficients.map((coefficient) => coefficient.name),
+                new Float64Array(this.curve.coefficients.map((coefficient) => coefficient.value)),
+                this.xRange[0],
+                this.xRange[1],
+                this.steps,
+            );
+
+            const count = sampled.length / 3;
+            if (count * 3 > target.length) {
+                target.set(sampled.subarray(0, target.length));
+                return target.length / 3;
+            }
+
+            target.set(sampled);
+            return count;
+        } catch (error) {
+            logWarning('CurveRenderer', 'WASM 曲线采样失败,回退到 mathjs:', error);
+            const compiled = compilationCache.getByNode(this.curve.node);
+            return this._sampleCurveDirect(compiled, target, 0);
+        }
     }
 }
