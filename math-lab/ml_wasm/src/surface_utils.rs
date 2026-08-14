@@ -112,7 +112,7 @@ pub struct SurfaceSampleResult {
 
 // 向 context 中注册 evalexpr 默认不包含的常用数学函数
 // HashMapContext 内置只有基础算术,sin/cos/exp 等需要手动注册
-fn register_builtins(ctx: &mut HashMapContext) {
+pub(crate) fn register_builtins(ctx: &mut HashMapContext) {
     let funcs: &[(&str, fn(f64) -> f64)] = &[
         ("sin", f64::sin),
         ("cos", f64::cos),
