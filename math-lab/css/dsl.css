@@ -16,6 +16,11 @@ body {
     width: 100vw;
     height: 100vh;
     overflow: hidden;
+    --left-panel-width: 300px;
+    --right-panel-width: 300px;
+    --footer-height: 200px;
+    --collapsed-side-width: 44px;
+    --collapsed-footer-height: 40px;
 }
 
 #viewport {
@@ -39,7 +44,7 @@ body {
     top: 0;
     left: 0;
     bottom: 0;
-    width: 300px;
+    width: var(--left-panel-width);
     z-index: 20;
 }
 
@@ -47,27 +52,25 @@ body {
     top: 0;
     right: 0;
     bottom: 0;
-    width: 300px;
+    width: var(--right-panel-width);
     z-index: 20;
 }
 
 #bottom-panel {
-    left: 0;
-    right: 0;
+    left: var(--left-panel-width);
+    right: var(--right-panel-width);
     bottom: 0;
-    height: 200px;
+    height: var(--footer-height);
 }
 
 #left-panel.collapsed,
 #right-panel.collapsed {
-    width: auto;
+    width: var(--collapsed-side-width);
     bottom: auto;
 }
 
 #bottom-panel.collapsed {
-    width: auto;
-    right: auto;
-    height: auto;
+    height: var(--collapsed-footer-height);
 }
 
 .panel-header {
@@ -90,6 +93,42 @@ body {
     padding: 3px 8px;
     cursor: pointer;
     white-space: nowrap;
+}
+
+.resize-handle {
+    position: absolute;
+    z-index: 30;
+    touch-action: none;
+    user-select: none;
+    background: transparent;
+}
+
+.resize-handle:hover {
+    background: rgba(109, 213, 255, 0.18);
+}
+
+.resize-handle-right {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 6px;
+    cursor: ew-resize;
+}
+
+.resize-handle-left {
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 6px;
+    cursor: ew-resize;
+}
+
+.resize-handle-top {
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 6px;
+    cursor: ns-resize;
 }
 
 .panel-title {
