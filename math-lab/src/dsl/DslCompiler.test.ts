@@ -110,6 +110,35 @@ describe('compileScene', () => {
         expect(scene.analyses[0].point[1]).toBe(4);
     });
 
+    it('reuses parsed nodes for repeated compiles of the same AST', () => {
+        const first = compileScene(ast);
+        const second = compileScene(ast, { b: 3 });
+
+        expect((second.objects[0] as { node: unknown }).node)
+            .toBe((first.objects[0] as { node: unknown }).node);
+    });
+
+    it('rejects odd Simpson segments instead of silently adjusting them', () => {
+        const badAst: AstProgram = {
+            statements: [
+                ast.statements[2],
+                {
+                    type: 'integral',
+                    name: 'I',
+                    source: 'c',
+                    options: [
+                        { name: 'method', value: 'simpson' },
+                        { name: 'range', value: '[-4, 4]' },
+                        { name: 'segments', value: '31' },
+                    ],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        expect(() => compileScene(badAst)).toThrow('辛普森法要求分段数必须为偶数');
+    });
+
     it('rejects unimplemented differential operators instead of ignoring them', () => {
         const badAst: AstProgram = {
             statements: [

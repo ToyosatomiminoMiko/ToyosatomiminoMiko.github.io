@@ -181,8 +181,20 @@ pub fn sample_and_process_surface(
         for i in 0..=cols {
             let x = x_min + (x_max - x_min) * (i as f64 / cols as f64);
 
-            ctx.set_value("x".to_string(), Value::Float(x)).unwrap();
-            ctx.set_value("y".to_string(), Value::Float(y)).unwrap();
+            // 这里每次循环都更新同一个变量 x / y。
+            // evalexpr 的 set_value 会返回 Result：
+            //   - 变量不存在时，插入新值；
+            //   - 变量已存在且类型相同（我们都是 Float），直接覆盖；
+            //   - 类型不同才会报错。
+            //
+            // 本函数已经通过 Result<String> 向 WASM 边界传递错误，
+            // 所以采样热路径里不能 unwrap：一旦未来代码改了变量类型，
+            // unwrap 会让整个 WASM 模块直接 panic；改成 `?` 则把错误
+            // 沿调用链返回给前端诊断，而不是炸掉模块。
+            ctx.set_value("x".to_string(), Value::Float(x))
+                .map_err(|e| format!("设置采样变量 x 失败: {}", e))?;
+            ctx.set_value("y".to_string(), Value::Float(y))
+                .map_err(|e| format!("设置采样变量 y 失败: {}", e))?;
 
             let z: f64 = match node.eval_with_context(&ctx) {
                 Ok(Value::Float(v)) if v.is_finite() => v,

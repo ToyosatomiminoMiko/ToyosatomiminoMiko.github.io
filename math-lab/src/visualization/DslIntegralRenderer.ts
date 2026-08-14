@@ -91,7 +91,7 @@ export class DslIntegralRenderer {
         coeffs: Record<string, number>,
     ): Promise<number> {
         const expr = source.node.toString();
-        const segments = this._evenForSimpson(task);
+        const segments = task.segments;
 
         if (source.kind === 'curve') {
             const [a, b] = task.range as [number, number];
@@ -133,7 +133,7 @@ export class DslIntegralRenderer {
         if (source.kind === 'curve') {
             const [a, b] = task.range as [number, number];
             const fn = this._makeFn(source) as (x: number) => number;
-            const segments = this._evenForSimpson(task);
+            const segments = task.segments;
             if (task.method === 'lebesgue') {
                 const sampleN = segments * 20;
                 this.visualizer.visualize2DLebesgue(
@@ -160,7 +160,7 @@ export class DslIntegralRenderer {
 
         const [xMin, xMax, yMin, yMax] = task.range as [number, number, number, number];
         const fn = this._makeFn(source) as (x: number, y: number) => number;
-        const segments = this._evenForSimpson(task);
+        const segments = task.segments;
         if (task.method === 'lebesgue') {
             const sampleGrid = segments * 4;
             this.visualizer.visualize3DLebesgue(
@@ -212,8 +212,4 @@ export class DslIntegralRenderer {
         return result;
     }
 
-    private _evenForSimpson(task: IntegralTask): number {
-        if (task.method !== 'simpson') return task.segments;
-        return task.segments % 2 === 0 ? task.segments : task.segments + 1;
-    }
 }

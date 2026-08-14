@@ -66,6 +66,56 @@ const COLOR_PALETTE = ['#6dd5ff', '#ff6b8a', '#ffd93d', '#6bffb8', '#c084fc', '#
 const INTEGRAL_METHODS = new Set<IntegralMethod>(['trapezoid', 'simpson', 'riemann', 'lebesgue']);
 const SHOW_KINDS = new Set(['point', 'normal', 'tangent_plane']);
 
+type CurveBlueprint = {
+    name: string;
+    id: number;
+    kind: 'curve';
+    node: MathNode;
+    coefficientNames: string[];
+    color: string;
+    range?: [number, number];
+    segments?: number;
+};
+
+type SurfaceBlueprint = {
+    name: string;
+    id: number;
+    kind: 'surface';
+    node: MathNode;
+    coefficientNames: string[];
+    color: string;
+    range: [number, number, number, number];
+    segments?: number;
+};
+
+type VectorFieldBlueprint = {
+    name: string;
+    id: number;
+    kind: 'vector_field';
+    nodeP: MathNode;
+    nodeQ: MathNode;
+    nodeR: MathNode;
+    coefficientNames: string[];
+    color: string;
+    gridSize: [number, number, number];
+    range: {
+        x: [number, number];
+        y: [number, number];
+        z: [number, number];
+    };
+    glyphScale: number;
+};
+
+type ObjectBlueprint = CurveBlueprint | SurfaceBlueprint | VectorFieldBlueprint;
+
+type StaticScene = {
+    params: Map<string, ParamDeclaration>;
+    objectBlueprints: ObjectBlueprint[];
+    objectTransforms: Map<number, Mat4>;
+};
+
+const staticSceneCache = new WeakMap<AstProgram, StaticScene>();
+
 function findOption(options: OptionPair[], name: string): string | undefined {
     return options.find((item) => item.name === name)?.value;
 }
@@ -145,31 +195,6 @@ function applyParamOverrides(
     }
 }
 
-function buildCoefficients(
-    nodes: MathNode[],
-    variables: Set<string>,
-    params: Map<string, ParamDeclaration>,
-    overrides: Record<string, number>,
-): Coefficient[] {
-    const names = new Set<string>();
-    for (const node of nodes) {
-        for (const coefficient of extractCoefficients(node, variables)) {
-            names.add(coefficient.name);
-        }
-    }
-
-    return [...names].map((name) => {
-        const declared = params.get(name);
-        return {
-            name,
-            value: overrides[name] ?? declared?.value ?? 1,
-            min: declared?.min ?? -10,
-            max: declared?.max ?? 10,
-            step: declared?.step ?? 0.1,
-        };
-    });
-}
-
 function parseVectorComponents(raw: string): [MathNode, MathNode, MathNode] {
     const node = math.parse(raw);
     if (node.type === 'ArrayNode') {
@@ -181,12 +206,37 @@ function parseVectorComponents(raw: string): [MathNode, MathNode, MathNode] {
     throw new Error('vector_field 需要 [P, Q, R] 形式的向量表达式');
 }
 
-function compileObject(
-    statement: ObjectStatement,
-    id: number,
+function extractCoefficientNames(nodes: MathNode[], variables: Set<string>): string[] {
+    const names = new Set<string>();
+    for (const node of nodes) {
+        for (const coefficient of extractCoefficients(node, variables)) {
+            names.add(coefficient.name);
+        }
+    }
+    return [...names];
+}
+
+function materializeCoefficients(
+    names: string[],
     params: Map<string, ParamDeclaration>,
     overrides: Record<string, number>,
-): MathObject | null {
+): Coefficient[] {
+    return names.map((name) => {
+        const declared = params.get(name);
+        return {
+            name,
+            value: overrides[name] ?? declared?.value ?? 1,
+            min: declared?.min ?? -10,
+            max: declared?.max ?? 10,
+            step: declared?.step ?? 0.1,
+        };
+    });
+}
+
+function buildObjectBlueprint(
+    statement: ObjectStatement,
+    id: number,
+): ObjectBlueprint | null {
     const color = stripQuotes(findOption(statement.options, 'color') ?? COLOR_PALETTE[id % COLOR_PALETTE.length]);
 
     if (statement.kind === 'curve') {
@@ -197,18 +247,16 @@ function compileObject(
             ? [rangeValues[0] ?? -8, rangeValues[1] ?? 8] as [number, number]
             : undefined;
         const segments = optionalNumber(findOption(statement.options, 'segments'));
-        const coefficients = buildCoefficients([node], new Set(['x']), params, overrides);
-
         return {
-            kind: 'curve',
+            name: statement.name,
             id,
+            kind: 'curve',
             node,
-            coefficients,
+            coefficientNames: extractCoefficientNames([node], new Set(['x'])),
             color,
-            enabled: true,
             range,
             segments,
-        } satisfies CurveExpr;
+        };
     }
 
     if (statement.kind === 'surface') {
@@ -222,18 +270,16 @@ function compileObject(
             rangeValues[3] ?? 6,
         ] as [number, number, number, number];
         const segments = optionalNumber(findOption(statement.options, 'segments'));
-        const coefficients = buildCoefficients([node], new Set(['x', 'y']), params, overrides);
-
         return {
-            kind: 'surface',
+            name: statement.name,
             id,
+            kind: 'surface',
             node,
-            coefficients,
+            coefficientNames: extractCoefficientNames([node], new Set(['x', 'y'])),
             color,
-            enabled: true,
             range,
             segments,
-        } satisfies SurfaceExpr;
+        };
     }
 
     if (statement.kind === 'vector_field') {
@@ -242,18 +288,15 @@ function compileObject(
         const rangeValues = rawRange ? parseNumberList(rawRange) : [-4, 4, -4, 4, -4, 4];
         const gridValues = parseNumberList(findOption(statement.options, 'grid') ?? '[8, 8, 8]');
         const glyphScale = optionalNumber(findOption(statement.options, 'scale')) ?? 1.2;
-        const coefficients = buildCoefficients([nodeP, nodeQ, nodeR], new Set(['x', 'y', 'z']), params, overrides);
-
         return {
-            kind: 'vector_field',
+            name: statement.name,
             id,
-            components: [nodeP.toString(), nodeQ.toString(), nodeR.toString()],
+            kind: 'vector_field',
             nodeP,
             nodeQ,
             nodeR,
-            coefficients,
+            coefficientNames: extractCoefficientNames([nodeP, nodeQ, nodeR], new Set(['x', 'y', 'z'])),
             color,
-            enabled: true,
             gridSize: [gridValues[0] ?? 8, gridValues[1] ?? 8, gridValues[2] ?? 8] as [number, number, number],
             range: {
                 x: [rangeValues[0] ?? -4, rangeValues[1] ?? 4],
@@ -261,10 +304,73 @@ function compileObject(
                 z: [rangeValues[4] ?? -4, rangeValues[5] ?? 4],
             },
             glyphScale,
-        } satisfies VectorFieldExpr;
+        };
     }
 
     return null;
+}
+
+function materializeObject(
+    blueprint: ObjectBlueprint,
+    params: Map<string, ParamDeclaration>,
+    overrides: Record<string, number>,
+): MathObject {
+    if (blueprint.kind === 'curve') {
+        return {
+            kind: 'curve',
+            id: blueprint.id,
+            node: blueprint.node,
+            coefficients: materializeCoefficients(blueprint.coefficientNames, params, overrides),
+            color: blueprint.color,
+            enabled: true,
+            range: blueprint.range,
+            segments: blueprint.segments,
+        } satisfies CurveExpr;
+    }
+
+    if (blueprint.kind === 'surface') {
+        return {
+            kind: 'surface',
+            id: blueprint.id,
+            node: blueprint.node,
+            coefficients: materializeCoefficients(blueprint.coefficientNames, params, overrides),
+            color: blueprint.color,
+            enabled: true,
+            range: blueprint.range,
+            segments: blueprint.segments,
+        } satisfies SurfaceExpr;
+    }
+
+    return {
+        kind: 'vector_field',
+        id: blueprint.id,
+        components: [blueprint.nodeP.toString(), blueprint.nodeQ.toString(), blueprint.nodeR.toString()],
+        nodeP: blueprint.nodeP,
+        nodeQ: blueprint.nodeQ,
+        nodeR: blueprint.nodeR,
+        coefficients: materializeCoefficients(blueprint.coefficientNames, params, overrides),
+        color: blueprint.color,
+        enabled: true,
+        gridSize: blueprint.gridSize,
+        range: blueprint.range,
+        glyphScale: blueprint.glyphScale,
+    } satisfies VectorFieldExpr;
+}
+
+function cloneParams(params: Map<string, ParamDeclaration>): Map<string, ParamDeclaration> {
+    const clone = new Map<string, ParamDeclaration>();
+    for (const [name, param] of params) {
+        clone.set(name, { ...param });
+    }
+    return clone;
+}
+
+function cloneObjectTransforms(transforms: Map<number, Mat4>): Map<number, Mat4> {
+    const clone = new Map<number, Mat4>();
+    for (const [id, matrix] of transforms) {
+        clone.set(id, cloneMat4(matrix));
+    }
+    return clone;
 }
 
 // ============================================================
@@ -520,6 +626,9 @@ function compileIntegralTask(
     }
 
     const segments = optionalNumber(findOption(statement.options, 'segments')) ?? 32;
+    if (method === 'simpson' && segments % 2 !== 0) {
+        throw new Error(`积分 ${statement.name} 的辛普森法要求分段数必须为偶数,当前为 ${segments}`);
+    }
     const layers = optionalNumber(findOption(statement.options, 'layers')) ?? Math.min(32, segments);
     const show = findOption(statement.options, 'show') !== 'false';
 
@@ -535,13 +644,12 @@ function compileIntegralTask(
     };
 }
 
-export function compileScene(ast: AstProgram, paramOverrides: Record<string, number> = {}): CompiledScene {
+function buildStaticScene(ast: AstProgram): StaticScene {
     const params = collectParams(ast);
     const matrices = new Map<string, Mat4>();
     const transforms = new Map<string, Mat4>();
-    const objects: MathObject[] = [];
+    const objectBlueprints: ObjectBlueprint[] = [];
     const objectTransforms = new Map<number, Mat4>();
-    const integrals: IntegralTask[] = [];
 
     for (const statement of ast.statements) {
         if (statement.type === 'tensor' && statement.kind === 'matrix') {
@@ -563,42 +671,59 @@ export function compileScene(ast: AstProgram, paramOverrides: Record<string, num
         }
     }
 
-    const objectByName = new Map<string, MathObject>();
     let nextId = 1;
     for (const statement of ast.statements) {
         if (statement.type === 'object') {
-            const object = compileObject(statement, nextId, params, paramOverrides);
-            if (object) {
-                objects.push(object);
-                objectByName.set(statement.name, object);
+            const blueprint = buildObjectBlueprint(statement, nextId);
+            if (blueprint) {
+                objectBlueprints.push(blueprint);
                 const transform = resolveObjectTransform(
                     findOption(statement.options, 'transform'),
                     transforms,
                     matrices,
                 );
-                if (transform) objectTransforms.set(object.id, transform);
+                if (transform) objectTransforms.set(blueprint.id, transform);
                 nextId += 1;
             }
         }
     }
 
-    for (const object of objects) {
-        if (object.kind !== 'curve' && object.kind !== 'surface' && object.kind !== 'vector_field') continue;
-        for (const coefficient of object.coefficients) {
-            if (!params.has(coefficient.name)) {
-                params.set(coefficient.name, {
-                    name: coefficient.name,
-                    value: coefficient.value,
-                    min: coefficient.min,
-                    max: coefficient.max,
-                    step: coefficient.step,
+    for (const blueprint of objectBlueprints) {
+        for (const name of blueprint.coefficientNames) {
+            if (!params.has(name)) {
+                params.set(name, {
+                    name,
+                    value: 1,
+                    min: -10,
+                    max: 10,
+                    step: 0.1,
                 });
             }
         }
     }
 
+    return { params, objectBlueprints, objectTransforms };
+}
+
+export function compileScene(ast: AstProgram, paramOverrides: Record<string, number> = {}): CompiledScene {
+    let staticScene = staticSceneCache.get(ast);
+    if (!staticScene) {
+        staticScene = buildStaticScene(ast);
+        staticSceneCache.set(ast, staticScene);
+    }
+
+    const params = cloneParams(staticScene.params);
+    const objects = staticScene.objectBlueprints.map((blueprint) =>
+        materializeObject(blueprint, params, paramOverrides),
+    );
     applyParamOverrides(params, paramOverrides);
 
+    const objectByName = new Map<string, MathObject>();
+    for (let i = 0; i < staticScene.objectBlueprints.length; i += 1) {
+        objectByName.set(staticScene.objectBlueprints[i].name, objects[i]);
+    }
+
+    const integrals: IntegralTask[] = [];
     for (const statement of ast.statements) {
         if (statement.type !== 'integral') continue;
         integrals.push(compileIntegralTask(statement, objectByName));
@@ -607,7 +732,7 @@ export function compileScene(ast: AstProgram, paramOverrides: Record<string, num
     return {
         params: [...params.values()],
         objects,
-        objectTransforms,
+        objectTransforms: cloneObjectTransforms(staticScene.objectTransforms),
         analyses: compileAnalyses(ast, objectByName, params),
         integrals,
     };
