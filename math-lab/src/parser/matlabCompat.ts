@@ -1,14 +1,23 @@
 type MatlabAlias = 'surf' | 'plot' | 'quiver3' | 'divergence' | 'curl' | 'gradient';
 
-const anonymousCounters = new Map<string, number>();
+type MatlabNormalizer = {
+    anonymousCounters: Map<string, number>;
+};
 
-function resetAnonymousCounter(): void {
-    anonymousCounters.clear();
+/**
+ * 每次归一化都创建独立上下文，避免模块级可变全局状态。
+ *
+ * 旧实现把匿名计数器放在模块顶层，导致调用顺序会隐式影响结果：
+ * 直接调用 normalizeMatlabCalls 和先调用 normalizeMatlabSyntax 可能共享状态。
+ * 现在计数器跟随一次归一化过程，函数可以安全地独立调用。
+ */
+function createMatlabNormalizer(): MatlabNormalizer {
+    return { anonymousCounters: new Map<string, number>() };
 }
 
-function nextAnonymousName(prefix: string): string {
-    const next = (anonymousCounters.get(prefix) ?? 0) + 1;
-    anonymousCounters.set(prefix, next);
+function nextAnonymousName(normalizer: MatlabNormalizer, prefix: string): string {
+    const next = (normalizer.anonymousCounters.get(prefix) ?? 0) + 1;
+    normalizer.anonymousCounters.set(prefix, next);
     return `_matlab_${prefix}_${next}`;
 }
 
@@ -154,8 +163,13 @@ export function removeSyms(source: string): string {
     return source.replace(/\bsyms\s+[^;\n]*;?/g, '');
 }
 
-function buildCanonicalStatement(fn: MatlabAlias, assignedName: string, args: string[]): string {
-    const name = assignedName || nextAnonymousName(fn);
+function buildCanonicalStatement(
+    normalizer: MatlabNormalizer,
+    fn: MatlabAlias,
+    assignedName: string,
+    args: string[],
+): string {
+    const name = assignedName || nextAnonymousName(normalizer, fn);
 
     switch (fn) {
         case 'surf': {
@@ -188,8 +202,10 @@ function buildCanonicalStatement(fn: MatlabAlias, assignedName: string, args: st
 }
 
 /** 把 MATLAB 风格的绘图 / 微分算子调用改写成 `.miko` 声明. */
-export function normalizeMatlabCalls(source: string): string {
-    anonymousCounters.clear();
+export function normalizeMatlabCalls(
+    source: string,
+    normalizer: MatlabNormalizer = createMatlabNormalizer(),
+): string {
     const pattern = /(?:([A-Za-z_][A-Za-z0-9_]*)\s*=\s*)?\b(surf|plot|quiver3|divergence|curl|gradient)\s*\(/g;
     let result = '';
     let lastIndex = 0;
@@ -215,7 +231,7 @@ export function normalizeMatlabCalls(source: string): string {
         }
 
         result += source.slice(lastIndex, match.index);
-        result += buildCanonicalStatement(fn, assignedName, args);
+        result += buildCanonicalStatement(normalizer, fn, assignedName, args);
         lastIndex = end;
         pattern.lastIndex = end;
     }
@@ -226,11 +242,11 @@ export function normalizeMatlabCalls(source: string): string {
 
 /** MATLAB 兼容入口:依次做归一化，结果交给 `.miko` parser. */
 export function normalizeMatlabSyntax(source: string): string {
-    resetAnonymousCounter();
+    const normalizer = createMatlabNormalizer();
     let result = source;
     result = removeSyms(result);
     result = normalizeElementwise(result);
     result = normalizeMatlabMatrixLiterals(result);
-    result = normalizeMatlabCalls(result);
+    result = normalizeMatlabCalls(result, normalizer);
     return result;
 }
