@@ -1,8 +1,4 @@
-import { Application } from './core/Application';
-import { SidebarController } from './ui/SidebarController';
+import { DslApp } from './dsl/DslApp';
 
-const app = new Application();
+const app = new DslApp();
 app.start();
-
-const sidebar = new SidebarController();
-sidebar.init();

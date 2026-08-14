@@ -9,3 +9,5 @@ crate-type = ["cdylib"]
 [dependencies]
 wasm-bindgen = "0.2.93"
 evalexpr = "11"
+pest = "2"
+pest_derive = "2"

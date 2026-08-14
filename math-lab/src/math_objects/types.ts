@@ -29,6 +29,8 @@ export interface CurveExpr {
     coefficients: Coefficient[];
     color: string;
     enabled: boolean;
+    range?: [number, number];
+    segments?: number;
 }
 
 /** 曲面:二元函数 z = f(x, y) */
@@ -39,6 +41,8 @@ export interface SurfaceExpr {
     coefficients: Coefficient[];
     color: string;
     enabled: boolean;
+    range?: [number, number, number, number];
+    segments?: number;
 }
 
 /** 空间点 */
@@ -100,8 +104,8 @@ export type MathObject = CurveExpr
 // 视图 / 相机类型
 // ================================================================
 
-export type ViewMode = '2d' | '3d';
 export type CamMode = 'perspective' | 'orthographic';
+export type ViewHome = 'top' | 'bottom' | 'front' | 'back' | 'left' | 'right' | 'isometric';
 
 // ================================================================
 // 事件映射 —— 全面使用 diskindcrimininated union 的事件键名
@@ -112,8 +116,9 @@ export interface MathLabEvents {
     'mathobj:removed': { id: number };
     'mathobj:toggled': { id: number; enabled: boolean };
     'mathobj:updated': { id: number };
-    'mode:changed': { mode: ViewMode };
     'camera:changed': { camMode: CamMode };
+    'camera:view': { view: ViewHome };
+    'camera:rotationLock': { locked: boolean };
     'integral:calculated': { results: { id: number; value: number }[]; total: number };
     'coefficient:changed': { id: number };
     'selection:changed': { id: number | null; kind: string | null };

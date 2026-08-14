@@ -11,18 +11,21 @@ import type { SurfaceExpr } from '../../math_objects/types';
  */
 export class SurfaceRenderer implements IRenderer {
     readonly group = new THREE.Group();
-    readonly mode = '3d' as const;
     private mesh: SurfaceMesh | null = null;
     private userVisible = true;
-    private modeVisible = false;
-    constructor(
-        private surface: SurfaceExpr,
-        private readonly range: [number, number] = [-6, 6],
-        private segments: number = 64,
-    ) { }
+    private readonly xRange: [number, number];
+    private readonly yRange: [number, number];
+    private segments: number;
+
+    constructor(private surface: SurfaceExpr) {
+        const range = surface.range;
+        this.xRange = range ? [range[0], range[1]] : [-6, 6];
+        this.yRange = range ? [range[2], range[3]] : [-6, 6];
+        this.segments = surface.segments ?? 64;
+    }
 
     get visible(): boolean {
-        return this.userVisible && this.modeVisible;
+        return this.userVisible;
     }
 
     draw(): void {
@@ -43,8 +46,8 @@ export class SurfaceRenderer implements IRenderer {
         this.mesh.update(
             expr, // 字符串,不再是 CompiledFn
             this.surface.coefficients,
-            this.range[0], this.range[1],
-            this.range[0], this.range[1],
+            this.xRange[0], this.xRange[1],
+            this.yRange[0], this.yRange[1],
         );
 
         this.group.visible = this.visible;
@@ -52,12 +55,6 @@ export class SurfaceRenderer implements IRenderer {
 
     setVisible(v: boolean): void {
         this.userVisible = v;
-        this.group.visible = this.visible;
-    }
-
-    /** 供 Plotter 模式切换时调用 */
-    setModeVisible(v: boolean): void {
-        this.modeVisible = v;
         this.group.visible = this.visible;
     }
 

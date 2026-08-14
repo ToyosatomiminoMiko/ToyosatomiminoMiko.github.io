@@ -9,7 +9,6 @@ import type { PointEntity } from '../../math_objects/types';
  */
 export class PointRenderer implements IRenderer {
     readonly group = new THREE.Group();
-    readonly mode = 'both' as const;
     private sphere: THREE.Mesh;
     private material: THREE.MeshPhongMaterial;
 

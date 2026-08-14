@@ -265,16 +265,25 @@ pub fn compute_vertex_normals(positions: &[f32], valid_indices: &[u32]) -> Vec<f
         let ic = triangle[2] as usize;
 
         // 索引理论上都在合法范围内,这里做防御性检查
-        if ia >= positions.len() / 3
-            || ib >= positions.len() / 3
-            || ic >= positions.len() / 3
-        {
+        if ia >= positions.len() / 3 || ib >= positions.len() / 3 || ic >= positions.len() / 3 {
             continue;
         }
 
-        let a = (positions[ia * 3], positions[ia * 3 + 1], positions[ia * 3 + 2]);
-        let b = (positions[ib * 3], positions[ib * 3 + 1], positions[ib * 3 + 2]);
-        let c = (positions[ic * 3], positions[ic * 3 + 1], positions[ic * 3 + 2]);
+        let a = (
+            positions[ia * 3],
+            positions[ia * 3 + 1],
+            positions[ia * 3 + 2],
+        );
+        let b = (
+            positions[ib * 3],
+            positions[ib * 3 + 1],
+            positions[ib * 3 + 2],
+        );
+        let c = (
+            positions[ic * 3],
+            positions[ic * 3 + 1],
+            positions[ic * 3 + 2],
+        );
 
         let abx = b.0 - a.0;
         let aby = b.1 - a.1;

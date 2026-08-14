@@ -24,12 +24,7 @@ export const APP_CONFIG = {
 
     camera: {
         defaultMode: 'perspective' as const,
-        defaultView: '3d' as const,
-        frustumSize: { '2d': 12, '3d': 14 },
-        initViewPositions: {
-            '2d': [0, 0, 20] as readonly number[],
-            '3d': [12, 8, 12] as readonly number[],
-        },
+        frustumSize: 14,
         initViewTarget: [0, 0, 0] as readonly number[],
     },
 

@@ -4,8 +4,8 @@ import { differentiateCurve } from './Curve';
 import { differentiateSurface } from './Surface';
 
 /**
- * 求导逻辑与导数节点缓存。
- * 从 MathObjectManager 中剥离，使管理器只负责对象生命周期与查询。
+ * 求导逻辑与导数节点缓存.
+ * 从 MathObjectManager 中剥离,使管理器只负责对象生命周期与查询.
  */
 export class DerivativeService {
     private readonly _cache = new WeakMap<

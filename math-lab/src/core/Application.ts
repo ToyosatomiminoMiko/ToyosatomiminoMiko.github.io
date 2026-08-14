@@ -12,15 +12,19 @@ import { IntegralVisualizer } from '../visualization/IntegralVisualizer';
 import { GradientVisualizer } from '../visualization/GradientVisualizer';
 import { SelectionManager } from '../ui/SelectionManager';
 import { DetailPanel } from '../ui/DetailPanel';
-import { ModeController } from '../ui/ModeController';
 import { CameraToggle } from '../ui/CameraToggle';
+import { ViewCubeController } from '../ui/ViewCubeController';
+import { RotationLockController } from '../ui/RotationLockController';
 import { ExprInputController } from '../ui/ExprInputController';
 import { ExprListRenderer } from '../ui/ExprListRenderer';
 import { ensureReady } from '../visualization/SurfaceMeshWasm';
 
 /**
- * Application — math-lab 的启动编排器。
- * 将原先平铺在 main.ts 中的初始化、事件绑定、渲染循环集中到生命周期中。
+ * Application — math-lab 的启动编排器.
+ * 将原先平铺在 main.ts 中的初始化\事件绑定\渲染循环集中到生命周期中.
+ *
+ * @deprecated 当前入口是 src/dsl/DslApp.ts，本类为旧交互式 UI 的 legacy 代码，
+ * 不再被 src/main.ts 加载。保留作为参考，后续可整体迁移或删除。
  */
 export class Application {
     private readonly eventBus: EventBus<MathLabEvents>;
@@ -32,7 +36,6 @@ export class Application {
     private readonly plotter: Plotter;
     private readonly integralVisualizer: IntegralVisualizer;
     private readonly gradientVisualizer: GradientVisualizer;
-    private readonly modeController: ModeController;
     private readonly dirtyObjectIds = new Set<number>();
 
     private controls: OrbitControls | null = null;
@@ -71,7 +74,6 @@ export class Application {
         this.plotter = new Plotter(this.sceneManager.getScene());
         this.integralVisualizer = new IntegralVisualizer(this.sceneManager.getScene());
         this.gradientVisualizer = new GradientVisualizer(this.sceneManager.getScene());
-        this.modeController = new ModeController(this.eventBus);
 
         this._wireUi();
         this._wireEvents();
@@ -86,7 +88,7 @@ export class Application {
         this.animate();
 
         ensureReady().then(() => this._drawAll());
-        logDebug('[MathPlot] 初始化完成！使用 2D/3D 模式绘制数学表达式');
+        logDebug('[MathPlot] 初始化完成！统一 3D 场景');
     }
 
     dispose(): void {
@@ -113,6 +115,8 @@ export class Application {
     private _wireUi(): void {
         const selectionManager = new SelectionManager(this.eventBus);
         new CameraToggle(this.eventBus);
+        new ViewCubeController(this.eventBus);
+        new RotationLockController(this.eventBus);
         new ExprInputController(this.eventBus, this.objectManager, this.colorManager);
         new ExprListRenderer(this.eventBus, this.objectManager, selectionManager);
         new DetailPanel(
@@ -125,11 +129,6 @@ export class Application {
     }
 
     private _wireEvents(): void {
-        this.eventBus.on('mode:changed', ({ mode }) => {
-            this.cameraManager.setViewMode(mode);
-            this.plotter.updateMode(mode);
-        });
-
         this.eventBus.on('mathobj:added', ({ object }: { object: MathObject }) => {
             this._drawObjectImmediately(object);
         });
@@ -145,7 +144,7 @@ export class Application {
 
         this.eventBus.on('mathobj:updated', ({ id }) => {
             const obj = this.objectManager.getById(id);
-            if (obj) this.plotter.updateObject(obj, this.modeController.getMode());
+            if (obj) this.plotter.updateObject(obj);
         });
 
         this.eventBus.on('coefficient:changed', ({ id }) => {
@@ -154,6 +153,14 @@ export class Application {
 
         this.eventBus.on('camera:changed', ({ camMode }) => {
             this.cameraManager.setCameraMode(camMode);
+        });
+
+        this.eventBus.on('camera:view', ({ view }) => {
+            this.cameraManager.setView(view);
+        });
+
+        this.eventBus.on('camera:rotationLock', ({ locked }) => {
+            this.cameraManager.setRotationLock(locked);
         });
     }
 
@@ -189,20 +196,17 @@ export class Application {
 
     private _processDirtyDraws(): void {
         if (this.dirtyObjectIds.size === 0) return;
-        const mode = this.modeController.getMode();
         for (const id of this.dirtyObjectIds) {
             const obj = this.objectManager.getById(id);
-            if (obj) this.plotter.updateObject(obj, mode);
+            if (obj) this.plotter.updateObject(obj);
         }
         this.dirtyObjectIds.clear();
     }
 
     private _drawAll(): void {
-        const mode = this.modeController.getMode();
         for (const obj of this.objectManager.getAll()) {
             if (obj.enabled) this._drawObjectImmediately(obj);
         }
-        this.plotter.updateMode(mode);
     }
 
     private _drawObjectImmediately(obj: MathObject): void {

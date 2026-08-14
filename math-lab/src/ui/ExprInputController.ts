@@ -52,7 +52,7 @@ export class ExprInputController {
     private _updateDimensionHint(): void {
         const type = this.exprTypeSelect.value;
         if (type === 'vector_field') {
-            this.dimensionHint.textContent = '向量场 F(x,y,z) = [P, Q, R]，分量用逗号分隔';
+            this.dimensionHint.textContent = '向量场 F(x,y,z) = [P, Q, R],分量用逗号分隔';
             return;
         }
         this.dimensionHint.textContent =

@@ -1,11 +1,11 @@
 import type { MathNode, EvalFunction } from 'mathjs';
 
 /**
- * 统一的表达式编译缓存。
- * 原先 CurveRenderer / GradientCore / IntegralWorker 各自维护缓存，
- * 这里收口为同一个策略：
- * - MathNode 使用 WeakMap，避免阻止 GC
- * - 字符串表达式使用带上限的 Map，避免长期运行无限增长
+ * 统一的表达式编译缓存.
+ * 原先 CurveRenderer / GradientCore / IntegralWorker 各自维护缓存,
+ * 这里收口为同一个策略:
+ * - MathNode 使用 WeakMap,避免阻止 GC
+ * - 字符串表达式使用带上限的 Map,避免长期运行无限增长
  */
 export class CompilationCache {
     private readonly _nodeCache = new WeakMap<MathNode, EvalFunction>();

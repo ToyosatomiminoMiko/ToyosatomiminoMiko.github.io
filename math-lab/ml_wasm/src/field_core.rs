@@ -1,21 +1,19 @@
-use evalexpr::{
-    build_operator_tree, ContextWithMutableVariables, HashMapContext, Value,
-};
+use evalexpr::{build_operator_tree, ContextWithMutableVariables, HashMapContext, Value};
 
 use crate::surface_utils::register_builtins;
 
 // ================================================================
-// field_core — 标量场 / 向量场的梯度、散度、旋度数值核心
+// field_core — 标量场 / 向量场的梯度\散度\旋度数值核心
 //
 // 架构流程:
 //   mathjs 负责解析表达式并生成符号偏导表达式
 //     -> Rust 负责在给定点和系数下做数值求值
 //     -> wasm-bindgen 暴露给 Worker / 主线程
 //
-// 这里只做数值计算,不处理 UI,也不重复实现符号微分。
+// 这里只做数值计算,不处理 UI,也不重复实现符号微分.
 // ================================================================
 
-/// 构建带系数和坐标的求值上下文。
+/// 构建带系数和坐标的求值上下文.
 fn build_context(
     coeff_names: &[String],
     coeff_values: &[f64],
@@ -41,10 +39,9 @@ fn build_context(
     Ok(ctx)
 }
 
-/// 求值一个标量表达式。
+/// 求值一个标量表达式.
 fn eval_scalar(expr: &str, ctx: &HashMapContext) -> Result<f64, String> {
-    let node =
-        build_operator_tree(expr).map_err(|e| format!("表达式解析失败: {}", e))?;
+    let node = build_operator_tree(expr).map_err(|e| format!("表达式解析失败: {}", e))?;
 
     match node.eval_with_context(ctx) {
         Ok(Value::Float(value)) if value.is_finite() => Ok(value),
@@ -133,11 +130,7 @@ pub fn evaluate_curl_point(
     let dq_dx = eval_scalar(dq_dx_expr, &ctx)?;
     let dp_dy = eval_scalar(dp_dy_expr, &ctx)?;
 
-    Ok((
-        dr_dy - dq_dz,
-        dp_dz - dr_dx,
-        dq_dx - dp_dy,
-    ))
+    Ok((dr_dy - dq_dz, dp_dz - dr_dx, dq_dx - dp_dy))
 }
 
 #[cfg(test)]
@@ -151,16 +144,9 @@ mod tests {
     #[test]
     fn gradient_of_quadratic_surface() {
         let (names, values) = no_coeffs();
-        let (f0, fx, fy) = evaluate_gradient_point(
-            "x^2 + y^2",
-            "2 * x",
-            "2 * y",
-            &names,
-            &values,
-            3.0,
-            4.0,
-        )
-        .unwrap();
+        let (f0, fx, fy) =
+            evaluate_gradient_point("x^2 + y^2", "2 * x", "2 * y", &names, &values, 3.0, 4.0)
+                .unwrap();
 
         assert!((f0 - 25.0).abs() < 1e-9);
         assert!((fx - 6.0).abs() < 1e-9);
@@ -170,17 +156,8 @@ mod tests {
     #[test]
     fn divergence_of_identity_field() {
         let (names, values) = no_coeffs();
-        let value = evaluate_divergence_point(
-            "1",
-            "1",
-            "1",
-            &names,
-            &values,
-            2.0,
-            -3.0,
-            7.0,
-        )
-        .unwrap();
+        let value =
+            evaluate_divergence_point("1", "1", "1", &names, &values, 2.0, -3.0, 7.0).unwrap();
 
         assert!((value - 3.0).abs() < 1e-9);
     }
@@ -189,17 +166,7 @@ mod tests {
     fn curl_of_rotational_field() {
         let (names, values) = no_coeffs();
         let (cx, cy, cz) = evaluate_curl_point(
-            "0",
-            "0",
-            "0",
-            "0",
-            "1",
-            "-1",
-            &names,
-            &values,
-            1.0,
-            2.0,
-            3.0,
+            "0", "0", "0", "0", "1", "-1", &names, &values, 1.0, 2.0, 3.0,
         )
         .unwrap();
 

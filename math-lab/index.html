@@ -3,26 +3,105 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>数学可视化 2D/3D</title>
-    <link href="css/index.css" rel="stylesheet" type="text/css">
-    <link href="css/detail.css" rel="stylesheet" type="text/css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math-Lab DSL</title>
+    <link href="css/dsl.css" rel="stylesheet" type="text/css">
 </head>
 
 <body>
-    <!-- Three.js 画布 -->
-    <div id="canvas-container"></div>
-    <!-- 右侧控制面板 -->
-    <div id="panel">
-        <h2>📐 表达式控制台</h2>
+    <div id="app">
+        <div id="viewport"></div>
 
-        <!-- 可隐藏部分 -->
-        <div class="panel-body">
-            <!-- 模式切换 -->
-            <div class="mode-row">
-                <button class="mode-btn active" data-mode="2d">2D</button>
-                <button class="mode-btn" data-mode="3d">3D</button>
+        <aside id="left-panel" class="panel">
+            <header class="panel-header">
+                <span class="panel-title">源码</span>
+                <button id="run-btn">运行</button>
+                <button data-panel-toggle="#left-panel">收起</button>
+            </header>
+            <section id="editor-panel">
+                <textarea id="dsl-editor" spellcheck="false">
+param a = 2 in [-5, 5, 0.1];
+param b = 1 in [-3, 3, 0.1];
 
-                <!-- 相机切换开关 -->
+camera {
+    projection = perspective;
+    rotation_lock = false;
+    home = isometric;
+}
+
+curve c1 = sin(x * a) {
+    color = "#6dd5ff";
+    range = [-8, 8];
+    segments = 256;
+}
+
+surface s1 = sin(x) * cos(y * b) {
+    color = "#ff6b8a";
+    range = [-6, 6, -6, 6];
+    segments = 96;
+}
+
+vector_field F = [y, -x, a] {
+    range = [-4, 4, -4, 4, -4, 4];
+    grid = [8, 8, 8];
+    scale = 1.2;
+}
+
+matrix M = [
+    [1, 0, 0, 2],
+    [0, 1, 0, 3],
+    [0, 0, 1, 4],
+    [0, 0, 0, 1],
+];
+
+transform T = as_transform(M);
+
+surface s2 = sin(x) * cos(y) {
+    transform = T;
+    range = [-6, 6, -6, 6];
+    segments = 96;
+}
+
+transform T2 = translate([2, 1, 0]) * rotate([0, 0, pi / 4]) * scale([1.5, 1, 1]);
+
+surface s3 = sin(x) * cos(y) {
+    range = [-6, 6, -6, 6];
+    segments = 96;
+}
+
+gradient g = grad(s1) at [0.2, -0.5] {
+    show = [point, normal, tangent_plane];
+}
+
+divergence d = div(F) at [1, 2, 3];
+
+curl c = curl(F) at [1, 2, 3];
+
+integral I1 = integral(c1) {
+    method = riemann;
+    range = [-4, 4];
+    segments = 32;
+};
+
+integral I2 = integral(s1) {
+    method = lebesgue;
+    range = [-3, 3, -3, 3];
+    segments = 32;
+    layers = 16;
+};
+</textarea>
+            </section>
+        </aside>
+
+        <aside id="right-panel" class="panel">
+            <header class="panel-header">
+                <span class="panel-title">参数</span>
+                <button data-panel-toggle="#right-panel">收起</button>
+            </header>
+            <section id="params-panel"></section>
+
+            <header class="panel-header">视图</header>
+            <section id="view-controls">
                 <div class="cam-toggle">
                     <span class="cam-label active" data-cam="perspective">透视</span>
                     <label class="switch">
@@ -32,58 +111,34 @@
                     <span class="cam-label" data-cam="orthographic">正交</span>
                 </div>
 
-            </div>
-
-            <!-- 表达式列表 -->
-            <div class="expr-list" id="exprList">
-                <!-- 由 JS 动态渲染 -->
-                <div class="empty-hint">暂无表达式,添加一个吧 ✨</div>
-            </div>
-
-            <!-- 添加表达式 -->
-            <div class="add-area">
-                <div class="add-row">
-                    <select id="exprTypeSelect">
-                        <option value="2d">2D</option>
-                        <option value="3d">3D</option>
-                        <option value="vector_field">🏹 向量场</option>
-                    </select>
-                    <input type="text" id="exprInput" placeholder='example: sin(x)' spellcheck="false" />
-                    <button class="add-btn" id="addExprBtn">+ 添加</button>
-                </div>
-                <div class="color-picker-row">
-                    <label>颜色</label>
-                    <input type="color" id="exprColorPicker" value="#6dd5ff" />
-                    <label style="margin-left:8px;font-size:12px;color:#5a6a8a;">
-                        提示: 使用 <code style="background:rgba(255,255,255,0.06);padding:0 6px;border-radius:4px;">x</code>
-                        <span id="dimensionHint">(一元)</span>
+                <div class="cam-toggle">
+                    <span>锁定旋转</span>
+                    <label class="switch">
+                        <input type="checkbox" id="rotationLockToggle">
+                        <span class="slider"></span>
                     </label>
                 </div>
-                <button id="addPointBtn">📍 添加点</button>
-            </div>
-            <!-- 详情面板 -->
-            <div class="detail-area" id="detailArea">
-                <div class="detail-tabs" id="detailTabs">
-                    <button class="detail-tab active" data-tab="edit">📝 编辑</button>
-                    <button class="detail-tab" data-tab="derivative">📐 求导</button>
-                    <button class="detail-tab" data-tab="integral">📊 积分</button>
-                    <button class="detail-tab" data-tab="gradient">📐 梯度</button>
-                    <button class="detail-tab" data-tab="vector_field">🏹 向量场</button>
-                    <div class="detail-color-picker" id="detailColorPicker">
-                        <label>颜色</label>
-                        <input type="color" value="#ffffff" />
-                    </div>
+
+                <div id="viewcube" class="viewcube">
+                    <button type="button" data-view="top">上</button>
+                    <button type="button" data-view="front">前</button>
+                    <button type="button" data-view="right">右</button>
+                    <button type="button" data-view="isometric" class="active">ISO</button>
                 </div>
-                <div class="detail-content" id="detailContent">
-                    <!-- 动态填充 -->
-                </div>
-            </div>
-        </div>
+            </section>
+        </aside>
+
+        <footer id="bottom-panel" class="panel">
+            <header class="panel-header">
+                <span class="panel-title">输出</span>
+                <button data-panel-toggle="#bottom-panel">收起</button>
+            </header>
+            <section id="output-panel">
+                <div id="diagnostics"></div>
+            </section>
+        </footer>
     </div>
-    <!-- 左侧抽屉切换把手 -->
-    <button id="sidebarToggleBtn" title="fold/unfold">▶</button>
-    <!-- 面板宽度拖拽手柄 -->
-    <div id="resizeHandle"></div>
+
     <script type="module" src="./src/main.ts"></script>
 </body>
 

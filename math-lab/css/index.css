@@ -292,6 +292,44 @@ body {
     box-shadow: 0 0 16px rgba(70, 130, 255, 0.10);
 }
 
+/* ViewCube */
+.viewcube {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+
+.viewcube button {
+    flex: 1;
+    padding: 5px 0;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    color: #8e9fc7;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.viewcube button:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #c8d6f0;
+}
+
+.viewcube button.active {
+    background: rgba(70, 130, 255, 0.25);
+    border-color: rgba(70, 130, 255, 0.45);
+    color: #aac8ff;
+}
+
+.view-controls {
+    justify-content: space-between;
+}
+
+.view-controls .cam-toggle {
+    margin-left: 0;
+}
+
 /* 表达式列表 */
 .expr-list {
     flex: 1;

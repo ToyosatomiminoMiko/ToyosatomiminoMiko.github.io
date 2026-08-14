@@ -6,18 +6,18 @@ import { compilationCache } from '../../math_objects/CompilationCache';
 
 export class CurveRenderer implements IRenderer {
     readonly group = new THREE.Group();
-    readonly mode = '2d' as const;
     private line: THREE.Line | null = null;
     private userVisible = true;
-    private modeVisible = false;  // 由 Plotter 路由控制
-    constructor(
-        public curve: CurveExpr,
-        private readonly xRange: [number, number] = [-8, 8],
-        private readonly steps: number = 320,
-    ) { }
+    private readonly xRange: [number, number];
+    private readonly steps: number;
+
+    constructor(public curve: CurveExpr) {
+        this.xRange = curve.range ?? [-8, 8];
+        this.steps = curve.segments ?? 320;
+    }
 
     get visible(): boolean {
-        return this.userVisible && this.modeVisible;
+        return this.userVisible;
     }
 
     /**
@@ -70,12 +70,6 @@ export class CurveRenderer implements IRenderer {
 
     setVisible(v: boolean): void {
         this.userVisible = v;
-        this.group.visible = this.visible;
-    }
-
-    /** 供 Plotter 模式切换时调用 */
-    setModeVisible(v: boolean): void {
-        this.modeVisible = v;
         this.group.visible = this.visible;
     }
 

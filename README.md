@@ -51,6 +51,9 @@
 黎曼积分和勒贝格积分的数值计算和可视化
 张量场
 
+当前 DSL 入口、语法说明和构建方式见
+[`math-lab/README.md`](math-lab/README.md)。
+
 ```mermaid
 
 ```
@@ -82,13 +85,15 @@ pow(e,-0.1*(x*x+y*y))*(sin(x)+cos(2*y)) // ??? 皱褶的床单/翻涌的海浪
 `git clone`后在项目根目录运行构建:
 
 ```sh
+npm run build
+# 或
 bash ./build.sh
 ```
 
 检查TypeScript语法
 
 ```sh
-npx tsc --noEmit
+npm run typecheck
 ```
 
 构建后预览

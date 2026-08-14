@@ -1,8 +1,18 @@
 use wasm_bindgen::prelude::*;
 // 实现模块
-mod integral_core;
-mod surface_utils;
 mod field_core;
+mod integral_core;
+mod parser_wasm;
+mod surface_utils;
+
+// ================================================================
+// .miko DSL 解析器
+// ================================================================
+
+#[wasm_bindgen]
+pub fn parse_miko(source: &str) -> Result<String, JsValue> {
+    parser_wasm::parse_to_json(source).map_err(|e| JsValue::from_str(&e))
+}
 
 // ================================================================
 // 基于值数组的积分 零FFI回调 推荐使用

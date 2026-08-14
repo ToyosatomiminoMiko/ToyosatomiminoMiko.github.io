@@ -11,7 +11,6 @@ import { VectorFieldMesh } from '../../visualization/VectorFieldMesh';
  */
 export class VectorFieldRenderer implements IRenderer {
     readonly group: THREE.Group;
-    readonly mode = '3d' as const;
     private _mesh: VectorFieldMesh | null = null;
 
     // 网格坐标缓存:只有在 range 或 gridSize 变化时才重建
@@ -99,12 +98,6 @@ export class VectorFieldRenderer implements IRenderer {
 
     setVisible(v: boolean): void {
         this.group.visible = v;
-    }
-
-    /** 供 Plotter 模式切换时调用 */
-    setModeVisible(v: boolean): void {
-        // 向量场仅在 3D 模式显示
-        this.group.visible = this._data.enabled && v;
     }
 
     updateRef(data: VectorFieldExpr): void {

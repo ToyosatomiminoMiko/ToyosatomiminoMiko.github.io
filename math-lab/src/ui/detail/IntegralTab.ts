@@ -327,7 +327,7 @@ export class IntegralTab implements Tab {
         }
     }
 
-    /** 优先使用 Worker 返回的 1D 采样做可视化，失败时回退到 mathjs 求值。 */
+    /** 优先使用 Worker 返回的 1D 采样做可视化,失败时回退到 mathjs 求值. */
     private _makeVisual1D(
         result: IntegralResult,
         a: number,
@@ -346,7 +346,7 @@ export class IntegralTab implements Tab {
         };
     }
 
-    /** 优先使用 Worker 返回的 2D 采样做可视化，失败时回退到 mathjs 求值。 */
+    /** 优先使用 Worker 返回的 2D 采样做可视化,失败时回退到 mathjs 求值. */
     private _makeVisual2D(
         result: IntegralResult,
         xMin: number,

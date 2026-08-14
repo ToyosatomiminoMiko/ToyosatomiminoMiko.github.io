@@ -1,6 +1,6 @@
 /**
- * 左侧抽屉控制器：打开/关闭 + 宽度拖拽。
- * 从 main.ts 中剥离，避免启动脚本直接包含纯 UI 逻辑。
+ * 左侧抽屉控制器:打开/关闭 + 宽度拖拽.
+ * 从 main.ts 中剥离,避免启动脚本直接包含纯 UI 逻辑.
  */
 export class SidebarController {
     private readonly toggleBtn: HTMLButtonElement;

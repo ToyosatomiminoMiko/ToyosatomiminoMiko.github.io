@@ -10,7 +10,7 @@ const OPACITY_RIEMANN = 0.5;
 const OPACITY_LEBESGUE = 0.5;
 const EDGE_OPACITY_RIEMANN = 0.4;
 
-// 所有柱条共享同一个单位立方体及其线框几何体，避免每次可视化重复分配。
+// 所有柱条共享同一个单位立方体及其线框几何体,避免每次可视化重复分配.
 const SHARED_BOX_GEOMETRY = new THREE.BoxGeometry(1, 1, 1);
 const SHARED_EDGE_GEOMETRY = new THREE.EdgesGeometry(SHARED_BOX_GEOMETRY);
 
@@ -63,7 +63,7 @@ export class IntegralVisualizer {
         this.cache.clear();
     }
 
-    clear(id: number): void {
+    clear(id: number | string): void {
         // 清除黎曼可视化缓存
         const entry = this.cache.get(id);
         if (entry) {
@@ -72,13 +72,18 @@ export class IntegralVisualizer {
             this.cache.delete(id);
         }
         // 清除勒贝格可视化缓存;键名后缀为 '_lebesgue'
-        const lebesgueKey = id + '_lebesgue';
+        const lebesgueKey = `${id}_lebesgue`;
         const lebesgueEntry = this.cache.get(lebesgueKey);
         if (lebesgueEntry) {
             this.group.remove(lebesgueEntry.objects);
             this._disposeGroup(lebesgueEntry.objects);
             this.cache.delete(lebesgueKey);
         }
+    }
+
+    dispose(): void {
+        this.clearAll();
+        this.scene.remove(this.group);
     }
 
     // ============================================================
@@ -92,6 +97,7 @@ export class IntegralVisualizer {
         a: number,
         b: number,
         N: number,
+        cacheKey: number | string = obj.id,
     ): void {
         const h = (b - a) / N;
         const color = new THREE.Color(obj.color);
@@ -115,7 +121,7 @@ export class IntegralVisualizer {
             edgeColor: color,
         });
         this.group.add(group);
-        this.cache.set(obj.id, { type: '2d', objects: group });
+        this.cache.set(cacheKey, { type: '2d', objects: group });
     }
 
     /** 3D 黎曼和可视化 */
@@ -126,6 +132,7 @@ export class IntegralVisualizer {
         yRange: [number, number],
         N: number,
         M: number,
+        cacheKey: number | string = obj.id,
     ): void {
         const [xMin, xMax] = xRange;
         const [yMin, yMax] = yRange;
@@ -159,7 +166,7 @@ export class IntegralVisualizer {
             edgeColor: baseColor.clone().multiplyScalar(1.3),
         });
         this.group.add(group);
-        this.cache.set(obj.id, { type: '3d', objects: group });
+        this.cache.set(cacheKey, { type: '3d', objects: group });
     }
 
     // ============================================================
@@ -174,6 +181,7 @@ export class IntegralVisualizer {
         b: number,
         layers: number,
         sampleN: number,
+        cacheKey: number | string = obj.id,
     ): void {
         const baseColor = new THREE.Color(obj.color);
 
@@ -230,7 +238,7 @@ export class IntegralVisualizer {
         const group = this._instancedMeshGroup(strips, { opacity: OPACITY_LEBESGUE });
         this.group.add(group);
         // id + 后缀记得清理
-        this.cache.set(obj.id + '_lebesgue', { type: '2d', objects: group });
+        this.cache.set(`${cacheKey}_lebesgue`, { type: '2d', objects: group });
     }
 
     /** 3D 勒贝格积分可视化(等高线切片) */
@@ -241,6 +249,7 @@ export class IntegralVisualizer {
         yRange: [number, number],
         layers: number,
         res: number,
+        cacheKey: number | string = obj.id,
     ): void {
         const [xMin, xMax] = xRange;
         const [yMin, yMax] = yRange;
@@ -295,7 +304,7 @@ export class IntegralVisualizer {
         const group = this._instancedMeshGroup(slices, { opacity: OPACITY_LEBESGUE - 0.1 });
         this.group.add(group);
         // id + 后缀
-        this.cache.set(obj.id + '_lebesgue', { type: '3d', objects: group });
+        this.cache.set(`${cacheKey}_lebesgue`, { type: '3d', objects: group });
     }
 
     // ============================================================
@@ -306,8 +315,8 @@ export class IntegralVisualizer {
     private _disposeGroup(group: THREE.Object3D): void {
         group.traverse((node) => {
             if (node instanceof THREE.InstancedMesh) {
-                // 释放 InstancedMesh 自己的 instanceMatrix/instanceColor。
-                // geometry 是共享的，不能在这里 dispose。
+                // 释放 InstancedMesh 自己的 instanceMatrix/instanceColor.
+                // geometry 是共享的,不能在这里 dispose.
                 node.dispose();
                 if (Array.isArray(node.material)) {
                     node.material.forEach(m => m.dispose());

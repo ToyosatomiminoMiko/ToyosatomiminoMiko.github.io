@@ -9,7 +9,7 @@ export type {
     Integral1DFn,
     Integral2DFn,
     Range1D,
-    ViewMode,
     CamMode,
+    ViewHome,
     MathLabEvents,
 } from './math_objects/types';

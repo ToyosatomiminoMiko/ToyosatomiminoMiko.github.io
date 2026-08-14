@@ -1,8 +1,8 @@
 import { logError, logWarning } from '../service/logger';
 
 /**
- * 统一的 UI 错误处理入口。
- * 页面内所有用户可见的错误提示统一走这里，避免 alert/console 混用。
+ * 统一的 UI 错误处理入口.
+ * 页面内所有用户可见的错误提示统一走这里,避免 alert/console 混用.
  */
 
 const TOAST_DURATION_MS = 3600;
@@ -31,20 +31,20 @@ function showToast(message: string): void {
     }, TOAST_DURATION_MS);
 }
 
-/** 用户主动触发的校验/操作错误：既提示用户，也写入控制台。 */
+/** 用户主动触发的校验/操作错误:既提示用户,也写入控制台. */
 export function notifyError(message: string): void {
     logError('MathLab', message);
     showToast(message);
 }
 
-/** 未预期的运行时错误：记录上下文后提示用户。 */
+/** 未预期的运行时错误:记录上下文后提示用户. */
 export function reportError(error: unknown, context?: string): void {
     const message = error instanceof Error ? error.message : String(error);
     logError(context ?? 'MathLab', message);
     showToast(message);
 }
 
-/** 非阻塞警告：只写控制台，不打断用户。 */
+/** 非阻塞警告:只写控制台,不打断用户. */
 export function reportWarning(message: string, context?: string): void {
     logWarning(context ?? 'MathLab', message);
 }

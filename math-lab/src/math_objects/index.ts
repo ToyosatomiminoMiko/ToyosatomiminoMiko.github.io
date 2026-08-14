@@ -14,7 +14,7 @@ export type {
     Integral1DFn,
     Integral2DFn,
     Range1D,
-    ViewMode,
+    ViewHome,
     CamMode,
     MathLabEvents,
 } from './types';

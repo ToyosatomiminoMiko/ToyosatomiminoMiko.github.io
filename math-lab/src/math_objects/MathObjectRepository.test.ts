@@ -3,7 +3,7 @@ import type { PointEntity, VectorEntity } from './types';
 import { MathObjectRepository } from './MathObjectRepository';
 
 describe('MathObjectRepository', () => {
-    it('支持按 id 添加、查询和删除', () => {
+    it('支持按 id 添加\查询和删除', () => {
         const repo = new MathObjectRepository();
         const point: PointEntity = {
             kind: 'point',

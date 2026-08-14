@@ -4,8 +4,8 @@ import { createVector } from './Vector';
 import { ColorManager } from './ColorManager';
 
 /**
- * 负责点与空间向量的实体创建。
- * MathObjectManager 只负责把创建结果放入 repository。
+ * 负责点与空间向量的实体创建.
+ * MathObjectManager 只负责把创建结果放入 repository.
  */
 export class MathObjectFactory {
     constructor(private readonly colorManager: ColorManager) {}

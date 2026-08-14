@@ -20,10 +20,10 @@
   },
   "scripts": {
     "dev": "vite",
-    "__build": "vue-tsc --noEmit && vite build",
-    "build": "vite build",
+    "build": "npm run build:wasm && npm run typecheck && vite build",
+    "build:wasm": "cd math-lab/ml_wasm && wasm-pack build --target web --out-dir ../src/wasm",
     "preview": "vite preview",
-    "typecheck": "vue-tsc --noEmit",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run"
   }
 }

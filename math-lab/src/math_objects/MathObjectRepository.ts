@@ -1,8 +1,8 @@
 import type { MathObject } from './types';
 
 /**
- * MathObject 的集合存储层。
- * MathObjectManager 只负责领域操作，不再直接维护数组与 Map。
+ * MathObject 的集合存储层.
+ * MathObjectManager 只负责领域操作,不再直接维护数组与 Map.
  */
 export class MathObjectRepository {
     private readonly _objects: MathObject[] = [];

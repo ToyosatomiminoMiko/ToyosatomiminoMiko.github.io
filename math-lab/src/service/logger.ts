@@ -1,6 +1,6 @@
 /**
- * 项目统一日志出口。
- * 后续新增代码不要直接使用 console.log/warn/error，统一从这里调用。
+ * 项目统一日志出口.
+ * 后续新增代码不要直接使用 console.log/warn/error,统一从这里调用.
  */
 
 function isDev(): boolean {
