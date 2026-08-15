@@ -1,8 +1,6 @@
 node_modules/
-mathjs_demo.html
 autorun.py
-prompt.md
-wasm
+math-lab/src/wasm/
 dist/
 .vscode
 issue.md

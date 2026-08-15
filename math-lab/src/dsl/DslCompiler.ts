@@ -462,6 +462,7 @@ function derivativeExpression(node: MathNode, variable: string): string {
     return toRustExpression(math.derivative(node, variable));
 }
 
+/** 把 mathjs 节点转成 evalexpr 可解析的字符串，并显式替换 pi / e 常量。 */
 function toRustExpression(node: MathNode): string {
     const replaced = node.transform((current) => {
         if (current.type === 'SymbolNode') {

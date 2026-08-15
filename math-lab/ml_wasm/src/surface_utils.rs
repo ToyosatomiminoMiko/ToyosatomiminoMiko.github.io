@@ -136,7 +136,10 @@ pub(crate) fn register_builtins(ctx: &mut HashMapContext) {
             name.to_string(),
             Function::new(move |arg: &Value| Ok(Value::Float(f(arg.as_float()?)))),
         )
-        .unwrap(); // <- 这里必须接 .unwrap();
+        // HashMapContext::set_function 当前实现总是返回 Ok(())。
+        // 这里注册的是全新上下文，不会和已有函数名冲突，所以 unwrap 不会触发；
+        // 保留 unwrap 只是为了匹配 API 的 Result 返回类型，而不是因为这里可能失败。
+        .unwrap();
     }
 }
 /*
