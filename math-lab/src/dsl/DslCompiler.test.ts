@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { compileScene } from './DslCompiler';
-import { evaluate_gradient_point } from '../wasm/ml_wasm';
+import {
+    evaluate_curl_point,
+    evaluate_divergence_point,
+    evaluate_gradient_point,
+} from '../wasm/ml_wasm';
 import type { AstProgram } from '../ast/types';
 
 vi.mock('../wasm/ml_wasm', () => ({
@@ -137,6 +141,44 @@ describe('compileScene', () => {
         };
 
         expect(() => compileScene(badAst)).toThrow('辛普森法要求分段数必须为偶数');
+    });
+
+    it('routes divergence and curl through the WASM field evaluators', () => {
+        const fieldAst: AstProgram = {
+            statements: [
+                ast.statements[4],
+                {
+                    type: 'analysis',
+                    op: 'divergence',
+                    name: 'd',
+                    call: 'div',
+                    source: 'F',
+                    at: ['1', '2', '3'],
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'analysis',
+                    op: 'curl',
+                    name: 'c',
+                    call: 'curl',
+                    source: 'F',
+                    at: ['1', '2', '3'],
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        const scene = compileScene(fieldAst);
+
+        expect(scene.analyses).toHaveLength(2);
+        expect(scene.analyses[0].op).toBe('divergence');
+        expect(scene.analyses[0].scalar).toBe(0);
+        expect(scene.analyses[1].op).toBe('curl');
+        expect(scene.analyses[1].vector).toEqual([0, 0, 0]);
+        expect(evaluate_divergence_point).toHaveBeenCalled();
+        expect(evaluate_curl_point).toHaveBeenCalled();
     });
 
     it('rejects unimplemented differential operators instead of ignoring them', () => {

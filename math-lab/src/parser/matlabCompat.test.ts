@@ -59,6 +59,15 @@ describe('normalizeMatlabCalls', () => {
         expect(normalizeMatlabCalls(source)).toContain('divergence d = div(F);');
         expect(normalizeMatlabCalls(source)).toContain('curl c = curl(F);');
     });
+
+    it('does not leak anonymous counters across calls', () => {
+        const first = normalizeMatlabCalls('surf(x, y, f); surf(x, y, g);');
+        const second = normalizeMatlabCalls('surf(x, y, h);');
+
+        expect(first).toContain('surface _matlab_surf_1 = f;');
+        expect(first).toContain('surface _matlab_surf_2 = g;');
+        expect(second).toContain('surface _matlab_surf_1 = h;');
+    });
 });
 
 describe('normalizeMatlabSyntax', () => {
