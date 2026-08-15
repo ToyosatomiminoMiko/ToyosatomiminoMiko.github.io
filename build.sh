@@ -10,9 +10,13 @@ err()  { echo "[ERR][$(date '+%Y.%m.%d.%H:%M:%S')] $*" >&2; }
 
 trap 'err "Build failed at line $LINENO"' ERR
 
+log "testing..."
+npm test
+
 log "building..."
 
 cd "$PROJECT_ROOT"
+
 npm run build
 
 log "build succeeded."
