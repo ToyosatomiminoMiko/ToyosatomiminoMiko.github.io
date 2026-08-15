@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import type { IRenderer } from './IRenderer';
 import type { VectorFieldExpr } from '../../math_objects/types';
-import { sampleVectorField } from '../../math_objects/VectorField';
 import { VectorFieldMesh } from '../../visualization/VectorFieldMesh';
+import { vectorFieldComputeClient } from '../../visualization/VectorFieldComputeClient';
+import { logWarning } from '../../service/logger';
 
 /**
  * 向量场渲染器
@@ -16,6 +17,8 @@ export class VectorFieldRenderer implements IRenderer {
     // 网格坐标缓存:只有在 range 或 gridSize 变化时才重建
     private _positions: Float32Array | null = null;
     private _positionsKey = '';
+    private _requestId = 0;
+    private _disposed = false;
 
     constructor(private _data: VectorFieldExpr) {
         this.group = new THREE.Group();
@@ -28,30 +31,48 @@ export class VectorFieldRenderer implements IRenderer {
     draw(): void {
         const { nodeP, nodeQ, nodeR, coefficients, range, gridSize, glyphScale, color } = this._data;
 
-        // 1. 采样向量值(每次都需要,因为系数/表达式可能变了)
-        const vectors = sampleVectorField(
-            { P: nodeP, Q: nodeQ, R: nodeR },
-            coefficients,
-            range,
-            gridSize,
-        );
-
-        // 2. 网格点世界坐标(仅 range/gridSize 变化时重建)
+        // 网格点世界坐标(仅 range/gridSize 变化时重建)
         const key = this.getPositionsKey(range, gridSize);
         if (!this._positions || this._positionsKey !== key) {
             this._positions = this.buildPositions(range, gridSize);
             this._positionsKey = key;
+            if (this._mesh) {
+                this._mesh.dispose();
+                this.group.remove(this._mesh.group);
+                this._mesh = null;
+            }
         }
-        const positions = this._positions;
+        const positions = this._positions as Float32Array;
 
-        // 3. 创建或更新 mesh
-        if (!this._mesh) {
-            this._mesh = new VectorFieldMesh(positions, vectors, color, glyphScale);
-            this.group.add(this._mesh.group);
-        } else {
-            this._mesh.update(positions, vectors, glyphScale);
-            this._mesh.setColor(color);
-        }
+        // 表达式求值在 Worker 中完成,主线程只负责发请求和更新 mesh.
+        const requestId = ++this._requestId;
+        vectorFieldComputeClient
+            .request({
+                pExpr: nodeP.toString(),
+                qExpr: nodeQ.toString(),
+                rExpr: nodeR.toString(),
+                coeffNames: coefficients.map((coefficient) => coefficient.name),
+                coeffValues: coefficients.map((coefficient) => coefficient.value),
+                range,
+                gridSize,
+            })
+            .then((vectors) => {
+                if (this._disposed || requestId !== this._requestId) return;
+
+                if (!this._mesh) {
+                    this._mesh = new VectorFieldMesh(positions, vectors, color, glyphScale);
+                    this.group.add(this._mesh.group);
+                } else {
+                    this._mesh.update(positions, vectors, glyphScale);
+                    this._mesh.setColor(color);
+                }
+
+                this.group.visible = this.visible;
+            })
+            .catch((error: Error) => {
+                if (this._disposed || requestId !== this._requestId) return;
+                logWarning('VectorFieldRenderer', '向量场采样失败:', error.message);
+            });
 
         this.group.visible = this._data.enabled;
     }
@@ -105,6 +126,8 @@ export class VectorFieldRenderer implements IRenderer {
     }
 
     dispose(): void {
+        this._disposed = true;
+        this._requestId += 1;
         this._mesh?.dispose();
         this._mesh = null;
     }

@@ -3,6 +3,7 @@ import type { MathObject } from '../types';
 import type { IntegralTask } from '../dsl/DslCompiler';
 import { IntegralVisualizer } from './IntegralVisualizer';
 import {
+    disposeIntegralWorker,
     lebesgue1d,
     lebesgue2d,
     riemann1dLeft,
@@ -51,6 +52,7 @@ export class DslIntegralRenderer {
         this.disposed = true;
         this.sequence += 1;
         this.visualizer.dispose();
+        disposeIntegralWorker();
     }
 
     private async _renderAll(

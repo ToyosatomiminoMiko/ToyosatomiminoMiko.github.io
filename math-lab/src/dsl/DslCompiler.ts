@@ -10,11 +10,8 @@ import type {
 } from '../math_objects/types';
 import { extractCoefficients } from '../math_objects/coefficientUtils';
 import {
-    identity4,
-    multiply4x4,
-    rotate4,
-    scale4,
-    translate4,
+    jsMatrixOps,
+    type MatrixOps,
 } from '../tensor/SceneTransform';
 import {
     evaluate_curl_point as wasmEvaluateCurlPoint,
@@ -124,14 +121,47 @@ function stripQuotes(value: string): string {
     return value.replace(/^["']|["']$/g, '');
 }
 
-function parseNumberList(raw: string): number[] {
-    return raw.replace(/[[\]]/g, '').split(',').map((item) => Number(item.trim()));
+function parseNumberList(raw: string, context: string): number[] {
+    const body = raw.trim();
+    if (!body) {
+        throw new Error(`${context} 不能为空`);
+    }
+    const values = body.replace(/[[\]]/g, '').split(',').map((item) => Number(item.trim()));
+    if (values.length === 0 || values.some((value) => !Number.isFinite(value))) {
+        throw new Error(`${context} 不是有效的数字列表: ${raw}`);
+    }
+    return values;
 }
 
 function optionalNumber(raw: string | undefined): number | undefined {
     if (raw === undefined) return undefined;
     const value = Number(raw);
     return Number.isFinite(value) ? value : undefined;
+}
+
+function parsePositiveInteger(raw: string | undefined, context: string): number | undefined {
+    if (raw === undefined) return undefined;
+    const value = Number(raw);
+    if (!Number.isInteger(value) || value <= 0) {
+        throw new Error(`${context} 必须是正整数,当前为 ${raw}`);
+    }
+    return value;
+}
+
+function parsePositiveIntegerList(raw: string, context: string): number[] {
+    const values = parseNumberList(raw, context);
+    if (values.some((value) => !Number.isInteger(value) || value <= 0)) {
+        throw new Error(`${context} 中的每个值都必须是正整数: ${raw}`);
+    }
+    return values;
+}
+
+function toFiniteNumber(raw: string, context: string): number {
+    const value = Number(raw);
+    if (!Number.isFinite(value)) {
+        throw new Error(`${context} 不是有效数字: ${raw}`);
+    }
+    return value;
 }
 
 function parseShowOption(options: OptionPair[]): Array<'point' | 'normal' | 'tangent_plane'> {
@@ -176,10 +206,10 @@ function collectParams(ast: AstProgram): Map<string, ParamDeclaration> {
         if (statement.type !== 'param') continue;
         params.set(statement.name, {
             name: statement.name,
-            value: Number(statement.value) || 0,
-            min: statement.ui ? Number(statement.ui.min) || -10 : -10,
-            max: statement.ui ? Number(statement.ui.max) || 10 : 10,
-            step: statement.ui ? Number(statement.ui.step) || 0.1 : 0.1,
+            value: toFiniteNumber(statement.value, `参数 ${statement.name} 的 value`),
+            min: statement.ui ? toFiniteNumber(statement.ui.min, `参数 ${statement.name} 的 min`) : -10,
+            max: statement.ui ? toFiniteNumber(statement.ui.max, `参数 ${statement.name} 的 max`) : 10,
+            step: statement.ui ? toFiniteNumber(statement.ui.step, `参数 ${statement.name} 的 step`) : 0.1,
         });
     }
     return params;
@@ -242,11 +272,21 @@ function buildObjectBlueprint(
     if (statement.kind === 'curve') {
         const node = math.parse(statement.expr);
         const rawRange = findOption(statement.options, 'range');
-        const rangeValues = rawRange ? parseNumberList(rawRange) : [];
-        const range = rawRange
-            ? [rangeValues[0] ?? -8, rangeValues[1] ?? 8] as [number, number]
-            : undefined;
-        const segments = optionalNumber(findOption(statement.options, 'segments'));
+        let range: [number, number] | undefined;
+        if (rawRange) {
+            const rangeValues = parseNumberList(rawRange, `曲线 ${statement.name} 的 range`);
+            if (rangeValues.length !== 2) {
+                throw new Error(`曲线 ${statement.name} 的 range 需要 2 个数值`);
+            }
+            if (rangeValues[0] >= rangeValues[1]) {
+                throw new Error(`曲线 ${statement.name} 的 range 需要 min < max`);
+            }
+            range = [rangeValues[0], rangeValues[1]];
+        }
+        const segments = parsePositiveInteger(
+            findOption(statement.options, 'segments'),
+            `曲线 ${statement.name} 的 segments`,
+        );
         return {
             name: statement.name,
             id,
@@ -262,14 +302,25 @@ function buildObjectBlueprint(
     if (statement.kind === 'surface') {
         const node = math.parse(statement.expr);
         const rawRange = findOption(statement.options, 'range');
-        const rangeValues = rawRange ? parseNumberList(rawRange) : [-6, 6, -6, 6];
+        const rangeValues = rawRange
+            ? parseNumberList(rawRange, `曲面 ${statement.name} 的 range`)
+            : [-6, 6, -6, 6];
+        if (rangeValues.length !== 4) {
+            throw new Error(`曲面 ${statement.name} 的 range 需要 4 个数值`);
+        }
+        if (rangeValues[0] >= rangeValues[1] || rangeValues[2] >= rangeValues[3]) {
+            throw new Error(`曲面 ${statement.name} 的 range 需要 min < max`);
+        }
         const range = [
-            rangeValues[0] ?? -6,
-            rangeValues[1] ?? 6,
-            rangeValues[2] ?? -6,
-            rangeValues[3] ?? 6,
+            rangeValues[0],
+            rangeValues[1],
+            rangeValues[2],
+            rangeValues[3],
         ] as [number, number, number, number];
-        const segments = optionalNumber(findOption(statement.options, 'segments'));
+        const segments = parsePositiveInteger(
+            findOption(statement.options, 'segments'),
+            `曲面 ${statement.name} 的 segments`,
+        );
         return {
             name: statement.name,
             id,
@@ -285,8 +336,26 @@ function buildObjectBlueprint(
     if (statement.kind === 'vector_field') {
         const [nodeP, nodeQ, nodeR] = parseVectorComponents(statement.expr);
         const rawRange = findOption(statement.options, 'range');
-        const rangeValues = rawRange ? parseNumberList(rawRange) : [-4, 4, -4, 4, -4, 4];
-        const gridValues = parseNumberList(findOption(statement.options, 'grid') ?? '[8, 8, 8]');
+        const rangeValues = rawRange
+            ? parseNumberList(rawRange, `向量场 ${statement.name} 的 range`)
+            : [-4, 4, -4, 4, -4, 4];
+        if (rangeValues.length !== 6) {
+            throw new Error(`向量场 ${statement.name} 的 range 需要 6 个数值`);
+        }
+        if (
+            rangeValues[0] >= rangeValues[1]
+            || rangeValues[2] >= rangeValues[3]
+            || rangeValues[4] >= rangeValues[5]
+        ) {
+            throw new Error(`向量场 ${statement.name} 的 range 需要 min < max`);
+        }
+        const gridValues = parsePositiveIntegerList(
+            findOption(statement.options, 'grid') ?? '[8, 8, 8]',
+            `向量场 ${statement.name} 的 grid`,
+        );
+        if (gridValues.length !== 3) {
+            throw new Error(`向量场 ${statement.name} 的 grid 需要 3 个数值`);
+        }
         const glyphScale = optionalNumber(findOption(statement.options, 'scale')) ?? 1.2;
         return {
             name: statement.name,
@@ -297,11 +366,11 @@ function buildObjectBlueprint(
             nodeR,
             coefficientNames: extractCoefficientNames([nodeP, nodeQ, nodeR], new Set(['x', 'y', 'z'])),
             color,
-            gridSize: [gridValues[0] ?? 8, gridValues[1] ?? 8, gridValues[2] ?? 8] as [number, number, number],
+            gridSize: [gridValues[0], gridValues[1], gridValues[2]] as [number, number, number],
             range: {
-                x: [rangeValues[0] ?? -4, rangeValues[1] ?? 4],
-                y: [rangeValues[2] ?? -4, rangeValues[3] ?? 4],
-                z: [rangeValues[4] ?? -4, rangeValues[5] ?? 4],
+                x: [rangeValues[0], rangeValues[1]],
+                y: [rangeValues[2], rangeValues[3]],
+                z: [rangeValues[4], rangeValues[5]],
             },
             glyphScale,
         };
@@ -407,7 +476,7 @@ function evaluateMatrix(raw: string): Mat4 | null {
     return null;
 }
 
-function parseTransformFunction(part: string): Mat4 | null {
+function parseTransformFunction(part: string, ops: MatrixOps): Mat4 | null {
     const match = /^(translate|scale|rotate)\s*\(\s*\[([^\]]*)\]\s*\)$/.exec(part);
     if (!match) return null;
 
@@ -415,12 +484,12 @@ function parseTransformFunction(part: string): Mat4 | null {
     if (values.some((value) => value === null) || values.length < 3) return null;
     const numbers = values as number[];
 
-    if (match[1] === 'translate') return translate4(numbers);
-    if (match[1] === 'scale') return scale4(numbers);
-    return rotate4(numbers);
+    if (match[1] === 'translate') return ops.translate(numbers);
+    if (match[1] === 'scale') return ops.scale(numbers);
+    return ops.rotate(numbers);
 }
 
-function parseTransformExpression(raw: string, matrices: Map<string, Mat4>): Mat4 | null {
+function parseTransformExpression(raw: string, matrices: Map<string, Mat4>, ops: MatrixOps): Mat4 | null {
     const expression = raw.trim();
     const asTransformMatch = /^as_transform\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)$/.exec(expression);
     if (asTransformMatch) {
@@ -431,11 +500,11 @@ function parseTransformExpression(raw: string, matrices: Map<string, Mat4>): Mat
     const parts = splitTopLevel(expression, '*').map((part) => part.trim());
     if (parts.length === 0) return null;
 
-    let result = identity4();
+    let result = ops.identity();
     for (const part of parts) {
-        const matrix = parseTransformFunction(part);
+        const matrix = parseTransformFunction(part, ops);
         if (!matrix) return null;
-        result = multiply4x4(result, matrix);
+        result = ops.multiply(result, matrix);
     }
     return result;
 }
@@ -460,6 +529,33 @@ function resolveObjectTransform(
 
 function derivativeExpression(node: MathNode, variable: string): string {
     return toRustExpression(math.derivative(node, variable));
+}
+
+const rustExpressionCache = new WeakMap<MathNode, string>();
+const derivativeExpressionCache = new WeakMap<MathNode, Map<string, string>>();
+
+function cachedRustExpression(node: MathNode): string {
+    let cached = rustExpressionCache.get(node);
+    if (!cached) {
+        cached = toRustExpression(node);
+        rustExpressionCache.set(node, cached);
+    }
+    return cached;
+}
+
+function cachedDerivativeExpression(node: MathNode, variable: string): string {
+    let byVariable = derivativeExpressionCache.get(node);
+    if (!byVariable) {
+        byVariable = new Map<string, string>();
+        derivativeExpressionCache.set(node, byVariable);
+    }
+
+    let cached = byVariable.get(variable);
+    if (!cached) {
+        cached = derivativeExpression(node, variable);
+        byVariable.set(variable, cached);
+    }
+    return cached;
 }
 
 /** 把 mathjs 节点转成 evalexpr 可解析的字符串，并显式替换 pi / e 常量。 */
@@ -516,7 +612,22 @@ function compileAnalyses(
         }
 
         const rawAt = statement.at ?? [];
-        const atValues = rawAt.map((raw) => evaluateNumber(raw, atScope) ?? 0);
+        const requiredAtCount =
+            statement.op === 'gradient' && source.kind === 'surface' ? 2
+                : (statement.op === 'divergence' || statement.op === 'curl') && source.kind === 'vector_field' ? 3
+                    : 1;
+        if (rawAt.length < requiredAtCount) {
+            throw new Error(`分析 ${statement.name} 的 at 至少需要 ${requiredAtCount} 个坐标`);
+        }
+
+        const atValues: number[] = [];
+        for (let i = 0; i < rawAt.length; i += 1) {
+            const value = evaluateNumber(rawAt[i], atScope);
+            if (value === null) {
+                throw new Error(`分析 ${statement.name} 的 at 第 ${i + 1} 个坐标无法求值: ${rawAt[i]}`);
+            }
+            atValues.push(value);
+        }
         const at: [number, number, number] = [
             atValues[0] ?? 0,
             atValues[1] ?? 0,
@@ -525,19 +636,27 @@ function compileAnalyses(
         const show = parseShowOption(statement.options);
 
         if (statement.op === 'gradient' && (source.kind === 'curve' || source.kind === 'surface')) {
+            const isCurve = source.kind === 'curve';
             const [coeffNames, coeffValues] = coefficientArgs(source);
             const result = wasmEvaluateGradientPoint(
-                toRustExpression(source.node),
-                derivativeExpression(source.node, 'x'),
-                source.kind === 'surface' ? derivativeExpression(source.node, 'y') : '0',
+                cachedRustExpression(source.node),
+                cachedDerivativeExpression(source.node, 'x'),
+                isCurve ? '0' : cachedDerivativeExpression(source.node, 'y'),
                 coeffNames,
                 coeffValues,
                 at[0],
-                at[1],
+                isCurve ? 0 : at[1],
             );
             const f0 = result.f0;
-            const vector = normalizeVector([-result.fx, -result.fy, 1]);
-            results.push({ name: statement.name, op: 'gradient', point: [at[0], at[1], f0], vector, scalar: f0, show });
+            const vector = normalizeVector(
+                isCurve
+                    ? [-result.fx, 1, 0]
+                    : [-result.fx, -result.fy, 1],
+            );
+            const point: [number, number, number] = isCurve
+                ? [at[0], f0, 0]
+                : [at[0], at[1], f0];
+            results.push({ name: statement.name, op: 'gradient', point, vector, scalar: f0, show });
             continue;
         }
 
@@ -546,9 +665,9 @@ function compileAnalyses(
 
             if (statement.op === 'divergence') {
                 const scalar = wasmEvaluateDivergencePoint(
-                    derivativeExpression(source.nodeP, 'x'),
-                    derivativeExpression(source.nodeQ, 'y'),
-                    derivativeExpression(source.nodeR, 'z'),
+                    cachedDerivativeExpression(source.nodeP, 'x'),
+                    cachedDerivativeExpression(source.nodeQ, 'y'),
+                    cachedDerivativeExpression(source.nodeR, 'z'),
                     coeffNames,
                     coeffValues,
                     at[0],
@@ -558,12 +677,12 @@ function compileAnalyses(
                 results.push({ name: statement.name, op: 'divergence', point: at, vector: [0, 0, 0], scalar, show });
             } else {
                 const result = wasmEvaluateCurlPoint(
-                    derivativeExpression(source.nodeR, 'y'),
-                    derivativeExpression(source.nodeQ, 'z'),
-                    derivativeExpression(source.nodeP, 'z'),
-                    derivativeExpression(source.nodeR, 'x'),
-                    derivativeExpression(source.nodeQ, 'x'),
-                    derivativeExpression(source.nodeP, 'y'),
+                    cachedDerivativeExpression(source.nodeR, 'y'),
+                    cachedDerivativeExpression(source.nodeQ, 'z'),
+                    cachedDerivativeExpression(source.nodeP, 'z'),
+                    cachedDerivativeExpression(source.nodeR, 'x'),
+                    cachedDerivativeExpression(source.nodeQ, 'x'),
+                    cachedDerivativeExpression(source.nodeP, 'y'),
                     coeffNames,
                     coeffValues,
                     at[0],
@@ -603,34 +722,42 @@ function compileIntegralTask(
     const method = rawMethod as IntegralMethod;
 
     const rawRange = findOption(statement.options, 'range');
-    const rangeValues = rawRange ? parseNumberList(rawRange) : [];
-    const range =
-        source.kind === 'curve'
-            ? ([rangeValues[0] ?? -4, rangeValues[1] ?? 4] as [number, number])
-            : ([
-                rangeValues[0] ?? -3,
-                rangeValues[1] ?? 3,
-                rangeValues[2] ?? -3,
-                rangeValues[3] ?? 3,
-            ] as [number, number, number, number]);
-
+    let range: [number, number] | [number, number, number, number];
     if (source.kind === 'curve') {
-        const [a, b] = range as [number, number];
-        if (a >= b) {
+        const rangeValues = rawRange
+            ? parseNumberList(rawRange, `积分 ${statement.name} 的 range`)
+            : [-4, 4];
+        if (rangeValues.length !== 2) {
+            throw new Error(`积分 ${statement.name} 的 range 需要 2 个数值`);
+        }
+        if (rangeValues[0] >= rangeValues[1]) {
             throw new Error(`积分 ${statement.name} 需要有效的一维区间 a < b`);
         }
+        range = [rangeValues[0], rangeValues[1]];
     } else {
-        const [xMin, xMax, yMin, yMax] = range as [number, number, number, number];
-        if (xMin >= xMax || yMin >= yMax) {
+        const rangeValues = rawRange
+            ? parseNumberList(rawRange, `积分 ${statement.name} 的 range`)
+            : [-3, 3, -3, 3];
+        if (rangeValues.length !== 4) {
+            throw new Error(`积分 ${statement.name} 的 range 需要 4 个数值`);
+        }
+        if (rangeValues[0] >= rangeValues[1] || rangeValues[2] >= rangeValues[3]) {
             throw new Error(`积分 ${statement.name} 需要有效的二维区间`);
         }
+        range = [rangeValues[0], rangeValues[1], rangeValues[2], rangeValues[3]];
     }
 
-    const segments = optionalNumber(findOption(statement.options, 'segments')) ?? 32;
+    const segments = parsePositiveInteger(
+        findOption(statement.options, 'segments'),
+        `积分 ${statement.name} 的 segments`,
+    ) ?? 32;
     if (method === 'simpson' && segments % 2 !== 0) {
         throw new Error(`积分 ${statement.name} 的辛普森法要求分段数必须为偶数,当前为 ${segments}`);
     }
-    const layers = optionalNumber(findOption(statement.options, 'layers')) ?? Math.min(32, segments);
+    const layers = parsePositiveInteger(
+        findOption(statement.options, 'layers'),
+        `积分 ${statement.name} 的 layers`,
+    ) ?? Math.min(32, segments);
     const show = findOption(statement.options, 'show') !== 'false';
 
     return {
@@ -645,7 +772,7 @@ function compileIntegralTask(
     };
 }
 
-function buildStaticScene(ast: AstProgram): StaticScene {
+function buildStaticScene(ast: AstProgram, matrixOps: MatrixOps): StaticScene {
     const params = collectParams(ast);
     const matrices = new Map<string, Mat4>();
     const transforms = new Map<string, Mat4>();
@@ -666,7 +793,7 @@ function buildStaticScene(ast: AstProgram): StaticScene {
 
     for (const statement of ast.statements) {
         if (statement.type === 'tensor' && statement.kind === 'transform') {
-            const transform = parseTransformExpression(statement.expr, matrices);
+            const transform = parseTransformExpression(statement.expr, matrices, matrixOps);
             if (transform) transforms.set(statement.name, transform);
             else throw new Error(`变换 ${statement.name} 无法求值`);
         }
@@ -706,10 +833,14 @@ function buildStaticScene(ast: AstProgram): StaticScene {
     return { params, objectBlueprints, objectTransforms };
 }
 
-export function compileScene(ast: AstProgram, paramOverrides: Record<string, number> = {}): CompiledScene {
+export function compileScene(
+    ast: AstProgram,
+    paramOverrides: Record<string, number> = {},
+    matrixOps: MatrixOps = jsMatrixOps,
+): CompiledScene {
     let staticScene = staticSceneCache.get(ast);
     if (!staticScene) {
-        staticScene = buildStaticScene(ast);
+        staticScene = buildStaticScene(ast, matrixOps);
         staticSceneCache.set(ast, staticScene);
     }
 

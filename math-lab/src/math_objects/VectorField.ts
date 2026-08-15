@@ -1,11 +1,12 @@
 import { parse, type MathNode } from 'mathjs';
 import type { Coefficient } from './types';
 import { extractCoefficients } from './coefficientUtils';
-import init, { sample_vector_field as wasmSampleVectorField } from '../wasm/ml_wasm';
+import { sample_vector_field as wasmSampleVectorField } from '../wasm/ml_wasm';
+import { ensureWasmReady } from '../wasmRuntime';
 import { logWarning } from '../service/logger';
 
 let wasmReady = false;
-const wasmInit = init().then(() => {
+const wasmInit = ensureWasmReady().then(() => {
     wasmReady = true;
 }).catch(() => {
     wasmReady = false;
@@ -112,10 +113,20 @@ function sampleVectorFieldFallback(
     const [yMin, yMax] = range.y;
     const [zMin, zMax] = range.z;
 
-    // 预计算步长
-    const stepX = (xMax - xMin) / (nx - 1);
-    const stepY = (yMax - yMin) / (ny - 1);
-    const stepZ = (zMax - zMin) / (nz - 1);
+    if (
+        !Number.isInteger(nx) || !Number.isInteger(ny) || !Number.isInteger(nz)
+        || nx <= 0 || ny <= 0 || nz <= 0
+    ) {
+        throw new Error('向量场 grid 必须由正整数组成');
+    }
+    if (xMin >= xMax || yMin >= yMax || zMin >= zMax) {
+        throw new Error('向量场 range 必须满足 min < max');
+    }
+
+    // 单点维度不参与步长计算,保持与 WASM 采样一致的行为.
+    const stepX = nx > 1 ? (xMax - xMin) / (nx - 1) : 0;
+    const stepY = ny > 1 ? (yMax - yMin) / (ny - 1) : 0;
+    const stepZ = nz > 1 ? (zMax - zMin) / (nz - 1) : 0;
 
     const totalPoints = nx * ny * nz;
     const result = new Float32Array(totalPoints * 3);

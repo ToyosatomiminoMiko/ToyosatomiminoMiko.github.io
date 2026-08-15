@@ -3,11 +3,12 @@ import type { EvalFunction } from 'mathjs';
 import type { IRenderer } from './IRenderer';
 import type { CurveExpr } from '../../math_objects/types';
 import { compilationCache } from '../../math_objects/CompilationCache';
-import init, { sample_curve as wasmSampleCurve } from '../../wasm/ml_wasm';
+import { sample_curve as wasmSampleCurve } from '../../wasm/ml_wasm';
+import { ensureWasmReady } from '../../wasmRuntime';
 import { logWarning } from '../../service/logger';
 
 let wasmReady = false;
-const wasmInit = init().then(() => {
+const wasmInit = ensureWasmReady().then(() => {
     wasmReady = true;
 }).catch(() => {
     wasmReady = false;

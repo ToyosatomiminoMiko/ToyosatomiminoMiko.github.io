@@ -23,6 +23,7 @@ function clamp(value: number, min: number, max: number): number {
  */
 export class PanelController {
     private root: HTMLElement | null = null;
+    private _abortController: AbortController | null = null;
     private readonly sideWidths: Record<'left-panel' | 'right-panel', number> = {
         'left-panel': SIDE_DEFAULT_WIDTH,
         'right-panel': SIDE_DEFAULT_WIDTH,
@@ -32,12 +33,24 @@ export class PanelController {
 
     bind(root: HTMLElement): void {
         this.root = root;
-        this._bindToggleButtons(root);
-        this._bindResizeHandles(root);
+        this._abortController?.abort();
+        this._abortController = new AbortController();
+
+        const signal = this._abortController.signal;
+        this._bindToggleButtons(root, signal);
+        this._bindResizeHandles(root, signal);
         this._applyLayout();
     }
 
-    private _bindToggleButtons(root: HTMLElement): void {
+    dispose(): void {
+        this._abortController?.abort();
+        this._abortController = null;
+        this.root = null;
+        this.collapsed.clear();
+        document.body.style.cursor = '';
+    }
+
+    private _bindToggleButtons(root: HTMLElement, signal: AbortSignal): void {
         root.querySelectorAll<HTMLElement>('[data-panel-toggle]').forEach((button) => {
             button.addEventListener('click', () => {
                 const selector = button.dataset.panelToggle;
@@ -65,11 +78,11 @@ export class PanelController {
 
                 button.textContent = collapsed ? title : '收起';
                 this._applyLayout();
-            });
+            }, { signal });
         });
     }
 
-    private _bindResizeHandles(root: HTMLElement): void {
+    private _bindResizeHandles(root: HTMLElement, signal: AbortSignal): void {
         root.querySelectorAll<HTMLElement>('[data-resize-panel]').forEach((handle) => {
             const panelId = handle.dataset.resizePanel as PanelId | undefined;
             if (!panelId) return;
@@ -117,10 +130,10 @@ export class PanelController {
                     document.body.style.cursor = '';
                 };
 
-                window.addEventListener('pointermove', onPointerMove);
-                window.addEventListener('pointerup', onPointerUp);
-                window.addEventListener('pointercancel', onPointerUp);
-            });
+                window.addEventListener('pointermove', onPointerMove, { signal });
+                window.addEventListener('pointerup', onPointerUp, { signal });
+                window.addEventListener('pointercancel', onPointerUp, { signal });
+            }, { signal });
         });
     }
 

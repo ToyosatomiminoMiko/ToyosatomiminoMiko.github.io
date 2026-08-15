@@ -11,8 +11,9 @@ import { ensureWasmReady } from '../wasmRuntime';
 import type { AstProgram } from '../ast/types';
 import { normalizeMatlabSyntax } from './matlabCompat';
 import {
-    registerMatrixWasmBackend,
+    createMatrixOps,
     type MatrixWasmBackend,
+    type MatrixOps,
 } from '../tensor/SceneTransform';
 
 function toMat4(values: Float64Array): number[][] {
@@ -28,7 +29,8 @@ function flattenMat4(matrix: number[][]): Float64Array {
     return new Float64Array(matrix.flat());
 }
 
-function registerWasmMatrixBackend(): void {
+/** 创建基于 WASM 的矩阵运算后端,调用方需先 `ensureWasmReady`. */
+export function createWasmMatrixOps(): MatrixOps {
     const backend: MatrixWasmBackend = {
         identity: () => toMat4(wasmMat4Identity()),
         translate: (values) => toMat4(wasmMat4Translate(values[0], values[1], values[2])),
@@ -40,13 +42,12 @@ function registerWasmMatrixBackend(): void {
         ),
     };
 
-    registerMatrixWasmBackend(backend);
+    return createMatrixOps(backend);
 }
 
 /** 调用 Rust pest 解析器，把 `.miko` 源码解析成 JSON AST. */
 export async function parseMiko(source: string): Promise<AstProgram> {
     await ensureWasmReady();
-    registerWasmMatrixBackend();
     return JSON.parse(wasmParseMiko(source)) as AstProgram;
 }
 

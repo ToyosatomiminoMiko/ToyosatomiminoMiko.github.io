@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
     apply,
     compose,
+    createMatrixOps,
     identity4,
     multiply4x4,
     rotate4,
@@ -44,5 +45,21 @@ describe('SceneTransform', () => {
         expect(matrix).toHaveLength(4);
         expect(matrix.every((row) => row.length === 4)).toBe(true);
         expect(matrix[3]).toEqual([0, 0, 0, 1]);
+    });
+
+    it('creates explicit matrix ops without module-level mutable state', () => {
+        const backend = {
+            identity: () => identity4(),
+            translate: () => translate4([9, 8, 7]),
+            scale: () => scale4([2, 2, 2]),
+            rotate: () => rotate4([0, 0, 0]),
+            multiply: (a: number[][], b: number[][]) => multiply4x4(a, b),
+            apply: (matrix: number[][], point: number[]) => [point[0] + 1, point[1], point[2]],
+        };
+
+        const ops = createMatrixOps(backend);
+
+        expect(ops.translate([0, 0, 0])).toEqual(translate4([9, 8, 7]));
+        expect(ops.apply(identity4(), [1, 2, 3])).toEqual([2, 2, 3]);
     });
 });

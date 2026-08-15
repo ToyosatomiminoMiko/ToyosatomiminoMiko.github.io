@@ -1,34 +1,82 @@
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
+use serde::Serialize;
 
 #[derive(Parser)]
 #[grammar = "miko.pest"]
 pub struct MikoParser;
 
-fn json_escape(input: &str) -> String {
-    let mut out = String::with_capacity(input.len());
-    for ch in input.chars() {
-        match ch {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            ch if ch.is_control() => out.push_str(&format!("\\u{:04x}", ch as u32)),
-            ch => out.push(ch),
-        }
-    }
-    out
+#[derive(Serialize)]
+struct SourceSpan {
+    start: usize,
+    end: usize,
 }
 
-fn span_json(pair: &Pair<'_, Rule>) -> String {
+#[derive(Serialize)]
+struct OptionPair {
+    name: String,
+    value: String,
+}
+
+#[derive(Serialize)]
+struct ParamUi {
+    min: String,
+    max: String,
+    step: String,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+enum AstStatement {
+    Param {
+        name: String,
+        value: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        ui: Option<ParamUi>,
+        span: SourceSpan,
+    },
+    Tensor {
+        kind: String,
+        name: String,
+        expr: String,
+        span: SourceSpan,
+    },
+    Object {
+        kind: String,
+        name: String,
+        expr: String,
+        options: Vec<OptionPair>,
+        span: SourceSpan,
+    },
+    Analysis {
+        op: String,
+        name: String,
+        call: String,
+        source: String,
+        at: Option<Vec<String>>,
+        options: Vec<OptionPair>,
+        span: SourceSpan,
+    },
+    Integral {
+        name: String,
+        source: String,
+        options: Vec<OptionPair>,
+        span: SourceSpan,
+    },
+}
+
+#[derive(Serialize)]
+struct AstProgram {
+    statements: Vec<AstStatement>,
+}
+
+fn span_of(pair: &Pair<'_, Rule>) -> SourceSpan {
     let span = pair.as_span();
-    format!(
-        "\"span\":{{\"start\":{},\"end\":{}}}",
-        span.start(),
-        span.end()
-    )
+    SourceSpan {
+        start: span.start(),
+        end: span.end(),
+    }
 }
 
 fn pair_ident(pair: &Pair<'_, Rule>) -> String {
@@ -39,7 +87,7 @@ fn pair_ident(pair: &Pair<'_, Rule>) -> String {
         .unwrap_or_default()
 }
 
-fn option_pairs(pair: &Pair<'_, Rule>) -> Vec<(String, String)> {
+fn option_pairs(pair: &Pair<'_, Rule>) -> Vec<OptionPair> {
     pair.clone()
         .into_inner()
         .filter(|child| child.as_rule() == Rule::option)
@@ -53,26 +101,12 @@ fn option_pairs(pair: &Pair<'_, Rule>) -> Vec<(String, String)> {
                     _ => {}
                 }
             }
-            (name, value)
+            OptionPair { name, value }
         })
         .collect()
 }
 
-fn options_json(options: &[(String, String)]) -> String {
-    let items: Vec<String> = options
-        .iter()
-        .map(|(name, value)| {
-            format!(
-                "{{\"name\":\"{}\",\"value\":\"{}\"}}",
-                json_escape(name),
-                json_escape(value)
-            )
-        })
-        .collect();
-    format!("[{}]", items.join(","))
-}
-
-fn param_ui(pair: &Pair<'_, Rule>) -> Option<(String, String, String)> {
+fn param_ui(pair: &Pair<'_, Rule>) -> Option<ParamUi> {
     pair.clone()
         .into_inner()
         .find(|child| child.as_rule() == Rule::param_ui)
@@ -82,15 +116,15 @@ fn param_ui(pair: &Pair<'_, Rule>) -> Option<(String, String, String)> {
                 .filter(|child| child.as_rule() == Rule::number)
                 .map(|child| child.as_str().to_string())
                 .collect();
-            (
-                nums.get(0).cloned().unwrap_or_default(),
-                nums.get(1).cloned().unwrap_or_default(),
-                nums.get(2).cloned().unwrap_or_default(),
-            )
+            ParamUi {
+                min: nums.get(0).cloned().unwrap_or_default(),
+                max: nums.get(1).cloned().unwrap_or_default(),
+                step: nums.get(2).cloned().unwrap_or_default(),
+            }
         })
 }
 
-fn param_to_json(pair: &Pair<'_, Rule>) -> String {
+fn param_to_stmt(pair: &Pair<'_, Rule>) -> AstStatement {
     let name = pair_ident(pair);
     let value = pair
         .clone()
@@ -99,26 +133,15 @@ fn param_to_json(pair: &Pair<'_, Rule>) -> String {
         .map(|child| child.as_str().trim().to_string())
         .unwrap_or_default();
 
-    let mut fields = vec![
-        "\"type\":\"param\"".to_string(),
-        format!("\"name\":\"{}\"", json_escape(&name)),
-        format!("\"value\":\"{}\"", json_escape(&value)),
-    ];
-
-    if let Some((min, max, step)) = param_ui(pair) {
-        fields.push(format!(
-            "\"ui\":{{\"min\":\"{}\",\"max\":\"{}\",\"step\":\"{}\"}}",
-            json_escape(&min),
-            json_escape(&max),
-            json_escape(&step)
-        ));
+    AstStatement::Param {
+        name,
+        value,
+        ui: param_ui(pair),
+        span: span_of(pair),
     }
-
-    fields.push(span_json(pair));
-    format!("{{{}}}", fields.join(","))
 }
 
-fn tensor_to_json(pair: &Pair<'_, Rule>) -> String {
+fn tensor_to_stmt(pair: &Pair<'_, Rule>) -> AstStatement {
     let mut kind = String::new();
     let mut name = String::new();
     let mut expr = String::new();
@@ -132,20 +155,19 @@ fn tensor_to_json(pair: &Pair<'_, Rule>) -> String {
         }
     }
 
-    format!(
-        "{{\"type\":\"tensor\",\"kind\":\"{}\",\"name\":\"{}\",\"expr\":\"{}\",{}}}",
-        json_escape(&kind),
-        json_escape(&name),
-        json_escape(&expr),
-        span_json(pair)
-    )
+    AstStatement::Tensor {
+        kind,
+        name,
+        expr,
+        span: span_of(pair),
+    }
 }
 
-fn object_to_json(pair: &Pair<'_, Rule>) -> String {
+fn object_to_stmt(pair: &Pair<'_, Rule>) -> AstStatement {
     let mut kind = String::new();
     let mut name = String::new();
     let mut expr = String::new();
-    let mut options: Vec<(String, String)> = Vec::new();
+    let mut options: Vec<OptionPair> = Vec::new();
 
     for child in pair.clone().into_inner() {
         match child.as_rule() {
@@ -163,23 +185,22 @@ fn object_to_json(pair: &Pair<'_, Rule>) -> String {
         }
     }
 
-    format!(
-        "{{\"type\":\"object\",\"kind\":\"{}\",\"name\":\"{}\",\"expr\":\"{}\",\"options\":{},{}}}",
-        json_escape(&kind),
-        json_escape(&name),
-        json_escape(&expr),
-        options_json(&options),
-        span_json(pair)
-    )
+    AstStatement::Object {
+        kind,
+        name,
+        expr,
+        options,
+        span: span_of(pair),
+    }
 }
 
-fn analysis_to_json(pair: &Pair<'_, Rule>) -> String {
+fn analysis_to_stmt(pair: &Pair<'_, Rule>) -> AstStatement {
     let mut op = String::new();
     let mut name = String::new();
     let mut call = String::new();
     let mut source = String::new();
     let mut at: Option<Vec<String>> = None;
-    let mut options: Vec<(String, String)> = Vec::new();
+    let mut options: Vec<OptionPair> = Vec::new();
 
     for child in pair.clone().into_inner() {
         match child.as_rule() {
@@ -213,34 +234,21 @@ fn analysis_to_json(pair: &Pair<'_, Rule>) -> String {
         }
     }
 
-    let mut fields = vec![
-        "\"type\":\"analysis\"".to_string(),
-        format!("\"op\":\"{}\"", json_escape(&op)),
-        format!("\"name\":\"{}\"", json_escape(&name)),
-        format!("\"call\":\"{}\"", json_escape(&call)),
-        format!("\"source\":\"{}\"", json_escape(&source)),
-    ];
-
-    match &at {
-        Some(args) => {
-            let items: Vec<String> = args
-                .iter()
-                .map(|value| format!("\"{}\"", json_escape(value)))
-                .collect();
-            fields.push(format!("\"at\":[{}]", items.join(",")));
-        }
-        None => fields.push("\"at\":null".to_string()),
+    AstStatement::Analysis {
+        op,
+        name,
+        call,
+        source,
+        at,
+        options,
+        span: span_of(pair),
     }
-
-    fields.push(format!("\"options\":{}", options_json(&options)));
-    fields.push(span_json(pair));
-    format!("{{{}}}", fields.join(","))
 }
 
-fn integral_to_json(pair: &Pair<'_, Rule>) -> String {
+fn integral_to_stmt(pair: &Pair<'_, Rule>) -> AstStatement {
     let mut name = String::new();
     let mut source = String::new();
-    let mut options: Vec<(String, String)> = Vec::new();
+    let mut options: Vec<OptionPair> = Vec::new();
 
     for child in pair.clone().into_inner() {
         match child.as_rule() {
@@ -264,23 +272,22 @@ fn integral_to_json(pair: &Pair<'_, Rule>) -> String {
         }
     }
 
-    format!(
-        "{{\"type\":\"integral\",\"name\":\"{}\",\"source\":\"{}\",\"options\":{},{}}}",
-        json_escape(&name),
-        json_escape(&source),
-        options_json(&options),
-        span_json(pair)
-    )
+    AstStatement::Integral {
+        name,
+        source,
+        options,
+        span: span_of(pair),
+    }
 }
 
-fn statement_to_json(pair: Pair<'_, Rule>) -> String {
+fn statement_to_ast(pair: Pair<'_, Rule>) -> Result<AstStatement, String> {
     match pair.as_rule() {
-        Rule::param_stmt => param_to_json(&pair),
-        Rule::tensor_stmt => tensor_to_json(&pair),
-        Rule::object_stmt => object_to_json(&pair),
-        Rule::analysis_stmt => analysis_to_json(&pair),
-        Rule::integral_stmt => integral_to_json(&pair),
-        _ => String::new(),
+        Rule::param_stmt => Ok(param_to_stmt(&pair)),
+        Rule::tensor_stmt => Ok(tensor_to_stmt(&pair)),
+        Rule::object_stmt => Ok(object_to_stmt(&pair)),
+        Rule::analysis_stmt => Ok(analysis_to_stmt(&pair)),
+        Rule::integral_stmt => Ok(integral_to_stmt(&pair)),
+        _ => Err(format!("未知语句规则: {:?}", pair.as_rule())),
     }
 }
 
@@ -289,13 +296,13 @@ pub fn parse_to_json(source: &str) -> Result<String, String> {
     let mut pairs = MikoParser::parse(Rule::program, source).map_err(|err| err.to_string())?;
     let program = pairs.next().ok_or_else(|| "空的解析结果".to_string())?;
 
-    let nodes: Vec<String> = program
+    let statements = program
         .into_inner()
-        .map(statement_to_json)
-        .filter(|node| !node.is_empty())
-        .collect();
+        .filter(|child| child.as_rule() != Rule::EOI)
+        .map(statement_to_ast)
+        .collect::<Result<Vec<_>, _>>()?;
 
-    Ok(format!("{{\"statements\":[{}]}}", nodes.join(",")))
+    serde_json::to_string(&AstProgram { statements }).map_err(|err| err.to_string())
 }
 
 #[cfg(test)]
@@ -303,7 +310,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parses_param_tensor_object_and_integral() {
+    fn parses_param_tensor_object_analysis_and_integral() {
         let src = r##"
 // 这是单行注释
 param a = 2 in [-5, 5, 0.1];
@@ -348,5 +355,18 @@ integral I2 = integral(s1) {
         assert!(json.contains("\"type\":\"object\""));
         assert!(json.contains("\"type\":\"analysis\""));
         assert!(json.contains("\"type\":\"integral\""));
+    }
+
+    #[test]
+    fn rejects_unknown_statement_rules_instead_of_dropping_them() {
+        let pair = MikoParser::parse(Rule::number, "1")
+            .unwrap()
+            .next()
+            .unwrap();
+
+        let result = statement_to_ast(pair);
+        assert!(result.is_err());
+        let error = result.err().unwrap();
+        assert!(error.contains("未知语句规则"));
     }
 }

@@ -105,17 +105,32 @@ export class SceneManager {
     }
 
     dispose(): void {
-        this.renderer.dispose();
-        // 清理场景中所有几何体和材质
         this.scene.traverse((node: THREE.Object3D) => {
-            if (node instanceof THREE.Mesh) {
+            if (
+                node instanceof THREE.Mesh
+                || node instanceof THREE.Line
+                || node instanceof THREE.Points
+            ) {
                 node.geometry?.dispose();
-                if (Array.isArray(node.material)) {
-                    node.material.forEach(m => m.dispose());
-                } else {
-                    node.material?.dispose();
+                const materials = Array.isArray(node.material) ? node.material : [node.material];
+                for (const material of materials) {
+                    const texturedMaterial = material as {
+                        map?: THREE.Texture | null;
+                        dispose?: () => void;
+                    };
+                    texturedMaterial.map?.dispose();
+                    texturedMaterial.dispose?.();
                 }
+            } else if (node instanceof THREE.Sprite) {
+                node.geometry?.dispose();
+                node.material.map?.dispose();
+                node.material.dispose();
             }
         });
+
+        this.renderer.dispose();
+        if (this.renderer.domElement.parentElement === this.container) {
+            this.container.removeChild(this.renderer.domElement);
+        }
     }
 }

@@ -3,7 +3,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { SceneManager } from '../core/SceneManager';
 import { CameraManager } from '../core/CameraManager';
 import { Plotter } from '../core/Plotter';
-import { parseMiko } from '../parser';
+import { createWasmMatrixOps, parseMiko } from '../parser';
+import { createMatrixOps, type MatrixOps } from '../tensor/SceneTransform';
 import {
     compileScene,
     type AnalysisResult,
@@ -18,6 +19,8 @@ import { ViewCubeController } from '../ui/ViewCubeController';
 import { RotationLockController } from '../ui/RotationLockController';
 import { PanelController } from '../ui/PanelController';
 import { DslIntegralRenderer } from '../visualization/DslIntegralRenderer';
+import { surfaceComputeClient } from '../visualization/SurfaceComputeClient';
+import { vectorFieldComputeClient } from '../visualization/VectorFieldComputeClient';
 
 /**
  * OpenSCAD 式 DSL Shell.
@@ -32,10 +35,15 @@ export class DslApp {
     private readonly cameraManager: CameraManager;
     private readonly plotter: Plotter;
     private readonly integralRenderer: DslIntegralRenderer;
+    private matrixOps: MatrixOps = createMatrixOps();
     private readonly editor: HTMLTextAreaElement;
     private readonly runButton: HTMLButtonElement;
     private readonly paramsPanel: HTMLElement;
     private readonly diagnostics: HTMLElement;
+    private panelController: PanelController | null = null;
+    private cameraToggle: CameraToggle | null = null;
+    private viewCubeController: ViewCubeController | null = null;
+    private rotationLockController: RotationLockController | null = null;
 
     private controls: OrbitControls | null = null;
     private animationFrameId: number | null = null;
@@ -75,7 +83,8 @@ export class DslApp {
         this._setupControls();
         this._wireViewControls();
         this._wireEditor();
-        new PanelController().bind(document.getElementById('app')!);
+        this.panelController = new PanelController();
+        this.panelController.bind(document.getElementById('app')!);
         window.addEventListener('resize', this.onResize);
         document.addEventListener('keydown', this.onKeyDown);
         this.animate();
@@ -88,9 +97,15 @@ export class DslApp {
         window.removeEventListener('resize', this.onResize);
         document.removeEventListener('keydown', this.onKeyDown);
         this.controls?.dispose();
+        this.panelController?.dispose();
+        this.cameraToggle?.dispose();
+        this.viewCubeController?.dispose();
+        this.rotationLockController?.dispose();
         this.cameraManager.dispose();
         this.integralRenderer.dispose();
         this.plotter.dispose();
+        surfaceComputeClient.dispose();
+        vectorFieldComputeClient.dispose();
         this.sceneManager.dispose();
     }
 
@@ -117,8 +132,9 @@ export class DslApp {
 
         try {
             const ast = await parseMiko(this.editor.value);
+            this.matrixOps = createWasmMatrixOps();
             this.currentAst = ast;
-            const scene = compileScene(ast);
+            const scene = compileScene(ast, {}, this.matrixOps);
             this._renderParams(scene.params);
             this._applyScene(scene);
             this._addDiagnostic(
@@ -152,9 +168,9 @@ export class DslApp {
     }
 
     private _wireViewControls(): void {
-        new CameraToggle(this.eventBus);
-        new ViewCubeController(this.eventBus);
-        new RotationLockController(this.eventBus);
+        this.cameraToggle = new CameraToggle(this.eventBus);
+        this.viewCubeController = new ViewCubeController(this.eventBus);
+        this.rotationLockController = new RotationLockController(this.eventBus);
 
         this.eventBus.on('camera:changed', ({ camMode }) => this.cameraManager.setCameraMode(camMode));
         this.eventBus.on('camera:view', ({ view }) => this.cameraManager.setView(view));
@@ -180,7 +196,11 @@ export class DslApp {
 
     private _refreshObjects(): ReturnType<typeof compileScene> | null {
         if (!this.currentAst) return null;
-        const scene = compileScene(this.currentAst, Object.fromEntries(this.paramValues));
+        const scene = compileScene(
+            this.currentAst,
+            Object.fromEntries(this.paramValues),
+            this.matrixOps,
+        );
         this._applyScene(scene);
         return scene;
     }

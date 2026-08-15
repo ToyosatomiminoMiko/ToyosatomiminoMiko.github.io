@@ -6,9 +6,11 @@ import type { MathLabEvents, ViewHome } from '../types';
  */
 export class ViewCubeController {
     private readonly buttons: NodeListOf<HTMLElement>;
+    private readonly _abortController = new AbortController();
 
     constructor(private readonly eventBus: EventBus<MathLabEvents>) {
         this.buttons = document.querySelectorAll<HTMLElement>('[data-view]');
+        const signal = this._abortController.signal;
 
         this.buttons.forEach((button) => {
             button.addEventListener('click', () => {
@@ -17,7 +19,11 @@ export class ViewCubeController {
 
                 this.buttons.forEach((item) => item.classList.toggle('active', item === button));
                 this.eventBus.emit('camera:view', { view });
-            });
+            }, { signal });
         });
+    }
+
+    dispose(): void {
+        this._abortController.abort();
     }
 }

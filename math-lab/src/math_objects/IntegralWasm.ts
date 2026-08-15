@@ -97,6 +97,19 @@ function callWasm(
     });
 }
 
+/** 终止积分 Worker,并拒绝所有未完成请求. */
+export function disposeIntegralWorker(): void {
+    worker?.terminate();
+    worker = null;
+    workerAlive = false;
+
+    const error = new Error('积分 Worker 已销毁');
+    for (const pendingRequest of pending.values()) {
+        pendingRequest.reject(error);
+    }
+    pending.clear();
+}
+
 // ---------- 公共 API ----------
 
 export function trapz1d(

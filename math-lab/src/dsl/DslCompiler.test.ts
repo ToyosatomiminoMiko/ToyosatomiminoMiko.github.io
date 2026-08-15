@@ -82,6 +82,12 @@ const ast: AstProgram = {
 
 describe('compileScene', () => {
     it('compiles core DSL objects and integral state', () => {
+        vi.mocked(evaluate_gradient_point).mockReturnValueOnce({
+            f0: 3,
+            fx: 2,
+            fy: 7,
+            free: () => {},
+        });
         const scene = compileScene(ast);
 
         expect(scene.params).toHaveLength(2);
@@ -91,7 +97,11 @@ describe('compileScene', () => {
         expect(scene.objects[2].kind).toBe('vector_field');
         expect(scene.analyses).toHaveLength(1);
         expect(scene.analyses[0].point[0]).toBe(2);
-        expect(scene.analyses[0].point[1]).toBe(2);
+        expect(scene.analyses[0].point[1]).toBeCloseTo(3);
+        expect(scene.analyses[0].point[2]).toBe(0);
+        expect(scene.analyses[0].vector[0]).toBeCloseTo(-2 / Math.sqrt(5));
+        expect(scene.analyses[0].vector[1]).toBeCloseTo(1 / Math.sqrt(5));
+        expect(scene.analyses[0].vector[2]).toBe(0);
         expect(scene.analyses[0].show).toContain('tangent_plane');
         expect(evaluate_gradient_point).toHaveBeenCalledWith(
             'sin(x * a)',
@@ -100,7 +110,7 @@ describe('compileScene', () => {
             ['a'],
             expect.any(Float64Array),
             2,
-            2,
+            0,
         );
         expect(scene.integrals).toHaveLength(1);
         expect(scene.integrals[0].method).toBe('riemann');
@@ -108,10 +118,69 @@ describe('compileScene', () => {
     });
 
     it('evaluates analysis at expressions with current parameter overrides', () => {
-        const scene = compileScene(ast, { b: 3 });
+        const surfaceAst: AstProgram = {
+            statements: [
+                ast.statements[0],
+                ast.statements[1],
+                ast.statements[3],
+                {
+                    type: 'analysis',
+                    op: 'gradient',
+                    name: 'gs',
+                    call: 'grad',
+                    source: 's',
+                    at: ['a', 'b + 1'],
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        const scene = compileScene(surfaceAst, { b: 3 });
 
         expect(scene.analyses[0].point[0]).toBe(2);
         expect(scene.analyses[0].point[1]).toBe(4);
+        expect(scene.analyses[0].point[2]).toBe(0);
+    });
+
+    it('computes surface gradients from both partial derivatives', () => {
+        vi.mocked(evaluate_gradient_point).mockReturnValueOnce({
+            f0: 5,
+            fx: 3,
+            fy: 4,
+            free: () => {},
+        });
+        const surfaceAst: AstProgram = {
+            statements: [
+                ast.statements[3],
+                {
+                    type: 'analysis',
+                    op: 'gradient',
+                    name: 'gs',
+                    call: 'grad',
+                    source: 's',
+                    at: ['2', '4'],
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        const scene = compileScene(surfaceAst);
+
+        expect(evaluate_gradient_point).toHaveBeenCalledWith(
+            'sin(x) * cos(y)',
+            'cos(y) * cos(x)',
+            '-(sin(x) * sin(y))',
+            [],
+            expect.any(Float64Array),
+            2,
+            4,
+        );
+        expect(scene.analyses[0].point).toEqual([2, 4, 5]);
+        expect(scene.analyses[0].vector[0]).toBeCloseTo(-3 / Math.sqrt(26));
+        expect(scene.analyses[0].vector[1]).toBeCloseTo(-4 / Math.sqrt(26));
+        expect(scene.analyses[0].vector[2]).toBeCloseTo(1 / Math.sqrt(26));
     });
 
     it('reuses parsed nodes for repeated compiles of the same AST', () => {
@@ -120,6 +189,117 @@ describe('compileScene', () => {
 
         expect((second.objects[0] as { node: unknown }).node)
             .toBe((first.objects[0] as { node: unknown }).node);
+    });
+
+    it('rejects invalid at coordinates instead of defaulting them to zero', () => {
+        const badAtAst: AstProgram = {
+            statements: [
+                ast.statements[2],
+                {
+                    type: 'analysis',
+                    op: 'gradient',
+                    name: 'g',
+                    call: 'grad',
+                    source: 'c',
+                    at: ['1', 'nonsense'],
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        expect(() => compileScene(badAtAst)).toThrow('at 第 2 个坐标无法求值: nonsense');
+    });
+
+    it('rejects non-finite parameter declarations instead of using defaults', () => {
+        const badParamAst: AstProgram = {
+            statements: [
+                {
+                    type: 'param',
+                    name: 'a',
+                    value: 'not-a-number',
+                    ui: null,
+                    span: { start: 0, end: 0 },
+                },
+                ast.statements[2],
+            ],
+        };
+
+        expect(() => compileScene(badParamAst)).toThrow('参数 a 的 value 不是有效数字: not-a-number');
+    });
+
+    it('rejects fractional or non-positive object segments instead of passing them through', () => {
+        const badSegmentsAst: AstProgram = {
+            statements: [
+                {
+                    type: 'object',
+                    kind: 'curve',
+                    name: 'c',
+                    expr: 'sin(x)',
+                    options: [
+                        { name: 'range', value: '[-8, 8]' },
+                        { name: 'segments', value: '3.7' },
+                    ],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        expect(() => compileScene(badSegmentsAst)).toThrow('曲线 c 的 segments 必须是正整数,当前为 3.7');
+    });
+
+    it('rejects reversed object ranges instead of generating NaN samples', () => {
+        const badRangeAst: AstProgram = {
+            statements: [
+                {
+                    type: 'object',
+                    kind: 'curve',
+                    name: 'c',
+                    expr: 'sin(x)',
+                    options: [{ name: 'range', value: '[8, -8]' }],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        expect(() => compileScene(badRangeAst)).toThrow('曲线 c 的 range 需要 min < max');
+    });
+
+    it('rejects invalid vector field grid values', () => {
+        const badGridAst: AstProgram = {
+            statements: [
+                {
+                    type: 'object',
+                    kind: 'vector_field',
+                    name: 'F',
+                    expr: '[y, -x, 0]',
+                    options: [{ name: 'grid', value: '[0, 8, 8]' }],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        expect(() => compileScene(badGridAst)).toThrow('向量场 F 的 grid 中的每个值都必须是正整数: [0, 8, 8]');
+    });
+
+    it('rejects analysis points with fewer coordinates than the operator needs', () => {
+        const badAtAst: AstProgram = {
+            statements: [
+                ast.statements[4],
+                {
+                    type: 'analysis',
+                    op: 'divergence',
+                    name: 'd',
+                    call: 'div',
+                    source: 'F',
+                    at: ['1', '2'],
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        expect(() => compileScene(badAtAst)).toThrow('at 至少需要 3 个坐标');
     });
 
     it('rejects odd Simpson segments instead of silently adjusting them', () => {
@@ -177,8 +357,29 @@ describe('compileScene', () => {
         expect(scene.analyses[0].scalar).toBe(0);
         expect(scene.analyses[1].op).toBe('curl');
         expect(scene.analyses[1].vector).toEqual([0, 0, 0]);
-        expect(evaluate_divergence_point).toHaveBeenCalled();
-        expect(evaluate_curl_point).toHaveBeenCalled();
+        expect(evaluate_divergence_point).toHaveBeenCalledWith(
+            '0',
+            '0',
+            '0',
+            [],
+            expect.any(Float64Array),
+            1,
+            2,
+            3,
+        );
+        expect(evaluate_curl_point).toHaveBeenCalledWith(
+            '0',
+            '0',
+            '0',
+            '0',
+            '-1',
+            '1',
+            [],
+            expect.any(Float64Array),
+            1,
+            2,
+            3,
+        );
     });
 
     it('rejects unimplemented differential operators instead of ignoring them', () => {
@@ -215,5 +416,39 @@ describe('compileScene', () => {
         };
 
         expect(() => compileScene(transformAst)).not.toThrow();
+    });
+
+    it('applies a transform chain to an object with the expected matrix', () => {
+        const transformAst: AstProgram = {
+            statements: [
+                {
+                    type: 'tensor',
+                    kind: 'transform',
+                    name: 'T',
+                    expr: 'translate([2, 1, 0]) * scale([2, 2, 2])',
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'object',
+                    kind: 'curve',
+                    name: 'c',
+                    expr: 'x',
+                    options: [
+                        { name: 'transform', value: 'T' },
+                        { name: 'range', value: '[-1, 1]' },
+                    ],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        const scene = compileScene(transformAst);
+
+        expect(scene.objectTransforms.get(1)).toEqual([
+            [2, 0, 0, 2],
+            [0, 2, 0, 1],
+            [0, 0, 2, 0],
+            [0, 0, 0, 1],
+        ]);
     });
 });

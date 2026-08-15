@@ -1,12 +1,13 @@
-import init, {
+import {
     sample_and_process_surface as wasm_sample_and_process,
     generate_full_indices as wasm_generate_full_indices,
 } from '../wasm/ml_wasm';
+import { ensureWasmReady } from '../wasmRuntime';
 
 // 立即触发初始化,后续调用者共享同一个 Promise
-const wasmReady = init();
+const wasmReady = ensureWasmReady();
 let ready = false;
-wasmReady.then(() => { ready = true; });
+void wasmReady.then(() => { ready = true; });
 
 /**
  * Rust 端一步完成采样 + 后处理
@@ -46,4 +47,4 @@ export function generate_full_indices(cols: number, rows: number): number[] {
 /**
  * 返回 WASM 初始化 Promise,main.ts 中可 await 它再开始初始绘制
  */
-export const ensureReady = (): Promise<unknown> => wasmReady;
+export const ensureReady = (): Promise<void> => wasmReady;

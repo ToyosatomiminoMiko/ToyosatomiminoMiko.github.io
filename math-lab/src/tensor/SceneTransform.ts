@@ -21,6 +21,7 @@ export interface SceneTransform {
 
 type Mat4 = number[][];
 
+/** 矩阵运算后端,可由 WASM 实现,也可由 JS fallback 实现. */
 export interface MatrixWasmBackend {
     identity(): Mat4;
     translate(values: number[]): Mat4;
@@ -30,10 +31,14 @@ export interface MatrixWasmBackend {
     apply(matrix: Mat4, point: number[]): number[];
 }
 
-let matrixBackend: MatrixWasmBackend | null = null;
-
-export function registerMatrixWasmBackend(backend: MatrixWasmBackend): void {
-    matrixBackend = backend;
+/** 供编译/渲染层显式注入的矩阵运算接口,避免模块级可变全局状态. */
+export interface MatrixOps {
+    identity(): Mat4;
+    translate(values: number[]): Mat4;
+    scale(values: number[]): Mat4;
+    rotate(values: number[]): Mat4;
+    multiply(a: Mat4, b: Mat4): Mat4;
+    apply(matrix: Mat4, point: number[]): number[];
 }
 
 function clone4x4(matrix: number[][]): number[][] {
@@ -44,6 +49,24 @@ function assert4x4(matrix: number[][]): void {
     if (matrix.length !== 4 || matrix.some((row) => row.length !== 4)) {
         throw new TypeError('SceneTransform 需要 4x4 矩阵');
     }
+}
+
+function applyMatrix(matrix: number[][], point: number[]): number[] {
+    assert4x4(matrix);
+    if (point.length !== 3) {
+        throw new TypeError('apply(matrix, point) 需要 3 分量向量');
+    }
+
+    const v = [point[0], point[1], point[2], 1];
+    const out = [0, 0, 0, 0];
+    for (let i = 0; i < 4; i += 1) {
+        out[i] =
+            matrix[i][0] * v[0] +
+            matrix[i][1] * v[1] +
+            matrix[i][2] * v[2] +
+            matrix[i][3] * v[3];
+    }
+    return [out[0], out[1], out[2]];
 }
 
 /**
@@ -79,7 +102,7 @@ export function matrix4(transform: SceneTransform): MatrixTensorValue {
 
 /** 单位 4x4 矩阵。 */
 export function identity4(): Mat4 {
-    return matrixBackend?.identity() ?? [
+    return [
         [1, 0, 0, 0],
         [0, 1, 0, 0],
         [0, 0, 1, 0],
@@ -89,7 +112,7 @@ export function identity4(): Mat4 {
 
 /** 平移矩阵。 */
 export function translate4(values: number[]): Mat4 {
-    return matrixBackend?.translate(values) ?? [
+    return [
         [1, 0, 0, values[0] ?? 0],
         [0, 1, 0, values[1] ?? 0],
         [0, 0, 1, values[2] ?? 0],
@@ -99,7 +122,7 @@ export function translate4(values: number[]): Mat4 {
 
 /** 缩放矩阵。 */
 export function scale4(values: number[]): Mat4 {
-    return matrixBackend?.scale(values) ?? [
+    return [
         [values[0] ?? 1, 0, 0, 0],
         [0, values[1] ?? 1, 0, 0],
         [0, 0, values[2] ?? 1, 0],
@@ -109,8 +132,6 @@ export function scale4(values: number[]): Mat4 {
 
 /** 旋转矩阵,顺序与旧实现一致: Rz * Ry * Rx。 */
 export function rotate4(values: number[]): Mat4 {
-    if (matrixBackend) return matrixBackend.rotate(values);
-
     const rx = values[0] ?? 0;
     const ry = values[1] ?? 0;
     const rz = values[2] ?? 0;
@@ -145,8 +166,6 @@ export function rotate4(values: number[]): Mat4 {
 
 /** 两个 4x4 矩阵相乘,结果仍为行主序 4x4. */
 export function multiply4x4(a: number[][], b: number[][]): number[][] {
-    if (matrixBackend) return matrixBackend.multiply(a, b);
-
     assert4x4(a);
     assert4x4(b);
 
@@ -183,27 +202,32 @@ export function compose(a: SceneTransform, b: SceneTransform): SceneTransform {
  * 返回应用变换后的 3 分量向量.
  */
 export function apply(transform: SceneTransform, point: VectorTensorValue): VectorTensorValue {
-    assert4x4(transform.matrix);
+    return {
+        kind: 'vector',
+        values: applyMatrix(transform.matrix, point.values),
+    };
+}
 
-    const values = point.values;
-    if (values.length !== 3) {
-        throw new TypeError('apply(transform, point) 需要 3 分量向量');
-    }
+/** 纯 JS 矩阵运算实现,作为默认后端. */
+export const jsMatrixOps: MatrixOps = {
+    identity: () => identity4(),
+    translate: (values) => translate4(values),
+    scale: (values) => scale4(values),
+    rotate: (values) => rotate4(values),
+    multiply: (a, b) => multiply4x4(a, b),
+    apply: (matrix, point) => applyMatrix(matrix, point),
+};
 
-    if (matrixBackend) {
-        const out = matrixBackend.apply(transform.matrix, values);
-        return { kind: 'vector', values: [out[0], out[1], out[2]] };
-    }
+/** 根据后端创建矩阵运算对象;未提供后端时使用 JS fallback. */
+export function createMatrixOps(backend?: MatrixWasmBackend): MatrixOps {
+    if (!backend) return jsMatrixOps;
 
-    const v = [values[0], values[1], values[2], 1];
-    const out = [0, 0, 0, 0];
-    for (let i = 0; i < 4; i += 1) {
-        out[i] =
-            transform.matrix[i][0] * v[0] +
-            transform.matrix[i][1] * v[1] +
-            transform.matrix[i][2] * v[2] +
-            transform.matrix[i][3] * v[3];
-    }
-
-    return { kind: 'vector', values: [out[0], out[1], out[2]] };
+    return {
+        identity: () => backend.identity(),
+        translate: (values) => backend.translate(values),
+        scale: (values) => backend.scale(values),
+        rotate: (values) => backend.rotate(values),
+        multiply: (a, b) => backend.multiply(a, b),
+        apply: (matrix, point) => backend.apply(matrix, point),
+    };
 }

@@ -9,19 +9,21 @@ export class CameraToggle {
     camToggle: HTMLInputElement;
     camLabels: NodeListOf<HTMLElement>;
     currentCam: CamMode;
+    private readonly _abortController = new AbortController();
 
     constructor(eventBus: EventBus<MathLabEvents>) {
         this.eventBus = eventBus;
         this.camToggle = document.getElementById('camToggle') as HTMLInputElement;
         this.camLabels = document.querySelectorAll('.cam-label');
         this.currentCam = 'perspective';
+        const signal = this._abortController.signal;
 
         this.camToggle.addEventListener('change', (e: Event) => {
             const mode: CamMode = (e.target as HTMLInputElement).checked
                 ? 'orthographic'
                 : 'perspective';
             this._setCamMode(mode);
-        });
+        }, { signal });
 
         this.camLabels.forEach(label => {
             label.addEventListener('click', () => {
@@ -30,10 +32,14 @@ export class CameraToggle {
                     this.camToggle.checked = mode === 'orthographic';
                     this._setCamMode(mode);
                 }
-            });
+            }, { signal });
         });
 
         this._syncUI();
+    }
+
+    dispose(): void {
+        this._abortController.abort();
     }
 
     private _setCamMode(mode: CamMode): void {

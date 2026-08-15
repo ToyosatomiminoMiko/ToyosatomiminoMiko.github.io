@@ -6,11 +6,16 @@ import type { MathLabEvents } from '../types';
  */
 export class RotationLockController {
     private readonly toggle: HTMLInputElement | null;
+    private readonly _abortController = new AbortController();
 
     constructor(private readonly eventBus: EventBus<MathLabEvents>) {
         this.toggle = document.getElementById('rotationLockToggle') as HTMLInputElement | null;
         this.toggle?.addEventListener('change', () => {
             this.eventBus.emit('camera:rotationLock', { locked: this.toggle?.checked ?? false });
-        });
+        }, { signal: this._abortController.signal });
+    }
+
+    dispose(): void {
+        this._abortController.abort();
     }
 }
