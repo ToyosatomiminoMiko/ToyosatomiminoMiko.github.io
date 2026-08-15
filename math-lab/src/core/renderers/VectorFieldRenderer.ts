@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { IRenderer } from './IRenderer';
-import type { VectorFieldExpr } from '../../math_objects/types';
+import type { VectorFieldObject } from '../../ir/types';
 import { VectorFieldMesh } from '../../visualization/VectorFieldMesh';
 import { vectorFieldComputeClient } from '../../visualization/VectorFieldComputeClient';
 import { logWarning } from '../../service/logger';
@@ -20,7 +20,7 @@ export class VectorFieldRenderer implements IRenderer {
     private _requestId = 0;
     private _disposed = false;
 
-    constructor(private _data: VectorFieldExpr) {
+    constructor(private _data: VectorFieldObject) {
         this.group = new THREE.Group();
     }
 
@@ -29,7 +29,7 @@ export class VectorFieldRenderer implements IRenderer {
     }
 
     draw(): void {
-        const { nodeP, nodeQ, nodeR, coefficients, range, gridSize, glyphScale, color } = this._data;
+        const { components, coefficients, range, gridSize, glyphScale, color } = this._data;
 
         // 网格点世界坐标(仅 range/gridSize 变化时重建)
         const key = this.getPositionsKey(range, gridSize);
@@ -48,9 +48,9 @@ export class VectorFieldRenderer implements IRenderer {
         const requestId = ++this._requestId;
         vectorFieldComputeClient
             .request({
-                pExpr: nodeP.toString(),
-                qExpr: nodeQ.toString(),
-                rExpr: nodeR.toString(),
+                pExpr: components[0],
+                qExpr: components[1],
+                rExpr: components[2],
                 coeffNames: coefficients.map((coefficient) => coefficient.name),
                 coeffValues: coefficients.map((coefficient) => coefficient.value),
                 range,
@@ -79,8 +79,8 @@ export class VectorFieldRenderer implements IRenderer {
 
     /** 根据当前 range 和 gridSize 生成网格点世界坐标 */
     private buildPositions(
-        range: VectorFieldExpr['range'],
-        gridSize: VectorFieldExpr['gridSize'],
+        range: VectorFieldObject['range'],
+        gridSize: VectorFieldObject['gridSize'],
     ): Float32Array {
         const [gx, gy, gz] = gridSize;
         const total = gx * gy * gz;
@@ -111,8 +111,8 @@ export class VectorFieldRenderer implements IRenderer {
 
     /** 生成 range + gridSize 的缓存 key */
     private getPositionsKey(
-        range: VectorFieldExpr['range'],
-        gridSize: VectorFieldExpr['gridSize'],
+        range: VectorFieldObject['range'],
+        gridSize: VectorFieldObject['gridSize'],
     ): string {
         return JSON.stringify([range, gridSize]);
     }
@@ -121,7 +121,7 @@ export class VectorFieldRenderer implements IRenderer {
         this.group.visible = v;
     }
 
-    updateRef(data: VectorFieldExpr): void {
+    updateRef(data: VectorFieldObject): void {
         this._data = data;
     }
 

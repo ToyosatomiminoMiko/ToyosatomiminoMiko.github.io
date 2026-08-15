@@ -5,14 +5,15 @@ import { CameraManager } from '../core/CameraManager';
 import { Plotter } from '../core/Plotter';
 import { createWasmMatrixOps, parseMiko } from '../parser';
 import { createMatrixOps, type MatrixOps } from '../tensor/SceneTransform';
-import {
-    compileScene,
-    type AnalysisResult,
-    type CompiledScene,
-    type ParamDeclaration,
-} from './DslCompiler';
+import { compileScene } from './DslCompiler';
+import type {
+    AnalysisResult,
+    ParamDeclaration,
+    SceneIR,
+    SceneObject,
+} from '../ir/types';
 import { EventBus } from '../service/EventBus';
-import type { MathLabEvents, MathObject } from '../types';
+import type { MathLabEvents } from '../types';
 import type { AstProgram } from '../ast/types';
 import { CameraToggle } from '../ui/CameraToggle';
 import { ViewCubeController } from '../ui/ViewCubeController';
@@ -48,7 +49,7 @@ export class DslApp {
     private controls: OrbitControls | null = null;
     private animationFrameId: number | null = null;
     private paramValues = new Map<string, number>();
-    private compiledObjects: MathObject[] = [];
+    private compiledObjects: SceneObject[] = [];
     private currentAst: AstProgram | null = null;
     private readonly analysisGroup = new THREE.Group();
     private disposed = false;
@@ -205,7 +206,7 @@ export class DslApp {
         return scene;
     }
 
-    private _applyScene(scene: CompiledScene): void {
+    private _applyScene(scene: SceneIR): void {
         const nextIds = new Set(scene.objects.map((object) => object.id));
 
         for (const previous of this.compiledObjects) {
@@ -216,7 +217,7 @@ export class DslApp {
 
         for (const object of scene.objects) {
             this.plotter.updateObject(object);
-            this.plotter.applyTransform(object.id, scene.objectTransforms.get(object.id) ?? null);
+            this.plotter.applyTransform(object.id, scene.objectTransforms[object.id] ?? null);
         }
 
         this.compiledObjects = scene.objects;

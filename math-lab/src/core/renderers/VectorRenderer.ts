@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { IRenderer } from './IRenderer';
-import type { VectorEntity } from '../../math_objects/types';
+import type { VectorObject } from '../../ir/types';
 import { ArrowMesh } from '../../visualization/ArrowMesh';
 
 /**
@@ -12,7 +12,7 @@ export class VectorRenderer implements IRenderer {
     readonly group: THREE.Group;
     private arrow: ArrowMesh;
 
-    constructor(private vector: VectorEntity) {
+    constructor(private vector: VectorObject) {
         this.arrow = new ArrowMesh(vector.color);
         this.group = this.arrow.group;
     }
@@ -42,7 +42,7 @@ export class VectorRenderer implements IRenderer {
         this.group.visible = v;
     }
 
-    updateRef(vector: VectorEntity): void {
+    updateRef(vector: VectorObject): void {
         this.vector = vector;
     }
 

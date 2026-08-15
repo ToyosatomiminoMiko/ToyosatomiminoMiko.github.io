@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import type { EvalFunction } from 'mathjs';
+import { parse, type EvalFunction } from 'mathjs';
 import type { IRenderer } from './IRenderer';
-import type { CurveExpr } from '../../math_objects/types';
+import type { CurveObject } from '../../ir/types';
 import { compilationCache } from '../../math_objects/CompilationCache';
 import { sample_curve as wasmSampleCurve } from '../../wasm/ml_wasm';
 import { ensureWasmReady } from '../../wasmRuntime';
@@ -23,7 +23,7 @@ export class CurveRenderer implements IRenderer {
     private readonly xRange: [number, number];
     private readonly steps: number;
 
-    constructor(public curve: CurveExpr) {
+    constructor(public curve: CurveObject) {
         this.xRange = curve.range ?? [-8, 8];
         this.steps = curve.segments ?? 320;
     }
@@ -36,7 +36,7 @@ export class CurveRenderer implements IRenderer {
      * 更新曲线: 复用 BufferGeometry / Material, 仅替换 position 数组
      */
     draw(): void {
-        const compiled = compilationCache.getByNode(this.curve.node);
+        const compiled = this._compiled();
 
         // 预分配足够大的 buffer
         const maxVerts = this.steps + 2;
@@ -85,7 +85,7 @@ export class CurveRenderer implements IRenderer {
     }
 
     /** 更新数学对象引用(系数/颜色变化时由 Plotter 调用) */
-    updateRef(curve: CurveExpr): void {
+    updateRef(curve: CurveObject): void {
         this.curve = curve;
     }
 
@@ -133,6 +133,18 @@ export class CurveRenderer implements IRenderer {
         return count;
     }
 
+    /** 把字符串表达式编译成可复用的 mathjs 求值函数. */
+    private _compiled(): EvalFunction {
+        const coeffsKey = this.curve.coefficients
+            .map((coefficient) => `${coefficient.name}=${coefficient.value}`)
+            .join(',');
+        return compilationCache.getByExpr(
+            this.curve.expr,
+            coeffsKey,
+            () => parse(this.curve.expr).compile(),
+        );
+    }
+
     /**
      * 使用 Rust/WASM 采样曲线,并直接写入目标数组.
      *
@@ -141,7 +153,7 @@ export class CurveRenderer implements IRenderer {
     private _sampleCurveWasm(target: Float32Array): number {
         try {
             const sampled = wasmSampleCurve(
-                this.curve.node.toString(),
+                this.curve.expr,
                 this.curve.coefficients.map((coefficient) => coefficient.name),
                 new Float64Array(this.curve.coefficients.map((coefficient) => coefficient.value)),
                 this.xRange[0],
@@ -159,7 +171,7 @@ export class CurveRenderer implements IRenderer {
             return count;
         } catch (error) {
             logWarning('CurveRenderer', 'WASM 曲线采样失败,回退到 mathjs:', error);
-            const compiled = compilationCache.getByNode(this.curve.node);
+            const compiled = this._compiled();
             return this._sampleCurveDirect(compiled, target, 0);
         }
     }

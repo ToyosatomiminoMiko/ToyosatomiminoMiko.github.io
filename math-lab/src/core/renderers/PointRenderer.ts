@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { IRenderer } from './IRenderer';
-import type { PointEntity } from '../../math_objects/types';
+import type { PointObject } from '../../ir/types';
 
 /**
  * 空间点渲染器 —— 小球
@@ -12,7 +12,7 @@ export class PointRenderer implements IRenderer {
     private sphere: THREE.Mesh;
     private material: THREE.MeshPhongMaterial;
 
-    constructor(private point: PointEntity) {
+    constructor(private point: PointObject) {
         const geo = new THREE.SphereGeometry(0.2, 16, 16);
         this.material = new THREE.MeshPhongMaterial({
             color: point.color,
@@ -36,13 +36,12 @@ export class PointRenderer implements IRenderer {
     }
 
     setVisible(v: boolean): void {
-        // point 的 enabled 由 MathObjectManager 管理,这里同步
-        // 注意: PointEntity.enabled 可能已被外部修改
+        // point 的 enabled 由外部管理,这里同步
         // 这里只控制 group.visible,不修改 point.enabled
         this.group.visible = v;
     }
 
-    updateRef(point: PointEntity): void {
+    updateRef(point: PointObject): void {
         this.point = point;
     }
 

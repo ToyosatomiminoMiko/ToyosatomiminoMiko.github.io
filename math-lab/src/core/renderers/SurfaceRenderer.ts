@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { SurfaceMesh } from '../../visualization/SurfaceMesh';
 import type { IRenderer } from './IRenderer';
-import type { SurfaceExpr } from '../../math_objects/types';
+import type { SurfaceObject } from '../../ir/types';
 
 /**
  * 曲面渲染器
@@ -17,7 +17,7 @@ export class SurfaceRenderer implements IRenderer {
     private readonly yRange: [number, number];
     private segments: number;
 
-    constructor(private surface: SurfaceExpr) {
+    constructor(private surface: SurfaceObject) {
         const range = surface.range;
         this.xRange = range ? [range[0], range[1]] : [-6, 6];
         this.yRange = range ? [range[2], range[3]] : [-6, 6];
@@ -44,7 +44,7 @@ export class SurfaceRenderer implements IRenderer {
         // 重新序列化成字符串，避免在渲染器里保留编译函数。
         // 注意：toString 只是序列化，不会把 e^x 自动转换成 exp(x)；
         // evalexpr 能否解析由表达式来源保证，不能把兼容性归因到这一步。
-        const expr = this.surface.node.toString();
+        const expr = this.surface.expr;
 
         this.mesh.update(
             expr, // 字符串,不再是 CompiledFn
@@ -61,7 +61,7 @@ export class SurfaceRenderer implements IRenderer {
         this.group.visible = this.visible;
     }
 
-    updateRef(surface: SurfaceExpr): void {
+    updateRef(surface: SurfaceObject): void {
         this.surface = surface;
     }
 

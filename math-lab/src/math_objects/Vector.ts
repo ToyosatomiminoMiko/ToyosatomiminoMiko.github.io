@@ -1,4 +1,4 @@
-import type { VectorEntity } from './types';
+import type { VectorObject } from '../ir/types';
 
 /**
  * 创建一个空间向量实体(纯数据)
@@ -8,7 +8,7 @@ export function createVector(
     dx: number, dy: number, dz: number,
     ox: number, oy: number, oz: number,
     color: string,
-): VectorEntity {
+): VectorObject {
     return {
         kind: 'vector',
         id,
@@ -23,10 +23,10 @@ export function createVector(
  * 更新向量方向和起点(返回新对象)
  */
 export function transformVector(
-    vec: VectorEntity,
+    vec: VectorObject,
     dx: number, dy: number, dz: number,
     ox: number, oy: number, oz: number,
-): VectorEntity {
+): VectorObject {
     return {
         ...vec,
         origin: { x: ox, y: oy, z: oz },

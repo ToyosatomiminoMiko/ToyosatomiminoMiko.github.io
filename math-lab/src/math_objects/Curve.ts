@@ -1,6 +1,6 @@
 import * as math from 'mathjs';
 import type { MathNode } from 'mathjs';
-import type { Coefficient } from './types';
+import type { Coefficient } from '../ir/types';
 import { extractCoefficients } from './coefficientUtils';
 
 // 曲线变量名集合

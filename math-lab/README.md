@@ -10,7 +10,7 @@ Math-lab 的当前入口是 `index.html`，它加载 `src/main.ts`，再由
   -> Rust/WASM 解析器 parse_miko()
   -> AstProgram
   -> DslCompiler.compileScene()
-  -> CompiledScene
+  -> SceneIR
   -> Plotter / CameraManager / DslIntegralRenderer
   -> Three.js 场景
 ```

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import type { MathObject } from '../types';
-import type { IntegralTask } from '../dsl/DslCompiler';
+import { parse } from 'mathjs';
+import type { IntegralTask, SceneObject } from '../ir/types';
 import { IntegralVisualizer } from './IntegralVisualizer';
 import {
     disposeIntegralWorker,
@@ -37,7 +37,7 @@ export class DslIntegralRenderer {
 
     sync(
         tasks: IntegralTask[],
-        objects: MathObject[],
+        objects: SceneObject[],
         diagnostics: IntegralDiagnosticFn,
     ): void {
         const sequence = ++this.sequence;
@@ -57,7 +57,7 @@ export class DslIntegralRenderer {
 
     private async _renderAll(
         tasks: IntegralTask[],
-        objects: MathObject[],
+        objects: SceneObject[],
         sequence: number,
         diagnostics: IntegralDiagnosticFn,
     ): Promise<void> {
@@ -89,10 +89,10 @@ export class DslIntegralRenderer {
 
     private async _compute(
         task: IntegralTask,
-        source: Extract<MathObject, { kind: 'curve' | 'surface' }>,
+        source: Extract<SceneObject, { kind: 'curve' | 'surface' }>,
         coeffs: Record<string, number>,
     ): Promise<number> {
-        const expr = source.node.toString();
+        const expr = source.expr;
         const segments = task.segments;
 
         if (source.kind === 'curve') {
@@ -130,7 +130,7 @@ export class DslIntegralRenderer {
 
     private _visualize(
         task: IntegralTask,
-        source: Extract<MathObject, { kind: 'curve' | 'surface' }>,
+        source: Extract<SceneObject, { kind: 'curve' | 'surface' }>,
     ): void {
         if (source.kind === 'curve') {
             const [a, b] = task.range as [number, number];
@@ -188,9 +188,9 @@ export class DslIntegralRenderer {
     }
 
     private _makeFn(
-        source: Extract<MathObject, { kind: 'curve' | 'surface' }>,
+        source: Extract<SceneObject, { kind: 'curve' | 'surface' }>,
     ): (x: number, y?: number) => number {
-        const compiled = source.node.compile();
+        const compiled = parse(source.expr).compile();
         const scope: Record<string, number> = {};
         for (const coefficient of source.coefficients) {
             scope[coefficient.name] = coefficient.value;
@@ -205,7 +205,7 @@ export class DslIntegralRenderer {
     }
 
     private _coefficients(
-        source: Extract<MathObject, { kind: 'curve' | 'surface' }>,
+        source: Extract<SceneObject, { kind: 'curve' | 'surface' }>,
     ): Record<string, number> {
         const result: Record<string, number> = {};
         for (const coefficient of source.coefficients) {

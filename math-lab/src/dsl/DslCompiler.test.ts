@@ -187,8 +187,8 @@ describe('compileScene', () => {
         const first = compileScene(ast);
         const second = compileScene(ast, { b: 3 });
 
-        expect((second.objects[0] as { node: unknown }).node)
-            .toBe((first.objects[0] as { node: unknown }).node);
+        expect((second.objects[0] as { expr: string }).expr)
+            .toBe((first.objects[0] as { expr: string }).expr);
     });
 
     it('rejects invalid at coordinates instead of defaulting them to zero', () => {
@@ -444,7 +444,7 @@ describe('compileScene', () => {
 
         const scene = compileScene(transformAst);
 
-        expect(scene.objectTransforms.get(1)).toEqual([
+        expect(scene.objectTransforms[1]).toEqual([
             [2, 0, 0, 2],
             [0, 2, 0, 1],
             [0, 0, 2, 0],

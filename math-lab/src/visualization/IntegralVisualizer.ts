@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { MathObject } from '../types';
+import type { SceneObject } from '../ir/types';
 
 // ============================================================
 // 渲染常量
@@ -92,7 +92,7 @@ export class IntegralVisualizer {
 
     /** 2D 黎曼和可视化 */
     visualize2DRiemann(
-        obj: MathObject,
+        obj: SceneObject,
         fn: (x: number) => number,
         a: number,
         b: number,
@@ -126,7 +126,7 @@ export class IntegralVisualizer {
 
     /** 3D 黎曼和可视化 */
     visualize3DRiemann(
-        obj: MathObject,
+        obj: SceneObject,
         fn: (x: number, y: number) => number,
         xRange: [number, number],
         yRange: [number, number],
@@ -175,7 +175,7 @@ export class IntegralVisualizer {
 
     /** 2D 勒贝格可视化 */
     visualize2DLebesgue(
-        obj: MathObject,
+        obj: SceneObject,
         fn: (x: number) => number,
         a: number,
         b: number,
@@ -243,7 +243,7 @@ export class IntegralVisualizer {
 
     /** 3D 勒贝格积分可视化(等高线切片) */
     visualize3DLebesgue(
-        obj: MathObject,
+        obj: SceneObject,
         fn: (x: number, y: number) => number,
         xRange: [number, number],
         yRange: [number, number],

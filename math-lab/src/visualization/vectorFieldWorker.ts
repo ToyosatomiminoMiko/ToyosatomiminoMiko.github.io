@@ -1,6 +1,6 @@
 import { parse } from 'mathjs';
 import { sampleVectorField } from '../math_objects/VectorField';
-import type { Coefficient } from '../math_objects/types';
+import type { Coefficient } from '../ir/types';
 
 export type VectorFieldWorkerRequest = {
     id: number;

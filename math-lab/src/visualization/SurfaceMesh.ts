@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Coefficient } from '../types';
+import type { Coefficient } from '../ir/types';
 import { generate_full_indices } from './SurfaceMeshWasm';
 import {
     surfaceComputeClient,

@@ -1,6 +1,6 @@
 import * as math from 'mathjs';
 import type { MathNode } from 'mathjs';
-import type { Coefficient } from './types';
+import type { Coefficient } from '../ir/types';
 
 // ============================================================
 // 内置变量与函数名黑名单 —— 系数提取时排除

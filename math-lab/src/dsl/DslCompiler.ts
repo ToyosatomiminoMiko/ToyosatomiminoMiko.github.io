@@ -3,11 +3,16 @@ import type { MathNode } from 'mathjs';
 import type { AstProgram, IntegralStatement, ObjectStatement, OptionPair } from '../ast/types';
 import type {
     Coefficient,
-    CurveExpr,
-    MathObject,
-    SurfaceExpr,
-    VectorFieldExpr,
-} from '../math_objects/types';
+    CurveObject,
+    AnalysisResult,
+    IntegralMethod,
+    IntegralTask,
+    ParamDeclaration,
+    SceneIR,
+    SceneObject,
+    SurfaceObject,
+    VectorFieldObject,
+} from '../ir/types';
 import { extractCoefficients } from '../math_objects/coefficientUtils';
 import {
     jsMatrixOps,
@@ -18,44 +23,6 @@ import {
     evaluate_divergence_point as wasmEvaluateDivergencePoint,
     evaluate_gradient_point as wasmEvaluateGradientPoint,
 } from '../wasm/ml_wasm';
-
-export interface ParamDeclaration {
-    name: string;
-    value: number;
-    min: number;
-    max: number;
-    step: number;
-}
-
-export interface AnalysisResult {
-    name: string;
-    op: 'gradient' | 'divergence' | 'curl';
-    point: [number, number, number];
-    vector: [number, number, number];
-    scalar: number | null;
-    show: Array<'point' | 'normal' | 'tangent_plane'>;
-}
-
-export type IntegralMethod = 'trapezoid' | 'simpson' | 'riemann' | 'lebesgue';
-
-export interface IntegralTask {
-    name: string;
-    objectId: number;
-    sourceKind: 'curve' | 'surface';
-    method: IntegralMethod;
-    range: [number, number] | [number, number, number, number];
-    segments: number;
-    layers: number;
-    show: boolean;
-}
-
-export interface CompiledScene {
-    params: ParamDeclaration[];
-    objects: MathObject[];
-    objectTransforms: Map<number, number[][]>;
-    analyses: AnalysisResult[];
-    integrals: IntegralTask[];
-}
 
 type Mat4 = number[][];
 
@@ -383,47 +350,47 @@ function materializeObject(
     blueprint: ObjectBlueprint,
     params: Map<string, ParamDeclaration>,
     overrides: Record<string, number>,
-): MathObject {
+): SceneObject {
     if (blueprint.kind === 'curve') {
         return {
             kind: 'curve',
             id: blueprint.id,
-            node: blueprint.node,
+            name: blueprint.name,
+            expr: blueprint.node.toString(),
             coefficients: materializeCoefficients(blueprint.coefficientNames, params, overrides),
             color: blueprint.color,
             enabled: true,
             range: blueprint.range,
             segments: blueprint.segments,
-        } satisfies CurveExpr;
+        } satisfies CurveObject;
     }
 
     if (blueprint.kind === 'surface') {
         return {
             kind: 'surface',
             id: blueprint.id,
-            node: blueprint.node,
+            name: blueprint.name,
+            expr: blueprint.node.toString(),
             coefficients: materializeCoefficients(blueprint.coefficientNames, params, overrides),
             color: blueprint.color,
             enabled: true,
             range: blueprint.range,
             segments: blueprint.segments,
-        } satisfies SurfaceExpr;
+        } satisfies SurfaceObject;
     }
 
     return {
         kind: 'vector_field',
         id: blueprint.id,
+        name: blueprint.name,
         components: [blueprint.nodeP.toString(), blueprint.nodeQ.toString(), blueprint.nodeR.toString()],
-        nodeP: blueprint.nodeP,
-        nodeQ: blueprint.nodeQ,
-        nodeR: blueprint.nodeR,
         coefficients: materializeCoefficients(blueprint.coefficientNames, params, overrides),
         color: blueprint.color,
         enabled: true,
         gridSize: blueprint.gridSize,
         range: blueprint.range,
         glyphScale: blueprint.glyphScale,
-    } satisfies VectorFieldExpr;
+    } satisfies VectorFieldObject;
 }
 
 function cloneParams(params: Map<string, ParamDeclaration>): Map<string, ParamDeclaration> {
@@ -434,10 +401,10 @@ function cloneParams(params: Map<string, ParamDeclaration>): Map<string, ParamDe
     return clone;
 }
 
-function cloneObjectTransforms(transforms: Map<number, Mat4>): Map<number, Mat4> {
-    const clone = new Map<number, Mat4>();
+function cloneObjectTransforms(transforms: Map<number, Mat4>): Record<number, Mat4> {
+    const clone: Record<number, Mat4> = {};
     for (const [id, matrix] of transforms) {
-        clone.set(id, cloneMat4(matrix));
+        clone[id] = cloneMat4(matrix);
     }
     return clone;
 }
@@ -586,16 +553,17 @@ function normalizeVector(vector: [number, number, number]): [number, number, num
 
 function compileAnalyses(
     ast: AstProgram,
-    objectByName: Map<string, MathObject>,
+    blueprintByName: Map<string, ObjectBlueprint>,
     params: Map<string, ParamDeclaration>,
+    overrides: Record<string, number>,
 ): AnalysisResult[] {
     const results: AnalysisResult[] = [];
 
     for (const statement of ast.statements) {
         if (statement.type !== 'analysis') continue;
 
-        const source = objectByName.get(statement.source.trim());
-        if (!source) {
+        const blueprint = blueprintByName.get(statement.source.trim());
+        if (!blueprint) {
             throw new Error(`分析 ${statement.name} 引用了不存在的对象 ${statement.source}`);
         }
 
@@ -603,18 +571,21 @@ function compileAnalyses(
             throw new Error(`分析算子 ${statement.op} 暂未实现`);
         }
 
+        const coefficients = materializeCoefficients(
+            blueprint.coefficientNames,
+            params,
+            overrides,
+        );
         const atScope: Record<string, number> = {};
         for (const [name, param] of params) atScope[name] = param.value;
-        if (source.kind === 'curve' || source.kind === 'surface' || source.kind === 'vector_field') {
-            for (const coefficient of source.coefficients) {
-                atScope[coefficient.name] = coefficient.value;
-            }
+        for (const coefficient of coefficients) {
+            atScope[coefficient.name] = coefficient.value;
         }
 
         const rawAt = statement.at ?? [];
         const requiredAtCount =
-            statement.op === 'gradient' && source.kind === 'surface' ? 2
-                : (statement.op === 'divergence' || statement.op === 'curl') && source.kind === 'vector_field' ? 3
+            statement.op === 'gradient' && blueprint.kind === 'surface' ? 2
+                : (statement.op === 'divergence' || statement.op === 'curl') && blueprint.kind === 'vector_field' ? 3
                     : 1;
         if (rawAt.length < requiredAtCount) {
             throw new Error(`分析 ${statement.name} 的 at 至少需要 ${requiredAtCount} 个坐标`);
@@ -635,13 +606,13 @@ function compileAnalyses(
         ];
         const show = parseShowOption(statement.options);
 
-        if (statement.op === 'gradient' && (source.kind === 'curve' || source.kind === 'surface')) {
-            const isCurve = source.kind === 'curve';
-            const [coeffNames, coeffValues] = coefficientArgs(source);
+        if (statement.op === 'gradient' && (blueprint.kind === 'curve' || blueprint.kind === 'surface')) {
+            const isCurve = blueprint.kind === 'curve';
+            const [coeffNames, coeffValues] = coefficientArgs({ coefficients });
             const result = wasmEvaluateGradientPoint(
-                cachedRustExpression(source.node),
-                cachedDerivativeExpression(source.node, 'x'),
-                isCurve ? '0' : cachedDerivativeExpression(source.node, 'y'),
+                cachedRustExpression(blueprint.node),
+                cachedDerivativeExpression(blueprint.node, 'x'),
+                isCurve ? '0' : cachedDerivativeExpression(blueprint.node, 'y'),
                 coeffNames,
                 coeffValues,
                 at[0],
@@ -660,14 +631,14 @@ function compileAnalyses(
             continue;
         }
 
-        if ((statement.op === 'divergence' || statement.op === 'curl') && source.kind === 'vector_field') {
-            const [coeffNames, coeffValues] = coefficientArgs(source);
+        if ((statement.op === 'divergence' || statement.op === 'curl') && blueprint.kind === 'vector_field') {
+            const [coeffNames, coeffValues] = coefficientArgs({ coefficients });
 
             if (statement.op === 'divergence') {
                 const scalar = wasmEvaluateDivergencePoint(
-                    cachedDerivativeExpression(source.nodeP, 'x'),
-                    cachedDerivativeExpression(source.nodeQ, 'y'),
-                    cachedDerivativeExpression(source.nodeR, 'z'),
+                    cachedDerivativeExpression(blueprint.nodeP, 'x'),
+                    cachedDerivativeExpression(blueprint.nodeQ, 'y'),
+                    cachedDerivativeExpression(blueprint.nodeR, 'z'),
                     coeffNames,
                     coeffValues,
                     at[0],
@@ -677,12 +648,12 @@ function compileAnalyses(
                 results.push({ name: statement.name, op: 'divergence', point: at, vector: [0, 0, 0], scalar, show });
             } else {
                 const result = wasmEvaluateCurlPoint(
-                    cachedDerivativeExpression(source.nodeR, 'y'),
-                    cachedDerivativeExpression(source.nodeQ, 'z'),
-                    cachedDerivativeExpression(source.nodeP, 'z'),
-                    cachedDerivativeExpression(source.nodeR, 'x'),
-                    cachedDerivativeExpression(source.nodeQ, 'x'),
-                    cachedDerivativeExpression(source.nodeP, 'y'),
+                    cachedDerivativeExpression(blueprint.nodeR, 'y'),
+                    cachedDerivativeExpression(blueprint.nodeQ, 'z'),
+                    cachedDerivativeExpression(blueprint.nodeP, 'z'),
+                    cachedDerivativeExpression(blueprint.nodeR, 'x'),
+                    cachedDerivativeExpression(blueprint.nodeQ, 'x'),
+                    cachedDerivativeExpression(blueprint.nodeP, 'y'),
                     coeffNames,
                     coeffValues,
                     at[0],
@@ -696,7 +667,7 @@ function compileAnalyses(
         }
 
         throw new Error(
-            `分析算子 ${statement.op} 不能应用于 ${source.kind} 类型对象`,
+            `分析算子 ${statement.op} 不能应用于 ${blueprint.kind} 类型对象`,
         );
     }
 
@@ -705,7 +676,7 @@ function compileAnalyses(
 
 function compileIntegralTask(
     statement: IntegralStatement,
-    objectByName: Map<string, MathObject>,
+    objectByName: Map<string, SceneObject>,
 ): IntegralTask {
     const source = objectByName.get(statement.source.trim());
     if (!source) {
@@ -837,7 +808,7 @@ export function compileScene(
     ast: AstProgram,
     paramOverrides: Record<string, number> = {},
     matrixOps: MatrixOps = jsMatrixOps,
-): CompiledScene {
+): SceneIR {
     let staticScene = staticSceneCache.get(ast);
     if (!staticScene) {
         staticScene = buildStaticScene(ast, matrixOps);
@@ -850,9 +821,12 @@ export function compileScene(
     );
     applyParamOverrides(params, paramOverrides);
 
-    const objectByName = new Map<string, MathObject>();
+    const objectByName = new Map<string, SceneObject>();
+    const blueprintByName = new Map<string, ObjectBlueprint>();
     for (let i = 0; i < staticScene.objectBlueprints.length; i += 1) {
-        objectByName.set(staticScene.objectBlueprints[i].name, objects[i]);
+        const blueprint = staticScene.objectBlueprints[i];
+        objectByName.set(blueprint.name, objects[i]);
+        blueprintByName.set(blueprint.name, blueprint);
     }
 
     const integrals: IntegralTask[] = [];
@@ -865,7 +839,7 @@ export function compileScene(
         params: [...params.values()],
         objects,
         objectTransforms: cloneObjectTransforms(staticScene.objectTransforms),
-        analyses: compileAnalyses(ast, objectByName, params),
+        analyses: compileAnalyses(ast, blueprintByName, params, paramOverrides),
         integrals,
     };
 }

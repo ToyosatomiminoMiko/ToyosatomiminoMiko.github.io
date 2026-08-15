@@ -6,20 +6,20 @@ import { PointRenderer } from './renderers/PointRenderer';
 import { VectorRenderer } from './renderers/VectorRenderer';
 import { VectorFieldRenderer } from './renderers/VectorFieldRenderer';
 import type {
-    MathObject,
-    CurveExpr,
-    SurfaceExpr,
-    PointEntity,
-    VectorEntity,
-    VectorFieldExpr,
-} from '../types';
+    CurveObject,
+    PointObject,
+    SceneObject,
+    SurfaceObject,
+    VectorFieldObject,
+    VectorObject,
+} from '../ir/types';
 
 /**
  * 扩展的渲染器接口 -- 在 IRenderer 基础上增加可选能力
  * - updateRef: 更新内部持有的数学对象引用(所有具体渲染器都有)
  */
 interface UpdatableRenderer extends IRenderer {
-    updateRef?(data: MathObject): void;
+    updateRef?(data: SceneObject): void;
 }
 
 /**
@@ -43,27 +43,27 @@ export class Plotter {
     //  公开绘制 API
     // ============================================================
 
-    drawCurve(curve: CurveExpr): void {
+    drawCurve(curve: CurveObject): void {
         const renderer = this._getOrCreate(curve.id, CurveRenderer, curve);
         this._draw(renderer, curve);
     }
 
-    drawSurface(surface: SurfaceExpr): void {
+    drawSurface(surface: SurfaceObject): void {
         const renderer = this._getOrCreate(surface.id, SurfaceRenderer, surface);
         this._draw(renderer, surface);
     }
 
-    drawPoint(point: PointEntity): void {
+    drawPoint(point: PointObject): void {
         const renderer = this._getOrCreate(point.id, PointRenderer, point);
         this._draw(renderer, point);
     }
 
-    drawVector(vec: VectorEntity): void {
+    drawVector(vec: VectorObject): void {
         const renderer = this._getOrCreate(vec.id, VectorRenderer, vec);
         this._draw(renderer, vec);
     }
 
-    drawVectorField(vf: VectorFieldExpr): void {
+    drawVectorField(vf: VectorFieldObject): void {
         const renderer = this._getOrCreate(vf.id, VectorFieldRenderer, vf);
         this._draw(renderer, vf);
     }
@@ -110,7 +110,7 @@ export class Plotter {
         renderer.group.matrix.copy(transform);
     }
 
-    updateObject(obj: MathObject): void {
+    updateObject(obj: SceneObject): void {
         switch (obj.kind) {
             case 'curve':
                 this.drawCurve(obj);
@@ -141,13 +141,13 @@ export class Plotter {
     //  内部工具
     // ============================================================
 
-    private _draw(renderer: UpdatableRenderer, data: MathObject): void {
+    private _draw(renderer: UpdatableRenderer, data: SceneObject): void {
         renderer.updateRef?.(data);
         renderer.setVisible(data.enabled);
         renderer.draw();
     }
 
-    private _getOrCreate<T extends UpdatableRenderer, D extends MathObject>(
+    private _getOrCreate<T extends UpdatableRenderer, D extends SceneObject>(
         id: number,
         Ctor: new (data: D) => T,
         initialData: D,
