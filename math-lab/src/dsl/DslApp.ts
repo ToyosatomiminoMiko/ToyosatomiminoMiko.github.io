@@ -4,7 +4,12 @@ import { SceneManager } from '../core/SceneManager';
 import { CameraManager } from '../core/CameraManager';
 import { Plotter } from '../core/Plotter';
 import { parseMiko } from '../parser';
-import { compileScene, type AnalysisResult, type ParamDeclaration } from './DslCompiler';
+import {
+    compileScene,
+    type AnalysisResult,
+    type CompiledScene,
+    type ParamDeclaration,
+} from './DslCompiler';
 import { EventBus } from '../service/EventBus';
 import type { MathLabEvents, MathObject } from '../types';
 import type { AstProgram } from '../ast/types';
@@ -90,27 +95,44 @@ export class DslApp {
     }
 
     async run(): Promise<void> {
+        /*
+         * 入口流程（一次运行只编译一次场景）：
+         *
+         *   editor.value
+         *       │
+         *       ▼
+         *   parseMiko(source)          // Rust pest 解析为 AST
+         *       │
+         *       ▼
+         *   compileScene(ast)          // 静态缓存 + 默认参数
+         *       │
+         *       ├─► _renderParams      // 生成滑块，并填充 paramValues
+         *       │
+         *       └─► _applyScene        // 用同一份 scene 更新绘图 / 分析 / 积分
+         *
+         * 之后拖动滑块只走 _refreshObjects -> compileScene(ast, paramValues)，
+         * 不会在 run() 里重复编译同一个 AST。
+         */
         this._clearDiagnostics();
 
         try {
             const ast = await parseMiko(this.editor.value);
             this.currentAst = ast;
-            this._renderParams(compileScene(ast).params);
-            const scene = this._refreshObjects();
+            const scene = compileScene(ast);
+            this._renderParams(scene.params);
+            this._applyScene(scene);
             this._addDiagnostic(
                 'info',
                 `解析成功:${ast.statements.length} 条语句，${this.compiledObjects.length} 个对象`,
             );
 
-            if (scene) {
-                for (const analysis of scene.analyses) {
-                    if (analysis.op === 'divergence') {
-                        this._addDiagnostic('info', `${analysis.name}: divergence = ${analysis.scalar}`);
-                    } else if (analysis.op === 'curl') {
-                        this._addDiagnostic('info', `${analysis.name}: curl = [${analysis.vector.join(', ')}]`);
-                    } else {
-                        this._addDiagnostic('info', `${analysis.name}: normal = [${analysis.vector.join(', ')}]`);
-                    }
+            for (const analysis of scene.analyses) {
+                if (analysis.op === 'divergence') {
+                    this._addDiagnostic('info', `${analysis.name}: divergence = ${analysis.scalar}`);
+                } else if (analysis.op === 'curl') {
+                    this._addDiagnostic('info', `${analysis.name}: curl = [${analysis.vector.join(', ')}]`);
+                } else {
+                    this._addDiagnostic('info', `${analysis.name}: normal = [${analysis.vector.join(', ')}]`);
                 }
             }
         } catch (error) {
@@ -159,6 +181,11 @@ export class DslApp {
     private _refreshObjects(): ReturnType<typeof compileScene> | null {
         if (!this.currentAst) return null;
         const scene = compileScene(this.currentAst, Object.fromEntries(this.paramValues));
+        this._applyScene(scene);
+        return scene;
+    }
+
+    private _applyScene(scene: CompiledScene): void {
         const nextIds = new Set(scene.objects.map((object) => object.id));
 
         for (const previous of this.compiledObjects) {
@@ -177,7 +204,6 @@ export class DslApp {
         this.integralRenderer.sync(scene.integrals, scene.objects, (level, message) => {
             this._addDiagnostic(level, message);
         });
-        return scene;
     }
 
     private _renderAnalyses(analyses: AnalysisResult[]): void {
