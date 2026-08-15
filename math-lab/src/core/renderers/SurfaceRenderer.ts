@@ -13,8 +13,8 @@ export class SurfaceRenderer implements IRenderer {
     readonly group = new THREE.Group();
     private mesh: SurfaceMesh | null = null;
     private userVisible = true;
-    private readonly xRange: [number, number];
-    private readonly yRange: [number, number];
+    private xRange: [number, number];
+    private yRange: [number, number];
     private segments: number;
 
     constructor(private surface: SurfaceObject) {
@@ -63,6 +63,10 @@ export class SurfaceRenderer implements IRenderer {
 
     updateRef(surface: SurfaceObject): void {
         this.surface = surface;
+        const range = surface.range;
+        this.xRange = range ? [range[0], range[1]] : [-6, 6];
+        this.yRange = range ? [range[2], range[3]] : [-6, 6];
+        this.segments = surface.segments ?? 64;
     }
 
     dispose(): void {

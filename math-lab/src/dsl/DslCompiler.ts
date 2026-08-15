@@ -30,6 +30,18 @@ const COLOR_PALETTE = ['#6dd5ff', '#ff6b8a', '#ffd93d', '#6bffb8', '#c084fc', '#
 const INTEGRAL_METHODS = new Set<IntegralMethod>(['trapezoid', 'simpson', 'riemann', 'lebesgue']);
 const SHOW_KINDS = new Set(['point', 'normal', 'tangent_plane']);
 
+/**
+ * DslCompiler 的职责边界:
+ *
+ * AstProgram (Rust pest 输出的纯声明)
+ *   -> 静态场景建模:params / matrix / transform / object blueprint
+ *   -> 每次参数刷新时 materialize 成 SceneIR
+ *
+ * 这里只做“声明级”编译:
+ *   - 对象表达式仍保留为 mathjs MathNode / 字符串;
+ *   - 曲线、曲面、向量场的实际采样由各自 renderer / worker 负责;
+ *   - 梯度、散度、旋度在这里由 mathjs 做符号求导,再交给 WASM 数值求值.
+ */
 type CurveBlueprint = {
     name: string;
     id: number;
@@ -78,7 +90,12 @@ type StaticScene = {
     objectTransforms: Map<number, Mat4>;
 };
 
-const staticSceneCache = new WeakMap<AstProgram, StaticScene>();
+/**
+ * 静态场景缓存必须和 matrixOps 绑定.
+ * 对象表达式、参数声明与 matrixOps 无关,但 transform 求值依赖具体后端;
+ * 同一 AST 用不同 matrixOps 编译时若复用旧结果,会返回错误的 objectTransforms.
+ */
+const staticSceneCache = new WeakMap<AstProgram, { matrixOps: MatrixOps; scene: StaticScene }>();
 
 function findOption(options: OptionPair[], name: string): string | undefined {
     return options.find((item) => item.name === name)?.value;
@@ -93,8 +110,12 @@ function parseNumberList(raw: string, context: string): number[] {
     if (!body) {
         throw new Error(`${context} 不能为空`);
     }
-    const values = body.replace(/[[\]]/g, '').split(',').map((item) => Number(item.trim()));
-    if (values.length === 0 || values.some((value) => !Number.isFinite(value))) {
+    const items = body.replace(/[[\]]/g, '').split(',');
+    if (items.length === 0 || items.some((item) => item.trim() === '')) {
+        throw new Error(`${context} 包含空元素: ${raw}`);
+    }
+    const values = items.map((item) => Number(item.trim()));
+    if (values.some((value) => !Number.isFinite(value))) {
         throw new Error(`${context} 不是有效的数字列表: ${raw}`);
     }
     return values;
@@ -196,7 +217,7 @@ function parseVectorComponents(raw: string): [MathNode, MathNode, MathNode] {
     const node = math.parse(raw);
     if (node.type === 'ArrayNode') {
         const items = (node as unknown as { items: MathNode[] }).items;
-        if (items.length >= 3) {
+        if (items.length === 3) {
             return [items[0], items[1], items[2]];
         }
     }
@@ -435,7 +456,13 @@ function evaluateMatrix(raw: string): Mat4 | null {
 
         if (Array.isArray(rows) && rows.length === 4) {
             const matrix = rows.map((row) => (Array.isArray(row) ? row.map(Number) : []));
-            if (matrix.every((row) => row.length === 4)) return matrix as Mat4;
+            if (
+                matrix.every(
+                    (row) => row.length === 4 && row.every((entry) => Number.isFinite(entry)),
+                )
+            ) {
+                return matrix as Mat4;
+            }
         }
     } catch {
         return null;
@@ -448,7 +475,7 @@ function parseTransformFunction(part: string, ops: MatrixOps): Mat4 | null {
     if (!match) return null;
 
     const values = match[2].split(',').map((item) => evaluateNumber(item.trim()));
-    if (values.some((value) => value === null) || values.length < 3) return null;
+    if (values.some((value) => value === null) || values.length !== 3) return null;
     const numbers = values as number[];
 
     if (match[1] === 'translate') return ops.translate(numbers);
@@ -487,11 +514,13 @@ function resolveObjectTransform(
     const asTransformMatch = /^as_transform\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)$/.exec(value);
     if (asTransformMatch) {
         const matrix = matrices.get(asTransformMatch[1]);
-        return matrix ? cloneMat4(matrix) : null;
+        if (matrix) return cloneMat4(matrix);
+        throw new Error(`对象 transform 引用了不存在的矩阵 ${asTransformMatch[1]}`);
     }
 
     const transform = transforms.get(value);
-    return transform ? cloneMat4(transform) : null;
+    if (transform) return cloneMat4(transform);
+    throw new Error(`对象 transform 引用了不存在的变换 ${value}`);
 }
 
 function derivativeExpression(node: MathNode, variable: string): string {
@@ -809,11 +838,13 @@ export function compileScene(
     paramOverrides: Record<string, number> = {},
     matrixOps: MatrixOps = jsMatrixOps,
 ): SceneIR {
-    let staticScene = staticSceneCache.get(ast);
-    if (!staticScene) {
-        staticScene = buildStaticScene(ast, matrixOps);
-        staticSceneCache.set(ast, staticScene);
+    let cached = staticSceneCache.get(ast);
+    if (!cached || cached.matrixOps !== matrixOps) {
+        const scene = buildStaticScene(ast, matrixOps);
+        cached = { matrixOps, scene };
+        staticSceneCache.set(ast, cached);
     }
+    const staticScene = cached.scene;
 
     const params = cloneParams(staticScene.params);
     const objects = staticScene.objectBlueprints.map((blueprint) =>

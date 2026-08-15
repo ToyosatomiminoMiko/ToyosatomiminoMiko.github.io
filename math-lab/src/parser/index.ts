@@ -16,6 +16,14 @@ import {
     type MatrixOps,
 } from '../tensor/SceneTransform';
 
+/**
+ * parser 包对外暴露两个入口:
+ * - parseMiko: 当前 DSL 主路径,先初始化 WASM,再调用 Rust pest parser.
+ * - parseMatlab: 兼容层,先做 MATLAB 语法归一化,再走同一个 parseMiko.
+ *
+ * 目前 UI 只调用 parseMiko;parseMatlab 保留为公共 API,尚未接入口.
+ */
+
 function toMat4(values: Float64Array): number[][] {
     return [
         [values[0], values[1], values[2], values[3]],

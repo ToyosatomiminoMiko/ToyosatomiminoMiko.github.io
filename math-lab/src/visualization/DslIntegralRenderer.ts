@@ -136,26 +136,48 @@ export class DslIntegralRenderer {
             const [a, b] = task.range as [number, number];
             const fn = this._makeFn(source) as (x: number) => number;
             const segments = task.segments;
-            if (task.method === 'lebesgue') {
-                const sampleN = segments * 20;
-                this.visualizer.visualize2DLebesgue(
-                    source,
-                    fn,
-                    a,
-                    b,
-                    task.layers,
-                    sampleN,
-                    task.name,
-                );
-            } else {
-                this.visualizer.visualize2DRiemann(
-                    source,
-                    fn,
-                    a,
-                    b,
-                    segments,
-                    task.name,
-                );
+            switch (task.method) {
+                case 'riemann':
+                    this.visualizer.visualize2DRiemann(
+                        source,
+                        fn,
+                        a,
+                        b,
+                        segments,
+                        task.name,
+                    );
+                    break;
+                case 'trapezoid':
+                    this.visualizer.visualize2DTrapezoid(
+                        source,
+                        fn,
+                        a,
+                        b,
+                        segments,
+                        task.name,
+                    );
+                    break;
+                case 'simpson':
+                    this.visualizer.visualize2DSimpson(
+                        source,
+                        fn,
+                        a,
+                        b,
+                        segments,
+                        task.name,
+                    );
+                    break;
+                case 'lebesgue':
+                    this.visualizer.visualize2DLebesgue(
+                        source,
+                        fn,
+                        a,
+                        b,
+                        task.layers,
+                        segments * 20,
+                        task.name,
+                    );
+                    break;
             }
             return;
         }
@@ -163,27 +185,51 @@ export class DslIntegralRenderer {
         const [xMin, xMax, yMin, yMax] = task.range as [number, number, number, number];
         const fn = this._makeFn(source) as (x: number, y: number) => number;
         const segments = task.segments;
-        if (task.method === 'lebesgue') {
-            const sampleGrid = segments * 4;
-            this.visualizer.visualize3DLebesgue(
-                source,
-                fn,
-                [xMin, xMax],
-                [yMin, yMax],
-                task.layers,
-                sampleGrid,
-                task.name,
-            );
-        } else {
-            this.visualizer.visualize3DRiemann(
-                source,
-                fn,
-                [xMin, xMax],
-                [yMin, yMax],
-                segments,
-                segments,
-                task.name,
-            );
+        switch (task.method) {
+            case 'riemann':
+                this.visualizer.visualize3DRiemann(
+                    source,
+                    fn,
+                    [xMin, xMax],
+                    [yMin, yMax],
+                    segments,
+                    segments,
+                    task.name,
+                );
+                break;
+            case 'trapezoid':
+                this.visualizer.visualize3DTrapezoid(
+                    source,
+                    fn,
+                    [xMin, xMax],
+                    [yMin, yMax],
+                    segments,
+                    segments,
+                    task.name,
+                );
+                break;
+            case 'simpson':
+                this.visualizer.visualize3DSimpson(
+                    source,
+                    fn,
+                    [xMin, xMax],
+                    [yMin, yMax],
+                    segments,
+                    segments,
+                    task.name,
+                );
+                break;
+            case 'lebesgue':
+                this.visualizer.visualize3DLebesgue(
+                    source,
+                    fn,
+                    [xMin, xMax],
+                    [yMin, yMax],
+                    task.layers,
+                    segments * 4,
+                    task.name,
+                );
+                break;
         }
     }
 

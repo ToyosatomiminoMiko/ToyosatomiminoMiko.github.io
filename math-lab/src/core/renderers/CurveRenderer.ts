@@ -20,8 +20,8 @@ export class CurveRenderer implements IRenderer {
     readonly group = new THREE.Group();
     private line: THREE.Line | null = null;
     private userVisible = true;
-    private readonly xRange: [number, number];
-    private readonly steps: number;
+    private xRange: [number, number];
+    private steps: number;
 
     constructor(public curve: CurveObject) {
         this.xRange = curve.range ?? [-8, 8];
@@ -87,6 +87,8 @@ export class CurveRenderer implements IRenderer {
     /** 更新数学对象引用(系数/颜色变化时由 Plotter 调用) */
     updateRef(curve: CurveObject): void {
         this.curve = curve;
+        this.xRange = curve.range ?? [-8, 8];
+        this.steps = curve.segments ?? 320;
     }
 
     dispose(): void {
