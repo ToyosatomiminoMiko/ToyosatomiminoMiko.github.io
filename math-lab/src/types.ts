@@ -15,7 +15,7 @@ export type {
     AnalysisResult,
     IntegralTask,
     SceneIR,
-} from './ir/types';
+} from './compiler/ir/types';
 
 export type {
     Integral1DFn,
@@ -24,4 +24,4 @@ export type {
     CamMode,
     ViewHome,
     MathLabEvents,
-} from './math_objects/types';
+} from './math/objects/types';

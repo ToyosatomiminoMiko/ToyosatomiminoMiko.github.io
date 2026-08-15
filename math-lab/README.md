@@ -105,13 +105,13 @@ npm run build
 
 ```text
 src/main.ts
-src/dsl/DslApp.ts
-src/dsl/DslCompiler.ts
-src/parser/
-src/visualization/DslIntegralRenderer.ts
-src/core/Plotter.ts
-src/core/SceneManager.ts
-src/core/CameraManager.ts
+src/app/DslApp.ts
+src/compiler/dsl/DslCompiler.ts
+src/compiler/parser/
+src/render/visualization/DslIntegralRenderer.ts
+src/render/core/Plotter.ts
+src/render/core/SceneManager.ts
+src/render/core/CameraManager.ts
 ```
 
 旧交互式 UI 中仍有部分模块暂时保留为 legacy 参考代码，例如
