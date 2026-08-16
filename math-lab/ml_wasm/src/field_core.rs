@@ -11,9 +11,21 @@ use crate::surface_utils::register_builtins;
 //     -> wasm-bindgen 暴露给 Worker / 主线程
 //
 // 这里只做数值计算,不处理 UI,也不重复实现符号微分.
+// evaluate(求值方法)
+//
+// ∇(Nabla)的定义:
+// ∇ = ∂/∂x + ∂/∂y + ∂/∂z
 // ================================================================
 
-/// 构建带系数和坐标的求值上下文.
+/// 构建带系数和坐标的求值上下文
+///
+/// # 参数
+/// * `coeff_names` - 系数变量名列表
+/// * `coeff_values` - 对应的系数值（与 `coeff_names` 长度一致）
+/// * `x`, `y`, `z` - 当前点的坐标值
+///
+/// # 返回
+/// 一个配置好的 `HashMapContext`,其中包含所有系数和坐标变量,并注册了内置函数
 fn build_context(
     coeff_names: &[String],
     coeff_values: &[f64],
@@ -39,7 +51,14 @@ fn build_context(
     Ok(ctx)
 }
 
-/// 求值一个标量表达式.
+/// 在给定上下文中求值一个标量表达式
+///
+/// # 参数
+/// * `expr` - 表达式字符串
+/// * `ctx` - 已含变量值的上下文
+///
+/// # 返回
+/// 表达式计算得到的有限浮点数,若不是数值则返回错误
 fn eval_scalar(expr: &str, ctx: &HashMapContext) -> Result<f64, String> {
     let node = build_operator_tree(expr).map_err(|e| format!("表达式解析失败: {}", e))?;
 
@@ -51,12 +70,45 @@ fn eval_scalar(expr: &str, ctx: &HashMapContext) -> Result<f64, String> {
     }
 }
 
+/// 在给定系数和坐标下求值一个标量表达式.
+///
+/// 该接口供编译期仍然需要在 TS 侧完成的 point / vector 坐标、transform
+/// 参数以及 analysis `at` 坐标使用,避免这些数值求值继续走 mathjs.
+pub fn evaluate_scalar(
+    expr: &str,
+    coeff_names: &[String],
+    coeff_values: &[f64],
+    x: f64,
+    y: f64,
+    z: f64,
+) -> Result<f64, String> {
+    let ctx = build_context(coeff_names, coeff_values, x, y, z)?;
+    eval_scalar(expr, &ctx)
+}
+
 // ================================================================
 // 梯度
 // ================================================================
 
-/// 标量场 f(x, y) 在 (x, y) 处的梯度:
-///   ∇f = (∂f/∂x, ∂f/∂y)
+/// 计算二维标量场 `f(x, y)` 在点 `(x, y)` 处的梯度值
+///
+/// # 公式
+/// ∇f = (∂f/∂x, ∂f/∂y)
+///
+/// # 参数
+/// * `surface_expr` - 标量场 `f` 的表达式（用于求 `f0 = f(x,y)`）
+/// * `fx_expr`    - ∂f/∂x 的表达式
+/// * `fy_expr`    - ∂f/∂y 的表达式
+/// * `coeff_names` - 系数变量名列表
+/// * `coeff_values` - 对应的系数值
+/// * `x`           - 点的 x 坐标
+/// * `y`           - 点的 y 坐标
+///
+/// # 返回
+/// `(f0, fx, fy)`,其中：
+/// - `f0` = f(x, y)
+/// - `fx` = ∂f/∂x (x, y)
+/// - `fy` = ∂f/∂y (x, y)
 pub fn evaluate_gradient_point(
     surface_expr: &str,
     fx_expr: &str,
@@ -79,8 +131,21 @@ pub fn evaluate_gradient_point(
 // 散度
 // ================================================================
 
-/// 向量场 F(x, y, z) = (P, Q, R) 的散度:
-///   ∇·F = ∂P/∂x + ∂Q/∂y + ∂R/∂z
+/// 计算三维向量场 `F(x, y, z) = (P, Q, R)` 在点 `(x, y, z)` 处的散度
+///
+/// # 公式
+/// ∇·F = ∂P/∂x + ∂Q/∂y + ∂R/∂z
+///
+/// # 参数
+/// * `dpx_expr` - ∂P/∂x 的表达式
+/// * `dqy_expr` - ∂Q/∂y 的表达式
+/// * `drz_expr` - ∂R/∂z 的表达式
+/// * `coeff_names` - 系数变量名列表
+/// * `coeff_values` - 对应的系数值
+/// * `x`, `y`, `z` - 点的坐标
+///
+/// # 返回
+/// 散度值 `∇·F`
 pub fn evaluate_divergence_point(
     dpx_expr: &str,
     dqy_expr: &str,
@@ -104,10 +169,26 @@ pub fn evaluate_divergence_point(
 // 旋度
 // ================================================================
 
-/// 向量场 F(x, y, z) = (P, Q, R) 的旋度:
-///   ∇×F = (∂R/∂y - ∂Q/∂z,
-///           ∂P/∂z - ∂R/∂x,
-///           ∂Q/∂x - ∂P/∂y)
+/// 计算三维向量场 `F(x, y, z) = (P, Q, R)` 在点 `(x, y, z)` 处的旋度
+///
+/// # 公式
+/// ∇×F = ( ∂R/∂y - ∂Q/∂z,
+///          ∂P/∂z - ∂R/∂x,
+///          ∂Q/∂x - ∂P/∂y )
+///
+/// # 参数
+/// * `dr_dy_expr` - ∂R/∂y 的表达式
+/// * `dq_dz_expr` - ∂Q/∂z 的表达式
+/// * `dp_dz_expr` - ∂P/∂z 的表达式
+/// * `dr_dx_expr` - ∂R/∂x 的表达式
+/// * `dq_dx_expr` - ∂Q/∂x 的表达式
+/// * `dp_dy_expr` - ∂P/∂y 的表达式
+/// * `coeff_names` - 系数变量名列表
+/// * `coeff_values` - 对应的系数值
+/// * `x`, `y`, `z` - 点的坐标
+///
+/// # 返回
+/// `(curl_x, curl_y, curl_z)`,即旋度的三个分量
 pub fn evaluate_curl_point(
     dr_dy_expr: &str,
     dq_dz_expr: &str,
@@ -139,6 +220,16 @@ mod tests {
 
     fn no_coeffs() -> (Vec<String>, Vec<f64>) {
         (Vec::new(), Vec::new())
+    }
+
+    #[test]
+    fn scalar_evaluation_uses_coefficients_and_coordinates() {
+        let names = vec!["a".to_string()];
+        let values = vec![2.0];
+        let value = evaluate_scalar("a * x + 1", &names, &values, 3.0, 0.0, 0.0).unwrap();
+
+        assert!((value - 7.0).abs() < 1e-12);
+        assert!(evaluate_scalar("unknown_symbol", &names, &values, 0.0, 0.0, 0.0).is_err());
     }
 
     #[test]

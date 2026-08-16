@@ -4,14 +4,35 @@
  */
 import * as math from 'mathjs';
 import type { MathNode } from 'mathjs';
+import { evaluate_scalar as wasmEvaluateScalar } from '../../wasm/ml_wasm';
 
-export function evaluateNumber(raw: string, scope?: Record<string, number>): number | null {
+function evaluateRustScalar(
+    expr: string,
+    scope?: Record<string, number>,
+): number | null {
+    const names = scope ? Object.keys(scope) : [];
+    const values = new Float64Array(names.map((name) => scope![name]));
     try {
-        const value = scope === undefined ? math.evaluate(raw) : math.evaluate(raw, scope);
+        const value = wasmEvaluateScalar(
+            expr,
+            names,
+            values,
+            Number.NaN,
+            Number.NaN,
+            Number.NaN,
+        );
         return typeof value === 'number' && Number.isFinite(value) ? value : null;
     } catch {
         return null;
     }
+}
+
+export function evaluateNumber(raw: string, scope?: Record<string, number>): number | null {
+    return evaluateRustScalar(toRustExpression(math.parse(raw)), scope);
+}
+
+export function evaluateMathNode(node: MathNode): number | null {
+    return evaluateRustScalar(toRustExpression(node));
 }
 
 export function evaluateRequiredNumber(

@@ -3,11 +3,52 @@
  * 负责 DSL 中的 matrix/transform 表达式和对象 transform 解析。
  */
 import * as math from 'mathjs';
+import type { MathNode } from 'mathjs';
 import type { MatrixOps } from '../../math/tensor/SceneTransform';
-import { evaluateNumber } from './expression';
+import { evaluateMathNode, evaluateNumber } from './expression';
 import { splitTopLevel } from './options';
 
 export type Mat4 = number[][];
+
+function arrayItems(node: MathNode): MathNode[] {
+    return (node as unknown as { items: MathNode[] }).items;
+}
+
+function matrixEntry(node: MathNode): number | null {
+    return evaluateMathNode(node);
+}
+
+function matrixFromNode(node: MathNode): Mat4 | null {
+    let source = node;
+    if (source.type === 'FunctionNode') {
+        const call = source as unknown as {
+            fn?: { name?: string };
+            args?: MathNode[];
+        };
+        if (call.fn?.name === 'matrix' && call.args?.length === 1) {
+            source = call.args[0];
+        }
+    }
+
+    if (source.type !== 'ArrayNode') return null;
+    const rows = arrayItems(source).map((row) => {
+        if (row.type !== 'ArrayNode') return null;
+        return arrayItems(row).map(matrixEntry);
+    });
+
+    if (rows.some((row) => row === null || row.some((entry) => entry === null))) {
+        return null;
+    }
+
+    const matrix = rows as number[][];
+    if (
+        matrix.length === 4
+        && matrix.every((row) => row.length === 4 && row.every(Number.isFinite))
+    ) {
+        return matrix as Mat4;
+    }
+    return null;
+}
 
 export function cloneMat4(matrix: Mat4): Mat4 {
     return matrix.map((row) => [...row]);
@@ -15,25 +56,10 @@ export function cloneMat4(matrix: Mat4): Mat4 {
 
 export function evaluateMatrix(raw: string): Mat4 | null {
     try {
-        const value = math.evaluate(raw) as unknown;
-        const rows = value && typeof (value as { toArray?: () => unknown }).toArray === 'function'
-            ? (value as { toArray: () => unknown }).toArray()
-            : value;
-
-        if (Array.isArray(rows) && rows.length === 4) {
-            const matrix = rows.map((row) => (Array.isArray(row) ? row.map(Number) : []));
-            if (
-                matrix.every(
-                    (row) => row.length === 4 && row.every((entry) => Number.isFinite(entry)),
-                )
-            ) {
-                return matrix as Mat4;
-            }
-        }
+        return matrixFromNode(math.parse(raw));
     } catch {
         return null;
     }
-    return null;
 }
 
 function parseTransformFunction(part: string, ops: MatrixOps): Mat4 | null {

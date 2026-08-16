@@ -376,6 +376,19 @@ pub struct CurlPointResult {
 }
 
 #[wasm_bindgen]
+pub fn evaluate_scalar(
+    expr: &str,
+    coeff_names: Vec<String>,
+    coeff_values: Vec<f64>,
+    x: f64,
+    y: f64,
+    z: f64,
+) -> Result<f64, JsValue> {
+    field_core::evaluate_scalar(expr, &coeff_names, &coeff_values, x, y, z)
+        .map_err(|e| JsValue::from_str(&e))
+}
+
+#[wasm_bindgen]
 pub fn evaluate_gradient_point(
     surface_expr: &str,
     fx_expr: &str,

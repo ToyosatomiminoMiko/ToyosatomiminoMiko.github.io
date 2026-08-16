@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
+import * as math from 'mathjs';
 import { compileScene } from './DslCompiler';
 import {
     evaluate_curl_point,
     evaluate_divergence_point,
     evaluate_gradient_point,
+    evaluate_scalar,
 } from '../../wasm/ml_wasm';
 import type { AstProgram } from '../ast/types';
 
@@ -11,6 +13,20 @@ vi.mock('../../wasm/ml_wasm', () => ({
     evaluate_gradient_point: vi.fn(() => ({ f0: 0, fx: 0, fy: 0 })),
     evaluate_divergence_point: vi.fn(() => 0),
     evaluate_curl_point: vi.fn(() => ({ x: 0, y: 0, z: 0 })),
+    evaluate_scalar: vi.fn((
+        expr: string,
+        names: string[],
+        values: Float64Array,
+        _x: number,
+        _y: number,
+        _z: number,
+    ) => {
+        const scope: Record<string, number> = {};
+        names.forEach((name, index) => {
+            scope[name] = values[index];
+        });
+        return math.evaluate(expr, scope);
+    }),
 }));
 
 const ast: AstProgram = {
@@ -450,6 +466,48 @@ describe('compileScene', () => {
             [0, 0, 2, 0],
             [0, 0, 0, 1],
         ]);
+    });
+
+    it('evaluates matrix literals through the WASM scalar backend', () => {
+        const matrixAst: AstProgram = {
+            statements: [
+                {
+                    type: 'tensor',
+                    kind: 'matrix',
+                    name: 'M',
+                    expr: '[[1, 0, 0, 2], [0, 1, 0, 3], [0, 0, 1, 4], [0, 0, 0, 1]]',
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'tensor',
+                    kind: 'transform',
+                    name: 'T',
+                    expr: 'as_transform(M)',
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'object',
+                    kind: 'curve',
+                    name: 'c',
+                    expr: 'x',
+                    options: [
+                        { name: 'transform', value: 'T' },
+                        { name: 'range', value: '[-1, 1]' },
+                    ],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        const scene = compileScene(matrixAst);
+
+        expect(scene.objectTransforms[1]).toEqual([
+            [1, 0, 0, 2],
+            [0, 1, 0, 3],
+            [0, 0, 1, 4],
+            [0, 0, 0, 1],
+        ]);
+        expect(evaluate_scalar).toHaveBeenCalled();
     });
 
     it('compiles point and vector objects, including shorthand vector direction', () => {
