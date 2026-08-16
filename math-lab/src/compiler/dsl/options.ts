@@ -48,10 +48,52 @@ export function parsePositiveInteger(
     return value;
 }
 
+/**
+ * 带硬上限的正整数解析。
+ * 正整数本身只是类型约束，不能防止用户输入一个会耗尽内存的巨大 segments。
+ */
+export function parseCappedPositiveInteger(
+    raw: string | undefined,
+    context: string,
+    max: number,
+): number | undefined {
+    const value = parsePositiveInteger(raw, context);
+    if (value !== undefined && value > max) {
+        throw new Error(`${context} 不能超过 ${max}，当前为 ${raw}`);
+    }
+    return value;
+}
+
 export function parsePositiveIntegerList(raw: string, context: string): number[] {
     const values = parseNumberList(raw, context);
     if (values.some((value) => !Number.isInteger(value) || value <= 0)) {
         throw new Error(`${context} 中的每个值都必须是正整数: ${raw}`);
+    }
+    return values;
+}
+
+/**
+ * 带硬上限的向量场 grid 解析。
+ * 单独限制每轴还不够，必须再限制三维点数乘积，避免 1000 * 1000 * 1000
+ * 这类在单轴校验下仍可通过的分配炸弹。
+ */
+export function parseCappedPositiveIntegerList(
+    raw: string,
+    context: string,
+    maxAxis: number,
+    maxTotal: number,
+): number[] {
+    const values = parsePositiveIntegerList(raw, context);
+    if (values.some((value) => value > maxAxis)) {
+        throw new Error(`${context} 中的每个值都不能超过 ${maxAxis}: ${raw}`);
+    }
+
+    const total = values.reduce(
+        (product, value) => product * BigInt(value),
+        BigInt(1),
+    );
+    if (total > BigInt(maxTotal)) {
+        throw new Error(`${context} 的网格点总数不能超过 ${maxTotal}: ${raw}`);
     }
     return values;
 }

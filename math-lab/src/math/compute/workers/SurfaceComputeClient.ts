@@ -29,3 +29,12 @@ export class SurfaceComputeClient {
 }
 
 export const surfaceComputeClient = new SurfaceComputeClient();
+
+/**
+ * 应用级释放入口。
+ * 单个 SurfaceMesh 的 dispose 不应调用这里；只有确认整个应用不再需要
+ * 曲面计算时才允许 terminate 这个共享 worker。
+ */
+export function disposeSurfaceComputeClient(): void {
+    surfaceComputeClient.dispose();
+}

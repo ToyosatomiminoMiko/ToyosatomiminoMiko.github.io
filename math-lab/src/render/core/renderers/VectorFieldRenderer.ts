@@ -90,10 +90,12 @@ export class VectorFieldRenderer implements IRenderer {
         const total = gx * gy * gz;
         const positions = new Float32Array(total * 3);
 
-        // 保留原来的防除零处理:某维为 1 时步长为 0
-        const dx = (range.x[1] - range.x[0]) / (gx - 1 || 1);
-        const dy = (range.y[1] - range.y[0]) / (gy - 1 || 1);
-        const dz = (range.z[1] - range.z[0]) / (gz - 1 || 1);
+        // 保留原来的防除零处理:某维为 1 时步长应为 0。
+        // 注意不能写成 (n - 1 || 1)，否则 n === 1 时分母会变成 1，
+        // 与 Rust/WASM 采样端的行为不一致。
+        const dx = gx > 1 ? (range.x[1] - range.x[0]) / (gx - 1) : 0;
+        const dy = gy > 1 ? (range.y[1] - range.y[0]) / (gy - 1) : 0;
+        const dz = gz > 1 ? (range.z[1] - range.z[0]) / (gz - 1) : 0;
 
         let i = 0;
         for (let iz = 0; iz < gz; iz++) {

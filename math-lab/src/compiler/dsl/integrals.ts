@@ -5,7 +5,11 @@
 import type { IntegralStatement } from '../ast/types';
 import type { IntegralMethod, IntegralTask, SceneObject } from '../ir/types';
 import { NUMERIC_CONFIG } from '../../config/numericConfig';
-import { findOption, parseNumberList, parsePositiveInteger } from './options';
+import {
+    findOption,
+    parseCappedPositiveInteger,
+    parseNumberList,
+} from './options';
 
 const INTEGRAL_METHODS = new Set<IntegralMethod>(['trapezoid', 'simpson', 'riemann', 'lebesgue']);
 
@@ -53,16 +57,18 @@ export function compileIntegralTask(
         range = [rangeValues[0], rangeValues[1], rangeValues[2], rangeValues[3]];
     }
 
-    const segments = parsePositiveInteger(
+    const segments = parseCappedPositiveInteger(
         findOption(statement.options, 'segments'),
         `积分 ${statement.name} 的 segments`,
+        NUMERIC_CONFIG.limits.integral.maxSegments,
     ) ?? NUMERIC_CONFIG.integral.defaultSegments;
     if (method === 'simpson' && segments % 2 !== 0) {
         throw new Error(`积分 ${statement.name} 的辛普森法要求分段数必须为偶数,当前为 ${segments}`);
     }
-    const layers = parsePositiveInteger(
+    const layers = parseCappedPositiveInteger(
         findOption(statement.options, 'layers'),
         `积分 ${statement.name} 的 layers`,
+        NUMERIC_CONFIG.limits.integral.maxLayers,
     ) ?? Math.min(NUMERIC_CONFIG.integral.defaultLayersCap, segments);
     const show = findOption(statement.options, 'show') !== 'false'
         && NUMERIC_CONFIG.integral.showDefault;

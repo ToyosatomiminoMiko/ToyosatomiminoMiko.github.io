@@ -43,7 +43,9 @@ export class LatestRequestExecutor<
         this._disposed = true;
         this._pending?.reject(new Error('LatestRequestExecutor disposed'));
         this._pending = null;
-        this.client.dispose?.();
+        // 这里的 client 可能是多个 renderer 共享的全局 worker client。
+        // LatestRequestExecutor 只负责取消自己的逻辑请求，不能顺手 terminate
+        // 掉其他对象仍在使用的 worker；全局 client 由应用级 owner 统一释放。
     }
 
     private async _run(

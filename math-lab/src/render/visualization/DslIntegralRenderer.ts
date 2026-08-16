@@ -20,6 +20,7 @@ export type IntegralDiagnosticFn = (
 export class DslIntegralRenderer {
     private readonly visualizer: IntegralVisualizer;
     private sequence = 0;
+    private readonly taskSequences = new Map<string, number>();
     private disposed = false;
 
     constructor(
@@ -33,28 +34,48 @@ export class DslIntegralRenderer {
         tasks: IntegralTask[],
         objects: SceneObject[],
         diagnostics: IntegralDiagnosticFn,
+        dirtyObjectIds: ReadonlySet<number> | null = null,
     ): void {
-        const sequence = ++this.sequence;
-        this.visualizer.clearAll();
+        if (dirtyObjectIds) {
+            // 参数只影响部分对象时，只清除这些对象关联的积分可视化，
+            // 其他积分继续保留，避免每次滑块变化都销毁/重建整组 GPU 对象。
+            for (const task of tasks) {
+                if (dirtyObjectIds.has(task.objectId)) {
+                    this.taskSequences.set(task.name, ++this.sequence);
+                    this.visualizer.clear(task.name);
+                }
+            }
+        } else {
+            this.sequence += 1;
+            for (const task of tasks) {
+                this.taskSequences.set(task.name, this.sequence);
+            }
+            this.visualizer.clearAll();
+        }
         this.visualizer.group.visible = true;
-        if (tasks.length === 0) return;
 
-        void this._renderAll(tasks, objects, sequence, diagnostics);
+        const tasksToRender = dirtyObjectIds
+            ? tasks.filter((task) => dirtyObjectIds.has(task.objectId))
+            : tasks;
+        if (tasksToRender.length === 0) return;
+
+        void this._renderAll(tasksToRender, objects, diagnostics);
     }
 
     dispose(): void {
         this.disposed = true;
         this.sequence += 1;
+        this.taskSequences.clear();
         this.visualizer.dispose();
     }
 
     private async _renderAll(
         tasks: IntegralTask[],
         objects: SceneObject[],
-        sequence: number,
         diagnostics: IntegralDiagnosticFn,
     ): Promise<void> {
         for (const task of tasks) {
+            const taskSequence = this.taskSequences.get(task.name) ?? this.sequence;
             const source = objects.find((object) => object.id === task.objectId);
             if (!source || (source.kind !== 'curve' && source.kind !== 'surface')) {
                 diagnostics('error', `积分 ${task.name} 找不到可积分的源对象`);
@@ -64,14 +85,14 @@ export class DslIntegralRenderer {
             try {
                 const result = await this.computeEngine.integrate(task, source);
                 const value = result.value;
-                if (sequence !== this.sequence || this.disposed) return;
+                if (this.disposed || this.taskSequences.get(task.name) !== taskSequence) return;
 
                 if (task.show) {
                     this._visualize(task, source, result);
                 }
                 diagnostics('info', `积分 ${task.name}: S = ${value.toFixed(6)}`);
             } catch (error) {
-                if (sequence !== this.sequence || this.disposed) return;
+                if (this.disposed || this.taskSequences.get(task.name) !== taskSequence) return;
                 diagnostics(
                     'error',
                     `积分 ${task.name} 计算失败: ${error instanceof Error ? error.message : String(error)}`,

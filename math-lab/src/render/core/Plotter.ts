@@ -33,7 +33,7 @@ export class Plotter {
     private readonly plotContainer = new THREE.Group();
 
     /** id → 渲染器 映射 */
-    private readonly rendererMap = new Map<number, IRenderer>();
+    private readonly rendererMap = new Map<number, UpdatableRenderer>();
 
     constructor(private readonly scene: THREE.Scene) {
         this.scene.add(this.plotContainer);
@@ -110,22 +110,34 @@ export class Plotter {
         renderer.group.matrix.copy(transform);
     }
 
-    updateObject(obj: SceneObject): void {
+    /**
+     * 更新一个对象。
+     *
+     * @param redraw false 时只同步 renderer 内部的 SceneObject 引用，
+     * 不重新触发数值采样/GPU 重建。这个能力供 DslApp 在参数只影响部分对象时
+     * 使用，避免每次拖动滑块都重算所有 curve/surface/vector_field。
+     */
+    updateObject(obj: SceneObject, redraw = true): void {
         switch (obj.kind) {
             case 'curve':
-                this.drawCurve(obj);
+                if (redraw) this.drawCurve(obj);
+                else this._updateRef(obj);
                 break;
             case 'surface':
-                this.drawSurface(obj);
+                if (redraw) this.drawSurface(obj);
+                else this._updateRef(obj);
                 break;
             case 'point':
-                this.drawPoint(obj);
+                if (redraw) this.drawPoint(obj);
+                else this._updateRef(obj);
                 break;
             case 'vector':
-                this.drawVector(obj);
+                if (redraw) this.drawVector(obj);
+                else this._updateRef(obj);
                 break;
             case 'vector_field':
-                this.drawVectorField(obj);
+                if (redraw) this.drawVectorField(obj);
+                else this._updateRef(obj);
                 break;
         }
     }
@@ -161,5 +173,13 @@ export class Plotter {
             this.rendererMap.set(id, renderer);
         }
         return renderer as T;
+    }
+
+    /** 只同步引用和可见性，不触发数值采样与 GPU 重建。 */
+    private _updateRef(obj: SceneObject): void {
+        const renderer = this.rendererMap.get(obj.id);
+        if (!renderer) return;
+        renderer.updateRef?.(obj);
+        renderer.setVisible(obj.enabled);
     }
 }

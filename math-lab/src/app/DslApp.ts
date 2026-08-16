@@ -21,6 +21,10 @@ import { DiagnosticsController } from '../ui/DiagnosticsController';
 import { AnalysisRenderer } from '../render/core/renderers/AnalysisRenderer';
 import { DslIntegralRenderer } from '../render/visualization/DslIntegralRenderer';
 import { MathComputeEngine } from '../math/compute/MathComputeEngine';
+import { disposeIntegralWorker } from '../math/compute/IntegralWasm';
+import { disposeCurveComputeClient } from '../math/compute/workers/CurveComputeClient';
+import { disposeSurfaceComputeClient } from '../math/compute/workers/SurfaceComputeClient';
+import { disposeVectorFieldComputeClient } from '../math/compute/workers/VectorFieldComputeClient';
 
 /**
  * OpenSCAD 式 DSL Shell.
@@ -49,6 +53,10 @@ export class DslApp {
 
     private controls: OrbitControls | null = null;
     private animationFrameId: number | null = null;
+    private refreshFrame: number | null = null;
+    private readonly pendingParamChanges = new Set<string>();
+    private sceneDirty = true;
+    private runSequence = 0;
     private compiledObjects: SceneObject[] = [];
     private currentAst: AstProgram | null = null;
     private disposed = false;
@@ -56,6 +64,7 @@ export class DslApp {
     private readonly onResize = (): void => {
         const { width, height } = this.sceneManager.resize();
         this.cameraManager.updateAspect(width, height);
+        this.sceneDirty = true;
     };
 
     private readonly onKeyDown = (event: KeyboardEvent): void => {
@@ -63,6 +72,10 @@ export class DslApp {
             this.controls.target.set(0, 0, 0);
             this.controls.update();
         }
+    };
+
+    private readonly onControlsChange = (): void => {
+        this.sceneDirty = true;
     };
 
     constructor() {
@@ -79,7 +92,7 @@ export class DslApp {
             this.sceneManager.getScene(),
             this.computeEngine,
         );
-        this.paramPanelController = new ParamPanelController(paramsPanel, () => this._refreshObjects());
+        this.paramPanelController = new ParamPanelController(paramsPanel, (name) => this._scheduleRefresh(name));
         this.diagnosticsController = new DiagnosticsController(diagnostics);
         this.analysisRenderer = new AnalysisRenderer();
         this.sceneManager.getScene().add(this.analysisRenderer.group);
@@ -100,9 +113,11 @@ export class DslApp {
     dispose(): void {
         this.disposed = true;
         if (this.animationFrameId !== null) cancelAnimationFrame(this.animationFrameId);
+        this._cancelPendingRefresh();
         window.removeEventListener('resize', this.onResize);
         document.removeEventListener('keydown', this.onKeyDown);
         this.controls?.dispose();
+        this.controls?.removeEventListener('change', this.onControlsChange);
         this.panelController?.dispose();
         this.cameraToggle?.dispose();
         this.viewCubeController?.dispose();
@@ -115,6 +130,12 @@ export class DslApp {
         this.plotter.dispose();
         this.computeEngine.dispose();
         this.sceneManager.dispose();
+        // 共享 worker 必须最后统一 terminate；前面的 renderer.dispose()
+        // 已经不再拥有销毁这些 client 的权利。
+        disposeCurveComputeClient();
+        disposeSurfaceComputeClient();
+        disposeVectorFieldComputeClient();
+        disposeIntegralWorker();
     }
 
     async run(): Promise<void> {
@@ -137,9 +158,12 @@ export class DslApp {
          * 不会在 run() 里重复编译同一个 AST。
          */
         this.diagnosticsController.clear();
+        const runId = ++this.runSequence;
+        this._cancelPendingRefresh();
 
         try {
             const ast = await parseMiko(this.editor.value);
+            if (this.disposed || runId !== this.runSequence) return;
             this.matrixOps = createWasmMatrixOps();
             this.currentAst = ast;
             const scene = compileScene(ast, {}, this.matrixOps);
@@ -173,6 +197,7 @@ export class DslApp {
         controls.update();
         this.cameraManager.setControls(controls);
         this.controls = controls;
+        this.controls.addEventListener('change', this.onControlsChange);
     }
 
     private _wireViewControls(): void {
@@ -199,21 +224,49 @@ export class DslApp {
         if (this.disposed) return;
         this.animationFrameId = requestAnimationFrame(this.animate);
         this.controls?.update();
+        if (!this.sceneDirty) return;
+        this.sceneDirty = false;
         this.sceneManager.render(this.cameraManager.getCamera());
     };
 
-    private _refreshObjects(): ReturnType<typeof compileScene> | null {
+    private _scheduleRefresh(name: string): void {
+        if (this.disposed) return;
+        this.pendingParamChanges.add(name);
+        if (this.refreshFrame !== null) return;
+
+        this.refreshFrame = requestAnimationFrame(() => {
+            this.refreshFrame = null;
+            const changedParams = new Set(this.pendingParamChanges);
+            this.pendingParamChanges.clear();
+            this._refreshObjects(changedParams);
+        });
+    }
+
+    private _cancelPendingRefresh(): void {
+        if (this.refreshFrame !== null) {
+            cancelAnimationFrame(this.refreshFrame);
+            this.refreshFrame = null;
+        }
+        this.pendingParamChanges.clear();
+    }
+
+    private _refreshObjects(
+        changedParams?: ReadonlySet<string>,
+    ): ReturnType<typeof compileScene> | null {
         if (!this.currentAst) return null;
         const scene = compileScene(
             this.currentAst,
             this.paramPanelController.getValues(),
             this.matrixOps,
         );
-        this._applyScene(scene);
+        this._applyScene(scene, changedParams);
         return scene;
     }
 
-    private _applyScene(scene: SceneIR): void {
+    private _applyScene(
+        scene: SceneIR,
+        changedParams?: ReadonlySet<string>,
+    ): void {
         const nextIds = new Set(scene.objects.map((object) => object.id));
 
         for (const previous of this.compiledObjects) {
@@ -222,15 +275,45 @@ export class DslApp {
             }
         }
 
+        const dirtyObjectIds = new Set<number>();
         for (const object of scene.objects) {
-            this.plotter.updateObject(object);
-            this.plotter.applyTransform(object.id, scene.objectTransforms[object.id] ?? null);
+            const shouldRedraw = !changedParams
+                || changedParams.size === 0
+                || this._objectDependsOnParams(object, changedParams);
+            if (shouldRedraw) {
+                dirtyObjectIds.add(object.id);
+                this.plotter.updateObject(object, true);
+                this.plotter.applyTransform(object.id, scene.objectTransforms[object.id] ?? null);
+            } else {
+                // 引用仍需同步，否则后续其他参数变化时，renderer 手里还拿着旧数据。
+                this.plotter.updateObject(object, false);
+            }
         }
 
         this.compiledObjects = scene.objects;
+        this.sceneDirty = true;
         this.analysisRenderer.render(scene.analyses);
-        this.integralRenderer.sync(scene.integrals, scene.objects, (level, message) => {
-            this.diagnosticsController.add(level, message);
-        });
+        this.integralRenderer.sync(
+            scene.integrals,
+            scene.objects,
+            (level, message) => {
+                this.diagnosticsController.add(level, message);
+            },
+            changedParams ? dirtyObjectIds : null,
+        );
+    }
+
+    /**
+     * point/vector 的坐标表达式虽然暂时没有 coefficients 字段，
+     * 但它们也可能引用 param，因此参数变化时保守地标记为 dirty。
+     */
+    private _objectDependsOnParams(
+        object: SceneObject,
+        changedParams: ReadonlySet<string>,
+    ): boolean {
+        if (object.kind === 'point' || object.kind === 'vector') {
+            return true;
+        }
+        return object.coefficients.some((coefficient) => changedParams.has(coefficient.name));
     }
 }

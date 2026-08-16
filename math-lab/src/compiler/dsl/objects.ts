@@ -21,9 +21,9 @@ import { extractCoefficients } from '../../math/objects/coefficientUtils';
 import {
     findOption,
     optionalNumber,
+    parseCappedPositiveInteger,
+    parseCappedPositiveIntegerList,
     parseNumberList,
-    parsePositiveInteger,
-    parsePositiveIntegerList,
     stripQuotes,
 } from './options';
 import { buildParamScope } from './params';
@@ -208,9 +208,10 @@ export function buildObjectBlueprint(
             }
             range = [rangeValues[0], rangeValues[1]];
         }
-        const segments = parsePositiveInteger(
+        const segments = parseCappedPositiveInteger(
             findOption(statement.options, 'segments'),
             `曲线 ${statement.name} 的 segments`,
+            NUMERIC_CONFIG.limits.curve.maxSegments,
         );
         return {
             name: statement.name,
@@ -242,9 +243,10 @@ export function buildObjectBlueprint(
             rangeValues[2],
             rangeValues[3],
         ] as [number, number, number, number];
-        const segments = parsePositiveInteger(
+        const segments = parseCappedPositiveInteger(
             findOption(statement.options, 'segments'),
             `曲面 ${statement.name} 的 segments`,
+            NUMERIC_CONFIG.limits.surface.maxSegments,
         );
         return {
             name: statement.name,
@@ -274,10 +276,12 @@ export function buildObjectBlueprint(
         ) {
             throw new Error(`向量场 ${statement.name} 的 range 需要 min < max`);
         }
-        const gridValues = parsePositiveIntegerList(
+        const gridValues = parseCappedPositiveIntegerList(
             findOption(statement.options, 'grid')
                 ?? `[${NUMERIC_CONFIG.vectorField.defaultGrid.join(', ')}]`,
             `向量场 ${statement.name} 的 grid`,
+            NUMERIC_CONFIG.limits.vectorField.maxAxisGrid,
+            NUMERIC_CONFIG.limits.vectorField.maxTotalGridPoints,
         );
         if (gridValues.length !== 3) {
             throw new Error(`向量场 ${statement.name} 的 grid 需要 3 个数值`);

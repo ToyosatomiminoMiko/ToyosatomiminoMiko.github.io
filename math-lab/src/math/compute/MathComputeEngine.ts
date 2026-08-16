@@ -9,12 +9,9 @@ import type {
 } from '../../compiler/ir/types';
 import * as math from 'mathjs';
 import { NUMERIC_CONFIG } from '../../config/numericConfig';
-import { sample_curve as wasmSampleCurve } from '../../wasm/math_rs/math_rs';
-import { ensureWasmReady } from '../../runtime/wasmRuntime';
 import { compilationCache } from '../objects/CompilationCache';
 import { logWarning } from '../../service/logger';
 import {
-    disposeIntegralWorker,
     lebesgue1d,
     lebesgue2d,
     riemann1dLeft,
@@ -25,6 +22,7 @@ import {
     trapz2d,
     type IntegralResult,
 } from './IntegralWasm';
+import { curveComputeClient } from './workers/CurveComputeClient';
 
 export type IntegralSource = Extract<SceneObject, { kind: 'curve' | 'surface' }>;
 
@@ -37,16 +35,16 @@ export type CurveSampleRequest = {
 
 export class MathComputeEngine {
     async sampleCurve(request: CurveSampleRequest): Promise<Float32Array> {
-        await ensureWasmReady();
         try {
-            return wasmSampleCurve(
-                request.expr,
-                request.coefficients.map((coefficient) => coefficient.name),
-                new Float64Array(request.coefficients.map((coefficient) => coefficient.value)),
-                request.range[0],
-                request.range[1],
-                request.segments,
-            );
+            // 曲线采样与曲面/向量场保持一致，交给 Worker 执行，
+            // 避免高 segments 或大量曲线时阻塞主线程。
+            return await curveComputeClient.request({
+                expr: request.expr,
+                coeffNames: request.coefficients.map((coefficient) => coefficient.name),
+                coeffValues: request.coefficients.map((coefficient) => coefficient.value),
+                range: request.range,
+                segments: request.segments,
+            });
         } catch (error) {
             logWarning('MathComputeEngine', 'WASM 曲线采样失败,回退到 mathjs:', error);
             return this._sampleCurveFallback(request);
@@ -97,7 +95,8 @@ export class MathComputeEngine {
     }
 
     dispose(): void {
-        disposeIntegralWorker();
+        // 本类只是计算门面，不拥有任何共享 worker。
+        // worker 生命周期由应用级 dispose 统一处理。
     }
 
     private _coefficients(source: IntegralSource): Record<string, number> {

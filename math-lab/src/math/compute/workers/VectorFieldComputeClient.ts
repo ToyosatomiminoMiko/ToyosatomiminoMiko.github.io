@@ -29,3 +29,12 @@ export class VectorFieldComputeClient {
 }
 
 export const vectorFieldComputeClient = new VectorFieldComputeClient();
+
+/**
+ * 应用级释放入口。
+ * 单个 VectorFieldRenderer 的 dispose 不应调用这里；只有确认整个应用不再
+ * 需要向量场计算时才允许 terminate 这个共享 worker。
+ */
+export function disposeVectorFieldComputeClient(): void {
+    vectorFieldComputeClient.dispose();
+}

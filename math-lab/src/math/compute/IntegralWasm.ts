@@ -1,5 +1,6 @@
 import type { Range1D } from '../../compiler/ir/types';
 import { ComputeWorkerClient } from './workers/ComputeWorkerClient';
+import { LatestRequestExecutor } from './workers/LatestRequestExecutor';
 
 type Method =
     | 'trapz1d' | 'simpson1d' | 'riemann1d_left' | 'riemann1d_right' | 'riemann1d_mid' | 'lebesgue1d'
@@ -48,13 +49,17 @@ const integralClient = new ComputeWorkerClient<Request, Response>(() => new Work
     { type: 'module' },
 ));
 
+// 积分请求也走 latest-only。滑块高频刷新时，旧请求不会再无意义地堆积；
+// 每个时刻最多只有一个积分请求真正交给 Worker。
+const integralExecutor = new LatestRequestExecutor<Request, Response>(integralClient);
+
 function callWasm(
     method: Method,
     expr: string,
     coeffs: Record<string, number>,
     params: Record<string, number>,
 ): Promise<IntegralResult> {
-    return integralClient
+    return integralExecutor
         .request({ method, expr, coeffs, ...params })
         .then((response) => ({
             value: response.value!,
@@ -65,8 +70,12 @@ function callWasm(
         }));
 }
 
-/** 终止积分 Worker,并拒绝所有未完成请求. */
+/**
+ * 应用级释放积分计算资源。
+ * 先停掉 LatestRequestExecutor 的逻辑调度，再 terminate 共享 Worker。
+ */
 export function disposeIntegralWorker(): void {
+    integralExecutor.dispose();
     integralClient.dispose();
 }
 

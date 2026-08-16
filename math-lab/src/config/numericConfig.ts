@@ -43,6 +43,22 @@ export const NUMERIC_CONFIG = {
     tolerance: {
         zero: 1e-12,
     },
+    limits: {
+        curve: {
+            maxSegments: 20_000,
+        },
+        surface: {
+            maxSegments: 1_024,
+        },
+        vectorField: {
+            maxAxisGrid: 512,
+            maxTotalGridPoints: 2_000_000,
+        },
+        integral: {
+            maxSegments: 2_048,
+            maxLayers: 256,
+        },
+    },
     colorPalette: [
         '#6dd5ff',
         '#ff6b8a',
