@@ -1,6 +1,4 @@
-import { parse } from 'mathjs';
-import { sampleVectorField } from '../../objects/VectorField';
-import type { Coefficient } from '../../../compiler/ir/types';
+import init, { sample_vector_field } from '../../../wasm/ml_wasm';
 
 export type VectorFieldWorkerRequest = {
     id: number;
@@ -28,24 +26,29 @@ const workerScope = self as unknown as {
     postMessage(message: VectorFieldWorkerResponse, transfer?: Transferable[]): void;
 };
 
-workerScope.onmessage = (event: MessageEvent<VectorFieldWorkerRequest>) => {
+const wasmInit = init();
+
+workerScope.onmessage = async (event: MessageEvent<VectorFieldWorkerRequest>) => {
     const req = event.data;
 
     try {
-        const nodes = {
-            P: parse(req.pExpr),
-            Q: parse(req.qExpr),
-            R: parse(req.rExpr),
-        };
-        const coefficients: Coefficient[] = req.coeffNames.map((name, index) => ({
-            name,
-            value: req.coeffValues[index] ?? 0,
-            min: -10,
-            max: 10,
-            step: 0.1,
-        }));
-
-        const vectors = sampleVectorField(nodes, coefficients, req.range, req.gridSize);
+        await wasmInit;
+        const vectors = sample_vector_field(
+            req.pExpr,
+            req.qExpr,
+            req.rExpr,
+            req.coeffNames,
+            new Float64Array(req.coeffValues),
+            req.range.x[0],
+            req.range.x[1],
+            req.range.y[0],
+            req.range.y[1],
+            req.range.z[0],
+            req.range.z[1],
+            req.gridSize[0],
+            req.gridSize[1],
+            req.gridSize[2],
+        );
         workerScope.postMessage({ id: req.id, vectors }, [vectors.buffer]);
     } catch (error) {
         workerScope.postMessage({

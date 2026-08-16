@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { parse } from 'mathjs';
 import type { IntegralTask, SceneObject } from '../../compiler/ir/types';
 import { IntegralVisualizer } from './IntegralVisualizer';
 import type { MathComputeEngine } from '../../math/compute/MathComputeEngine';
+import type { IntegralResult } from '../../math/compute/IntegralWasm';
 
 export type IntegralDiagnosticFn = (
     level: 'info' | 'warning' | 'error' | 'log',
@@ -61,11 +61,12 @@ export class DslIntegralRenderer {
             }
 
             try {
-                const value = await this.computeEngine.integrate(task, source);
+                const result = await this.computeEngine.integrate(task, source);
+                const value = result.value;
                 if (sequence !== this.sequence || this.disposed) return;
 
                 if (task.show) {
-                    this._visualize(task, source);
+                    this._visualize(task, source, result);
                 }
                 diagnostics('info', `积分 ${task.name}: S = ${value.toFixed(6)}`);
             } catch (error) {
@@ -81,10 +82,11 @@ export class DslIntegralRenderer {
     private _visualize(
         task: IntegralTask,
         source: Extract<SceneObject, { kind: 'curve' | 'surface' }>,
+        result: IntegralResult,
     ): void {
         if (source.kind === 'curve') {
             const [a, b] = task.range as [number, number];
-            const fn = this._makeFn(source) as (x: number) => number;
+            const fn = this._makeFn1D(a, b, result);
             const segments = task.segments;
             switch (task.method) {
                 case 'riemann':
@@ -133,7 +135,7 @@ export class DslIntegralRenderer {
         }
 
         const [xMin, xMax, yMin, yMax] = task.range as [number, number, number, number];
-        const fn = this._makeFn(source) as (x: number, y: number) => number;
+        const fn = this._makeFn2D(xMin, xMax, yMin, yMax, result);
         const segments = task.segments;
         switch (task.method) {
             case 'riemann':
@@ -183,20 +185,59 @@ export class DslIntegralRenderer {
         }
     }
 
-    private _makeFn(
-        source: Extract<SceneObject, { kind: 'curve' | 'surface' }>,
-    ): (x: number, y?: number) => number {
-        const compiled = parse(source.expr).compile();
-        const scope: Record<string, number> = {};
-        for (const coefficient of source.coefficients) {
-            scope[coefficient.name] = coefficient.value;
+    private _makeFn1D(
+        a: number,
+        b: number,
+        result: IntegralResult,
+    ): (x: number) => number {
+        const samples = result.samples;
+        if (!samples) return () => NaN;
+
+        if (result.sampleShape === '1d-mid') {
+            const n = samples.length;
+            const h = (b - a) / n;
+            return (x: number) => {
+                const idx = Math.max(0, Math.min(n - 1, Math.round((x - a) / h - 0.5)));
+                return samples[idx] ?? NaN;
+            };
         }
 
-        return (x: number, y?: number): number => {
-            scope.x = x;
-            if (y !== undefined) scope.y = y;
-            const value = compiled.evaluate(scope);
-            return typeof value === 'number' ? value : NaN;
+        const n = samples.length - 1;
+        const h = (b - a) / n;
+        return (x: number) => {
+            const idx = Math.max(0, Math.min(n, Math.round((x - a) / h)));
+            return samples[idx] ?? NaN;
+        };
+    }
+
+    private _makeFn2D(
+        xMin: number,
+        xMax: number,
+        yMin: number,
+        yMax: number,
+        result: IntegralResult,
+    ): (x: number, y: number) => number {
+        const samples = result.samples;
+        const n = result.n ?? 0;
+        const m = result.m ?? n;
+        if (!samples) return () => NaN;
+
+        if (result.sampleShape === '2d-corner') {
+            const hx = (xMax - xMin) / n;
+            const hy = (yMax - yMin) / m;
+            return (x: number, y: number) => {
+                const i = Math.max(0, Math.min(n - 1, Math.floor((x - xMin) / hx)));
+                const j = Math.max(0, Math.min(m - 1, Math.floor((y - yMin) / hy)));
+                return samples[j * n + i] ?? NaN;
+            };
+        }
+
+        const hx = (xMax - xMin) / n;
+        const hy = (yMax - yMin) / m;
+        return (x: number, y: number) => {
+            const i = Math.max(0, Math.min(n, Math.round((x - xMin) / hx)));
+            const j = Math.max(0, Math.min(m, Math.round((y - yMin) / hy)));
+            return samples[j * (n + 1) + i] ?? NaN;
         };
     }
 

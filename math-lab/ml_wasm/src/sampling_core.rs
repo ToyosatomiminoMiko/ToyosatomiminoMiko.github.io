@@ -144,6 +144,105 @@ pub fn sample_vector_field(
     Ok(vectors)
 }
 
+pub fn sample_function_1d(
+    expr: &str,
+    coeff_names: &[String],
+    coeff_values: &[f64],
+    a: f64,
+    b: f64,
+    n: usize,
+    sample_shape: &str,
+) -> Result<Vec<f64>, String> {
+    if a >= b {
+        return Err("积分采样需要有效的区间 a < b".to_string());
+    }
+    if n == 0 {
+        return Err("积分采样需要 n > 0".to_string());
+    }
+
+    let node = build_operator_tree(expr).map_err(|e| format!("表达式解析失败: {}", e))?;
+    let mut ctx = build_context(coeff_names, coeff_values)?;
+
+    match sample_shape {
+        "mid" => {
+            let h = (b - a) / n as f64;
+            let mut values = Vec::with_capacity(n);
+            for i in 0..n {
+                let x = a + (i as f64 + 0.5) * h;
+                ctx.set_value("x".to_string(), Value::Float(x))
+                    .map_err(|e| format!("设置 x 失败: {}", e))?;
+                values.push(eval_f64(&node, &ctx));
+            }
+            Ok(values)
+        }
+        _ => {
+            let mut values = Vec::with_capacity(n + 1);
+            for i in 0..=n {
+                let x = a + (b - a) * (i as f64 / n as f64);
+                ctx.set_value("x".to_string(), Value::Float(x))
+                    .map_err(|e| format!("设置 x 失败: {}", e))?;
+                values.push(eval_f64(&node, &ctx));
+            }
+            Ok(values)
+        }
+    }
+}
+
+pub fn sample_function_2d(
+    expr: &str,
+    coeff_names: &[String],
+    coeff_values: &[f64],
+    xa: f64,
+    xb: f64,
+    ya: f64,
+    yb: f64,
+    n: usize,
+    m: usize,
+    sample_shape: &str,
+) -> Result<Vec<f64>, String> {
+    if xa >= xb || ya >= yb {
+        return Err("积分采样需要有效的二维区间".to_string());
+    }
+    if n == 0 || m == 0 {
+        return Err("积分采样需要 n 和 m 均大于 0".to_string());
+    }
+
+    let node = build_operator_tree(expr).map_err(|e| format!("表达式解析失败: {}", e))?;
+    let mut ctx = build_context(coeff_names, coeff_values)?;
+
+    if sample_shape == "corner" {
+        let hx = (xb - xa) / n as f64;
+        let hy = (yb - ya) / m as f64;
+        let mut values = Vec::with_capacity(n * m);
+        for j in 0..m {
+            let y = ya + j as f64 * hy;
+            ctx.set_value("y".to_string(), Value::Float(y))
+                .map_err(|e| format!("设置 y 失败: {}", e))?;
+            for i in 0..n {
+                let x = xa + i as f64 * hx;
+                ctx.set_value("x".to_string(), Value::Float(x))
+                    .map_err(|e| format!("设置 x 失败: {}", e))?;
+                values.push(eval_f64(&node, &ctx));
+            }
+        }
+        return Ok(values);
+    }
+
+    let mut values = Vec::with_capacity((n + 1) * (m + 1));
+    for j in 0..=m {
+        let y = ya + (yb - ya) * (j as f64 / m as f64);
+        ctx.set_value("y".to_string(), Value::Float(y))
+            .map_err(|e| format!("设置 y 失败: {}", e))?;
+        for i in 0..=n {
+            let x = xa + (xb - xa) * (i as f64 / n as f64);
+            ctx.set_value("x".to_string(), Value::Float(x))
+                .map_err(|e| format!("设置 x 失败: {}", e))?;
+            values.push(eval_f64(&node, &ctx));
+        }
+    }
+    Ok(values)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
