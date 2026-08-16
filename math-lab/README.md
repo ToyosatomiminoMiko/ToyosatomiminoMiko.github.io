@@ -101,7 +101,9 @@ npm run build
 
 该命令会依次执行：
 
-1. `npm run build:wasm`：重建 `math-lab/ml_wasm` 并输出到 `src/wasm`
+1. `npm run build:wasm`：分别重建 `math-lab/src/math/math_rs`、
+   `math-lab/src/compiler/compiler_rs`、`math-lab/src/render/render_rs`
+   三个 Rust crate，并把产物输出到对应的 `src/wasm/*` 目录
 2. `npm run typecheck`：执行 `tsc --noEmit`
 3. `vite build`
 
