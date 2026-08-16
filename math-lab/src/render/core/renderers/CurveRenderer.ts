@@ -7,9 +7,41 @@ import { NUMERIC_CONFIG } from '../../../config/numericConfig';
 import type { IRenderer } from './IRenderer';
 import type { CurveObject } from '../../../compiler/ir/types';
 import { MathComputeEngine } from '../../../math/compute/MathComputeEngine';
+import {
+    LatestRequestExecutor,
+    type RequestClient,
+} from '../../../math/compute/workers/LatestRequestExecutor';
 import { logWarning } from '../../../service/logger';
 
 const curveComputeEngine = new MathComputeEngine();
+
+type CurveRendererRequest = {
+    id: number;
+    expr: string;
+    coeffNames: string[];
+    coeffValues: number[];
+    range: [number, number];
+    segments: number;
+};
+
+// 把 CurveRenderer 自己的 latest-only 请求形状适配到 MathComputeEngine。
+// 每个曲线 renderer 都有一个 executor，拖动滑块时不会向共享 worker 堆积旧请求。
+const curveRequestClient: RequestClient<CurveRendererRequest, Float32Array> = {
+    request(request) {
+        return curveComputeEngine.sampleCurve({
+            expr: request.expr,
+            coefficients: request.coeffNames.map((name, index) => ({
+                name,
+                value: request.coeffValues[index] ?? 0,
+                min: 0,
+                max: 0,
+                step: 1,
+            })),
+            range: request.range,
+            segments: request.segments,
+        });
+    },
+};
 
 export class CurveRenderer implements IRenderer {
     readonly group = new THREE.Group();
@@ -18,6 +50,10 @@ export class CurveRenderer implements IRenderer {
     private xRange: [number, number];
     private steps: number;
     private disposed = false;
+    private readonly executor = new LatestRequestExecutor<
+        CurveRendererRequest,
+        Float32Array
+    >(curveRequestClient);
 
     constructor(public curve: CurveObject) {
         this.xRange = curve.range ?? ([...NUMERIC_CONFIG.curve.defaultRange] as [number, number]);
@@ -32,10 +68,11 @@ export class CurveRenderer implements IRenderer {
         const posAttr = this._ensureLine();
         const target = posAttr.array as Float32Array;
 
-        void curveComputeEngine
-            .sampleCurve({
+        void this.executor
+            .request({
                 expr: this.curve.expr,
-                coefficients: this.curve.coefficients,
+                coeffNames: this.curve.coefficients.map((coefficient) => coefficient.name),
+                coeffValues: this.curve.coefficients.map((coefficient) => coefficient.value),
                 range: this.xRange,
                 segments: this.steps,
             })
@@ -51,7 +88,7 @@ export class CurveRenderer implements IRenderer {
                 this.group.visible = this.visible;
             })
             .catch((error: Error) => {
-                if (this.disposed) return;
+                if (this.disposed || error.message === 'superseded') return;
                 logWarning('CurveRenderer', '曲线采样失败:', error);
                 this.group.visible = false;
             });
@@ -70,6 +107,7 @@ export class CurveRenderer implements IRenderer {
 
     dispose(): void {
         this.disposed = true;
+        this.executor.dispose();
         if (this.line) {
             this.line.geometry?.dispose();
             const mat = this.line.material;

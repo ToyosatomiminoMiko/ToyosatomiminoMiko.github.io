@@ -55,7 +55,6 @@ export class DslApp {
     private animationFrameId: number | null = null;
     private refreshFrame: number | null = null;
     private readonly pendingParamChanges = new Set<string>();
-    private sceneDirty = true;
     private runSequence = 0;
     private compiledObjects: SceneObject[] = [];
     private currentAst: AstProgram | null = null;
@@ -64,7 +63,6 @@ export class DslApp {
     private readonly onResize = (): void => {
         const { width, height } = this.sceneManager.resize();
         this.cameraManager.updateAspect(width, height);
-        this.sceneDirty = true;
     };
 
     private readonly onKeyDown = (event: KeyboardEvent): void => {
@@ -72,10 +70,6 @@ export class DslApp {
             this.controls.target.set(0, 0, 0);
             this.controls.update();
         }
-    };
-
-    private readonly onControlsChange = (): void => {
-        this.sceneDirty = true;
     };
 
     constructor() {
@@ -117,7 +111,6 @@ export class DslApp {
         window.removeEventListener('resize', this.onResize);
         document.removeEventListener('keydown', this.onKeyDown);
         this.controls?.dispose();
-        this.controls?.removeEventListener('change', this.onControlsChange);
         this.panelController?.dispose();
         this.cameraToggle?.dispose();
         this.viewCubeController?.dispose();
@@ -197,7 +190,6 @@ export class DslApp {
         controls.update();
         this.cameraManager.setControls(controls);
         this.controls = controls;
-        this.controls.addEventListener('change', this.onControlsChange);
     }
 
     private _wireViewControls(): void {
@@ -224,8 +216,6 @@ export class DslApp {
         if (this.disposed) return;
         this.animationFrameId = requestAnimationFrame(this.animate);
         this.controls?.update();
-        if (!this.sceneDirty) return;
-        this.sceneDirty = false;
         this.sceneManager.render(this.cameraManager.getCamera());
     };
 
@@ -291,7 +281,6 @@ export class DslApp {
         }
 
         this.compiledObjects = scene.objects;
-        this.sceneDirty = true;
         this.analysisRenderer.render(scene.analyses);
         this.integralRenderer.sync(
             scene.integrals,
