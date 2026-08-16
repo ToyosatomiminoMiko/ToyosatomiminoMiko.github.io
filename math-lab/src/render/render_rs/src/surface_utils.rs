@@ -1,7 +1,8 @@
 use evalexpr::{
-    build_operator_tree, ContextWithMutableFunctions, ContextWithMutableVariables, Function,
-    HashMapContext, Value,
+    build_operator_tree, ContextWithMutableVariables, HashMapContext, Value,
 };
+
+use math_rs::builtins::register_builtins;
 
 /*
 剔除所有包含 NaN z 值的三角形
@@ -110,38 +111,6 @@ pub struct SurfaceSampleResult {
 // 统一后处理: 极值扫描 + HSL颜色映射 + NaN三角形剔除
 // ================================================================
 
-// 向 context 中注册 evalexpr 默认不包含的常用数学函数
-// HashMapContext 内置只有基础算术,sin/cos/exp 等需要手动注册
-pub(crate) fn register_builtins(ctx: &mut HashMapContext) {
-    let funcs: &[(&str, fn(f64) -> f64)] = &[
-        ("sin", f64::sin),
-        ("cos", f64::cos),
-        ("tan", f64::tan),
-        ("asin", f64::asin),
-        ("acos", f64::acos),
-        ("atan", f64::atan),
-        ("sinh", f64::sinh),
-        ("cosh", f64::cosh),
-        ("tanh", f64::tanh),
-        ("exp", f64::exp),
-        ("ln", f64::ln),
-        ("log10", f64::log10),
-        ("log2", f64::log2),
-        ("sqrt", f64::sqrt),
-        ("abs", f64::abs),
-    ];
-
-    for &(name, f) in funcs {
-        ctx.set_function(
-            name.to_string(),
-            Function::new(move |arg: &Value| Ok(Value::Float(f(arg.as_float()?)))),
-        )
-        // HashMapContext::set_function 当前实现总是返回 Ok(())。
-        // 这里注册的是全新上下文，不会和已有函数名冲突，所以 unwrap 不会触发；
-        // 保留 unwrap 只是为了匹配 API 的 Result 返回类型，而不是因为这里可能失败。
-        .unwrap();
-    }
-}
 /*
 输入采样后的扁平坐标数组 positions ([x0,y0,z0, x1,y1,z1, ...])
 以及完整三角索引 full_indices, 一次调用完成:

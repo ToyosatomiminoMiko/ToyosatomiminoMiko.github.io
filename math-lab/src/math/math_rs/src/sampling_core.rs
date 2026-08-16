@@ -2,7 +2,7 @@ use evalexpr::{
     build_operator_tree, ContextWithMutableVariables, HashMapContext, Value,
 };
 
-use crate::surface_utils::register_builtins;
+use crate::builtins::register_builtins;
 
 fn build_context(
     coeff_names: &[String],

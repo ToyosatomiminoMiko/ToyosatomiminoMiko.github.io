@@ -6,10 +6,10 @@ import {
     evaluate_divergence_point,
     evaluate_gradient_point,
     evaluate_scalar,
-} from '../../wasm/ml_wasm';
+} from '../../wasm/math_rs/math_rs';
 import type { AstProgram } from '../ast/types';
 
-vi.mock('../../wasm/ml_wasm', () => ({
+vi.mock('../../wasm/math_rs/math_rs', () => ({
     evaluate_gradient_point: vi.fn(() => ({ f0: 0, fx: 0, fy: 0 })),
     evaluate_divergence_point: vi.fn(() => 0),
     evaluate_curl_point: vi.fn(() => ({ x: 0, y: 0, z: 0 })),

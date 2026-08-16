@@ -5,7 +5,7 @@
 import init, {
     integrate1d,
     integrate2d,
-} from "../../../wasm/ml_wasm";
+} from "../../../wasm/math_rs/math_rs";
 
 type IntegralRequest = {
     id: number;

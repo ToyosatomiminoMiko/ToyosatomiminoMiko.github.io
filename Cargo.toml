@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "math-lab/src/math/math_rs",
+    "math-lab/src/compiler/compiler_rs",
+    "math-lab/src/render/render_rs",
+]
+resolver = "2"

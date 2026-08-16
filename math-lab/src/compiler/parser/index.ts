@@ -5,8 +5,8 @@ import {
     mat4_rotate as wasmMat4Rotate,
     mat4_scale as wasmMat4Scale,
     mat4_translate as wasmMat4Translate,
-    parse_miko as wasmParseMiko,
-} from '../../wasm/ml_wasm';
+} from '../../wasm/math_rs/math_rs';
+import { parse_miko as wasmParseMiko } from '../../wasm/compiler_rs/compiler_rs';
 import { ensureWasmReady } from '../../runtime/wasmRuntime';
 import type { AstProgram } from '../ast/types';
 import { normalizeMatlabSyntax } from './matlabCompat';

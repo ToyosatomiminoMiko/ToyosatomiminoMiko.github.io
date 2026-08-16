@@ -1,28 +1,18 @@
+pub mod builtins;
+pub mod field_core;
+pub mod integral_core;
+pub mod sampling_core;
+pub mod transform_core;
+
 use wasm_bindgen::prelude::*;
-// 实现模块
-mod field_core;
-mod integral_core;
-mod parser_wasm;
-mod sampling_core;
-mod surface_utils;
-mod transform_core;
 
-// ================================================================
-// .miko DSL 解析器
-// ================================================================
-
-#[wasm_bindgen]
-pub fn parse_miko(source: &str) -> Result<String, JsValue> {
-    parser_wasm::parse_to_json(source).map_err(|e| JsValue::from_str(&e))
+fn math_error(message: impl Into<String>) -> JsValue {
+    JsValue::from_str(&message.into())
 }
 
 // ================================================================
 // 4x4 矩阵变换
 // ================================================================
-
-fn mat4_error(message: impl Into<String>) -> JsValue {
-    JsValue::from_str(&message.into())
-}
 
 #[wasm_bindgen]
 pub fn mat4_identity() -> Vec<f64> {
@@ -46,14 +36,14 @@ pub fn mat4_rotate(rx: f64, ry: f64, rz: f64) -> Vec<f64> {
 
 #[wasm_bindgen]
 pub fn mat4_multiply(a: Vec<f64>, b: Vec<f64>) -> Result<Vec<f64>, JsValue> {
-    let a = transform_core::from_flat(a).map_err(mat4_error)?;
-    let b = transform_core::from_flat(b).map_err(mat4_error)?;
+    let a = transform_core::from_flat(a).map_err(math_error)?;
+    let b = transform_core::from_flat(b).map_err(math_error)?;
     Ok(transform_core::multiply4x4(a, b).to_vec())
 }
 
 #[wasm_bindgen]
 pub fn mat4_apply_point(matrix: Vec<f64>, x: f64, y: f64, z: f64) -> Result<Vec<f64>, JsValue> {
-    let matrix = transform_core::from_flat(matrix).map_err(mat4_error)?;
+    let matrix = transform_core::from_flat(matrix).map_err(math_error)?;
     Ok(transform_core::apply_to_point(matrix, x, y, z).to_vec())
 }
 
@@ -71,7 +61,7 @@ pub fn sample_curve(
     steps: usize,
 ) -> Result<Vec<f32>, JsValue> {
     sampling_core::sample_curve(expr, &coeff_names, &coeff_values, x_min, x_max, steps)
-        .map_err(mat4_error)
+        .map_err(math_error)
 }
 
 #[wasm_bindgen]
@@ -107,11 +97,11 @@ pub fn sample_vector_field(
         ny,
         nz,
     )
-    .map_err(mat4_error)
+    .map_err(math_error)
 }
 
 // ================================================================
-// 基于值数组的积分 零FFI回调 推荐使用
+// 基于值数组的积分
 // ================================================================
 
 #[wasm_bindgen]
@@ -143,8 +133,6 @@ pub fn riemann1d_mid_values(values: &[f64], a: f64, b: f64) -> f64 {
 pub fn lebesgue1d_values(values: &[f64], a: f64, b: f64, layers: usize) -> f64 {
     integral_core::lebesgue1d_from_values(values, a, b, layers)
 }
-
-// --- 二维 ---
 
 #[wasm_bindgen]
 pub fn trapz2d_values(
@@ -219,17 +207,14 @@ pub fn integrate1d(
     layers: usize,
     method: &str,
 ) -> Result<IntegralSampleResult, JsValue> {
-    let sample_shape = if method == "riemann1d_mid" { "mid" } else { "grid" };
-    let samples = sampling_core::sample_function_1d(
-        expr,
-        &coeff_names,
-        &coeff_values,
-        a,
-        b,
-        n,
-        sample_shape,
-    )
-    .map_err(|e| JsValue::from_str(&e))?;
+    let sample_shape = if method == "riemann1d_mid" {
+        "mid"
+    } else {
+        "grid"
+    };
+    let samples =
+        sampling_core::sample_function_1d(expr, &coeff_names, &coeff_values, a, b, n, sample_shape)
+            .map_err(|e| JsValue::from_str(&e))?;
 
     let value = match method {
         "trapz1d" => integral_core::trapz1d_from_values(&samples, a, b),
@@ -265,7 +250,11 @@ pub fn integrate2d(
     layers: usize,
     method: &str,
 ) -> Result<IntegralSampleResult, JsValue> {
-    let sample_shape = if method == "riemann2d_left" { "corner" } else { "grid" };
+    let sample_shape = if method == "riemann2d_left" {
+        "corner"
+    } else {
+        "grid"
+    };
     let samples = sampling_core::sample_function_2d(
         expr,
         &coeff_names,
@@ -284,14 +273,12 @@ pub fn integrate2d(
         "trapz2d" => integral_core::trapz2d_from_values(&samples, (xa, xb), (ya, yb), n, m),
         "simpson2d" => integral_core::simpson2d_from_values(&samples, (xa, xb), (ya, yb), n, m)
             .map_err(|e| JsValue::from_str(&e))?,
-        "riemann2d_left" => integral_core::riemann2d_left_from_values(
-            &samples,
-            (xa, xb),
-            (ya, yb),
-            n,
-            m,
-        ),
-        "lebesgue2d" => integral_core::lebesgue2d_from_values(&samples, (xa, xb), (ya, yb), n, layers),
+        "riemann2d_left" => {
+            integral_core::riemann2d_left_from_values(&samples, (xa, xb), (ya, yb), n, m)
+        }
+        "lebesgue2d" => {
+            integral_core::lebesgue2d_from_values(&samples, (xa, xb), (ya, yb), n, layers)
+        }
         _ => return Err(JsValue::from_str("未知二维积分方法")),
     };
 
@@ -301,59 +288,6 @@ pub fn integrate2d(
         sample_shape: sample_shape.to_string(),
         n,
         m,
-    })
-}
-
-// ================================================================
-// 统一表面后处理
-// ================================================================
-#[wasm_bindgen]
-pub fn generate_full_indices(cols: u32, rows: u32) -> Vec<u32> {
-    surface_utils::generate_full_indices(cols as usize, rows as usize)
-}
-
-#[wasm_bindgen(getter_with_clone)]
-pub struct SurfaceSampleResult {
-    pub positions: Vec<f32>,
-    pub colors: Vec<f32>,
-    pub valid_indices: Vec<u32>,
-    pub normals: Vec<f32>,
-    pub z_min: f64,
-    pub z_max: f64,
-}
-
-#[wasm_bindgen]
-pub fn sample_and_process_surface(
-    expr: &str,
-    coeff_names: Vec<String>,
-    coeff_values: Vec<f64>,
-    x_min: f64,
-    x_max: f64,
-    y_min: f64,
-    y_max: f64,
-    cols: u32,
-    rows: u32,
-) -> Result<SurfaceSampleResult, JsValue> {
-    let result = surface_utils::sample_and_process_surface(
-        expr,
-        &coeff_names,
-        &coeff_values,
-        x_min,
-        x_max,
-        y_min,
-        y_max,
-        cols,
-        rows,
-    )
-    .map_err(|e| JsValue::from_str(&e))?;
-
-    Ok(SurfaceSampleResult {
-        positions: result.positions,
-        colors: result.colors,
-        valid_indices: result.valid_indices,
-        normals: result.normals,
-        z_min: result.z_min,
-        z_max: result.z_max,
     })
 }
 

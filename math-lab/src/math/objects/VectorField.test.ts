@@ -2,7 +2,7 @@ import { parse } from 'mathjs';
 import { describe, expect, it, vi } from 'vitest';
 import { sampleVectorField } from './VectorField';
 
-vi.mock('../../wasm/ml_wasm', () => ({
+vi.mock('../../wasm/math_rs/math_rs', () => ({
     default: vi.fn(() => Promise.resolve()),
     sample_vector_field: vi.fn(() => {
         throw new Error('force fallback');

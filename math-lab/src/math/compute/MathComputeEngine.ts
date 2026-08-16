@@ -8,7 +8,7 @@ import type {
     SceneObject,
 } from '../../compiler/ir/types';
 import * as math from 'mathjs';
-import { sample_curve as wasmSampleCurve } from '../../wasm/ml_wasm';
+import { sample_curve as wasmSampleCurve } from '../../wasm/math_rs/math_rs';
 import { ensureWasmReady } from '../../runtime/wasmRuntime';
 import { compilationCache } from '../objects/CompilationCache';
 import { logWarning } from '../../service/logger';

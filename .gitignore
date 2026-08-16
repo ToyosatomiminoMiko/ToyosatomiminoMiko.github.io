@@ -1,6 +1,8 @@
 node_modules/
 autorun.py
+target/
 math-lab/src/wasm/
+math-lab/target/
 dist/
 .vscode
 issue.md

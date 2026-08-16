@@ -4,7 +4,7 @@
  */
 import * as math from 'mathjs';
 import type { MathNode } from 'mathjs';
-import { evaluate_scalar as wasmEvaluateScalar } from '../../wasm/ml_wasm';
+import { evaluate_scalar as wasmEvaluateScalar } from '../../wasm/math_rs/math_rs';
 
 function evaluateRustScalar(
     expr: string,

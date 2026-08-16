@@ -1,7 +1,7 @@
 import {
     sample_and_process_surface as wasm_sample_and_process,
     generate_full_indices as wasm_generate_full_indices,
-} from '../../wasm/ml_wasm';
+} from '../../wasm/render_rs/render_rs';
 import { ensureWasmReady } from '../../runtime/wasmRuntime';
 
 // 立即触发初始化,后续调用者共享同一个 Promise

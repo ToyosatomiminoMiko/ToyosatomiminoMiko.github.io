@@ -1,6 +1,6 @@
 use evalexpr::{build_operator_tree, ContextWithMutableVariables, HashMapContext, Value};
 
-use crate::surface_utils::register_builtins;
+use crate::builtins::register_builtins;
 
 // ================================================================
 // field_core — 标量场 / 向量场的梯度\散度\旋度数值核心

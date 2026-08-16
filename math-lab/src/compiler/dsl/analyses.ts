@@ -12,7 +12,7 @@ import {
     evaluate_curl_point as wasmEvaluateCurlPoint,
     evaluate_divergence_point as wasmEvaluateDivergencePoint,
     evaluate_gradient_point as wasmEvaluateGradientPoint,
-} from '../../wasm/ml_wasm';
+} from '../../wasm/math_rs/math_rs';
 import {
     materializeCoefficients,
     type ObjectBlueprint,

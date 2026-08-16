@@ -1,7 +1,7 @@
 import { parse, type MathNode } from 'mathjs';
 import type { Coefficient } from '../../compiler/ir/types';
 import { extractCoefficients } from './coefficientUtils';
-import { sample_vector_field as wasmSampleVectorField } from '../../wasm/ml_wasm';
+import { sample_vector_field as wasmSampleVectorField } from '../../wasm/math_rs/math_rs';
 import { ensureWasmReady } from '../../runtime/wasmRuntime';
 import { logWarning } from '../../service/logger';
 

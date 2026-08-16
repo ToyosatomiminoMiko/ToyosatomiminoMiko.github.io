@@ -1,4 +1,4 @@
-import init, { sample_vector_field } from '../../../wasm/ml_wasm';
+import init, { sample_vector_field } from '../../../wasm/math_rs/math_rs';
 
 export type VectorFieldWorkerRequest = {
     id: number;
