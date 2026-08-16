@@ -8,6 +8,7 @@ import type {
     Coefficient,
     ParamDeclaration,
 } from '../ir/types';
+import { NUMERIC_CONFIG } from '../../config/numericConfig';
 import {
     evaluate_curl_point as wasmEvaluateCurlPoint,
     evaluate_divergence_point as wasmEvaluateDivergencePoint,
@@ -34,7 +35,9 @@ function coefficientArgs(source: { coefficients: Coefficient[] }): [string[], Fl
 function normalizeVector(vector: [number, number, number]): [number, number, number] {
     const [x, y, z] = vector;
     const length = Math.sqrt(x * x + y * y + z * z);
-    return length < 1e-12 ? [0, 0, 0] : [x / length, y / length, z / length];
+    return length < NUMERIC_CONFIG.tolerance.zero
+        ? [0, 0, 0]
+        : [x / length, y / length, z / length];
 }
 
 export function compileAnalyses(

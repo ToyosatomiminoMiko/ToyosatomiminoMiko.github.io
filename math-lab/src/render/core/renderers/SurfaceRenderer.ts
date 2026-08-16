@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { NUMERIC_CONFIG } from '../../../config/numericConfig';
 import { SurfaceMesh } from '../../visualization/SurfaceMesh';
 import type { IRenderer } from './IRenderer';
 import type { SurfaceObject } from '../../../compiler/ir/types';
@@ -19,9 +20,13 @@ export class SurfaceRenderer implements IRenderer {
 
     constructor(private surface: SurfaceObject) {
         const range = surface.range;
-        this.xRange = range ? [range[0], range[1]] : [-6, 6];
-        this.yRange = range ? [range[2], range[3]] : [-6, 6];
-        this.segments = surface.segments ?? 64;
+        this.xRange = range
+            ? [range[0], range[1]]
+            : [NUMERIC_CONFIG.surface.defaultRange[0], NUMERIC_CONFIG.surface.defaultRange[1]];
+        this.yRange = range
+            ? [range[2], range[3]]
+            : [NUMERIC_CONFIG.surface.defaultRange[2], NUMERIC_CONFIG.surface.defaultRange[3]];
+        this.segments = surface.segments ?? NUMERIC_CONFIG.surface.defaultSegments;
     }
 
     get visible(): boolean {
@@ -64,9 +69,13 @@ export class SurfaceRenderer implements IRenderer {
     updateRef(surface: SurfaceObject): void {
         this.surface = surface;
         const range = surface.range;
-        this.xRange = range ? [range[0], range[1]] : [-6, 6];
-        this.yRange = range ? [range[2], range[3]] : [-6, 6];
-        this.segments = surface.segments ?? 64;
+        this.xRange = range
+            ? [range[0], range[1]]
+            : [NUMERIC_CONFIG.surface.defaultRange[0], NUMERIC_CONFIG.surface.defaultRange[1]];
+        this.yRange = range
+            ? [range[2], range[3]]
+            : [NUMERIC_CONFIG.surface.defaultRange[2], NUMERIC_CONFIG.surface.defaultRange[3]];
+        this.segments = surface.segments ?? NUMERIC_CONFIG.surface.defaultSegments;
     }
 
     dispose(): void {

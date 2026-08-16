@@ -1,5 +1,6 @@
 import { parse, type MathNode } from 'mathjs';
 import type { Coefficient } from '../../compiler/ir/types';
+import { NUMERIC_CONFIG } from '../../config/numericConfig';
 import { extractCoefficients } from './coefficientUtils';
 import { sample_vector_field as wasmSampleVectorField } from '../../wasm/math_rs/math_rs';
 import { ensureWasmReady } from '../../runtime/wasmRuntime';
@@ -15,8 +16,8 @@ const wasmInit = ensureWasmReady().then(() => {
 void wasmInit;
 
 /**
- * 合并三个分量表达式中提取的系数,去重并生成 Coefficient 对象
- * 默认值为 0,取值范围 [-10, 10],步长 0.1
+ * 合并三个分量表达式中提取的系数,去重并生成 Coefficient 对象。
+ * 默认值与参数范围统一由 NUMERIC_CONFIG.param 控制。
  */
 function mergeCoefficients(
     namesP: string[],
@@ -29,10 +30,10 @@ function mergeCoefficients(
     for (const name of allNames) {
         combined.set(name, {
             name,
-            value: 0,
-            min: -10,
-            max: 10,
-            step: 0.1,
+            value: NUMERIC_CONFIG.param.defaultValue,
+            min: NUMERIC_CONFIG.param.defaultMin,
+            max: NUMERIC_CONFIG.param.defaultMax,
+            step: NUMERIC_CONFIG.param.defaultStep,
         });
     }
 

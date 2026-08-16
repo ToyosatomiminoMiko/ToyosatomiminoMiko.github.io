@@ -5,6 +5,7 @@
  */
 import * as math from 'mathjs';
 import type { MathNode } from 'mathjs';
+import { NUMERIC_CONFIG } from '../../config/numericConfig';
 import type { ObjectStatement } from '../ast/types';
 import type {
     Coefficient,
@@ -27,8 +28,6 @@ import {
 } from './options';
 import { buildParamScope } from './params';
 import { evaluateRequiredNumber } from './expression';
-
-const COLOR_PALETTE = ['#6dd5ff', '#ff6b8a', '#ffd93d', '#6bffb8', '#c084fc', '#fb923c'];
 
 export type CurveBlueprint = {
     name: string;
@@ -178,10 +177,10 @@ export function materializeCoefficients(
         const declared = params.get(name);
         return {
             name,
-            value: overrides[name] ?? declared?.value ?? 1,
-            min: declared?.min ?? -10,
-            max: declared?.max ?? 10,
-            step: declared?.step ?? 0.1,
+            value: overrides[name] ?? declared?.value ?? NUMERIC_CONFIG.param.defaultValue,
+            min: declared?.min ?? NUMERIC_CONFIG.param.defaultMin,
+            max: declared?.max ?? NUMERIC_CONFIG.param.defaultMax,
+            step: declared?.step ?? NUMERIC_CONFIG.param.defaultStep,
         };
     });
 }
@@ -190,7 +189,10 @@ export function buildObjectBlueprint(
     statement: ObjectStatement,
     id: number,
 ): ObjectBlueprint | null {
-    const color = stripQuotes(findOption(statement.options, 'color') ?? COLOR_PALETTE[id % COLOR_PALETTE.length]);
+    const color = stripQuotes(
+        findOption(statement.options, 'color')
+            ?? NUMERIC_CONFIG.colorPalette[id % NUMERIC_CONFIG.colorPalette.length],
+    );
 
     if (statement.kind === 'curve') {
         const node = math.parse(statement.expr);
@@ -227,7 +229,7 @@ export function buildObjectBlueprint(
         const rawRange = findOption(statement.options, 'range');
         const rangeValues = rawRange
             ? parseNumberList(rawRange, `曲面 ${statement.name} 的 range`)
-            : [-6, 6, -6, 6];
+            : [...NUMERIC_CONFIG.surface.defaultRange];
         if (rangeValues.length !== 4) {
             throw new Error(`曲面 ${statement.name} 的 range 需要 4 个数值`);
         }
@@ -261,7 +263,7 @@ export function buildObjectBlueprint(
         const rawRange = findOption(statement.options, 'range');
         const rangeValues = rawRange
             ? parseNumberList(rawRange, `向量场 ${statement.name} 的 range`)
-            : [-4, 4, -4, 4, -4, 4];
+            : [...NUMERIC_CONFIG.vectorField.defaultRange];
         if (rangeValues.length !== 6) {
             throw new Error(`向量场 ${statement.name} 的 range 需要 6 个数值`);
         }
@@ -273,13 +275,15 @@ export function buildObjectBlueprint(
             throw new Error(`向量场 ${statement.name} 的 range 需要 min < max`);
         }
         const gridValues = parsePositiveIntegerList(
-            findOption(statement.options, 'grid') ?? '[8, 8, 8]',
+            findOption(statement.options, 'grid')
+                ?? `[${NUMERIC_CONFIG.vectorField.defaultGrid.join(', ')}]`,
             `向量场 ${statement.name} 的 grid`,
         );
         if (gridValues.length !== 3) {
             throw new Error(`向量场 ${statement.name} 的 grid 需要 3 个数值`);
         }
-        const glyphScale = optionalNumber(findOption(statement.options, 'scale')) ?? 1.2;
+        const glyphScale = optionalNumber(findOption(statement.options, 'scale'))
+            ?? NUMERIC_CONFIG.vectorField.defaultGlyphScale;
         return {
             name: statement.name,
             id,

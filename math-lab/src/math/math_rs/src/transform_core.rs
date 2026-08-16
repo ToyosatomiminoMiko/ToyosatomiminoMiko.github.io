@@ -5,6 +5,7 @@
 ///  m30, m31, m32, m33]
 pub type Mat4 = [f64; 16];
 
+#[rustfmt::skip]
 pub fn identity4() -> Mat4 {
     [
         1.0, 0.0, 0.0, 0.0,
@@ -14,6 +15,7 @@ pub fn identity4() -> Mat4 {
     ]
 }
 
+#[rustfmt::skip]
 pub fn translate4(tx: f64, ty: f64, tz: f64) -> Mat4 {
     [
         1.0, 0.0, 0.0, tx,
@@ -23,6 +25,7 @@ pub fn translate4(tx: f64, ty: f64, tz: f64) -> Mat4 {
     ]
 }
 
+#[rustfmt::skip]
 pub fn scale4(sx: f64, sy: f64, sz: f64) -> Mat4 {
     [
         sx, 0.0, 0.0, 0.0,
@@ -32,6 +35,7 @@ pub fn scale4(sx: f64, sy: f64, sz: f64) -> Mat4 {
     ]
 }
 
+#[rustfmt::skip]
 pub fn rotate4(rx: f64, ry: f64, rz: f64) -> Mat4 {
     let cx = rx.cos();
     let sx = rx.sin();
@@ -54,7 +58,7 @@ pub fn rotate4(rx: f64, ry: f64, rz: f64) -> Mat4 {
     ];
     let rz_m: Mat4 = [
         cz, -sz, 0.0, 0.0,
-        sz, cz, 0.0, 0.0,
+        sz,  cz, 0.0, 0.0,
         0.0, 0.0, 1.0, 0.0,
         0.0, 0.0, 0.0, 1.0,
     ];

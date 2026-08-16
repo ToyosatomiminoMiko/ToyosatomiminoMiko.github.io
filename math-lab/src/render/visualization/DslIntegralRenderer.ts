@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { NUMERIC_CONFIG } from '../../config/numericConfig';
 import type { IntegralTask, SceneObject } from '../../compiler/ir/types';
 import { IntegralVisualizer } from './IntegralVisualizer';
 import type { MathComputeEngine } from '../../math/compute/MathComputeEngine';
@@ -126,7 +127,7 @@ export class DslIntegralRenderer {
                         a,
                         b,
                         task.layers,
-                        segments * 20,
+                        segments * NUMERIC_CONFIG.integral.lebesgueOversample1D,
                         task.name,
                     );
                     break;
@@ -178,7 +179,7 @@ export class DslIntegralRenderer {
                     [xMin, xMax],
                     [yMin, yMax],
                     task.layers,
-                    segments * 4,
+                    segments * NUMERIC_CONFIG.integral.lebesgueOversample2D,
                     task.name,
                 );
                 break;

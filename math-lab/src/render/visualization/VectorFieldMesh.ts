@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RENDER_CONFIG } from '../../config/renderConfig';
 
 export class VectorFieldMesh {
     public group: THREE.Group;
@@ -6,12 +7,12 @@ export class VectorFieldMesh {
     private shaftInstanced: THREE.InstancedMesh;
     private headInstanced: THREE.InstancedMesh;
     private count: number;
-    private readonly threshold = 1e-8; // 模长小于此值则隐藏该箭头
+    private readonly threshold = RENDER_CONFIG.vectorFieldMesh.threshold; // 模长小于此值则隐藏该箭头
 
     // 固定几何参数
-    private readonly shaftRadius = 0.05;
-    private readonly headRadius = 0.15;
-    private readonly headLengthRatio = 0.2; // 头部占总长度的比例
+    private readonly shaftRadius = RENDER_CONFIG.vectorFieldMesh.shaftRadius;
+    private readonly headRadius = RENDER_CONFIG.vectorFieldMesh.headRadius;
+    private readonly headLengthRatio = RENDER_CONFIG.vectorFieldMesh.headLengthRatio; // 头部占总长度的比例
 
     // 临时向量/矩阵/四元数,减少GC
     private readonly direction = new THREE.Vector3();
@@ -37,18 +38,23 @@ export class VectorFieldMesh {
 
         // ---------- 创建几何体(底部在原点,沿 +Y 方向延伸)----------
         // 杆:高为1,半径为 shaftRadius
-        const shaftGeo = new THREE.CylinderGeometry(1, 1, 1, 8);
+        const shaftGeo = new THREE.CylinderGeometry(
+            1,
+            1,
+            1,
+            RENDER_CONFIG.vectorFieldMesh.radialSegments,
+        );
         shaftGeo.translate(0, 0.5, 0); // 底部在原点,顶部在 (0,1,0)
 
         // 头:高为1,底部半径为 headRadius
-        const headGeo = new THREE.ConeGeometry(1, 1, 8);
+        const headGeo = new THREE.ConeGeometry(1, 1, RENDER_CONFIG.vectorFieldMesh.radialSegments);
         headGeo.translate(0, 0.5, 0); // 底部在原点,尖端在 (0,1,0)
 
         // ---------- 材质 ----------
         const material = new THREE.MeshStandardMaterial({
             color: color,
-            roughness: 0.6,
-            metalness: 0.2,
+            roughness: RENDER_CONFIG.vectorFieldMesh.roughness,
+            metalness: RENDER_CONFIG.vectorFieldMesh.metalness,
         });
 
         // ---------- 实例化网格 ----------

@@ -1,15 +1,18 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { SceneObject } from '../../compiler/ir/types';
+import { RENDER_CONFIG } from '../../config/renderConfig';
 
 // ============================================================
 // 渲染常量
 // ============================================================
-const BAR_GAP = 0.05;
-const DEPTH_2D = 0.3;
-const OPACITY_RIEMANN = 0.5;
-const OPACITY_LEBESGUE = 0.5;
-const EDGE_OPACITY_RIEMANN = 0.4;
+const {
+    barGap: BAR_GAP,
+    depth2D: DEPTH_2D,
+    opacityRiemann: OPACITY_RIEMANN,
+    opacityLebesgue: OPACITY_LEBESGUE,
+    edgeOpacityRiemann: EDGE_OPACITY_RIEMANN,
+} = RENDER_CONFIG.integralVisualizer;
 
 // 所有柱条共享同一个单位立方体及其线框几何体,避免每次可视化重复分配.
 const SHARED_BOX_GEOMETRY = new THREE.BoxGeometry(1, 1, 1);

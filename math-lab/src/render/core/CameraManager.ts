@@ -28,36 +28,40 @@ export class CameraManager {
         this.aspect = this.container.clientWidth / this.container.clientHeight;
 
         this.perspCamera = new THREE.PerspectiveCamera(
-            45,
+            APP_CONFIG.camera.perspFov,
             this.aspect,
-            0.1,
-            200,
+            APP_CONFIG.camera.near,
+            APP_CONFIG.camera.far,
         );
-        this.perspCamera.position.set(12, 8, 12);
+        this.perspCamera.position.set(...APP_CONFIG.camera.defaultPosition as [number, number, number]);
         this.perspCamera.lookAt(...APP_CONFIG.camera.initViewTarget as [number, number, number]);
 
         const half = APP_CONFIG.camera.frustumSize / 2;
         this.orthoCamera = new THREE.OrthographicCamera(
             -half * this.aspect, half * this.aspect,
             half, -half,
-            0.1, 200,
+            APP_CONFIG.camera.near, APP_CONFIG.camera.far,
         );
-        this.orthoCamera.position.set(12, 8, 12);
+        this.orthoCamera.position.set(...APP_CONFIG.camera.defaultPosition as [number, number, number]);
         this.orthoCamera.lookAt(...APP_CONFIG.camera.initViewTarget as [number, number, number]);
 
         this.activeCamera = this.perspCamera;
         this.mode = APP_CONFIG.camera.defaultMode;
-        this.currentHome = 'isometric';
+        this.currentHome = APP_CONFIG.camera.defaultHome;
         this.controls = null;
 
+        const viewDistance = APP_CONFIG.camera.viewDistance;
         this.viewPositions = {
-            top: { pos: new THREE.Vector3(0, 20, 0), target: new THREE.Vector3(0, 0, 0) },
-            bottom: { pos: new THREE.Vector3(0, -20, 0), target: new THREE.Vector3(0, 0, 0) },
-            front: { pos: new THREE.Vector3(0, 0, 20), target: new THREE.Vector3(0, 0, 0) },
-            back: { pos: new THREE.Vector3(0, 0, -20), target: new THREE.Vector3(0, 0, 0) },
-            left: { pos: new THREE.Vector3(-20, 0, 0), target: new THREE.Vector3(0, 0, 0) },
-            right: { pos: new THREE.Vector3(20, 0, 0), target: new THREE.Vector3(0, 0, 0) },
-            isometric: { pos: new THREE.Vector3(12, 8, 12), target: new THREE.Vector3(0, 0, 0) },
+            top: { pos: new THREE.Vector3(0, viewDistance, 0), target: new THREE.Vector3(0, 0, 0) },
+            bottom: { pos: new THREE.Vector3(0, -viewDistance, 0), target: new THREE.Vector3(0, 0, 0) },
+            front: { pos: new THREE.Vector3(0, 0, viewDistance), target: new THREE.Vector3(0, 0, 0) },
+            back: { pos: new THREE.Vector3(0, 0, -viewDistance), target: new THREE.Vector3(0, 0, 0) },
+            left: { pos: new THREE.Vector3(-viewDistance, 0, 0), target: new THREE.Vector3(0, 0, 0) },
+            right: { pos: new THREE.Vector3(viewDistance, 0, 0), target: new THREE.Vector3(0, 0, 0) },
+            isometric: {
+                pos: new THREE.Vector3(...APP_CONFIG.camera.defaultPosition as [number, number, number]),
+                target: new THREE.Vector3(0, 0, 0),
+            },
         };
     }
 

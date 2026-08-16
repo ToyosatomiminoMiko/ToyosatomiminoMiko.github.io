@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Coefficient } from '../../compiler/ir/types';
+import { RENDER_CONFIG } from '../../config/renderConfig';
 import { generate_full_indices } from './SurfaceMeshWasm';
 import {
     surfaceComputeClient,
@@ -45,7 +46,10 @@ export class SurfaceMesh {
      * @param cols - x 方向网格分段数
      * @param rows - y 方向网格分段数
      */
-    constructor(cols: number = 128, rows: number = 128) {
+    constructor(
+        cols: number = RENDER_CONFIG.surfaceMesh.defaultSegments,
+        rows: number = RENDER_CONFIG.surfaceMesh.defaultSegments,
+    ) {
         this.cols = cols;
         this.rows = rows;
 
@@ -72,18 +76,18 @@ export class SurfaceMesh {
             vertexColors: true,
             side: THREE.DoubleSide,
             transparent: true,
-            opacity: 0.85,
-            shininess: 30,
-            specular: new THREE.Color(0x222244),
+            opacity: RENDER_CONFIG.surfaceMesh.materialOpacity,
+            shininess: RENDER_CONFIG.surfaceMesh.shininess,
+            specular: new THREE.Color(RENDER_CONFIG.surfaceMesh.specular),
             depthWrite: true, // 曲面主体保持深度写入
         });
 
         // 独立线框 mesh,单独控制透明度与深度写入
         this.wireframeMat = new THREE.MeshBasicMaterial({
-            color: 0x88aaff,
+            color: RENDER_CONFIG.surfaceMesh.wireframeColor,
             wireframe: true,
             transparent: true,
-            opacity: 0.15,
+            opacity: RENDER_CONFIG.surfaceMesh.wireframeOpacity,
             depthWrite: false, // 避免线框在曲面背后产生 z-fighting
         });
 

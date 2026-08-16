@@ -5,6 +5,7 @@
  */
 import * as THREE from 'three';
 import type { AnalysisResult } from '../../../compiler/ir/types';
+import { RENDER_CONFIG } from '../../../config/renderConfig';
 
 export class AnalysisRenderer {
     readonly group = new THREE.Group();
@@ -18,30 +19,43 @@ export class AnalysisRenderer {
 
             if (analysis.show.includes('point')) {
                 const dot = new THREE.Mesh(
-                    new THREE.SphereGeometry(0.08, 16, 16),
+                    new THREE.SphereGeometry(RENDER_CONFIG.analysis.pointRadius, 16, 16),
                     new THREE.MeshPhongMaterial({ color: 0xffdd44 }),
                 );
                 dot.position.copy(point);
                 this.group.add(dot);
             }
 
-            if (analysis.show.includes('normal') && vector.lengthSq() > 1e-12) {
+            if (
+                analysis.show.includes('normal')
+                && vector.lengthSq() > RENDER_CONFIG.analysis.tolerance
+            ) {
                 const direction = vector.clone().normalize();
-                const arrow = new THREE.ArrowHelper(direction, point, 1.5, 0xff6b8a, 0.2, 0.1);
+                const arrow = new THREE.ArrowHelper(
+                    direction,
+                    point,
+                    RENDER_CONFIG.analysis.arrowLength,
+                    0xff6b8a,
+                    RENDER_CONFIG.analysis.arrowHeadLength,
+                    RENDER_CONFIG.analysis.arrowHeadWidth,
+                );
                 this.group.add(arrow);
             }
 
             if (analysis.show.includes('tangent_plane') && analysis.op === 'gradient') {
-                const normal = vector.lengthSq() > 1e-12
+                const normal = vector.lengthSq() > RENDER_CONFIG.analysis.tolerance
                     ? vector.clone().normalize()
                     : new THREE.Vector3(0, 0, 1);
                 const plane = new THREE.Mesh(
-                    new THREE.PlaneGeometry(1.6, 1.6),
+                    new THREE.PlaneGeometry(
+                        RENDER_CONFIG.analysis.tangentPlaneSize,
+                        RENDER_CONFIG.analysis.tangentPlaneSize,
+                    ),
                     new THREE.MeshPhongMaterial({
                         color: 0x44aaff,
                         side: THREE.DoubleSide,
                         transparent: true,
-                        opacity: 0.55,
+                        opacity: RENDER_CONFIG.analysis.tangentPlaneOpacity,
                         depthWrite: false,
                     }),
                 );

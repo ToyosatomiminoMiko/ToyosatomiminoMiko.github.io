@@ -1,8 +1,9 @@
-use evalexpr::{
-    build_operator_tree, ContextWithMutableVariables, HashMapContext, Value,
-};
+use math_rs::eval_core::{build_base_context, compile_expression, evaluate_node_opt, set_variable};
 
-use math_rs::builtins::register_builtins;
+use crate::config::{
+    DEGENERATE_Z_MAX, DEGENERATE_Z_MIN, FLAT_COLOR_T, SURFACE_HUE_START, SURFACE_LIGHTNESS_BASE,
+    SURFACE_LIGHTNESS_RANGE, SURFACE_SATURATION,
+};
 
 /*
 剔除所有包含 NaN z 值的三角形
@@ -108,17 +109,14 @@ pub struct SurfaceSampleResult {
     pub z_max: f64,
 }
 // ================================================================
-// 统一后处理: 极值扫描 + HSL颜色映射 + NaN三角形剔除
+// 采样、颜色映射、索引过滤和法线计算
 // ================================================================
 
-/*
-输入采样后的扁平坐标数组 positions ([x0,y0,z0, x1,y1,z1, ...])
-以及完整三角索引 full_indices, 一次调用完成:
-1. 提取所有 z 值 + 全局极值
-2. HSL 彩虹颜色映射
-3. 剔除含 NaN 的三角形
-*/
-pub fn sample_and_process_surface(
+/// 曲面网格采样。
+///
+/// 返回 `(positions, z_vals, z_min, z_max)`。该函数只负责数值采样，
+/// 不再掺杂颜色映射、索引过滤或法线计算。
+fn sample_surface_values(
     expr: &str,
     coeff_names: &[String],
     coeff_values: &[f64],
@@ -128,20 +126,10 @@ pub fn sample_and_process_surface(
     y_max: f64,
     cols: u32,
     rows: u32,
-) -> Result<SurfaceSampleResult, String> {
-    // 预编译 AST
-    let node = build_operator_tree(expr).map_err(|e| format!("表达式解析失败: {}", e))?;
+) -> Result<(Vec<f32>, Vec<f64>, f64, f64), String> {
+    let node = compile_expression(expr)?;
+    let mut ctx = build_base_context(coeff_names, coeff_values)?;
 
-    // 构建 context
-    let mut ctx = HashMapContext::new();
-    // 注入系数常量
-    for (name, &val) in coeff_names.iter().zip(coeff_values.iter()) {
-        ctx.set_value(name.clone(), Value::Float(val))
-            .map_err(|e| format!("设置系数'{}'失败: {}", name, e))?;
-    }
-    register_builtins(&mut ctx);
-
-    // 采样循环
     let total = ((cols + 1) * (rows + 1)) as usize;
     let mut positions = Vec::with_capacity(total * 3);
     let mut z_vals = Vec::with_capacity(total);
@@ -153,26 +141,9 @@ pub fn sample_and_process_surface(
         for i in 0..=cols {
             let x = x_min + (x_max - x_min) * (i as f64 / cols as f64);
 
-            // 这里每次循环都更新同一个变量 x / y。
-            // evalexpr 的 set_value 会返回 Result：
-            //   - 变量不存在时，插入新值；
-            //   - 变量已存在且类型相同（我们都是 Float），直接覆盖；
-            //   - 类型不同才会报错。
-            //
-            // 本函数已经通过 Result<String> 向 WASM 边界传递错误，
-            // 所以采样热路径里不能 unwrap：一旦未来代码改了变量类型，
-            // unwrap 会让整个 WASM 模块直接 panic；改成 `?` 则把错误
-            // 沿调用链返回给前端诊断，而不是炸掉模块。
-            ctx.set_value("x".to_string(), Value::Float(x))
-                .map_err(|e| format!("设置采样变量 x 失败: {}", e))?;
-            ctx.set_value("y".to_string(), Value::Float(y))
-                .map_err(|e| format!("设置采样变量 y 失败: {}", e))?;
-
-            let z: f64 = match node.eval_with_context(&ctx) {
-                Ok(Value::Float(v)) if v.is_finite() => v,
-                Ok(Value::Int(v)) => v as f64,
-                _ => f64::NAN,
-            };
+            set_variable(&mut ctx, "x", x)?;
+            set_variable(&mut ctx, "y", y)?;
+            let z = evaluate_node_opt(&node, &ctx)?.unwrap_or(f64::NAN);
 
             positions.push(x as f32);
             positions.push(y as f32);
@@ -186,26 +157,32 @@ pub fn sample_and_process_surface(
         }
     }
 
-    // 退化处理
     if !z_min.is_finite() || !z_max.is_finite() {
-        z_min = 0.0;
-        z_max = 1.0;
+        z_min = DEGENERATE_Z_MIN;
+        z_max = DEGENERATE_Z_MAX;
     }
 
-    // 后处理(颜色映射 + NaN 三角形剔除)
-    let range = z_max - z_min;
-    let vertex_count = z_vals.len();
-    let mut colors = Vec::with_capacity(vertex_count * 3);
+    Ok((positions, z_vals, z_min, z_max))
+}
 
-    for &z in &z_vals {
+/// 根据 z 值极值生成顶点颜色。
+fn map_surface_colors(z_vals: &[f64], z_min: f64, z_max: f64) -> Vec<f32> {
+    let range = z_max - z_min;
+    let mut colors = Vec::with_capacity(z_vals.len() * 3);
+
+    for &z in z_vals {
         if z.is_finite() {
             let t = if range > 0.0 {
                 (z - z_min) / range
             } else {
-                0.5
+                FLAT_COLOR_T
             };
-            let hue = 0.66 - t * 0.66;
-            let (r, g, b) = hsl_to_rgb(hue, 0.9, 0.5 + t * 0.3);
+            let hue = SURFACE_HUE_START - t * SURFACE_HUE_START;
+            let (r, g, b) = hsl_to_rgb(
+                hue,
+                SURFACE_SATURATION,
+                SURFACE_LIGHTNESS_BASE + t * SURFACE_LIGHTNESS_RANGE,
+            );
             colors.push(r as f32);
             colors.push(g as f32);
             colors.push(b as f32);
@@ -215,6 +192,34 @@ pub fn sample_and_process_surface(
             colors.push(0.0);
         }
     }
+
+    colors
+}
+
+/// 统一编排采样与后处理，保持对 WASM/Worker 的旧入口签名不变。
+pub fn sample_and_process_surface(
+    expr: &str,
+    coeff_names: &[String],
+    coeff_values: &[f64],
+    x_min: f64,
+    x_max: f64,
+    y_min: f64,
+    y_max: f64,
+    cols: u32,
+    rows: u32,
+) -> Result<SurfaceSampleResult, String> {
+    let (positions, z_vals, z_min, z_max) = sample_surface_values(
+        expr,
+        coeff_names,
+        coeff_values,
+        x_min,
+        x_max,
+        y_min,
+        y_max,
+        cols,
+        rows,
+    )?;
+    let colors = map_surface_colors(&z_vals, z_min, z_max);
 
     let full_indices = generate_full_indices(cols as usize, rows as usize);
     let valid_indices = filter_nan_triangles(&full_indices, &z_vals);

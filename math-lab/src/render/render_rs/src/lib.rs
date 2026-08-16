@@ -1,3 +1,4 @@
+pub mod config;
 pub mod surface_utils;
 
 use wasm_bindgen::prelude::*;

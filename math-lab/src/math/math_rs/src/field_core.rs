@@ -1,6 +1,6 @@
-use evalexpr::{build_operator_tree, ContextWithMutableVariables, HashMapContext, Value};
+use evalexpr::HashMapContext;
 
-use crate::builtins::register_builtins;
+use crate::eval_core::{build_base_context, compile_expression, evaluate_node, set_variable};
 
 // ================================================================
 // field_core — 标量场 / 向量场的梯度\散度\旋度数值核心
@@ -17,57 +17,19 @@ use crate::builtins::register_builtins;
 // ∇ = ∂/∂x + ∂/∂y + ∂/∂z
 // ================================================================
 
-/// 构建带系数和坐标的求值上下文
-///
-/// # 参数
-/// * `coeff_names` - 系数变量名列表
-/// * `coeff_values` - 对应的系数值（与 `coeff_names` 长度一致）
-/// * `x`, `y`, `z` - 当前点的坐标值
-///
-/// # 返回
-/// 一个配置好的 `HashMapContext`,其中包含所有系数和坐标变量,并注册了内置函数
-fn build_context(
+/// 构建带系数和坐标的求值上下文。
+fn build_context_with_point(
     coeff_names: &[String],
     coeff_values: &[f64],
     x: f64,
     y: f64,
     z: f64,
 ) -> Result<HashMapContext, String> {
-    let mut ctx = HashMapContext::new();
-
-    for (name, &value) in coeff_names.iter().zip(coeff_values.iter()) {
-        ctx.set_value(name.clone(), Value::Float(value))
-            .map_err(|e| format!("设置系数'{}'失败: {}", name, e))?;
-    }
-
-    ctx.set_value("x".to_string(), Value::Float(x))
-        .map_err(|e| format!("设置 x 失败: {}", e))?;
-    ctx.set_value("y".to_string(), Value::Float(y))
-        .map_err(|e| format!("设置 y 失败: {}", e))?;
-    ctx.set_value("z".to_string(), Value::Float(z))
-        .map_err(|e| format!("设置 z 失败: {}", e))?;
-
-    register_builtins(&mut ctx);
+    let mut ctx = build_base_context(coeff_names, coeff_values)?;
+    set_variable(&mut ctx, "x", x)?;
+    set_variable(&mut ctx, "y", y)?;
+    set_variable(&mut ctx, "z", z)?;
     Ok(ctx)
-}
-
-/// 在给定上下文中求值一个标量表达式
-///
-/// # 参数
-/// * `expr` - 表达式字符串
-/// * `ctx` - 已含变量值的上下文
-///
-/// # 返回
-/// 表达式计算得到的有限浮点数,若不是数值则返回错误
-fn eval_scalar(expr: &str, ctx: &HashMapContext) -> Result<f64, String> {
-    let node = build_operator_tree(expr).map_err(|e| format!("表达式解析失败: {}", e))?;
-
-    match node.eval_with_context(ctx) {
-        Ok(Value::Float(value)) if value.is_finite() => Ok(value),
-        Ok(Value::Int(value)) => Ok(value as f64),
-        Ok(_) => Err("表达式结果不是数值".to_string()),
-        Err(e) => Err(format!("表达式求值失败: {}", e)),
-    }
 }
 
 /// 在给定系数和坐标下求值一个标量表达式.
@@ -82,8 +44,9 @@ pub fn evaluate_scalar(
     y: f64,
     z: f64,
 ) -> Result<f64, String> {
-    let ctx = build_context(coeff_names, coeff_values, x, y, z)?;
-    eval_scalar(expr, &ctx)
+    let node = compile_expression(expr)?;
+    let ctx = build_context_with_point(coeff_names, coeff_values, x, y, z)?;
+    evaluate_node(&node, &ctx)
 }
 
 // ================================================================
@@ -118,11 +81,14 @@ pub fn evaluate_gradient_point(
     x: f64,
     y: f64,
 ) -> Result<(f64, f64, f64), String> {
-    let ctx = build_context(coeff_names, coeff_values, x, y, 0.0)?;
+    let surface_node = compile_expression(surface_expr)?;
+    let fx_node = compile_expression(fx_expr)?;
+    let fy_node = compile_expression(fy_expr)?;
+    let ctx = build_context_with_point(coeff_names, coeff_values, x, y, 0.0)?;
 
-    let f0 = eval_scalar(surface_expr, &ctx)?;
-    let fx = eval_scalar(fx_expr, &ctx)?;
-    let fy = eval_scalar(fy_expr, &ctx)?;
+    let f0 = evaluate_node(&surface_node, &ctx)?;
+    let fx = evaluate_node(&fx_node, &ctx)?;
+    let fy = evaluate_node(&fy_node, &ctx)?;
 
     Ok((f0, fx, fy))
 }
@@ -156,11 +122,14 @@ pub fn evaluate_divergence_point(
     y: f64,
     z: f64,
 ) -> Result<f64, String> {
-    let ctx = build_context(coeff_names, coeff_values, x, y, z)?;
+    let dpx_node = compile_expression(dpx_expr)?;
+    let dqy_node = compile_expression(dqy_expr)?;
+    let drz_node = compile_expression(drz_expr)?;
+    let ctx = build_context_with_point(coeff_names, coeff_values, x, y, z)?;
 
-    let dpx = eval_scalar(dpx_expr, &ctx)?;
-    let dqy = eval_scalar(dqy_expr, &ctx)?;
-    let drz = eval_scalar(drz_expr, &ctx)?;
+    let dpx = evaluate_node(&dpx_node, &ctx)?;
+    let dqy = evaluate_node(&dqy_node, &ctx)?;
+    let drz = evaluate_node(&drz_node, &ctx)?;
 
     Ok(dpx + dqy + drz)
 }
@@ -202,14 +171,20 @@ pub fn evaluate_curl_point(
     y: f64,
     z: f64,
 ) -> Result<(f64, f64, f64), String> {
-    let ctx = build_context(coeff_names, coeff_values, x, y, z)?;
+    let dr_dy_node = compile_expression(dr_dy_expr)?;
+    let dq_dz_node = compile_expression(dq_dz_expr)?;
+    let dp_dz_node = compile_expression(dp_dz_expr)?;
+    let dr_dx_node = compile_expression(dr_dx_expr)?;
+    let dq_dx_node = compile_expression(dq_dx_expr)?;
+    let dp_dy_node = compile_expression(dp_dy_expr)?;
+    let ctx = build_context_with_point(coeff_names, coeff_values, x, y, z)?;
 
-    let dr_dy = eval_scalar(dr_dy_expr, &ctx)?;
-    let dq_dz = eval_scalar(dq_dz_expr, &ctx)?;
-    let dp_dz = eval_scalar(dp_dz_expr, &ctx)?;
-    let dr_dx = eval_scalar(dr_dx_expr, &ctx)?;
-    let dq_dx = eval_scalar(dq_dx_expr, &ctx)?;
-    let dp_dy = eval_scalar(dp_dy_expr, &ctx)?;
+    let dr_dy = evaluate_node(&dr_dy_node, &ctx)?;
+    let dq_dz = evaluate_node(&dq_dz_node, &ctx)?;
+    let dp_dz = evaluate_node(&dp_dz_node, &ctx)?;
+    let dr_dx = evaluate_node(&dr_dx_node, &ctx)?;
+    let dq_dx = evaluate_node(&dq_dx_node, &ctx)?;
+    let dp_dy = evaluate_node(&dp_dy_node, &ctx)?;
 
     Ok((dr_dy - dq_dz, dp_dz - dr_dx, dq_dx - dp_dy))
 }

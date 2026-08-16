@@ -1,4 +1,6 @@
 pub mod builtins;
+pub mod config;
+pub mod eval_core;
 pub mod field_core;
 pub mod integral_core;
 pub mod sampling_core;
@@ -8,6 +10,81 @@ use wasm_bindgen::prelude::*;
 
 fn math_error(message: impl Into<String>) -> JsValue {
     JsValue::from_str(&message.into())
+}
+
+#[derive(Clone, Copy)]
+enum SampleShape {
+    Grid,
+    Mid,
+    Corner,
+}
+
+impl SampleShape {
+    fn as_str(self) -> &'static str {
+        match self {
+            SampleShape::Grid => "grid",
+            SampleShape::Mid => "mid",
+            SampleShape::Corner => "corner",
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum IntegralMethod1D {
+    Trapz,
+    Simpson,
+    RiemannLeft,
+    RiemannRight,
+    RiemannMid,
+    Lebesgue,
+}
+
+impl IntegralMethod1D {
+    fn parse(method: &str) -> Result<Self, String> {
+        match method {
+            "trapz1d" => Ok(Self::Trapz),
+            "simpson1d" => Ok(Self::Simpson),
+            "riemann1d_left" => Ok(Self::RiemannLeft),
+            "riemann1d_right" => Ok(Self::RiemannRight),
+            "riemann1d_mid" => Ok(Self::RiemannMid),
+            "lebesgue1d" => Ok(Self::Lebesgue),
+            _ => Err("未知一维积分方法".to_string()),
+        }
+    }
+
+    fn sample_shape(self) -> SampleShape {
+        match self {
+            Self::RiemannMid => SampleShape::Mid,
+            _ => SampleShape::Grid,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum IntegralMethod2D {
+    Trapz,
+    Simpson,
+    RiemannLeft,
+    Lebesgue,
+}
+
+impl IntegralMethod2D {
+    fn parse(method: &str) -> Result<Self, String> {
+        match method {
+            "trapz2d" => Ok(Self::Trapz),
+            "simpson2d" => Ok(Self::Simpson),
+            "riemann2d_left" => Ok(Self::RiemannLeft),
+            "lebesgue2d" => Ok(Self::Lebesgue),
+            _ => Err("未知二维积分方法".to_string()),
+        }
+    }
+
+    fn sample_shape(self) -> SampleShape {
+        match self {
+            Self::RiemannLeft => SampleShape::Corner,
+            _ => SampleShape::Grid,
+        }
+    }
 }
 
 // ================================================================
@@ -105,8 +182,8 @@ pub fn sample_vector_field(
 // ================================================================
 
 #[wasm_bindgen]
-pub fn trapz1d_values(values: &[f64], a: f64, b: f64) -> f64 {
-    integral_core::trapz1d_from_values(values, a, b)
+pub fn trapz1d_values(values: &[f64], a: f64, b: f64) -> Result<f64, JsValue> {
+    integral_core::trapz1d_from_values(values, a, b).map_err(|e| JsValue::from_str(&e))
 }
 
 #[wasm_bindgen]
@@ -115,23 +192,23 @@ pub fn simpson1d_values(values: &[f64], a: f64, b: f64) -> Result<f64, JsValue> 
 }
 
 #[wasm_bindgen]
-pub fn riemann1d_left_values(values: &[f64], a: f64, b: f64) -> f64 {
-    integral_core::riemann1d_left_from_values(values, a, b)
+pub fn riemann1d_left_values(values: &[f64], a: f64, b: f64) -> Result<f64, JsValue> {
+    integral_core::riemann1d_left_from_values(values, a, b).map_err(|e| JsValue::from_str(&e))
 }
 
 #[wasm_bindgen]
-pub fn riemann1d_right_values(values: &[f64], a: f64, b: f64) -> f64 {
-    integral_core::riemann1d_right_from_values(values, a, b)
+pub fn riemann1d_right_values(values: &[f64], a: f64, b: f64) -> Result<f64, JsValue> {
+    integral_core::riemann1d_right_from_values(values, a, b).map_err(|e| JsValue::from_str(&e))
 }
 
 #[wasm_bindgen]
-pub fn riemann1d_mid_values(values: &[f64], a: f64, b: f64) -> f64 {
-    integral_core::riemann1d_mid_from_values(values, a, b)
+pub fn riemann1d_mid_values(values: &[f64], a: f64, b: f64) -> Result<f64, JsValue> {
+    integral_core::riemann1d_mid_from_values(values, a, b).map_err(|e| JsValue::from_str(&e))
 }
 
 #[wasm_bindgen]
-pub fn lebesgue1d_values(values: &[f64], a: f64, b: f64, layers: usize) -> f64 {
-    integral_core::lebesgue1d_from_values(values, a, b, layers)
+pub fn lebesgue1d_values(values: &[f64], a: f64, b: f64, layers: usize) -> Result<f64, JsValue> {
+    integral_core::lebesgue1d_from_values(values, a, b, layers).map_err(|e| JsValue::from_str(&e))
 }
 
 #[wasm_bindgen]
@@ -143,8 +220,9 @@ pub fn trapz2d_values(
     yb: f64,
     n: usize,
     m: usize,
-) -> f64 {
+) -> Result<f64, JsValue> {
     integral_core::trapz2d_from_values(values, (xa, xb), (ya, yb), n, m)
+        .map_err(|e| JsValue::from_str(&e))
 }
 
 #[wasm_bindgen]
@@ -170,8 +248,9 @@ pub fn riemann2d_left_values(
     yb: f64,
     n: usize,
     m: usize,
-) -> f64 {
+) -> Result<f64, JsValue> {
     integral_core::riemann2d_left_from_values(values, (xa, xb), (ya, yb), n, m)
+        .map_err(|e| JsValue::from_str(&e))
 }
 
 #[wasm_bindgen]
@@ -183,8 +262,9 @@ pub fn lebesgue2d_values(
     yb: f64,
     grid_size: usize,
     layers: usize,
-) -> f64 {
+) -> Result<f64, JsValue> {
     integral_core::lebesgue2d_from_values(values, (xa, xb), (ya, yb), grid_size, layers)
+        .map_err(|e| JsValue::from_str(&e))
 }
 
 #[wasm_bindgen(getter_with_clone)]
@@ -207,30 +287,41 @@ pub fn integrate1d(
     layers: usize,
     method: &str,
 ) -> Result<IntegralSampleResult, JsValue> {
-    let sample_shape = if method == "riemann1d_mid" {
-        "mid"
-    } else {
-        "grid"
-    };
-    let samples =
-        sampling_core::sample_function_1d(expr, &coeff_names, &coeff_values, a, b, n, sample_shape)
-            .map_err(|e| JsValue::from_str(&e))?;
+    let method = IntegralMethod1D::parse(method).map_err(math_error)?;
+    let sample_shape = method.sample_shape();
+    let samples = sampling_core::sample_function_1d(
+        expr,
+        &coeff_names,
+        &coeff_values,
+        a,
+        b,
+        n,
+        sample_shape.as_str(),
+    )
+    .map_err(|e| JsValue::from_str(&e))?;
 
     let value = match method {
-        "trapz1d" => integral_core::trapz1d_from_values(&samples, a, b),
-        "simpson1d" => integral_core::simpson1d_from_values(&samples, a, b)
+        IntegralMethod1D::Trapz => {
+            integral_core::trapz1d_from_values(&samples, a, b).map_err(|e| JsValue::from_str(&e))?
+        }
+        IntegralMethod1D::Simpson => integral_core::simpson1d_from_values(&samples, a, b)
             .map_err(|e| JsValue::from_str(&e))?,
-        "riemann1d_left" => integral_core::riemann1d_left_from_values(&samples, a, b),
-        "riemann1d_right" => integral_core::riemann1d_right_from_values(&samples, a, b),
-        "riemann1d_mid" => integral_core::riemann1d_mid_from_values(&samples, a, b),
-        "lebesgue1d" => integral_core::lebesgue1d_from_values(&samples, a, b, layers),
-        _ => return Err(JsValue::from_str("未知一维积分方法")),
+        IntegralMethod1D::RiemannLeft => integral_core::riemann1d_left_from_values(&samples, a, b)
+            .map_err(|e| JsValue::from_str(&e))?,
+        IntegralMethod1D::RiemannRight => {
+            integral_core::riemann1d_right_from_values(&samples, a, b)
+                .map_err(|e| JsValue::from_str(&e))?
+        }
+        IntegralMethod1D::RiemannMid => integral_core::riemann1d_mid_from_values(&samples, a, b)
+            .map_err(|e| JsValue::from_str(&e))?,
+        IntegralMethod1D::Lebesgue => integral_core::lebesgue1d_from_values(&samples, a, b, layers)
+            .map_err(|e| JsValue::from_str(&e))?,
     };
 
     Ok(IntegralSampleResult {
         value,
         samples,
-        sample_shape: sample_shape.to_string(),
+        sample_shape: sample_shape.as_str().to_string(),
         n,
         m: 0,
     })
@@ -250,11 +341,8 @@ pub fn integrate2d(
     layers: usize,
     method: &str,
 ) -> Result<IntegralSampleResult, JsValue> {
-    let sample_shape = if method == "riemann2d_left" {
-        "corner"
-    } else {
-        "grid"
-    };
+    let method = IntegralMethod2D::parse(method).map_err(math_error)?;
+    let sample_shape = method.sample_shape();
     let samples = sampling_core::sample_function_2d(
         expr,
         &coeff_names,
@@ -265,27 +353,33 @@ pub fn integrate2d(
         yb,
         n,
         m,
-        sample_shape,
+        sample_shape.as_str(),
     )
     .map_err(|e| JsValue::from_str(&e))?;
 
     let value = match method {
-        "trapz2d" => integral_core::trapz2d_from_values(&samples, (xa, xb), (ya, yb), n, m),
-        "simpson2d" => integral_core::simpson2d_from_values(&samples, (xa, xb), (ya, yb), n, m)
-            .map_err(|e| JsValue::from_str(&e))?,
-        "riemann2d_left" => {
+        IntegralMethod2D::Trapz => {
+            integral_core::trapz2d_from_values(&samples, (xa, xb), (ya, yb), n, m)
+                .map_err(|e| JsValue::from_str(&e))?
+        }
+        IntegralMethod2D::Simpson => {
+            integral_core::simpson2d_from_values(&samples, (xa, xb), (ya, yb), n, m)
+                .map_err(|e| JsValue::from_str(&e))?
+        }
+        IntegralMethod2D::RiemannLeft => {
             integral_core::riemann2d_left_from_values(&samples, (xa, xb), (ya, yb), n, m)
+                .map_err(|e| JsValue::from_str(&e))?
         }
-        "lebesgue2d" => {
+        IntegralMethod2D::Lebesgue => {
             integral_core::lebesgue2d_from_values(&samples, (xa, xb), (ya, yb), n, layers)
+                .map_err(|e| JsValue::from_str(&e))?
         }
-        _ => return Err(JsValue::from_str("未知二维积分方法")),
     };
 
     Ok(IntegralSampleResult {
         value,
         samples,
-        sample_shape: sample_shape.to_string(),
+        sample_shape: sample_shape.as_str().to_string(),
         n,
         m,
     })

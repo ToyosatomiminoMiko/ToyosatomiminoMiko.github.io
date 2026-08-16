@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RENDER_CONFIG } from '../../config/renderConfig';
 
 /**
  * 场景管理器 — 负责创建场景,渲染器,灯光,坐标轴等基础元素
@@ -14,7 +15,7 @@ export class SceneManager {
 
         // --- 场景 ---
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x111122);
+        this.scene.background = new THREE.Color(RENDER_CONFIG.scene.background);
 
         // --- 光源 ---
         const ambientLight = new THREE.AmbientLight(0x404060);
@@ -31,13 +32,20 @@ export class SceneManager {
         container.appendChild(this.renderer.domElement);
 
         // --- 辅助元素 ---
-        const axesHelper = new THREE.AxesHelper(8);
+        const axesHelper = new THREE.AxesHelper(RENDER_CONFIG.scene.axesLength);
         this.scene.add(axesHelper);
 
-        const gridHelper = new THREE.GridHelper(20, 20);
+        const gridHelper = new THREE.GridHelper(
+            RENDER_CONFIG.scene.gridSize,
+            RENDER_CONFIG.scene.gridDivisions,
+        );
         this.scene.add(gridHelper);
 
-        const sphereGeo = new THREE.SphereGeometry(0.2, 16, 16);
+        const sphereGeo = new THREE.SphereGeometry(
+            RENDER_CONFIG.scene.centerSphereRadius,
+            16,
+            16,
+        );
         const sphereMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
         const centerSphere = new THREE.Mesh(sphereGeo, sphereMat);
         this.scene.add(centerSphere);
@@ -45,18 +53,22 @@ export class SceneManager {
         // --- XYZ 轴标签(使用 Sprite)---
         const makeLabel = (text: string, position: THREE.Vector3, color: string): void => {
             const canvas = document.createElement('canvas');
-            canvas.width = 64;
-            canvas.height = 64;
+            canvas.width = RENDER_CONFIG.scene.labelCanvasSize;
+            canvas.height = RENDER_CONFIG.scene.labelCanvasSize;
             const ctx = canvas.getContext('2d')!;
             ctx.fillStyle = 'rgba(0,0,0,0)';
-            ctx.fillRect(0, 0, 64, 64);
-            ctx.font = 'Bold 36px Arial';
+            ctx.fillRect(0, 0, RENDER_CONFIG.scene.labelCanvasSize, RENDER_CONFIG.scene.labelCanvasSize);
+            ctx.font = RENDER_CONFIG.scene.labelFont;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillStyle = color; // 使用传入的颜色
             ctx.shadowColor = 'rgba(0,0,0,0.8)';
             ctx.shadowBlur = 4;
-            ctx.fillText(text, 32, 32);
+            ctx.fillText(
+                text,
+                RENDER_CONFIG.scene.labelCanvasSize / 2,
+                RENDER_CONFIG.scene.labelCanvasSize / 2,
+            );
 
             const texture = new THREE.CanvasTexture(canvas);
             const material = new THREE.SpriteMaterial({
@@ -66,15 +78,19 @@ export class SceneManager {
             });
             const sprite = new THREE.Sprite(material);
             sprite.position.copy(position);
-            sprite.scale.set(0.8, 0.8, 1);
+            sprite.scale.set(
+                RENDER_CONFIG.scene.labelScale,
+                RENDER_CONFIG.scene.labelScale,
+                1,
+            );
             this.scene.add(sprite);
         };
 
-        const axisLen = 8.5;
+        const axisLen = RENDER_CONFIG.scene.axisLabelLength;
         // X 红色 | Y 绿色 | Z 蓝色 与 AxesHelper 配色一致
-        makeLabel('X', new THREE.Vector3(axisLen, 0, 0), '#ff4444');
-        makeLabel('Y', new THREE.Vector3(0, axisLen, 0), '#44ff44');
-        makeLabel('Z', new THREE.Vector3(0, 0, axisLen), '#4488ff');
+        makeLabel('X', new THREE.Vector3(axisLen, 0, 0), RENDER_CONFIG.scene.axisColors.x);
+        makeLabel('Y', new THREE.Vector3(0, axisLen, 0), RENDER_CONFIG.scene.axisColors.y);
+        makeLabel('Z', new THREE.Vector3(0, 0, axisLen), RENDER_CONFIG.scene.axisColors.z);
     }
 
     getScene(): THREE.Scene {

@@ -5,6 +5,7 @@
 import type { AstProgram } from '../ast/types';
 import type { ParamDeclaration } from '../ir/types';
 import type { MatrixOps } from '../../math/tensor/SceneTransform';
+import { NUMERIC_CONFIG } from '../../config/numericConfig';
 import { buildObjectBlueprint, type ObjectBlueprint } from './objects';
 import { findOption } from './options';
 import { collectParams } from './params';
@@ -107,10 +108,10 @@ function buildStaticScene(ast: AstProgram, matrixOps: MatrixOps): StaticScene {
             if (!params.has(name)) {
                 params.set(name, {
                     name,
-                    value: 1,
-                    min: -10,
-                    max: 10,
-                    step: 0.1,
+                    value: NUMERIC_CONFIG.param.defaultValue,
+                    min: NUMERIC_CONFIG.param.defaultMin,
+                    max: NUMERIC_CONFIG.param.defaultMax,
+                    step: NUMERIC_CONFIG.param.defaultStep,
                 });
             }
         }

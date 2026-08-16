@@ -8,6 +8,7 @@ import type {
     SceneObject,
 } from '../../compiler/ir/types';
 import * as math from 'mathjs';
+import { NUMERIC_CONFIG } from '../../config/numericConfig';
 import { sample_curve as wasmSampleCurve } from '../../wasm/math_rs/math_rs';
 import { ensureWasmReady } from '../../runtime/wasmRuntime';
 import { compilationCache } from '../objects/CompilationCache';
@@ -67,7 +68,7 @@ export class MathComputeEngine {
                 case 'riemann':
                     return riemann1dLeft(expr, coeffs, a, b, segments);
                 case 'lebesgue': {
-                    const sampleN = segments * 20;
+                    const sampleN = segments * NUMERIC_CONFIG.integral.lebesgueOversample1D;
                     return lebesgue1d(expr, coeffs, a, b, task.layers, sampleN);
                 }
             }
@@ -82,7 +83,7 @@ export class MathComputeEngine {
             case 'riemann':
                 return riemann2dLeft(expr, coeffs, [xMin, xMax], [yMin, yMax], segments, segments);
             case 'lebesgue': {
-                const sampleGrid = segments * 4;
+                const sampleGrid = segments * NUMERIC_CONFIG.integral.lebesgueOversample2D;
                 return lebesgue2d(
                     expr,
                     coeffs,

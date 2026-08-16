@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RENDER_CONFIG } from '../../config/renderConfig';
 
 /**
  * ArrowMesh — 3D 箭头封装
@@ -28,7 +29,12 @@ export class ArrowMesh {
         this.group = new THREE.Group();
 
         // ---------- 杆 ----------
-        const shaftGeo = new THREE.CylinderGeometry(0.08, 0.08, 1, 8);
+        const shaftGeo = new THREE.CylinderGeometry(
+            RENDER_CONFIG.arrowMesh.shaftRadius,
+            RENDER_CONFIG.arrowMesh.shaftRadius,
+            1,
+            RENDER_CONFIG.arrowMesh.radialSegments,
+        );
         this._shaftMaterial = new THREE.MeshPhongMaterial({
             color,
             emissive: 0x000000,
@@ -40,7 +46,11 @@ export class ArrowMesh {
         this.group.add(this._shaft);
 
         // ---------- 头 ----------
-        const headGeo = new THREE.ConeGeometry(0.2, 0.4, 8);
+        const headGeo = new THREE.ConeGeometry(
+            RENDER_CONFIG.arrowMesh.headRadius,
+            RENDER_CONFIG.arrowMesh.headLength,
+            RENDER_CONFIG.arrowMesh.radialSegments,
+        );
         this._headMaterial = new THREE.MeshPhongMaterial({
             color,
             emissive: 0x000000,
@@ -64,14 +74,14 @@ export class ArrowMesh {
      */
     setTransform(origin: THREE.Vector3, direction: THREE.Vector3): void {
         const length = direction.length();
-        if (length < 1e-6) {
+        if (length < RENDER_CONFIG.arrowMesh.zeroLengthThreshold) {
             // 零长度:隐藏箭头
             this.group.visible = false;
             return;
         }
         this.group.visible = true;
 
-        const headLength = 0.4;       // 头部高度(沿箭头方向)
+        const headLength = RENDER_CONFIG.arrowMesh.headLength;       // 头部高度(沿箭头方向)
         const shaftLength = Math.max(0, length - headLength);
 
         // 1. 杆缩放:Y 轴方向拉伸到 shaftLength

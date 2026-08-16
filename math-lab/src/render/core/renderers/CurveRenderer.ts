@@ -3,6 +3,7 @@
  * 数值采样统一走 MathComputeEngine，渲染层不再自行解析表达式。
  */
 import * as THREE from 'three';
+import { NUMERIC_CONFIG } from '../../../config/numericConfig';
 import type { IRenderer } from './IRenderer';
 import type { CurveObject } from '../../../compiler/ir/types';
 import { MathComputeEngine } from '../../../math/compute/MathComputeEngine';
@@ -19,8 +20,8 @@ export class CurveRenderer implements IRenderer {
     private disposed = false;
 
     constructor(public curve: CurveObject) {
-        this.xRange = curve.range ?? [-8, 8];
-        this.steps = curve.segments ?? 320;
+        this.xRange = curve.range ?? ([...NUMERIC_CONFIG.curve.defaultRange] as [number, number]);
+        this.steps = curve.segments ?? NUMERIC_CONFIG.curve.defaultSegments;
     }
 
     get visible(): boolean {
@@ -63,8 +64,8 @@ export class CurveRenderer implements IRenderer {
 
     updateRef(curve: CurveObject): void {
         this.curve = curve;
-        this.xRange = curve.range ?? [-8, 8];
-        this.steps = curve.segments ?? 320;
+        this.xRange = curve.range ?? ([...NUMERIC_CONFIG.curve.defaultRange] as [number, number]);
+        this.steps = curve.segments ?? NUMERIC_CONFIG.curve.defaultSegments;
     }
 
     dispose(): void {

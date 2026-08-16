@@ -1,6 +1,7 @@
 import * as math from 'mathjs';
 import type { MathNode } from 'mathjs';
 import type { Coefficient } from '../../compiler/ir/types';
+import { NUMERIC_CONFIG } from '../../config/numericConfig';
 
 // ============================================================
 // 内置变量与函数名黑名单 —— 系数提取时排除
@@ -34,9 +35,9 @@ export function extractCoefficients(
 
     return [...coeffSet].map(name => ({
         name,
-        value: 1,
-        min: -10,
-        max: 10,
-        step: 0.1,
+        value: NUMERIC_CONFIG.param.defaultValue,
+        min: NUMERIC_CONFIG.param.defaultMin,
+        max: NUMERIC_CONFIG.param.defaultMax,
+        step: NUMERIC_CONFIG.param.defaultStep,
     }));
 }
