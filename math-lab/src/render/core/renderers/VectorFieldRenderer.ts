@@ -2,8 +2,10 @@ import * as THREE from 'three';
 import type { IRenderer } from './IRenderer';
 import type { VectorFieldObject } from '../../../compiler/ir/types';
 import { VectorFieldMesh } from '../../visualization/VectorFieldMesh';
-import { vectorFieldComputeClient } from '../../visualization/VectorFieldComputeClient';
+import { vectorFieldComputeClient } from '../../../math/compute/workers/VectorFieldComputeClient';
+import type { VectorFieldWorkerRequest } from '../../../math/compute/workers/vectorFieldWorker';
 import { logWarning } from '../../../service/logger';
+import { LatestRequestExecutor } from '../../../math/compute/workers/LatestRequestExecutor';
 
 /**
  * 向量场渲染器
@@ -17,8 +19,11 @@ export class VectorFieldRenderer implements IRenderer {
     // 网格坐标缓存:只有在 range 或 gridSize 变化时才重建
     private _positions: Float32Array | null = null;
     private _positionsKey = '';
-    private _requestId = 0;
     private _disposed = false;
+    private readonly executor = new LatestRequestExecutor<
+        VectorFieldWorkerRequest,
+        Float32Array
+    >(vectorFieldComputeClient);
 
     constructor(private _data: VectorFieldObject) {
         this.group = new THREE.Group();
@@ -45,8 +50,7 @@ export class VectorFieldRenderer implements IRenderer {
         const positions = this._positions as Float32Array;
 
         // 表达式求值在 Worker 中完成,主线程只负责发请求和更新 mesh.
-        const requestId = ++this._requestId;
-        vectorFieldComputeClient
+        this.executor
             .request({
                 pExpr: components[0],
                 qExpr: components[1],
@@ -57,7 +61,7 @@ export class VectorFieldRenderer implements IRenderer {
                 gridSize,
             })
             .then((vectors) => {
-                if (this._disposed || requestId !== this._requestId) return;
+                if (this._disposed) return;
 
                 if (!this._mesh) {
                     this._mesh = new VectorFieldMesh(positions, vectors, color, glyphScale);
@@ -70,7 +74,7 @@ export class VectorFieldRenderer implements IRenderer {
                 this.group.visible = this.visible;
             })
             .catch((error: Error) => {
-                if (this._disposed || requestId !== this._requestId) return;
+                if (this._disposed || error.message === 'superseded') return;
                 logWarning('VectorFieldRenderer', '向量场采样失败:', error.message);
             });
 
@@ -127,7 +131,7 @@ export class VectorFieldRenderer implements IRenderer {
 
     dispose(): void {
         this._disposed = true;
-        this._requestId += 1;
+        this.executor.dispose();
         this._mesh?.dispose();
         this._mesh = null;
     }

@@ -3,12 +3,13 @@ import type { Coefficient } from '../../compiler/ir/types';
 import { generate_full_indices } from './SurfaceMeshWasm';
 import {
     surfaceComputeClient,
-} from './SurfaceComputeClient';
+} from '../../math/compute/workers/SurfaceComputeClient';
 import { logWarning } from '../../service/logger';
+import { LatestRequestExecutor } from '../../math/compute/workers/LatestRequestExecutor';
 import type {
     SurfaceWorkerRequest,
     SurfaceWorkerResponse,
-} from './surfaceWorker';
+} from '../../math/compute/workers/surfaceWorker';
 
 // ============================================================
 // SurfaceMesh — 可复用的 3D 曲面网格封装
@@ -33,17 +34,12 @@ export class SurfaceMesh {
     mesh: THREE.Mesh;
     wireframe: THREE.Mesh;
     group: THREE.Group;
-    /** 已发出的最新请求 id;Worker 返回后只有最新 id 才会被应用 */
-    private _latestRequestId = 0;
     /** dispose 后不再接受任何异步结果 */
     private _disposed = false;
-    /** 当前是否有一个 Worker 请求正在执行 */
-    private _inFlight = false;
-    /** 单飞模式下暂存的最新待算请求 */
-    private _pendingUpdate: {
-        id: number;
-        request: Omit<SurfaceWorkerRequest, 'id'>;
-    } | null = null;
+    private readonly executor = new LatestRequestExecutor<
+        SurfaceWorkerRequest,
+        SurfaceWorkerResponse
+    >(surfaceComputeClient);
 
     /**
      * @param cols - x 方向网格分段数
@@ -119,7 +115,6 @@ export class SurfaceMesh {
     ): void {
         if (this._disposed) return;
 
-        const requestId = ++this._latestRequestId;
         const coeffNames = coefficients.map(c => c.name);
         const coeffValues = coefficients.map(c => c.value);
         const request: Omit<SurfaceWorkerRequest, 'id'> = {
@@ -134,44 +129,12 @@ export class SurfaceMesh {
             rows: this.rows,
         };
 
-        // 如果 Worker 还在算上一个请求,只覆盖暂存的最新请求,
-        // 不向 Worker 无限排队,避免快速拖动滑块时任务积压
-        if (this._inFlight) {
-            this._pendingUpdate = { id: requestId, request };
-            return;
-        }
-
-        this._inFlight = true;
-        this._send(requestId, request);
-    }
-
-    /**
-     * 发送一次采样请求;结束后若期间又产生了新请求,再发送最新的那个
-     */
-    private _send(
-        requestId: number,
-        request: Omit<SurfaceWorkerRequest, 'id'>,
-    ): void {
-        surfaceComputeClient
+        this.executor
             .request(request)
-            .then((result) => this._applyResult(requestId, result))
+            .then((result) => this._applyResult(result))
             .catch((error: Error) => {
-                if (this._disposed || requestId !== this._latestRequestId) return;
+                if (this._disposed || error.message === 'superseded') return;
                 logWarning('SurfaceMesh', '曲面采样失败:', error.message);
-            })
-            .finally(() => {
-                if (this._disposed) return;
-
-                this._inFlight = false;
-                const next = this._pendingUpdate;
-                this._pendingUpdate = null;
-                if (!next) return;
-
-                // 理论上 next.id 一定是最新 id;这里再防御一次
-                if (next.id === this._latestRequestId) {
-                    this._inFlight = true;
-                    this._send(next.id, next.request);
-                }
             });
     }
 
@@ -179,12 +142,8 @@ export class SurfaceMesh {
      * Worker 结果回到主线程后,把数据写入 BufferGeometry
      * 过期结果会直接忽略
      */
-    private _applyResult(
-        requestId: number,
-        result: SurfaceWorkerResponse,
-    ): void {
-        if (this._disposed || requestId !== this._latestRequestId) return;
-
+    private _applyResult(result: SurfaceWorkerResponse): void {
+        if (this._disposed) return;
         // positions 写入
         const posAttr = this.geometry.attributes.position;
         posAttr.array.set(result.positions);
@@ -219,8 +178,7 @@ export class SurfaceMesh {
      */
     dispose(): void {
         this._disposed = true;
-        this._latestRequestId++;
-        this._pendingUpdate = null;
+        this.executor.dispose();
         this.geometry.dispose();
         this.material.dispose();
         this.wireframeMat.dispose();

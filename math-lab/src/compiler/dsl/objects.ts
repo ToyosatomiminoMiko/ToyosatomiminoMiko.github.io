@@ -1,3 +1,8 @@
+/**
+ * 对象 blueprint 构建与物化。
+ * 负责把 AST 中的 curve/surface/vector_field/point/vector 声明
+ * 转成可反复物化的中间表示，再按当前参数生成 SceneObject。
+ */
 import * as math from 'mathjs';
 import type { MathNode } from 'mathjs';
 import type { ObjectStatement } from '../ast/types';

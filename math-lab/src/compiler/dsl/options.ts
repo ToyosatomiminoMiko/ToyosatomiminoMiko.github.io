@@ -1,3 +1,7 @@
+/**
+ * 选项与列表解析辅助函数。
+ * 从 DslCompiler 拆出，负责 DSL 选项、数字列表和顶层分隔解析。
+ */
 import type { OptionPair } from '../ast/types';
 
 const SHOW_KINDS = new Set(['point', 'normal', 'tangent_plane']);

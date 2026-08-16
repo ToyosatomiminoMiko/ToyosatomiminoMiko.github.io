@@ -1,4 +1,3 @@
-import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { SceneManager } from '../render/core/SceneManager';
 import { CameraManager } from '../render/core/CameraManager';
@@ -7,8 +6,6 @@ import { createWasmMatrixOps, parseMiko } from '../compiler/parser';
 import { createMatrixOps, type MatrixOps } from '../math/tensor/SceneTransform';
 import { compileScene } from '../compiler/dsl/DslCompiler';
 import type {
-    AnalysisResult,
-    ParamDeclaration,
     SceneIR,
     SceneObject,
 } from '../compiler/ir/types';
@@ -19,9 +16,11 @@ import { CameraToggle } from '../render/controls/CameraToggle';
 import { ViewCubeController } from '../render/controls/ViewCubeController';
 import { RotationLockController } from '../render/controls/RotationLockController';
 import { PanelController } from '../ui/PanelController';
+import { ParamPanelController } from '../ui/ParamPanelController';
+import { DiagnosticsController } from '../ui/DiagnosticsController';
+import { AnalysisRenderer } from '../render/core/renderers/AnalysisRenderer';
 import { DslIntegralRenderer } from '../render/visualization/DslIntegralRenderer';
-import { surfaceComputeClient } from '../render/visualization/SurfaceComputeClient';
-import { vectorFieldComputeClient } from '../render/visualization/VectorFieldComputeClient';
+import { MathComputeEngine } from '../math/compute/MathComputeEngine';
 
 /**
  * OpenSCAD 式 DSL Shell.
@@ -36,11 +35,13 @@ export class DslApp {
     private readonly cameraManager: CameraManager;
     private readonly plotter: Plotter;
     private readonly integralRenderer: DslIntegralRenderer;
+    private readonly computeEngine = new MathComputeEngine();
+    private readonly paramPanelController: ParamPanelController;
+    private readonly diagnosticsController: DiagnosticsController;
+    private readonly analysisRenderer: AnalysisRenderer;
     private matrixOps: MatrixOps = createMatrixOps();
     private readonly editor: HTMLTextAreaElement;
     private readonly runButton: HTMLButtonElement;
-    private readonly paramsPanel: HTMLElement;
-    private readonly diagnostics: HTMLElement;
     private panelController: PanelController | null = null;
     private cameraToggle: CameraToggle | null = null;
     private viewCubeController: ViewCubeController | null = null;
@@ -48,10 +49,8 @@ export class DslApp {
 
     private controls: OrbitControls | null = null;
     private animationFrameId: number | null = null;
-    private paramValues = new Map<string, number>();
     private compiledObjects: SceneObject[] = [];
     private currentAst: AstProgram | null = null;
-    private readonly analysisGroup = new THREE.Group();
     private disposed = false;
 
     private readonly onResize = (): void => {
@@ -70,14 +69,20 @@ export class DslApp {
         this.viewport = document.getElementById('viewport')!;
         this.editor = document.getElementById('dsl-editor') as HTMLTextAreaElement;
         this.runButton = document.getElementById('run-btn') as HTMLButtonElement;
-        this.paramsPanel = document.getElementById('params-panel')!;
-        this.diagnostics = document.getElementById('diagnostics')!;
+        const paramsPanel = document.getElementById('params-panel')!;
+        const diagnostics = document.getElementById('diagnostics')!;
 
         this.sceneManager = new SceneManager(this.viewport);
         this.cameraManager = new CameraManager(this.viewport);
         this.plotter = new Plotter(this.sceneManager.getScene());
-        this.integralRenderer = new DslIntegralRenderer(this.sceneManager.getScene());
-        this.sceneManager.getScene().add(this.analysisGroup);
+        this.integralRenderer = new DslIntegralRenderer(
+            this.sceneManager.getScene(),
+            this.computeEngine,
+        );
+        this.paramPanelController = new ParamPanelController(paramsPanel, () => this._refreshObjects());
+        this.diagnosticsController = new DiagnosticsController(diagnostics);
+        this.analysisRenderer = new AnalysisRenderer();
+        this.sceneManager.getScene().add(this.analysisRenderer.group);
     }
 
     start(): void {
@@ -104,9 +109,11 @@ export class DslApp {
         this.rotationLockController?.dispose();
         this.cameraManager.dispose();
         this.integralRenderer.dispose();
+        this.paramPanelController.dispose();
+        this.diagnosticsController.dispose();
+        this.analysisRenderer.dispose();
         this.plotter.dispose();
-        surfaceComputeClient.dispose();
-        vectorFieldComputeClient.dispose();
+        this.computeEngine.dispose();
         this.sceneManager.dispose();
     }
 
@@ -122,38 +129,38 @@ export class DslApp {
          *       ▼
          *   compileScene(ast)          // 静态缓存 + 默认参数
          *       │
-         *       ├─► _renderParams      // 生成滑块，并填充 paramValues
+         *       ├─► paramPanelController.render  // 生成滑块，并维护当前参数值
          *       │
          *       └─► _applyScene        // 用同一份 scene 更新绘图 / 分析 / 积分
          *
-         * 之后拖动滑块只走 _refreshObjects -> compileScene(ast, paramValues)，
+         * 之后拖动滑块只走 _refreshObjects -> compileScene(ast, currentValues)，
          * 不会在 run() 里重复编译同一个 AST。
          */
-        this._clearDiagnostics();
+        this.diagnosticsController.clear();
 
         try {
             const ast = await parseMiko(this.editor.value);
             this.matrixOps = createWasmMatrixOps();
             this.currentAst = ast;
             const scene = compileScene(ast, {}, this.matrixOps);
-            this._renderParams(scene.params);
+            this.paramPanelController.render(scene.params);
             this._applyScene(scene);
-            this._addDiagnostic(
+            this.diagnosticsController.add(
                 'info',
                 `解析成功:${ast.statements.length} 条语句，${this.compiledObjects.length} 个对象`,
             );
 
             for (const analysis of scene.analyses) {
                 if (analysis.op === 'divergence') {
-                    this._addDiagnostic('info', `${analysis.name}: divergence = ${analysis.scalar}`);
+                    this.diagnosticsController.add('info', `${analysis.name}: divergence = ${analysis.scalar}`);
                 } else if (analysis.op === 'curl') {
-                    this._addDiagnostic('info', `${analysis.name}: curl = [${analysis.vector.join(', ')}]`);
+                    this.diagnosticsController.add('info', `${analysis.name}: curl = [${analysis.vector.join(', ')}]`);
                 } else {
-                    this._addDiagnostic('info', `${analysis.name}: normal = [${analysis.vector.join(', ')}]`);
+                    this.diagnosticsController.add('info', `${analysis.name}: normal = [${analysis.vector.join(', ')}]`);
                 }
             }
         } catch (error) {
-            this._addDiagnostic('error', error instanceof Error ? error.message : String(error));
+            this.diagnosticsController.add('error', error instanceof Error ? error.message : String(error));
         }
     }
 
@@ -199,7 +206,7 @@ export class DslApp {
         if (!this.currentAst) return null;
         const scene = compileScene(
             this.currentAst,
-            Object.fromEntries(this.paramValues),
+            this.paramPanelController.getValues(),
             this.matrixOps,
         );
         this._applyScene(scene);
@@ -221,135 +228,9 @@ export class DslApp {
         }
 
         this.compiledObjects = scene.objects;
-        this._renderAnalyses(scene.analyses);
+        this.analysisRenderer.render(scene.analyses);
         this.integralRenderer.sync(scene.integrals, scene.objects, (level, message) => {
-            this._addDiagnostic(level, message);
+            this.diagnosticsController.add(level, message);
         });
-    }
-
-    private _renderAnalyses(analyses: AnalysisResult[]): void {
-        this._clearAnalysisGroup();
-
-        for (const analysis of analyses) {
-            const point = new THREE.Vector3(...analysis.point);
-            const vector = new THREE.Vector3(...analysis.vector);
-
-            if (analysis.show.includes('point')) {
-                const dot = new THREE.Mesh(
-                    new THREE.SphereGeometry(0.08, 16, 16),
-                    new THREE.MeshPhongMaterial({ color: 0xffdd44 }),
-                );
-                dot.position.copy(point);
-                this.analysisGroup.add(dot);
-            }
-
-            if (analysis.show.includes('normal') && vector.lengthSq() > 1e-12) {
-                const direction = vector.clone().normalize();
-                const arrow = new THREE.ArrowHelper(direction, point, 1.5, 0xff6b8a, 0.2, 0.1);
-                this.analysisGroup.add(arrow);
-            }
-
-            if (analysis.show.includes('tangent_plane') && analysis.op === 'gradient') {
-                const normal = vector.lengthSq() > 1e-12
-                    ? vector.clone().normalize()
-                    : new THREE.Vector3(0, 0, 1);
-                const plane = new THREE.Mesh(
-                    new THREE.PlaneGeometry(1.6, 1.6),
-                    new THREE.MeshPhongMaterial({
-                        color: 0x44aaff,
-                        side: THREE.DoubleSide,
-                        transparent: true,
-                        opacity: 0.55,
-                        depthWrite: false,
-                    }),
-                );
-                plane.position.copy(point);
-                plane.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
-                this.analysisGroup.add(plane);
-            }
-        }
-    }
-
-    private _clearAnalysisGroup(): void {
-        for (const child of [...this.analysisGroup.children]) {
-            this.analysisGroup.remove(child);
-            child.traverse((node) => {
-                if (node instanceof THREE.Mesh || node instanceof THREE.Line) {
-                    node.geometry?.dispose();
-                    if (Array.isArray(node.material)) {
-                        node.material.forEach((material) => material.dispose());
-                    } else {
-                        node.material?.dispose();
-                    }
-                }
-            });
-        }
-    }
-
-    private _renderParams(params: ParamDeclaration[]): void {
-        this.paramsPanel.replaceChildren();
-        this.paramValues.clear();
-
-        for (const param of params) {
-            this.paramValues.set(param.name, param.value);
-            this.paramsPanel.appendChild(this._createParamRow(param));
-        }
-    }
-
-    private _createParamRow(param: ParamDeclaration): HTMLElement {
-        const row = document.createElement('div');
-        row.className = 'param-row';
-
-        const label = document.createElement('label');
-        label.textContent = param.name;
-
-        const slider = document.createElement('input');
-        slider.type = 'range';
-        slider.min = String(param.min);
-        slider.max = String(param.max);
-        slider.step = String(param.step);
-        slider.value = String(param.value);
-
-        const numberInput = document.createElement('input');
-        numberInput.type = 'number';
-        numberInput.min = String(param.min);
-        numberInput.max = String(param.max);
-        numberInput.step = String(param.step);
-        numberInput.value = String(param.value);
-
-        const syncFromSlider = (): void => {
-            const next = Number(slider.value);
-            numberInput.value = String(next);
-            this.paramValues.set(param.name, next);
-            this._refreshObjects();
-        };
-
-        const syncFromNumber = (): void => {
-            const raw = Number(numberInput.value);
-            if (!Number.isFinite(raw)) return;
-            const clamped = Math.min(param.max, Math.max(param.min, raw));
-            slider.value = String(clamped);
-            numberInput.value = String(clamped);
-            this.paramValues.set(param.name, clamped);
-            this._refreshObjects();
-        };
-
-        slider.addEventListener('input', syncFromSlider);
-        numberInput.addEventListener('input', syncFromNumber);
-        numberInput.addEventListener('change', syncFromNumber);
-
-        row.append(label, slider, numberInput);
-        return row;
-    }
-
-    private _clearDiagnostics(): void {
-        this.diagnostics.replaceChildren();
-    }
-
-    private _addDiagnostic(level: 'info' | 'warning' | 'error' | 'log', message: string): void {
-        const entry = document.createElement('div');
-        entry.className = `diagnostic diagnostic-${level}`;
-        entry.textContent = `[${level}] ${message}`;
-        this.diagnostics.appendChild(entry);
     }
 }

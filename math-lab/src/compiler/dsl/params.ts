@@ -1,3 +1,7 @@
+/**
+ * 参数收集、覆盖与求值 scope 辅助函数。
+ * 从 DslCompiler 拆出，保持参数相关逻辑集中管理。
+ */
 import type { AstProgram } from '../ast/types';
 import type { ParamDeclaration } from '../ir/types';
 import { toFiniteNumber } from './options';

@@ -1,4 +1,5 @@
 import type { Range1D } from '../../compiler/ir/types';
+import { ComputeWorkerClient } from './workers/ComputeWorkerClient';
 
 type Method =
     | 'trapz1d' | 'simpson1d' | 'riemann1d_left' | 'riemann1d_right' | 'riemann1d_mid' | 'lebesgue1d'
@@ -42,46 +43,10 @@ export type IntegralResult = {
 };
 
 // ---------- Worker 管理 ----------
-let worker: Worker | null = null;
-let workerAlive = false;
-let nextId = 1;
-const pending = new Map<
-    number,
-    { resolve: (v: IntegralResult) => void; reject: (e: Error) => void }
->();
-
-function createWorker(): Worker {
-    const w = new Worker(
-        new URL('./IntegralWorker.ts', import.meta.url),
-        { type: 'module' },
-    );
-    w.onmessage = (e: MessageEvent<Response>) => {
-        const { id, value, error, samples, sampleShape, n, m } = e.data;
-        const p = pending.get(id);
-        if (!p) return;
-        pending.delete(id);
-        if (error) {
-            p.reject(new Error(error));
-        } else {
-            p.resolve({ value: value!, samples, sampleShape, n, m });
-        }
-    };
-    w.onerror = (e) => {
-        workerAlive = false;
-        worker = null;
-        pending.forEach(p => p.reject(new Error(e.message || 'Worker 崩溃')));
-        pending.clear();
-    };
-    workerAlive = true;
-    return w;
-}
-
-function getWorker(): Worker {
-    if (!worker || !workerAlive) {
-        worker = createWorker();
-    }
-    return worker;
-}
+const integralClient = new ComputeWorkerClient<Request, Response>(() => new Worker(
+    new URL('./workers/IntegralWorker.ts', import.meta.url),
+    { type: 'module' },
+));
 
 function callWasm(
     method: Method,
@@ -89,25 +54,20 @@ function callWasm(
     coeffs: Record<string, number>,
     params: Record<string, number>,
 ): Promise<IntegralResult> {
-    const id = nextId++;
-    const w = getWorker();
-    return new Promise((resolve, reject) => {
-        pending.set(id, { resolve, reject });
-        w.postMessage({ id, method, expr, coeffs, ...params } satisfies Request);
-    });
+    return integralClient
+        .request({ method, expr, coeffs, ...params })
+        .then((response) => ({
+            value: response.value!,
+            samples: response.samples,
+            sampleShape: response.sampleShape,
+            n: response.n,
+            m: response.m,
+        }));
 }
 
 /** 终止积分 Worker,并拒绝所有未完成请求. */
 export function disposeIntegralWorker(): void {
-    worker?.terminate();
-    worker = null;
-    workerAlive = false;
-
-    const error = new Error('积分 Worker 已销毁');
-    for (const pendingRequest of pending.values()) {
-        pendingRequest.reject(error);
-    }
-    pending.clear();
+    integralClient.dispose();
 }
 
 // ---------- 公共 API ----------

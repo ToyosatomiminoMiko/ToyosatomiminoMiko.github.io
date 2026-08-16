@@ -2,17 +2,7 @@ import * as THREE from 'three';
 import { parse } from 'mathjs';
 import type { IntegralTask, SceneObject } from '../../compiler/ir/types';
 import { IntegralVisualizer } from './IntegralVisualizer';
-import {
-    disposeIntegralWorker,
-    lebesgue1d,
-    lebesgue2d,
-    riemann1dLeft,
-    riemann2dLeft,
-    simpson1d,
-    simpson2d,
-    trapz1d,
-    trapz2d,
-} from '../../math/objects/IntegralWasm';
+import type { MathComputeEngine } from '../../math/compute/MathComputeEngine';
 
 export type IntegralDiagnosticFn = (
     level: 'info' | 'warning' | 'error' | 'log',
@@ -31,7 +21,10 @@ export class DslIntegralRenderer {
     private sequence = 0;
     private disposed = false;
 
-    constructor(scene: THREE.Scene) {
+    constructor(
+        scene: THREE.Scene,
+        private readonly computeEngine: MathComputeEngine,
+    ) {
         this.visualizer = new IntegralVisualizer(scene);
     }
 
@@ -52,7 +45,6 @@ export class DslIntegralRenderer {
         this.disposed = true;
         this.sequence += 1;
         this.visualizer.dispose();
-        disposeIntegralWorker();
     }
 
     private async _renderAll(
@@ -69,8 +61,7 @@ export class DslIntegralRenderer {
             }
 
             try {
-                const coeffs = this._coefficients(source);
-                const value = await this._compute(task, source, coeffs);
+                const value = await this.computeEngine.integrate(task, source);
                 if (sequence !== this.sequence || this.disposed) return;
 
                 if (task.show) {
@@ -83,47 +74,6 @@ export class DslIntegralRenderer {
                     'error',
                     `积分 ${task.name} 计算失败: ${error instanceof Error ? error.message : String(error)}`,
                 );
-            }
-        }
-    }
-
-    private async _compute(
-        task: IntegralTask,
-        source: Extract<SceneObject, { kind: 'curve' | 'surface' }>,
-        coeffs: Record<string, number>,
-    ): Promise<number> {
-        const expr = source.expr;
-        const segments = task.segments;
-
-        if (source.kind === 'curve') {
-            const [a, b] = task.range as [number, number];
-            switch (task.method) {
-                case 'trapezoid':
-                    return (await trapz1d(expr, coeffs, a, b, segments)).value;
-                case 'simpson':
-                    return (await simpson1d(expr, coeffs, a, b, segments)).value;
-                case 'riemann':
-                    return (await riemann1dLeft(expr, coeffs, a, b, segments)).value;
-                case 'lebesgue': {
-                    const sampleN = segments * 20;
-                    const result = await lebesgue1d(expr, coeffs, a, b, task.layers, sampleN);
-                    return result.value;
-                }
-            }
-        }
-
-        const [xMin, xMax, yMin, yMax] = task.range as [number, number, number, number];
-        switch (task.method) {
-            case 'trapezoid':
-                return (await trapz2d(expr, coeffs, [xMin, xMax], [yMin, yMax], segments, segments)).value;
-            case 'simpson':
-                return (await simpson2d(expr, coeffs, [xMin, xMax], [yMin, yMax], segments, segments)).value;
-            case 'riemann':
-                return (await riemann2dLeft(expr, coeffs, [xMin, xMax], [yMin, yMax], segments, segments)).value;
-            case 'lebesgue': {
-                const sampleGrid = segments * 4;
-                const result = await lebesgue2d(expr, coeffs, [xMin, xMax], [yMin, yMax], task.layers, sampleGrid);
-                return result.value;
             }
         }
     }
@@ -248,16 +198,6 @@ export class DslIntegralRenderer {
             const value = compiled.evaluate(scope);
             return typeof value === 'number' ? value : NaN;
         };
-    }
-
-    private _coefficients(
-        source: Extract<SceneObject, { kind: 'curve' | 'surface' }>,
-    ): Record<string, number> {
-        const result: Record<string, number> = {};
-        for (const coefficient of source.coefficients) {
-            result[coefficient.name] = coefficient.value;
-        }
-        return result;
     }
 
 }

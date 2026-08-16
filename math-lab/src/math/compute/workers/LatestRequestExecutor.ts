@@ -1,0 +1,71 @@
+/**
+ * 单飞请求执行器。
+ * 只在同一时刻运行一个请求；执行期间收到新请求时，
+ * 只保留最新的那个，旧请求会被拒绝，避免高频刷新时积压。
+ */
+type PendingRequest<TRequest, TResponse> = {
+    id: number;
+    request: Omit<TRequest, 'id'>;
+    resolve: (response: TResponse) => void;
+    reject: (error: Error) => void;
+};
+
+export type RequestClient<TRequest extends { id: number }, TResponse> = {
+    request(request: Omit<TRequest, 'id'>): Promise<TResponse>;
+    dispose?: () => void;
+};
+
+export class LatestRequestExecutor<
+    TRequest extends { id: number },
+    TResponse,
+> {
+    private _latestId = 0;
+    private _inFlight = false;
+    private _pending: PendingRequest<TRequest, TResponse> | null = null;
+    private _disposed = false;
+
+    constructor(private readonly client: RequestClient<TRequest, TResponse>) {}
+
+    request(request: Omit<TRequest, 'id'>): Promise<TResponse> {
+        const id = ++this._latestId;
+        if (this._inFlight) {
+            this._pending?.reject(new Error('superseded'));
+            return new Promise<TResponse>((resolve, reject) => {
+                this._pending = { id, request, resolve, reject };
+            });
+        }
+
+        this._inFlight = true;
+        return this._run(id, request);
+    }
+
+    dispose(): void {
+        this._disposed = true;
+        this._pending?.reject(new Error('LatestRequestExecutor disposed'));
+        this._pending = null;
+        this.client.dispose?.();
+    }
+
+    private async _run(
+        id: number,
+        request: Omit<TRequest, 'id'>,
+    ): Promise<TResponse> {
+        try {
+            const response = await this.client.request(request);
+            if (this._disposed || id !== this._latestId) {
+                throw new Error('superseded');
+            }
+            return response;
+        } finally {
+            const next = this._pending;
+            this._pending = null;
+            this._inFlight = false;
+
+            if (next && !this._disposed) {
+                this._inFlight = true;
+                void this._run(next.id, next.request)
+                    .then(next.resolve, next.reject);
+            }
+        }
+    }
+}

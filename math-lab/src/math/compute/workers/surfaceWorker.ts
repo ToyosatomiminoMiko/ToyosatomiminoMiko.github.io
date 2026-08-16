@@ -1,4 +1,4 @@
-import init, { sample_and_process_surface } from '../../wasm/ml_wasm';
+import init, { sample_and_process_surface } from '../../../wasm/ml_wasm';
 
 // ================================================================
 // surfaceWorker — 曲面采样 Worker

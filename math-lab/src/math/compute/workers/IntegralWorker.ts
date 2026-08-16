@@ -9,9 +9,9 @@ import init, {
     simpson2d_values,
     riemann2d_left_values,
     lebesgue2d_values,
-} from "../../wasm/ml_wasm";
+} from "../../../wasm/ml_wasm";
 import * as math from 'mathjs';
-import { compilationCache } from './CompilationCache';
+import { compilationCache } from '../../objects/CompilationCache';
 
 // ---------- 类型 ----------
 

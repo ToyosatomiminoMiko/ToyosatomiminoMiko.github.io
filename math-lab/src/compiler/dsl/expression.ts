@@ -1,3 +1,7 @@
+/**
+ * 通用表达式求值与 mathjs -> Rust 表达式转换。
+ * 从 DslCompiler 拆出，供分析编译、对象物化和变换解析复用。
+ */
 import * as math from 'mathjs';
 import type { MathNode } from 'mathjs';
 
