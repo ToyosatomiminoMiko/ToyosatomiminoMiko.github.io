@@ -1,4 +1,4 @@
-import type { Range1D } from './types';
+import type { Range1D } from '../../compiler/ir/types';
 
 type Method =
     | 'trapz1d' | 'simpson1d' | 'riemann1d_left' | 'riemann1d_right' | 'riemann1d_mid' | 'lebesgue1d'

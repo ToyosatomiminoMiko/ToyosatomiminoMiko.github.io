@@ -333,6 +333,12 @@ vector_field F = [y, -x, 0] {
     grid = [8, 8, 8];
     scale = 1.2;
 }
+point P = [1, 2, 3] {
+    color = "#6dd5ff";
+}
+vector V = [[0, 0, 0], [1, 0, 0]] {
+    color = "#ff6b8a";
+}
 gradient g = grad(s1) at [a, b + 1] {
     show = [point, normal, tangent_plane];
 }
@@ -353,6 +359,8 @@ integral I2 = integral(s1) {
         assert!(json.contains("\"type\":\"param\""));
         assert!(json.contains("\"type\":\"tensor\""));
         assert!(json.contains("\"type\":\"object\""));
+        assert!(json.contains("\"kind\":\"point\""));
+        assert!(json.contains("\"kind\":\"vector\""));
         assert!(json.contains("\"type\":\"analysis\""));
         assert!(json.contains("\"type\":\"integral\""));
     }

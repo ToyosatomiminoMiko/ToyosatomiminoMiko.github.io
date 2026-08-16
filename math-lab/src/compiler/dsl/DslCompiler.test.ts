@@ -451,4 +451,57 @@ describe('compileScene', () => {
             [0, 0, 0, 1],
         ]);
     });
+
+    it('compiles point and vector objects, including shorthand vector direction', () => {
+        const pointVectorAst: AstProgram = {
+            statements: [
+                {
+                    type: 'param',
+                    name: 'a',
+                    value: '2',
+                    ui: null,
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'object',
+                    kind: 'point',
+                    name: 'P',
+                    expr: '[a, 1, 0]',
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'object',
+                    kind: 'vector',
+                    name: 'V',
+                    expr: '[[1, 2, 3], [a, 0, 1]]',
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'object',
+                    kind: 'vector',
+                    name: 'W',
+                    expr: '[0, a, 0]',
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        const scene = compileScene(pointVectorAst, { a: 4 });
+
+        expect(scene.objects).toHaveLength(3);
+        expect(scene.objects[0]).toMatchObject({ kind: 'point', x: 4, y: 1, z: 0 });
+        expect(scene.objects[1]).toMatchObject({
+            kind: 'vector',
+            origin: { x: 1, y: 2, z: 3 },
+            direction: { x: 4, y: 0, z: 1 },
+        });
+        expect(scene.objects[2]).toMatchObject({
+            kind: 'vector',
+            origin: { x: 0, y: 0, z: 0 },
+            direction: { x: 0, y: 4, z: 0 },
+        });
+    });
 });

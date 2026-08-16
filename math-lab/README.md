@@ -40,6 +40,14 @@ vector_field F = [y, -x, a] {
     scale = 1.2;
 }
 
+point P = [1, 2, 3] {
+    color = "#6dd5ff";
+};
+
+vector V = [[0, 0, 0], [1, 0, 0]] {
+    color = "#ff6b8a";
+};
+
 gradient g = grad(s1) at [a, b] {
     show = [point, normal, tangent_plane];
 }
@@ -64,7 +72,7 @@ integral I2 = integral(s1) {
 ## 当前支持范围
 
 - `param`：参数面板与实时刷新
-- `curve` / `surface` / `vector_field`：基础几何对象
+- `curve` / `surface` / `vector_field` / `point` / `vector`：基础几何对象
 - `matrix` / `transform`：对象场景变换
 - `gradient` / `divergence` / `curl`：点分析
 - `gradient` 的 `show = [point, normal, tangent_plane]`：已支持

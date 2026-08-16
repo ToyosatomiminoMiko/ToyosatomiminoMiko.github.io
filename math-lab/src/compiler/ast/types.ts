@@ -28,7 +28,7 @@ export interface TensorStatement {
     span: SourceSpan;
 }
 
-export type ObjectKind = 'curve' | 'surface' | 'vector_field';
+export type ObjectKind = 'curve' | 'surface' | 'vector_field' | 'point' | 'vector';
 
 export interface ObjectStatement {
     type: 'object';

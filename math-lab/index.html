@@ -21,29 +21,24 @@
             <section id="editor-panel">
                 <textarea id="dsl-editor" spellcheck="false">
 // 临时示例,后续统一加入文档
+
+// 定义系数
 param a = 1 in [-5, 5, 0.1];
 param b = 1 in [-5, 5, 0.1];
 param j = 0 in [-5, 5, 0.1];
 param k = 0 in [-5, 5, 0.1];
 
-curve c1 = sin(x * a) * cos(x * b) {
+// 点
+point P = [a, b, 3] {
     color = "#6dd5ff";
-    range = [-8, 8];
-    segments = 256;
 }
 
-surface s1 = sin(x * a) * cos(y * b) {
+// 向量
+vector V = [[0, j, 0], [1, k, 0]] {
     color = "#ff6b8a";
-    range = [-6, 6, -6, 6];
-    segments = 96;
 }
 
-vector_field F = [y, -x, a] {
-    range = [-4, 4, -4, 4, -4, 4];
-    grid = [8, 8, 8];
-    scale = 1.2;
-}
-
+// 矩阵
 matrix M = [
     [1, 0, 0, 2],
     [0, 1, 0, 3],
@@ -51,6 +46,50 @@ matrix M = [
     [0, 0, 0, 1],
 ];
 
+curve c1 = sin(x * a) * cos(x * b) {
+    color = "#6dd5ff";
+    range = [-8, 8];
+    segments = 256;
+}
+
+// 曲线积分
+integral I1 = integral(c1) {
+    method = riemann;
+    range = [-4, 4];
+    segments = 32;
+};
+
+surface s1 = sin(x * a) * cos(y * b) {
+    color = "#ff6b8a";
+    range = [-6, 6, -6, 6];
+    segments = 96;
+}
+
+// 梯度计算
+gradient g = grad(s1) at [j, k] {
+    show = [point, normal, tangent_plane];
+}
+
+// 曲面积分
+integral I2 = integral(s1) {
+    method = lebesgue;
+    range = [-3, 3, -3, 3];
+    segments = 32;
+    layers = 16;
+};
+
+// 向量场
+vector_field F = [y, -x, a] {
+    range = [-4, 4, -4, 4, -4, 4];
+    grid = [8, 8, 8];
+    scale = 1.2;
+}
+
+divergence d = div(F) at [1, 2, 3];
+
+curl c = curl(F) at [1, 2, 3];
+
+// 三维变换
 transform T = as_transform(M);
 
 surface s2 = sin(x) * cos(y) {
@@ -61,31 +100,6 @@ surface s2 = sin(x) * cos(y) {
 
 transform T2 = translate([2, 1, 0]) * rotate([0, 0, pi / 4]) * scale([1.5, 1, 1]);
 
-surface s3 = sin(x) * cos(y) {
-    range = [-6, 6, -6, 6];
-    segments = 96;
-}
-
-gradient g = grad(s1) at [j, k] {
-    show = [point, normal, tangent_plane];
-}
-
-divergence d = div(F) at [1, 2, 3];
-
-curl c = curl(F) at [1, 2, 3];
-
-integral I1 = integral(c1) {
-    method = riemann;
-    range = [-4, 4];
-    segments = 32;
-};
-
-integral I2 = integral(s1) {
-    method = lebesgue;
-    range = [-3, 3, -3, 3];
-    segments = 32;
-    layers = 16;
-};
 </textarea>
             </section>
             <div class="resize-handle resize-handle-right" data-resize-panel="left-panel"></div>

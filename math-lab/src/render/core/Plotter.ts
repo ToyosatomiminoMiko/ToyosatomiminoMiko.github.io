@@ -25,8 +25,8 @@ interface UpdatableRenderer extends IRenderer {
 /**
  * 绘图门面 -- 将数学对象路由到对应的专属渲染器
  *
- * 统一 3D 场景:curve 默认绘制在 z=0 平面，surface\point\vector\
- * vector_field 都共存于同一个场景.
+ * 统一 3D 场景:curve 默认绘制在 z=0 平面，surface、point、vector
+ * 与 vector_field 共存于同一个场景.
  */
 export class Plotter {
     /** 所有渲染器的 Group 挂载点,挂到 Scene 下 */

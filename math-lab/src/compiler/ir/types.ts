@@ -75,7 +75,7 @@ export interface VectorFieldObject {
     glyphScale: number;
 }
 
-/** 空间点(legacy 渲染能力保留). */
+/** 空间点(暂未接入 DSL，但保留为可渲染对象). */
 export interface PointObject {
     kind: 'point';
     id: number;
@@ -87,7 +87,7 @@ export interface PointObject {
     enabled: boolean;
 }
 
-/** 空间向量(legacy 渲染能力保留). */
+/** 空间向量(暂未接入 DSL，但保留为可渲染对象). */
 export interface VectorObject {
     kind: 'vector';
     id: number;
@@ -98,7 +98,12 @@ export interface VectorObject {
     enabled: boolean;
 }
 
-/** 场景中所有数学对象的联合类型. */
+/**
+ * 场景中所有数学对象的联合类型.
+ *
+ * 注意：`point` / `vector` 是保留对象类型，后续会补 DSL 语法；
+ * 当前先恢复渲染能力，不继续按 legacy 删除。
+ */
 export type SceneObject =
     | CurveObject
     | SurfaceObject
@@ -147,3 +152,14 @@ export interface SceneIR {
     analyses: AnalysisResult[];
     integrals: IntegralTask[];
 }
+
+// ================================================================
+// 数值积分辅助类型
+//
+// 这些类型原本混在 `math/objects/types.ts`，现迁移到 IR 层，
+// 因为它们描述的是编译后的积分计算输入/输出形状。
+// ================================================================
+
+export type Integral1DFn = (x: number) => number;
+export type Integral2DFn = (x: number, y: number) => number;
+export type Range1D = [number, number];
