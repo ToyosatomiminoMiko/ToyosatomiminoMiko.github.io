@@ -5,11 +5,11 @@ type MatlabNormalizer = {
 };
 
 /**
- * 每次归一化都创建独立上下文，避免模块级可变全局状态。
+ * 每次归一化都创建独立上下文,避免模块级可变全局状态.
  *
- * 旧实现把匿名计数器放在模块顶层，导致调用顺序会隐式影响结果：
- * 直接调用 normalizeMatlabCalls 和先调用 normalizeMatlabSyntax 可能共享状态。
- * 现在计数器跟随一次归一化过程，函数可以安全地独立调用。
+ * 旧实现把匿名计数器放在模块顶层,导致调用顺序会隐式影响结果:
+ * 直接调用 normalizeMatlabCalls 和先调用 normalizeMatlabSyntax 可能共享状态.
+ * 现在计数器跟随一次归一化过程,函数可以安全地独立调用.
  */
 function createMatlabNormalizer(): MatlabNormalizer {
     return { anonymousCounters: new Map<string, number>() };
@@ -240,7 +240,7 @@ export function normalizeMatlabCalls(
     return result;
 }
 
-/** MATLAB 兼容入口:依次做归一化，结果交给 `.miko` parser. */
+/** MATLAB 兼容入口:依次做归一化,结果交给 `.miko` parser. */
 export function normalizeMatlabSyntax(source: string): string {
     const normalizer = createMatlabNormalizer();
     let result = source;

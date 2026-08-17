@@ -11,11 +11,11 @@ export type IntegralDiagnosticFn = (
 ) => void;
 
 /**
- * DSL 积分可视化执行器。
+ * DSL 积分可视化执行器.
  *
- * 输入是编译后的 IntegralTask，计算仍复用旧数值积分 worker，
- * 可视化复用 IntegralVisualizer，但缓存键使用积分名而不是对象 id，
- * 以支持同一个曲线/曲面存在多个积分声明。
+ * 输入是编译后的 IntegralTask,计算仍复用旧数值积分 worker,
+ * 可视化复用 IntegralVisualizer,但缓存键使用积分名而不是对象 id,
+ * 以支持同一个曲线/曲面存在多个积分声明.
  */
 export class DslIntegralRenderer {
     private readonly visualizer: IntegralVisualizer;
@@ -37,8 +37,8 @@ export class DslIntegralRenderer {
         dirtyObjectIds: ReadonlySet<number> | null = null,
     ): void {
         if (dirtyObjectIds) {
-            // 参数只影响部分对象时，只清除这些对象关联的积分可视化，
-            // 其他积分继续保留，避免每次滑块变化都销毁/重建整组 GPU 对象。
+            // 参数只影响部分对象时,只清除这些对象关联的积分可视化,
+            // 其他积分继续保留,避免每次滑块变化都销毁/重建整组 GPU 对象.
             for (const task of tasks) {
                 if (dirtyObjectIds.has(task.objectId)) {
                     this.taskSequences.set(task.name, ++this.sequence);

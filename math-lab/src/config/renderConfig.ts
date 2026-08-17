@@ -1,7 +1,7 @@
 /**
- * 渲染与可视化常量。
+ * 渲染与可视化常量.
  *
- * 这里只放静态默认值，不包含几何体实例或 Three.js 对象。
+ * 这里只放静态默认值,不包含几何体实例或 Three.js 对象.
  */
 export const RENDER_CONFIG = {
     integralVisualizer: {

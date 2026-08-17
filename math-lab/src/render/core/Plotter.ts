@@ -25,7 +25,7 @@ interface UpdatableRenderer extends IRenderer {
 /**
  * 绘图门面 -- 将数学对象路由到对应的专属渲染器
  *
- * 统一 3D 场景:curve 默认绘制在 z=0 平面，surface、point、vector
+ * 统一 3D 场景:curve 默认绘制在 z=0 平面,surface、point、vector
  * 与 vector_field 共存于同一个场景.
  */
 export class Plotter {
@@ -111,11 +111,11 @@ export class Plotter {
     }
 
     /**
-     * 更新一个对象。
+     * 更新一个对象.
      *
-     * @param redraw false 时只同步 renderer 内部的 SceneObject 引用，
-     * 不重新触发数值采样/GPU 重建。这个能力供 DslApp 在参数只影响部分对象时
-     * 使用，避免每次拖动滑块都重算所有 curve/surface/vector_field。
+     * @param redraw false 时只同步 renderer 内部的 SceneObject 引用,
+     * 不重新触发数值采样/GPU 重建.这个能力供 DslApp 在参数只影响部分对象时
+     * 使用,避免每次拖动滑块都重算所有 curve/surface/vector_field.
      */
     updateObject(obj: SceneObject, redraw = true): void {
         switch (obj.kind) {
@@ -175,7 +175,7 @@ export class Plotter {
         return renderer as T;
     }
 
-    /** 只同步引用和可见性，不触发数值采样与 GPU 重建。 */
+    /** 只同步引用和可见性,不触发数值采样与 GPU 重建. */
     private _updateRef(obj: SceneObject): void {
         const renderer = this.rendererMap.get(obj.id);
         if (!renderer) return;

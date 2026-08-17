@@ -1,0 +1,40 @@
+/* ==========================================================================
+ * Math-Lab 基础样式
+ * --------------------------------------------------------------------------
+ * 本文件只负责最底层的全局规则:
+ *   1. 统一盒模型,避免 padding/border 撑大元素；
+ *   2. 建立页面背景、文字颜色与字体；
+ *   3. 保存面板布局会用到的 CSS 变量.
+ *
+ * 加载顺序:本文件应最先加载.
+ * ========================================================================== */
+
+/* 统一盒模型:所有元素宽度都包含 padding 与 border */
+* {
+    box-sizing: border-box;
+}
+
+/* 页面根容器:铺满视口,并统一基础视觉风格 */
+html,
+body {
+    margin: 0;
+    height: 100%;
+    background: #0e101a;
+    color: #c8d6f0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* 应用根节点:承载左侧源码、右侧参数、底部输出三个面板 */
+#app {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+
+    /* 这些变量由 PanelController 在拖拽/折叠时动态更新 */
+    --left-panel-width: 300px;
+    --right-panel-width: 300px;
+    --footer-height: 200px;
+    --collapsed-side-width: 44px;
+    --collapsed-footer-height: 40px;
+}

@@ -1,6 +1,6 @@
 /**
- * 诊断输出控制器。
- * 从 DslApp 拆出，负责清空诊断区域并添加分级日志。
+ * 诊断输出控制器.
+ * 从 DslApp 拆出,负责清空诊断区域并添加分级日志.
  */
 export type DiagnosticLevel = 'info' | 'warning' | 'error' | 'log';
 

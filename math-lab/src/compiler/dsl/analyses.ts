@@ -1,6 +1,6 @@
 /**
- * 微分分析编译。
- * 负责 gradient/divergence/curl 的符号求导与 WASM 数值求值编排。
+ * 微分分析编译.
+ * 负责 gradient/divergence/curl 的符号求导与 WASM 数值求值编排.
  */
 import type { AstProgram } from '../ast/types';
 import type {

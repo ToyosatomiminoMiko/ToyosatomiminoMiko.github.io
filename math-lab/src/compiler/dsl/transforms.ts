@@ -1,6 +1,6 @@
 /**
- * 场景矩阵与变换解析。
- * 负责 DSL 中的 matrix/transform 表达式和对象 transform 解析。
+ * 场景矩阵与变换解析.
+ * 负责 DSL 中的 matrix/transform 表达式和对象 transform 解析.
  */
 import * as math from 'mathjs';
 import type { MathNode } from 'mathjs';

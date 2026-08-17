@@ -1,7 +1,7 @@
 /**
- * 通用 Worker 客户端。
- * 负责 pending map、请求 id、Worker 创建/销毁和错误传播，
- * 供 Surface、VectorField、Integral 等计算 Worker 复用。
+ * 通用 Worker 客户端.
+ * 负责 pending map、请求 id、Worker 创建/销毁和错误传播,
+ * 供 Surface、VectorField、Integral 等计算 Worker 复用.
  */
 type PendingRequest<TResponse> = {
     resolve: (response: TResponse) => void;

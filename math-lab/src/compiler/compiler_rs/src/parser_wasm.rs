@@ -291,7 +291,7 @@ fn statement_to_ast(pair: Pair<'_, Rule>) -> Result<AstStatement, String> {
     }
 }
 
-/// 解析 `.miko` 源码，返回 JSON 格式的 AST.
+/// 解析 `.miko` 源码,返回 JSON 格式的 AST.
 pub fn parse_to_json(source: &str) -> Result<String, String> {
     let mut pairs = MikoParser::parse(Rule::program, source).map_err(|err| err.to_string())?;
     let program = pairs.next().ok_or_else(|| "空的解析结果".to_string())?;

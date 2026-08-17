@@ -49,8 +49,8 @@ const integralClient = new ComputeWorkerClient<Request, Response>(() => new Work
     { type: 'module' },
 ));
 
-// 积分请求也走 latest-only。滑块高频刷新时，旧请求不会再无意义地堆积；
-// 每个时刻最多只有一个积分请求真正交给 Worker。
+// 积分请求也走 latest-only.滑块高频刷新时,旧请求不会再无意义地堆积；
+// 每个时刻最多只有一个积分请求真正交给 Worker.
 const integralExecutor = new LatestRequestExecutor<Request, Response>(integralClient);
 
 function callWasm(
@@ -71,8 +71,8 @@ function callWasm(
 }
 
 /**
- * 应用级释放积分计算资源。
- * 先停掉 LatestRequestExecutor 的逻辑调度，再 terminate 共享 Worker。
+ * 应用级释放积分计算资源.
+ * 先停掉 LatestRequestExecutor 的逻辑调度,再 terminate 共享 Worker.
  */
 export function disposeIntegralWorker(): void {
     integralExecutor.dispose();

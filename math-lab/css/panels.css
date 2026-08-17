@@ -1,0 +1,125 @@
+/* ==========================================================================
+ * Math-Lab 面板内部样式
+ * --------------------------------------------------------------------------
+ * 负责面板的内容结构:
+ *   - 面板标题栏与折叠按钮
+ *   - 源码编辑器
+ *   - 参数滑块列表
+ *   - 底部输出区域
+ * ========================================================================== */
+
+/* 标题栏:显示面板名称,按钮靠右排列 */
+.panel-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 12px;
+    color: #8e9fc7;
+    background: rgba(20, 24, 40, 0.96);
+}
+
+/* 标题栏按钮（运行/收起）使用统一的轻量边框样式 */
+.panel-header button {
+    margin-left: auto;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #8e9fc7;
+    border-radius: 6px;
+    padding: 3px 8px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+/* 面板标题保持单行,避免折叠时换行 */
+.panel-title {
+    white-space: nowrap;
+}
+
+/* 折叠时隐藏标题和左侧“运行”按钮,仅保留展开按钮 */
+.panel.collapsed .panel-title,
+.panel.collapsed #run-btn {
+    display: none;
+}
+
+/* 折叠后按钮不再需要 auto 推右,改为紧贴边缘 */
+.panel.collapsed .panel-header button {
+    margin-left: 0;
+}
+
+/* ==========================================================================
+ * 左侧源码编辑器
+ * ========================================================================== */
+
+/* 编辑器容器占满左侧面板剩余高度 */
+#editor-panel {
+    flex: 1;
+    min-height: 0;
+    padding: 8px;
+}
+
+/* DSL 源码输入框:使用等宽字体,禁止缩放 */
+#dsl-editor {
+    width: 100%;
+    height: 100%;
+    resize: none;
+    background: #0d1120;
+    color: #dbe4ff;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+/* ==========================================================================
+ * 右侧参数面板
+ * ========================================================================== */
+
+/* 参数列表容器:内容超出时纵向滚动 */
+#params-panel {
+    flex: 1;
+    min-height: 0;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+}
+
+/* 单条参数:名称 + 滑块 + 数值输入框 */
+.param-row {
+    display: grid;
+    grid-template-columns: 48px 1fr 76px;
+    gap: 8px;
+    align-items: center;
+    font-size: 12px;
+}
+
+.param-row input[type="range"] {
+    width: 100%;
+}
+
+.param-row input[type="number"] {
+    width: 100%;
+    background: #0d1120;
+    color: #dbe4ff;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 6px;
+    padding: 4px 6px;
+    font-size: 12px;
+}
+
+/* ==========================================================================
+ * 底部输出面板
+ * ========================================================================== */
+
+/* 输出内容容器:占满底部面板剩余高度 */
+#output-panel {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 8px;
+}

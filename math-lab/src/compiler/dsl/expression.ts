@@ -1,6 +1,6 @@
 /**
- * 通用表达式求值与 mathjs -> Rust 表达式转换。
- * 从 DslCompiler 拆出，供分析编译、对象物化和变换解析复用。
+ * 通用表达式求值与 mathjs -> Rust 表达式转换.
+ * 从 DslCompiler 拆出,供分析编译、对象物化和变换解析复用.
  */
 import * as math from 'mathjs';
 import type { MathNode } from 'mathjs';
@@ -78,7 +78,7 @@ export function cachedDerivativeExpression(node: MathNode, variable: string): st
     return cached;
 }
 
-/** 把 mathjs 节点转成 evalexpr 可解析的字符串，并显式替换 pi / e 常量。 */
+/** 把 mathjs 节点转成 evalexpr 可解析的字符串,并显式替换 pi / e 常量. */
 export function toRustExpression(node: MathNode): string {
     const replaced = node.transform((current) => {
         if (current.type === 'SymbolNode') {

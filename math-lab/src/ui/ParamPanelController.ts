@@ -1,7 +1,7 @@
 /**
- * 参数面板控制器。
- * 从 DslApp 拆出，负责根据 ParamDeclaration 生成滑块与数字输入，
- * 并维护当前参数值。
+ * 参数面板控制器.
+ * 从 DslApp 拆出,负责根据 ParamDeclaration 生成滑块与数字输入,
+ * 并维护当前参数值.
  */
 import type { ParamDeclaration } from '../compiler/ir/types';
 

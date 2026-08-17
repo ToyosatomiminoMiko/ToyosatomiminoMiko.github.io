@@ -1,6 +1,6 @@
 /**
- * 静态场景构建与缓存。
- * 负责 params、matrix、transform 和对象 blueprint 的声明级建模。
+ * 静态场景构建与缓存.
+ * 负责 params、matrix、transform 和对象 blueprint 的声明级建模.
  */
 import type { AstProgram } from '../ast/types';
 import type { ParamDeclaration } from '../ir/types';

@@ -100,7 +100,7 @@ export function matrix4(transform: SceneTransform): MatrixTensorValue {
     };
 }
 
-/** 单位 4x4 矩阵。 */
+/** 单位 4x4 矩阵. */
 export function identity4(): Mat4 {
     return [
         [1, 0, 0, 0],
@@ -110,7 +110,7 @@ export function identity4(): Mat4 {
     ];
 }
 
-/** 平移矩阵。 */
+/** 平移矩阵. */
 export function translate4(values: number[]): Mat4 {
     return [
         [1, 0, 0, values[0] ?? 0],
@@ -120,7 +120,7 @@ export function translate4(values: number[]): Mat4 {
     ];
 }
 
-/** 缩放矩阵。 */
+/** 缩放矩阵. */
 export function scale4(values: number[]): Mat4 {
     return [
         [values[0] ?? 1, 0, 0, 0],
@@ -130,7 +130,7 @@ export function scale4(values: number[]): Mat4 {
     ];
 }
 
-/** 旋转矩阵,顺序与旧实现一致: Rz * Ry * Rx。 */
+/** 旋转矩阵,顺序与旧实现一致: Rz * Ry * Rx. */
 export function rotate4(values: number[]): Mat4 {
     const rx = values[0] ?? 0;
     const ry = values[1] ?? 0;

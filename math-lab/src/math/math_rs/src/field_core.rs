@@ -17,7 +17,7 @@ use crate::eval_core::{build_base_context, compile_expression, evaluate_node, se
 // ∇ = ∂/∂x + ∂/∂y + ∂/∂z
 // ================================================================
 
-/// 构建带系数和坐标的求值上下文。
+/// 构建带系数和坐标的求值上下文.
 fn build_context_with_point(
     coeff_names: &[String],
     coeff_values: &[f64],
@@ -68,7 +68,7 @@ pub fn evaluate_scalar(
 /// * `y`           - 点的 y 坐标
 ///
 /// # 返回
-/// `(f0, fx, fy)`,其中：
+/// `(f0, fx, fy)`,其中:
 /// - `f0` = f(x, y)
 /// - `fx` = ∂f/∂x (x, y)
 /// - `fy` = ∂f/∂y (x, y)

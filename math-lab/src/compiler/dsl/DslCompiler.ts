@@ -19,9 +19,9 @@ import {
 } from './staticScene';
 
 /**
- * DslCompiler facade：只负责把 AST 编排成 SceneIR.
+ * DslCompiler facade:只负责把 AST 编排成 SceneIR.
  *
- * 具体职责已经拆到：
+ * 具体职责已经拆到:
  * - options.ts     选项与列表解析
  * - params.ts      参数收集、覆盖、求值 scope
  * - objects.ts     对象 blueprint 构建与物化

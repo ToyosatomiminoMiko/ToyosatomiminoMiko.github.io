@@ -1,7 +1,7 @@
 /**
- * 对象 blueprint 构建与物化。
+ * 对象 blueprint 构建与物化.
  * 负责把 AST 中的 curve/surface/vector_field/point/vector 声明
- * 转成可反复物化的中间表示，再按当前参数生成 SceneObject。
+ * 转成可反复物化的中间表示,再按当前参数生成 SceneObject.
  */
 import * as math from 'mathjs';
 import type { MathNode } from 'mathjs';
@@ -132,8 +132,8 @@ function parseVectorObject(
     }
 
     if (items.length === 3) {
-        // 新语法决定：单数组表示默认从原点出发的方向向量。
-        // 后续若需要“位置向量”或“起点缺省为上一个点”等语义，需要另加语法，避免歧义。
+        // 新语法决定:单数组表示默认从原点出发的方向向量.
+        // 后续若需要“位置向量”或“起点缺省为上一个点”等语义,需要另加语法,避免歧义.
         return {
             originExprs: ['0', '0', '0'],
             directionExprs: toExpressionTuple(items),
@@ -366,8 +366,8 @@ export function materializeObject(
     }
 
     if (blueprint.kind === 'point') {
-        // point/vector 目前走 param scope，不进入系数提取与参数面板；
-        // 后续若要像 curve/surface 一样可调系数，需要给 IR 增加 coefficients 字段。
+        // point/vector 目前走 param scope,不进入系数提取与参数面板；
+        // 后续若要像 curve/surface 一样可调系数,需要给 IR 增加 coefficients 字段.
         const scope = buildParamScope(params, overrides);
         const [x, y, z] = blueprint.coordinateExprs.map((expr) =>
             evaluateRequiredNumber(expr, scope, `点 ${blueprint.name} 的坐标`),

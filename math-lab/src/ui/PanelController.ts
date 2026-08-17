@@ -19,7 +19,7 @@ function clamp(value: number, min: number, max: number): number {
  * 负责:
  * - 左/右 aside 的宽度调整
  * - 底部 footer 的高度调整
- * - 折叠/展开，折叠时同步 footer 的左右边界
+ * - 折叠/展开,折叠时同步 footer 的左右边界
  */
 export class PanelController {
     private root: HTMLElement | null = null;

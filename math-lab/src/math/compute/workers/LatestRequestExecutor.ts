@@ -1,7 +1,7 @@
 /**
- * 单飞请求执行器。
- * 只在同一时刻运行一个请求；执行期间收到新请求时，
- * 只保留最新的那个，旧请求会被拒绝，避免高频刷新时积压。
+ * 单飞请求执行器.
+ * 只在同一时刻运行一个请求；执行期间收到新请求时,
+ * 只保留最新的那个,旧请求会被拒绝,避免高频刷新时积压.
  */
 type PendingRequest<TRequest, TResponse> = {
     id: number;
@@ -43,9 +43,9 @@ export class LatestRequestExecutor<
         this._disposed = true;
         this._pending?.reject(new Error('LatestRequestExecutor disposed'));
         this._pending = null;
-        // 这里的 client 可能是多个 renderer 共享的全局 worker client。
-        // LatestRequestExecutor 只负责取消自己的逻辑请求，不能顺手 terminate
-        // 掉其他对象仍在使用的 worker；全局 client 由应用级 owner 统一释放。
+        // 这里的 client 可能是多个 renderer 共享的全局 worker client.
+        // LatestRequestExecutor 只负责取消自己的逻辑请求,不能顺手 terminate
+        // 掉其他对象仍在使用的 worker；全局 client 由应用级 owner 统一释放.
     }
 
     private async _run(

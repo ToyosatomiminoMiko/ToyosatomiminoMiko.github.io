@@ -1,6 +1,6 @@
 /**
- * 曲线渲染器。
- * 数值采样统一走 MathComputeEngine，渲染层不再自行解析表达式。
+ * 曲线渲染器.
+ * 数值采样统一走 MathComputeEngine,渲染层不再自行解析表达式.
  */
 import * as THREE from 'three';
 import { NUMERIC_CONFIG } from '../../../config/numericConfig';
@@ -24,8 +24,8 @@ type CurveRendererRequest = {
     segments: number;
 };
 
-// 把 CurveRenderer 自己的 latest-only 请求形状适配到 MathComputeEngine。
-// 每个曲线 renderer 都有一个 executor，拖动滑块时不会向共享 worker 堆积旧请求。
+// 把 CurveRenderer 自己的 latest-only 请求形状适配到 MathComputeEngine.
+// 每个曲线 renderer 都有一个 executor,拖动滑块时不会向共享 worker 堆积旧请求.
 const curveRequestClient: RequestClient<CurveRendererRequest, Float32Array> = {
     request(request) {
         return curveComputeEngine.sampleCurve({

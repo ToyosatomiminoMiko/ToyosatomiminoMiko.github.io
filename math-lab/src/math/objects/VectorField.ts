@@ -16,8 +16,8 @@ const wasmInit = ensureWasmReady().then(() => {
 void wasmInit;
 
 /**
- * 合并三个分量表达式中提取的系数,去重并生成 Coefficient 对象。
- * 默认值与参数范围统一由 NUMERIC_CONFIG.param 控制。
+ * 合并三个分量表达式中提取的系数,去重并生成 Coefficient 对象.
+ * 默认值与参数范围统一由 NUMERIC_CONFIG.param 控制.
  */
 function mergeCoefficients(
     namesP: string[],

@@ -1,6 +1,6 @@
 use evalexpr::{ContextWithMutableFunctions, Function, HashMapContext, Value};
 
-/// 向 evalexpr 上下文注册当前 DSL 数值求值依赖的内置函数。
+/// 向 evalexpr 上下文注册当前 DSL 数值求值依赖的内置函数.
 pub fn register_builtins(ctx: &mut HashMapContext) {
     let funcs: &[(&str, fn(f64) -> f64)] = &[
         ("sin", f64::sin),

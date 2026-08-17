@@ -1,6 +1,6 @@
 use crate::config::LEBESGUE_ZERO_EPSILON;
 
-/// 辛普森法则节点权重，避免权重数字散落在多个函数里。
+/// 辛普森法则节点权重,避免权重数字散落在多个函数里.
 const SIMPSON_WEIGHT_EDGE: f64 = 1.0;
 const SIMPSON_WEIGHT_ODD: f64 = 4.0;
 const SIMPSON_WEIGHT_EVEN: f64 = 2.0;
@@ -34,7 +34,7 @@ fn require_finite_values(values: &[f64]) -> Result<(), String> {
     Ok(())
 }
 
-/// 按值域分层计算勒贝格积分（正部/负部通用）。
+/// 按值域分层计算勒贝格积分（正部/负部通用）.
 pub(crate) fn lebesgue_layer_sum(
     layers: usize,
     y_range: f64,
@@ -60,7 +60,7 @@ pub(crate) fn lebesgue_layer_sum(
     Ok(sum)
 }
 
-/// 辛普森法则的节点权重。
+/// 辛普森法则的节点权重.
 pub(crate) fn simpson_weight(idx: usize, total: usize) -> f64 {
     if idx == 0 || idx == total {
         SIMPSON_WEIGHT_EDGE
@@ -260,7 +260,7 @@ pub fn riemann2d_left_from_values(
 }
 
 // ================================================================
-// 勒贝格积分（基于值数组，扫描在 Rust 内完成，零 FFI 回调）
+// 勒贝格积分（基于值数组,扫描在 Rust 内完成,零 FFI 回调）
 // ================================================================
 
 pub fn lebesgue1d_from_values(
@@ -292,7 +292,7 @@ pub fn lebesgue1d_from_values(
         return Ok(0.0);
     }
 
-    // 扫描连续满足条件的区间，累计区间总长度。
+    // 扫描连续满足条件的区间,累计区间总长度.
     let scan_measure = |predicate: &dyn Fn(f64) -> bool| -> f64 {
         let mut total = 0.0;
         let mut in_interval = false;
@@ -337,7 +337,7 @@ pub fn lebesgue2d_from_values(
         return Err("勒贝格积分 layers 必须大于 0".to_string());
     }
 
-    // values 是 (grid_size + 1) × (grid_size + 1) 的网格点值，行主序。
+    // values 是 (grid_size + 1) × (grid_size + 1) 的网格点值,行主序.
     let expected = (grid_size + 1) * (grid_size + 1);
     if values.len() != expected {
         return Err(format!(
@@ -364,7 +364,7 @@ pub fn lebesgue2d_from_values(
         return Ok(0.0);
     }
 
-    // 以左下角点代表整个格子（与 1D 左端点法一致）。
+    // 以左下角点代表整个格子（与 1D 左端点法一致）.
     let measure_fn = |predicate: &dyn Fn(f64) -> bool| -> f64 {
         let mut measure = 0.0;
         for j in 0..grid_size {

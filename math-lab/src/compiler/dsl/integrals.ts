@@ -1,6 +1,6 @@
 /**
- * 积分任务编译。
- * 把 DSL 中的 integral 声明转成渲染层可消费的 IntegralTask。
+ * 积分任务编译.
+ * 把 DSL 中的 integral 声明转成渲染层可消费的 IntegralTask.
  */
 import type { IntegralStatement } from '../ast/types';
 import type { IntegralMethod, IntegralTask, SceneObject } from '../ir/types';

@@ -112,10 +112,10 @@ pub struct SurfaceSampleResult {
 // 采样、颜色映射、索引过滤和法线计算
 // ================================================================
 
-/// 曲面网格采样。
+/// 曲面网格采样.
 ///
-/// 返回 `(positions, z_vals, z_min, z_max)`。该函数只负责数值采样，
-/// 不再掺杂颜色映射、索引过滤或法线计算。
+/// 返回 `(positions, z_vals, z_min, z_max)`.该函数只负责数值采样,
+/// 不再掺杂颜色映射、索引过滤或法线计算.
 fn sample_surface_values(
     expr: &str,
     coeff_names: &[String],
@@ -165,7 +165,7 @@ fn sample_surface_values(
     Ok((positions, z_vals, z_min, z_max))
 }
 
-/// 根据 z 值极值生成顶点颜色。
+/// 根据 z 值极值生成顶点颜色.
 fn map_surface_colors(z_vals: &[f64], z_min: f64, z_max: f64) -> Vec<f32> {
     let range = z_max - z_min;
     let mut colors = Vec::with_capacity(z_vals.len() * 3);
@@ -196,7 +196,7 @@ fn map_surface_colors(z_vals: &[f64], z_min: f64, z_max: f64) -> Vec<f32> {
     colors
 }
 
-/// 统一编排采样与后处理，保持对 WASM/Worker 的旧入口签名不变。
+/// 统一编排采样与后处理,保持对 WASM/Worker 的旧入口签名不变.
 pub fn sample_and_process_surface(
     expr: &str,
     coeff_names: &[String],

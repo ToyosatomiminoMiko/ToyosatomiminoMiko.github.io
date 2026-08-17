@@ -1,6 +1,6 @@
 /**
- * 数值计算门面。
- * 当前先把积分计算收口到这里，后续再把曲线/曲面/向量场采样逐步迁入。
+ * 数值计算门面.
+ * 当前先把积分计算收口到这里,后续再把曲线/曲面/向量场采样逐步迁入.
  */
 import type {
     Coefficient,
@@ -36,8 +36,8 @@ export type CurveSampleRequest = {
 export class MathComputeEngine {
     async sampleCurve(request: CurveSampleRequest): Promise<Float32Array> {
         try {
-            // 曲线采样与曲面/向量场保持一致，交给 Worker 执行，
-            // 避免高 segments 或大量曲线时阻塞主线程。
+            // 曲线采样与曲面/向量场保持一致,交给 Worker 执行,
+            // 避免高 segments 或大量曲线时阻塞主线程.
             return await curveComputeClient.request({
                 expr: request.expr,
                 coeffNames: request.coefficients.map((coefficient) => coefficient.name),
@@ -95,8 +95,8 @@ export class MathComputeEngine {
     }
 
     dispose(): void {
-        // 本类只是计算门面，不拥有任何共享 worker。
-        // worker 生命周期由应用级 dispose 统一处理。
+        // 本类只是计算门面,不拥有任何共享 worker.
+        // worker 生命周期由应用级 dispose 统一处理.
     }
 
     private _coefficients(source: IntegralSource): Record<string, number> {

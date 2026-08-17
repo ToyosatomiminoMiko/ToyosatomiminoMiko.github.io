@@ -124,7 +124,7 @@ export class DslApp {
         this.computeEngine.dispose();
         this.sceneManager.dispose();
         // 共享 worker 必须最后统一 terminate；前面的 renderer.dispose()
-        // 已经不再拥有销毁这些 client 的权利。
+        // 已经不再拥有销毁这些 client 的权利.
         disposeCurveComputeClient();
         disposeSurfaceComputeClient();
         disposeVectorFieldComputeClient();
@@ -133,7 +133,7 @@ export class DslApp {
 
     async run(): Promise<void> {
         /*
-         * 入口流程（一次运行只编译一次场景）：
+         * 入口流程（一次运行只编译一次场景）:
          *
          *   editor.value
          *       │
@@ -143,12 +143,12 @@ export class DslApp {
          *       ▼
          *   compileScene(ast)          // 静态缓存 + 默认参数
          *       │
-         *       ├─► paramPanelController.render  // 生成滑块，并维护当前参数值
+         *       ├─► paramPanelController.render  // 生成滑块,并维护当前参数值
          *       │
          *       └─► _applyScene        // 用同一份 scene 更新绘图 / 分析 / 积分
          *
-         * 之后拖动滑块只走 _refreshObjects -> compileScene(ast, currentValues)，
-         * 不会在 run() 里重复编译同一个 AST。
+         * 之后拖动滑块只走 _refreshObjects -> compileScene(ast, currentValues),
+         * 不会在 run() 里重复编译同一个 AST.
          */
         this.diagnosticsController.clear();
         const runId = ++this.runSequence;
@@ -164,7 +164,7 @@ export class DslApp {
             this._applyScene(scene);
             this.diagnosticsController.add(
                 'info',
-                `解析成功:${ast.statements.length} 条语句，${this.compiledObjects.length} 个对象`,
+                `解析成功:${ast.statements.length} 条语句,${this.compiledObjects.length} 个对象`,
             );
 
             for (const analysis of scene.analyses) {
@@ -275,7 +275,7 @@ export class DslApp {
                 this.plotter.updateObject(object, true);
                 this.plotter.applyTransform(object.id, scene.objectTransforms[object.id] ?? null);
             } else {
-                // 引用仍需同步，否则后续其他参数变化时，renderer 手里还拿着旧数据。
+                // 引用仍需同步,否则后续其他参数变化时,renderer 手里还拿着旧数据.
                 this.plotter.updateObject(object, false);
             }
         }
@@ -293,8 +293,8 @@ export class DslApp {
     }
 
     /**
-     * point/vector 的坐标表达式虽然暂时没有 coefficients 字段，
-     * 但它们也可能引用 param，因此参数变化时保守地标记为 dirty。
+     * point/vector 的坐标表达式虽然暂时没有 coefficients 字段,
+     * 但它们也可能引用 param,因此参数变化时保守地标记为 dirty.
      */
     private _objectDependsOnParams(
         object: SceneObject,

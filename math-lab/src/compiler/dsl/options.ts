@@ -1,6 +1,6 @@
 /**
- * 选项与列表解析辅助函数。
- * 从 DslCompiler 拆出，负责 DSL 选项、数字列表和顶层分隔解析。
+ * 选项与列表解析辅助函数.
+ * 从 DslCompiler 拆出,负责 DSL 选项、数字列表和顶层分隔解析.
  */
 import type { OptionPair } from '../ast/types';
 
@@ -49,8 +49,8 @@ export function parsePositiveInteger(
 }
 
 /**
- * 带硬上限的正整数解析。
- * 正整数本身只是类型约束，不能防止用户输入一个会耗尽内存的巨大 segments。
+ * 带硬上限的正整数解析.
+ * 正整数本身只是类型约束,不能防止用户输入一个会耗尽内存的巨大 segments.
  */
 export function parseCappedPositiveInteger(
     raw: string | undefined,
@@ -59,7 +59,7 @@ export function parseCappedPositiveInteger(
 ): number | undefined {
     const value = parsePositiveInteger(raw, context);
     if (value !== undefined && value > max) {
-        throw new Error(`${context} 不能超过 ${max}，当前为 ${raw}`);
+        throw new Error(`${context} 不能超过 ${max},当前为 ${raw}`);
     }
     return value;
 }
@@ -73,9 +73,9 @@ export function parsePositiveIntegerList(raw: string, context: string): number[]
 }
 
 /**
- * 带硬上限的向量场 grid 解析。
- * 单独限制每轴还不够，必须再限制三维点数乘积，避免 1000 * 1000 * 1000
- * 这类在单轴校验下仍可通过的分配炸弹。
+ * 带硬上限的向量场 grid 解析.
+ * 单独限制每轴还不够,必须再限制三维点数乘积,避免 1000 * 1000 * 1000
+ * 这类在单轴校验下仍可通过的分配炸弹.
  */
 export function parseCappedPositiveIntegerList(
     raw: string,
