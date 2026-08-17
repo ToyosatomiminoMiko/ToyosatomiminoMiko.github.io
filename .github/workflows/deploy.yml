@@ -45,11 +45,14 @@ jobs:
       - name: Check Rust lint
         run: npm run lint:rs
 
+      - name: Build WASM
+        run: npm run build:wasm
+
       - name: Run tests
         run: npm test
 
       - name: Build
-        run: npm run build
+        run: npm run build:app
 
       - name: Setup Pages
         uses: actions/configure-pages@v6
