@@ -141,6 +141,7 @@ pub fn sample_curve(
         .map_err(math_error)
 }
 
+#[allow(clippy::too_many_arguments)]
 #[wasm_bindgen]
 pub fn sample_vector_field(
     p_expr: &str,
@@ -276,6 +277,7 @@ pub struct IntegralSampleResult {
     pub m: usize,
 }
 
+#[allow(clippy::too_many_arguments)]
 #[wasm_bindgen]
 pub fn integrate1d(
     expr: &str,
@@ -327,6 +329,7 @@ pub fn integrate1d(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 #[wasm_bindgen]
 pub fn integrate2d(
     expr: &str,
@@ -440,6 +443,7 @@ pub fn evaluate_gradient_point(
     Ok(GradientPointResult { f0, fx, fy })
 }
 
+#[allow(clippy::too_many_arguments)]
 #[wasm_bindgen]
 pub fn evaluate_divergence_point(
     dpx_expr: &str,
@@ -464,6 +468,7 @@ pub fn evaluate_divergence_point(
     .map_err(|e| JsValue::from_str(&e))
 }
 
+#[allow(clippy::too_many_arguments)]
 #[wasm_bindgen]
 pub fn evaluate_curl_point(
     dr_dy_expr: &str,

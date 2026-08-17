@@ -4,7 +4,7 @@ APP: #app_led_clock
 LED Clock
 */
 import { createApp, ref, onMounted, onUnmounted } from 'vue';
-import { fmt_time } from './utils'; // 假设 fmt_time 接受 Date 返回 string
+import { fmt_time } from './utils';
 
 // 定义数字段类型:每个数字由3列组成,每列为5位二进制数
 type DigitSegments = Uint8Array; // 原三元组类型注释保留,实际使用 Uint8Array
@@ -129,8 +129,7 @@ export function mountClock(): void {
             });
 
             return {
-                ledCanvas,
-                formattedTime
+                ledCanvas
             };
         }
     });

@@ -19,6 +19,7 @@ import type {
 } from '../ir/types';
 import { extractCoefficients } from '../../math/objects/coefficientUtils';
 import {
+    assertKnownOptions,
     findOption,
     optionalNumber,
     parseCappedPositiveInteger,
@@ -92,6 +93,12 @@ export type ObjectBlueprint =
     | VectorFieldBlueprint
     | PointBlueprint
     | VectorBlueprint;
+
+const CURVE_OPTION_NAMES = ['color', 'range', 'segments', 'transform'] as const;
+const SURFACE_OPTION_NAMES = ['color', 'range', 'segments', 'transform'] as const;
+const VECTOR_FIELD_OPTION_NAMES = ['color', 'range', 'grid', 'scale', 'transform'] as const;
+const POINT_OPTION_NAMES = ['color', 'transform'] as const;
+const VECTOR_OPTION_NAMES = ['color', 'transform'] as const;
 
 function parseArrayItems(raw: string): MathNode[] | null {
     const node = math.parse(raw);
@@ -195,6 +202,7 @@ export function buildObjectBlueprint(
     );
 
     if (statement.kind === 'curve') {
+        assertKnownOptions(statement.options, CURVE_OPTION_NAMES, `曲线 ${statement.name}`);
         const node = math.parse(statement.expr);
         const rawRange = findOption(statement.options, 'range');
         let range: [number, number] | undefined;
@@ -226,6 +234,7 @@ export function buildObjectBlueprint(
     }
 
     if (statement.kind === 'surface') {
+        assertKnownOptions(statement.options, SURFACE_OPTION_NAMES, `曲面 ${statement.name}`);
         const node = math.parse(statement.expr);
         const rawRange = findOption(statement.options, 'range');
         const rangeValues = rawRange
@@ -261,6 +270,11 @@ export function buildObjectBlueprint(
     }
 
     if (statement.kind === 'vector_field') {
+        assertKnownOptions(
+            statement.options,
+            VECTOR_FIELD_OPTION_NAMES,
+            `向量场 ${statement.name}`,
+        );
         const [nodeP, nodeQ, nodeR] = parseVectorComponents(statement.expr);
         const rawRange = findOption(statement.options, 'range');
         const rangeValues = rawRange
@@ -286,7 +300,10 @@ export function buildObjectBlueprint(
         if (gridValues.length !== 3) {
             throw new Error(`向量场 ${statement.name} 的 grid 需要 3 个数值`);
         }
-        const glyphScale = optionalNumber(findOption(statement.options, 'scale'))
+        const glyphScale = optionalNumber(
+            findOption(statement.options, 'scale'),
+            `向量场 ${statement.name} 的 scale`,
+        )
             ?? NUMERIC_CONFIG.vectorField.defaultGlyphScale;
         return {
             name: statement.name,
@@ -308,6 +325,7 @@ export function buildObjectBlueprint(
     }
 
     if (statement.kind === 'point') {
+        assertKnownOptions(statement.options, POINT_OPTION_NAMES, `点 ${statement.name}`);
         return {
             name: statement.name,
             id,
@@ -318,6 +336,7 @@ export function buildObjectBlueprint(
     }
 
     if (statement.kind === 'vector') {
+        assertKnownOptions(statement.options, VECTOR_OPTION_NAMES, `向量 ${statement.name}`);
         const vector = parseVectorObject(statement.expr, `向量 ${statement.name}`);
         return {
             name: statement.name,

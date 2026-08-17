@@ -116,6 +116,7 @@ pub struct SurfaceSampleResult {
 ///
 /// 返回 `(positions, z_vals, z_min, z_max)`.该函数只负责数值采样,
 /// 不再掺杂颜色映射、索引过滤或法线计算.
+#[allow(clippy::too_many_arguments)]
 fn sample_surface_values(
     expr: &str,
     coeff_names: &[String],
@@ -197,6 +198,7 @@ fn map_surface_colors(z_vals: &[f64], z_min: f64, z_max: f64) -> Vec<f32> {
 }
 
 /// 统一编排采样与后处理,保持对 WASM/Worker 的旧入口签名不变.
+#[allow(clippy::too_many_arguments)]
 pub fn sample_and_process_surface(
     expr: &str,
     coeff_names: &[String],

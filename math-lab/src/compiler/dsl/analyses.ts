@@ -18,7 +18,7 @@ import {
     materializeCoefficients,
     type ObjectBlueprint,
 } from './objects';
-import { parseShowOption } from './options';
+import { assertKnownOptions, parseShowOption } from './options';
 import {
     cachedDerivativeExpression,
     cachedRustExpression,
@@ -59,6 +59,9 @@ export function compileAnalyses(
         if (statement.op === 'jacobian' || statement.op === 'laplacian') {
             throw new Error(`分析算子 ${statement.op} 暂未实现`);
         }
+
+        // 分析声明目前只接受 show；其他字段应作为编译错误暴露。
+        assertKnownOptions(statement.options, ['show'], `分析 ${statement.name}`);
 
         if (blueprint.kind !== 'curve' && blueprint.kind !== 'surface' && blueprint.kind !== 'vector_field') {
             throw new Error(`分析 ${statement.name} 不能应用于 ${blueprint.kind} 类型对象`);

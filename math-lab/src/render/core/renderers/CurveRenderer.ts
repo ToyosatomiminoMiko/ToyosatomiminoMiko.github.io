@@ -46,6 +46,8 @@ const curveRequestClient: RequestClient<CurveRendererRequest, Float32Array> = {
 export class CurveRenderer implements IRenderer {
     readonly group = new THREE.Group();
     private line: THREE.Line | null = null;
+    /** 当前顶点缓冲能容纳的最大顶点数，避免低 segments 创建的 buffer 被高 segments 悄悄截断。 */
+    private capacitySteps = 0;
     private userVisible = true;
     private xRange: [number, number];
     private steps: number;
@@ -102,24 +104,29 @@ export class CurveRenderer implements IRenderer {
     updateRef(curve: CurveObject): void {
         this.curve = curve;
         this.xRange = curve.range ?? ([...NUMERIC_CONFIG.curve.defaultRange] as [number, number]);
-        this.steps = curve.segments ?? NUMERIC_CONFIG.curve.defaultSegments;
+        const nextSteps = curve.segments ?? NUMERIC_CONFIG.curve.defaultSegments;
+
+        // 分段数变大时必须释放旧 line 并重新分配。
+        // 否则 _writeSampled() 只能按旧容量截断，用户会看到一条被裁剪的曲线。
+        if (nextSteps > this.capacitySteps) {
+            this._disposeLine();
+        }
+
+        this.steps = nextSteps;
     }
 
     dispose(): void {
         this.disposed = true;
         this.executor.dispose();
-        if (this.line) {
-            this.line.geometry?.dispose();
-            const mat = this.line.material;
-            (Array.isArray(mat) ? mat : [mat]).forEach((material) => material?.dispose());
-            this.line = null;
-        }
+        this._disposeLine();
     }
 
     private _ensureLine(): THREE.BufferAttribute {
-        if (this.line) {
+        if (this.line && this.capacitySteps >= this.steps) {
             return this.line.geometry.attributes.position as THREE.BufferAttribute;
         }
+
+        this._disposeLine();
 
         const geometry = new THREE.BufferGeometry();
         const maxVerts = this.steps + 2;
@@ -135,7 +142,19 @@ export class CurveRenderer implements IRenderer {
         });
         this.line = new THREE.Line(geometry, material);
         this.group.add(this.line);
+        this.capacitySteps = this.steps;
         return geometry.attributes.position as THREE.BufferAttribute;
+    }
+
+    private _disposeLine(): void {
+        if (!this.line) return;
+
+        this.group.remove(this.line);
+        this.line.geometry?.dispose();
+        const mat = this.line.material;
+        (Array.isArray(mat) ? mat : [mat]).forEach((material) => material?.dispose());
+        this.line = null;
+        this.capacitySteps = 0;
     }
 
     private _writeSampled(sampled: Float32Array, target: Float32Array): number {

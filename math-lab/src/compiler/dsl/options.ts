@@ -10,6 +10,31 @@ export function findOption(options: OptionPair[], name: string): string | undefi
     return options.find((item) => item.name === name)?.value;
 }
 
+/**
+ * DSL option 白名单校验.
+ *
+ * 数学工具最危险的行为不是报错，而是用户写错一个字段后静默使用默认值。
+ * 这里同时拒绝未知选项和重复选项，让编译期错误尽量靠近源码问题。
+ */
+export function assertKnownOptions(
+    options: OptionPair[],
+    allowedNames: readonly string[],
+    context: string,
+): void {
+    const allowed = new Set<string>(allowedNames);
+    const seen = new Set<string>();
+
+    for (const option of options) {
+        if (!allowed.has(option.name)) {
+            throw new Error(`${context} 包含未知选项: ${option.name}`);
+        }
+        if (seen.has(option.name)) {
+            throw new Error(`${context} 包含重复选项: ${option.name}`);
+        }
+        seen.add(option.name);
+    }
+}
+
 export function stripQuotes(value: string): string {
     return value.replace(/^["']|["']$/g, '');
 }
@@ -30,10 +55,16 @@ export function parseNumberList(raw: string, context: string): number[] {
     return values;
 }
 
-export function optionalNumber(raw: string | undefined): number | undefined {
+export function optionalNumber(
+    raw: string | undefined,
+    context: string,
+): number | undefined {
     if (raw === undefined) return undefined;
     const value = Number(raw);
-    return Number.isFinite(value) ? value : undefined;
+    if (!Number.isFinite(value)) {
+        throw new Error(`${context} 不是有效数字: ${raw}`);
+    }
+    return value;
 }
 
 export function parsePositiveInteger(
@@ -106,20 +137,46 @@ export function toFiniteNumber(raw: string, context: string): number {
     return value;
 }
 
+/**
+ * 解析 boolean 选项.
+ *
+ * 这里只接受明确的 true/false；空字符串、1/0、yes/no 都属于 DSL 错误。
+ */
+export function parseBooleanOption(
+    options: OptionPair[],
+    name: string,
+    context: string,
+    defaultValue: boolean,
+): boolean {
+    const raw = findOption(options, name);
+    if (raw === undefined) return defaultValue;
+
+    const normalized = raw.trim();
+    if (normalized === 'true') return true;
+    if (normalized === 'false') return false;
+    throw new Error(`${context} 只能是 true 或 false，当前为 ${raw}`);
+}
+
 export function parseShowOption(
     options: OptionPair[],
 ): Array<'point' | 'normal' | 'tangent_plane'> {
     const raw = findOption(options, 'show');
     if (!raw) return ['point', 'normal'];
 
-    const items = raw
-        .replace(/[[\]]/g, '')
-        .split(',')
-        .map((item) => item.trim())
-        .filter((item): item is 'point' | 'normal' | 'tangent_plane' =>
-            SHOW_KINDS.has(item),
-        );
-    return items.length > 0 ? items : ['point', 'normal'];
+    // 不再过滤未知项。show 里的拼写错误必须直接报错，
+    // 否则 gradient 的 normal/tangent_plane 可能被用户误认为已经绘制。
+    const items = raw.replace(/[[\]]/g, '').split(',').map((item) => item.trim());
+    if (items.length === 0 || items.some((item) => item.length === 0)) {
+        throw new Error(`show 选项不能为空: ${raw}`);
+    }
+
+    for (const item of items) {
+        if (!SHOW_KINDS.has(item)) {
+            throw new Error(`show 选项包含未知种类: ${item}`);
+        }
+    }
+
+    return items as Array<'point' | 'normal' | 'tangent_plane'>;
 }
 
 export function splitTopLevel(source: string, separator: string): string[] {

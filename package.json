@@ -22,6 +22,8 @@
     "dev": "vite",
     "build": "npm run build:wasm && npm run typecheck && vite build",
     "build:wasm": "cd math-lab/src/math/math_rs && wasm-pack build --target web --out-dir ../../wasm/math_rs && cd ../../compiler/compiler_rs && wasm-pack build --target web --out-dir ../../wasm/compiler_rs && cd ../../render/render_rs && wasm-pack build --target web --out-dir ../../wasm/render_rs",
+    "lint:rs": "cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings",
+    "check": "npm run typecheck && npm test && npm run lint:rs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

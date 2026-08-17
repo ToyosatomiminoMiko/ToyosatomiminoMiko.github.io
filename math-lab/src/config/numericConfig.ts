@@ -44,19 +44,37 @@ export const NUMERIC_CONFIG = {
         zero: 1e-12,
     },
     limits: {
+        // 曲线只有一维采样，20k 顶点仍是可控的线性缓冲；
+        // 真正的风险在曲面、向量场与二维积分，不在曲线。
         curve: {
             maxSegments: 20_000,
         },
         surface: {
-            maxSegments: 1_024,
+            // 512 段时：(512+1)^2 个顶点。
+            // 若继续放到 1024，主线程索引与 WASM 结果双缓冲会同时膨胀，
+            // 因此这里先压回一个更可预测的峰值。
+            maxSegments: 512,
         },
         vectorField: {
-            maxAxisGrid: 512,
-            maxTotalGridPoints: 2_000_000,
+            // 向量场每个箭头在主线程生成两套实例矩阵，
+            // 单轴和总点数必须同时限制；100k 点比 200 万点更接近 Web 现实。
+            maxAxisGrid: 128,
+            maxTotalGridPoints: 100_000,
         },
         integral: {
-            maxSegments: 2_048,
-            maxLayers: 256,
+            // 数值计算与可视化预算分开。
+            // 一维积分可以允许更高分段，二维积分是 O(n^2) 采样，必须单独压低。
+            maxSegments1D: 8_192,
+            maxSegments2D: 256,
+            maxLayers: 128,
+            // 以下三个值只约束“可视化”，不改变数值积分结果。
+            // 数值结果仍按 task.segments 在 Worker 中计算，只是绘制时降采样。
+            maxVisualizationSegments1D: 512,
+            maxVisualizationSegments2D: 128,
+            maxLebesgueVisualizationSamples1D: 4_096,
+            maxLebesgueVisualizationResolution2D: 192,
+            maxVisualizationLayers: 32,
+            maxVisualizationBars: 100_000,
         },
     },
     colorPalette: [

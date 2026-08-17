@@ -18,6 +18,7 @@ pub struct SurfaceSampleResult {
     pub z_max: f64,
 }
 
+#[allow(clippy::too_many_arguments)]
 #[wasm_bindgen]
 pub fn sample_and_process_surface(
     expr: &str,

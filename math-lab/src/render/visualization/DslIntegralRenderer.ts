@@ -1,9 +1,14 @@
 import * as THREE from 'three';
-import { NUMERIC_CONFIG } from '../../config/numericConfig';
 import type { IntegralTask, SceneObject } from '../../compiler/ir/types';
 import { IntegralVisualizer } from './IntegralVisualizer';
 import type { MathComputeEngine } from '../../math/compute/MathComputeEngine';
 import type { IntegralResult } from '../../math/compute/IntegralWasm';
+import {
+    clampIntegral1DVisualization,
+    clampIntegral2DVisualization,
+    clampLebesgue1DVisualization,
+    clampLebesgue2DVisualization,
+} from '../../config/resourceBudget';
 
 export type IntegralDiagnosticFn = (
     level: 'info' | 'warning' | 'error' | 'log',
@@ -88,7 +93,7 @@ export class DslIntegralRenderer {
                 if (this.disposed || this.taskSequences.get(task.name) !== taskSequence) return;
 
                 if (task.show) {
-                    this._visualize(task, source, result);
+                    this._visualize(task, source, result, diagnostics);
                 }
                 diagnostics('info', `积分 ${task.name}: S = ${value.toFixed(6)}`);
             } catch (error) {
@@ -105,53 +110,77 @@ export class DslIntegralRenderer {
         task: IntegralTask,
         source: Extract<SceneObject, { kind: 'curve' | 'surface' }>,
         result: IntegralResult,
+        diagnostics: IntegralDiagnosticFn,
     ): void {
         if (source.kind === 'curve') {
             const [a, b] = task.range as [number, number];
             const fn = this._makeFn1D(a, b, result);
             const segments = task.segments;
+
             switch (task.method) {
                 case 'riemann':
-                    this.visualizer.visualize2DRiemann(
-                        source,
-                        fn,
-                        a,
-                        b,
-                        segments,
-                        task.name,
-                    );
-                    break;
                 case 'trapezoid':
-                    this.visualizer.visualize2DTrapezoid(
-                        source,
-                        fn,
-                        a,
-                        b,
-                        segments,
-                        task.name,
-                    );
+                case 'simpson': {
+                    const visual = clampIntegral1DVisualization(segments);
+                    if (visual.decimated) {
+                        diagnostics(
+                            'warning',
+                            `积分 ${task.name} 的绘图分段已从 ${segments} 降采样到 ${visual.segments}`,
+                        );
+                    }
+
+                    if (task.method === 'riemann') {
+                        this.visualizer.visualize2DRiemann(
+                            source,
+                            fn,
+                            a,
+                            b,
+                            visual.segments,
+                            task.name,
+                        );
+                    } else if (task.method === 'trapezoid') {
+                        this.visualizer.visualize2DTrapezoid(
+                            source,
+                            fn,
+                            a,
+                            b,
+                            visual.segments,
+                            task.name,
+                        );
+                    } else {
+                        this.visualizer.visualize2DSimpson(
+                            source,
+                            fn,
+                            a,
+                            b,
+                            visual.segments,
+                            task.name,
+                        );
+                    }
                     break;
-                case 'simpson':
-                    this.visualizer.visualize2DSimpson(
-                        source,
-                        fn,
-                        a,
-                        b,
+                }
+                case 'lebesgue': {
+                    const visualLebesgue1D = clampLebesgue1DVisualization(
                         segments,
-                        task.name,
+                        task.layers,
                     );
-                    break;
-                case 'lebesgue':
+                    if (visualLebesgue1D.decimated) {
+                        diagnostics(
+                            'warning',
+                            `积分 ${task.name} 的勒贝格绘图已降采样为 sampleN=${visualLebesgue1D.sampleN}, layers=${visualLebesgue1D.layers}`,
+                        );
+                    }
                     this.visualizer.visualize2DLebesgue(
                         source,
                         fn,
                         a,
                         b,
-                        task.layers,
-                        segments * NUMERIC_CONFIG.integral.lebesgueOversample1D,
+                        visualLebesgue1D.layers,
+                        visualLebesgue1D.sampleN,
                         task.name,
                     );
                     break;
+                }
             }
             return;
         }
@@ -159,51 +188,74 @@ export class DslIntegralRenderer {
         const [xMin, xMax, yMin, yMax] = task.range as [number, number, number, number];
         const fn = this._makeFn2D(xMin, xMax, yMin, yMax, result);
         const segments = task.segments;
+
         switch (task.method) {
             case 'riemann':
-                this.visualizer.visualize3DRiemann(
-                    source,
-                    fn,
-                    [xMin, xMax],
-                    [yMin, yMax],
-                    segments,
-                    segments,
-                    task.name,
-                );
-                break;
             case 'trapezoid':
-                this.visualizer.visualize3DTrapezoid(
-                    source,
-                    fn,
-                    [xMin, xMax],
-                    [yMin, yMax],
-                    segments,
-                    segments,
-                    task.name,
-                );
+            case 'simpson': {
+                const visual = clampIntegral2DVisualization(segments);
+                if (visual.decimated) {
+                    diagnostics(
+                        'warning',
+                        `积分 ${task.name} 的二维绘图每轴已从 ${segments} 降采样到 ${visual.segments}`,
+                    );
+                }
+
+                if (task.method === 'riemann') {
+                    this.visualizer.visualize3DRiemann(
+                        source,
+                        fn,
+                        [xMin, xMax],
+                        [yMin, yMax],
+                        visual.segments,
+                        visual.segments,
+                        task.name,
+                    );
+                } else if (task.method === 'trapezoid') {
+                    this.visualizer.visualize3DTrapezoid(
+                        source,
+                        fn,
+                        [xMin, xMax],
+                        [yMin, yMax],
+                        visual.segments,
+                        visual.segments,
+                        task.name,
+                    );
+                } else {
+                    this.visualizer.visualize3DSimpson(
+                        source,
+                        fn,
+                        [xMin, xMax],
+                        [yMin, yMax],
+                        visual.segments,
+                        visual.segments,
+                        task.name,
+                    );
+                }
                 break;
-            case 'simpson':
-                this.visualizer.visualize3DSimpson(
-                    source,
-                    fn,
-                    [xMin, xMax],
-                    [yMin, yMax],
+            }
+            case 'lebesgue': {
+                const visualLebesgue2D = clampLebesgue2DVisualization(
                     segments,
-                    segments,
-                    task.name,
+                    task.layers,
                 );
-                break;
-            case 'lebesgue':
+                if (visualLebesgue2D.decimated) {
+                    diagnostics(
+                        'warning',
+                        `积分 ${task.name} 的二维勒贝格绘图已降采样为 res=${visualLebesgue2D.res}, layers=${visualLebesgue2D.layers}`,
+                    );
+                }
                 this.visualizer.visualize3DLebesgue(
                     source,
                     fn,
                     [xMin, xMax],
                     [yMin, yMax],
-                    task.layers,
-                    segments * NUMERIC_CONFIG.integral.lebesgueOversample2D,
+                    visualLebesgue2D.layers,
+                    visualLebesgue2D.res,
                     task.name,
                 );
                 break;
+            }
         }
     }
 

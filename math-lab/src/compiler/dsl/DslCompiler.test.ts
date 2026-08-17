@@ -8,6 +8,7 @@ import {
     evaluate_scalar,
 } from '../../wasm/math_rs/math_rs';
 import type { AstProgram } from '../ast/types';
+import { toRustExpression } from './expression';
 
 vi.mock('../../wasm/math_rs/math_rs', () => ({
     evaluate_gradient_point: vi.fn(() => ({ f0: 0, fx: 0, fy: 0 })),
@@ -95,6 +96,10 @@ const ast: AstProgram = {
         },
     ],
 };
+
+it('rewrites mathjs log() to the Rust ln() symbol', () => {
+    expect(toRustExpression(math.parse('log(x)'))).toBe('ln(x)');
+});
 
 describe('compileScene', () => {
     it('compiles core DSL objects and integral state', () => {
@@ -296,6 +301,64 @@ describe('compileScene', () => {
         };
 
         expect(() => compileScene(badGridAst)).toThrow('向量场 F 的 grid 中的每个值都必须是正整数: [0, 8, 8]');
+    });
+
+    it('rejects unknown object options instead of silently ignoring them', () => {
+        const badAst: AstProgram = {
+            statements: [
+                {
+                    type: 'object',
+                    kind: 'curve',
+                    name: 'c',
+                    expr: 'sin(x)',
+                    options: [{ name: 'segmetns', value: '128' }],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        expect(() => compileScene(badAst)).toThrow('曲线 c 包含未知选项: segmetns');
+    });
+
+    it('rejects unknown show items instead of silently filtering them', () => {
+        const badAst: AstProgram = {
+            statements: [
+                ast.statements[2],
+                {
+                    type: 'analysis',
+                    op: 'gradient',
+                    name: 'g',
+                    call: 'grad',
+                    source: 'c',
+                    at: ['1'],
+                    options: [{ name: 'show', value: '[point, nromal]' }],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        expect(() => compileScene(badAst)).toThrow('show 选项包含未知种类: nromal');
+    });
+
+    it('uses a separate, safer cap for 2D integral segments', () => {
+        const badAst: AstProgram = {
+            statements: [
+                ast.statements[3],
+                {
+                    type: 'integral',
+                    name: 'I2D',
+                    source: 's',
+                    options: [
+                        { name: 'method', value: 'trapezoid' },
+                        { name: 'range', value: '[-1, 1, -1, 1]' },
+                        { name: 'segments', value: '300' },
+                    ],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        expect(() => compileScene(badAst)).toThrow('积分 I2D 的 segments 不能超过 256');
     });
 
     it('rejects analysis points with fewer coordinates than the operator needs', () => {

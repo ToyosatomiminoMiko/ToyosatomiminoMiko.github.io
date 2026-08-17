@@ -41,6 +41,7 @@ pub fn sample_curve(
 ///
 /// 返回扁平数组 `[vx, vy, vz, vx, vy, vz, ...]`,长度为 `nx * ny * nz * 3`.
 /// 单个分量非有限值时按 0 处理,便于渲染层隐藏零向量箭头.
+#[allow(clippy::too_many_arguments)]
 pub fn sample_vector_field(
     p_expr: &str,
     q_expr: &str,
@@ -154,6 +155,9 @@ pub fn sample_function_1d(
     }
 }
 
+/// 参数较多是因为这是纯函数采样核心；当前不引入请求结构体，
+/// 保持与 WASM 边界的扁平参数一一对应，便于定位 FFI 问题。
+#[allow(clippy::too_many_arguments)]
 pub fn sample_function_2d(
     expr: &str,
     coeff_names: &[String],

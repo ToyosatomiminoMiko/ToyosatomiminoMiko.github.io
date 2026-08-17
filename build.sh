@@ -10,8 +10,8 @@ err()  { echo "[ERR][$(date '+%Y.%m.%d.%H:%M:%S')] $*" >&2; }
 
 trap 'err "Build failed at line $LINENO"' ERR
 
-log "testing..."
-npm test
+log "checking typecheck, tests, rustfmt and clippy..."
+npm run check
 
 log "building..."
 

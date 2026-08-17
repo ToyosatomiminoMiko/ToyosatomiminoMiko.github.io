@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import type { Coefficient } from '../../compiler/ir/types';
 import { RENDER_CONFIG } from '../../config/renderConfig';
-import { generate_full_indices } from './SurfaceMeshWasm';
 import {
     surfaceComputeClient,
 } from '../../math/compute/workers/SurfaceComputeClient';
@@ -67,9 +66,12 @@ export class SurfaceMesh {
         this.geometry.setAttribute(
             'normal', new THREE.BufferAttribute(normalArray, 3));
 
-        // 初始索引用全网格(包含所有三角形),后续 update 时会根据 NaN 动态剔除
-        const fullIndices = generate_full_indices(cols, rows);
-        this.geometry.setIndex(fullIndices);
+        // 初始索引保持为空，等第一次 Worker 结果带回有效索引再设置。
+        //
+        // 这里不再生成 cols*rows*6 个 u32 的完整索引：
+        // 该数组在主线程会再被复制成 JS number[]，随后很快被 Worker 的
+        // 有效索引替换，属于一次完全没有收益的大块分配。
+        this.geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(0), 1));
 
         // 材质:Phong + 顶点颜色 + 双面渲染
         this.material = new THREE.MeshPhongMaterial({
@@ -164,8 +166,8 @@ export class SurfaceMesh {
         normalAttr.array.set(result.normals);
         normalAttr.needsUpdate = true;
 
-        // 索引更新:优先复用已有 BufferAttribute,只写数据;
-        // 只有在 NaN 剔除导致索引数量变化时才重新创建
+        // 索引更新：优先复用已有 BufferAttribute，只写数据；
+        // 首帧 currentIndex 为空，会在这里创建真正的有效索引。
         const validIndices = result.validIndices;
         const currentIndex = this.geometry.index as THREE.BufferAttribute | null;
         if (currentIndex && currentIndex.count === validIndices.length) {

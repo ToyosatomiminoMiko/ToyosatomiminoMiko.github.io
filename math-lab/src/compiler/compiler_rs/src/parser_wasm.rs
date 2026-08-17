@@ -117,7 +117,7 @@ fn param_ui(pair: &Pair<'_, Rule>) -> Option<ParamUi> {
                 .map(|child| child.as_str().to_string())
                 .collect();
             ParamUi {
-                min: nums.get(0).cloned().unwrap_or_default(),
+                min: nums.first().cloned().unwrap_or_default(),
                 max: nums.get(1).cloned().unwrap_or_default(),
                 step: nums.get(2).cloned().unwrap_or_default(),
             }

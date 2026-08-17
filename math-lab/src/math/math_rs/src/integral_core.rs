@@ -99,14 +99,14 @@ pub fn simpson1d_from_values(values: &[f64], a: f64, b: f64) -> Result<f64, Stri
     require_finite_values(values)?;
 
     let n = values.len() - 1;
-    if n % 2 != 0 {
+    if !n.is_multiple_of(2) {
         return Err("辛普森法要求 N 必须为偶数".to_string());
     }
 
     let h = (b - a) / n as f64;
     let mut sum = values[0] + values[n];
-    for i in 1..n {
-        sum += simpson_weight(i, n) * values[i];
+    for (i, value) in values.iter().enumerate().take(n).skip(1) {
+        sum += simpson_weight(i, n) * value;
     }
     Ok((h / 3.0) * sum)
 }
@@ -202,7 +202,7 @@ pub fn simpson2d_from_values(
     if n == 0 || m == 0 {
         return Err("二维辛普森法要求 n 和 m 均大于 0".to_string());
     }
-    if n % 2 != 0 || m % 2 != 0 {
+    if !n.is_multiple_of(2) || !m.is_multiple_of(2) {
         return Err("二维辛普森法要求 N 和 M 必须为偶数".to_string());
     }
     let expected = (n + 1) * (m + 1);

@@ -112,6 +112,7 @@ pub fn evaluate_gradient_point(
 ///
 /// # 返回
 /// 散度值 `∇·F`
+#[allow(clippy::too_many_arguments)]
 pub fn evaluate_divergence_point(
     dpx_expr: &str,
     dqy_expr: &str,
@@ -158,6 +159,7 @@ pub fn evaluate_divergence_point(
 ///
 /// # 返回
 /// `(curl_x, curl_y, curl_z)`,即旋度的三个分量
+#[allow(clippy::too_many_arguments)]
 pub fn evaluate_curl_point(
     dr_dy_expr: &str,
     dq_dz_expr: &str,
