@@ -45,7 +45,7 @@ export class SurfaceRenderer implements IRenderer {
             this.mesh = new SurfaceMesh(this.segments, this.segments);
             this.group.add(this.mesh.group);
         }
-        // SurfaceMesh 只接受字符串表达式,因此这里把已经解析好的 mathjs MathNode
+        // SurfaceMesh 只接受字符串表达式,因此这里直接传递归一化后的表达式字符串。
         // 重新序列化成字符串,避免在渲染器里保留编译函数.
         // 注意:toString 只是序列化,不会把 e^x 自动转换成 exp(x)；
         // evalexpr 能否解析由表达式来源保证,不能把兼容性归因到这一步.

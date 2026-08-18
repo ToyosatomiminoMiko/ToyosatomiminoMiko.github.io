@@ -7,9 +7,8 @@ import type {
     IntegralTask,
     SceneObject,
 } from '../../compiler/ir/types';
-import * as math from 'mathjs';
 import { NUMERIC_CONFIG } from '../../config/numericConfig';
-import { compilationCache } from '../objects/CompilationCache';
+import { evaluateScalar } from '../../compiler/dsl/expression';
 import {
     lebesgue1d,
     lebesgue2d,
@@ -107,14 +106,6 @@ export class MathComputeEngine {
 
     private _sampleCurveFallback(request: CurveSampleRequest): Float32Array {
         const [xMin, xMax] = request.range;
-        const coeffsKey = request.coefficients
-            .map((coefficient) => `${coefficient.name}=${coefficient.value}`)
-            .join(',');
-        const compiled = compilationCache.getByExpr(
-            request.expr,
-            coeffsKey,
-            () => math.parse(request.expr).compile(),
-        );
         const scope: Record<string, number> = {};
         for (const coefficient of request.coefficients) {
             scope[coefficient.name] = coefficient.value;
@@ -125,13 +116,9 @@ export class MathComputeEngine {
         for (let i = 0; i <= request.segments; i += 1) {
             const x = xMin + i * step;
             scope.x = x;
-            try {
-                const y = compiled.evaluate(scope);
-                if (typeof y === 'number' && Number.isFinite(y)) {
-                    values.push(x, y, 0);
-                }
-            } catch {
-                // 跳过奇异点
+            const y = evaluateScalar(request.expr, scope);
+            if (typeof y === 'number' && Number.isFinite(y)) {
+                values.push(x, y, 0);
             }
         }
         return new Float32Array(values);

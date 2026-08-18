@@ -152,9 +152,14 @@ export function parseBooleanOption(
     if (raw === undefined) return defaultValue;
 
     const normalized = raw.trim();
-    if (normalized === 'true') return true;
-    if (normalized === 'false') return false;
-    throw new Error(`${context} 只能是 true 或 false，当前为 ${raw}`);
+    switch (normalized) {
+        case 'true':
+            return true;
+        case 'false':
+            return false;
+        default:
+            throw new Error(`${context} 只能是 true 或 false，当前为 ${raw}`);
+    }
 }
 
 export function parseShowOption(

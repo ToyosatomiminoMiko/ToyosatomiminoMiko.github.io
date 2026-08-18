@@ -4,6 +4,7 @@ pub mod eval_core;
 pub mod field_core;
 pub mod integral_core;
 pub mod sampling_core;
+pub mod symbolic;
 pub mod transform_core;
 
 use wasm_bindgen::prelude::*;
@@ -417,6 +418,35 @@ pub fn evaluate_scalar(
 ) -> Result<f64, JsValue> {
     field_core::evaluate_scalar(expr, &coeff_names, &coeff_values, x, y, z)
         .map_err(|e| JsValue::from_str(&e))
+}
+
+// ================================================================
+// 符号解析 / 求导 / 变量提取 / 数组与矩阵解析
+// ================================================================
+
+#[wasm_bindgen]
+pub fn normalize_expression(expr: &str) -> Result<String, JsValue> {
+    symbolic::normalize_expression(expr).map_err(|e| JsValue::from_str(&e))
+}
+
+#[wasm_bindgen]
+pub fn symbolic_derivative(expr: &str, variable: &str) -> Result<String, JsValue> {
+    symbolic::symbolic_derivative(expr, variable).map_err(|e| JsValue::from_str(&e))
+}
+
+#[wasm_bindgen]
+pub fn symbolic_variables(expr: &str, exclude: Vec<String>) -> Result<Vec<String>, JsValue> {
+    symbolic::symbolic_variables(expr, &exclude).map_err(|e| JsValue::from_str(&e))
+}
+
+#[wasm_bindgen]
+pub fn parse_array_strings(expr: &str) -> Result<String, JsValue> {
+    symbolic::parse_array_strings(expr).map_err(|e| JsValue::from_str(&e))
+}
+
+#[wasm_bindgen]
+pub fn matrix4_from_expr(expr: &str) -> Result<Vec<f64>, JsValue> {
+    symbolic::matrix4_from_expr(expr).map_err(|e| JsValue::from_str(&e))
 }
 
 #[wasm_bindgen]

@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest';
-import * as math from 'mathjs';
 import { compileScene } from './DslCompiler';
 import {
     evaluate_curl_point,
@@ -14,6 +13,55 @@ vi.mock('../../wasm/math_rs/math_rs', () => ({
     evaluate_gradient_point: vi.fn(() => ({ f0: 0, fx: 0, fy: 0 })),
     evaluate_divergence_point: vi.fn(() => 0),
     evaluate_curl_point: vi.fn(() => ({ x: 0, y: 0, z: 0 })),
+    normalize_expression: vi.fn((expr: string) => {
+        switch (expr) {
+            case 'sin(x*a)':
+                return 'sin(x * a)';
+            case 'sin(x)*cos(y)':
+                return 'sin(x) * cos(y)';
+            case 'log(x)':
+                return 'ln(x)';
+            default:
+                return expr;
+        }
+    }),
+    symbolic_derivative: vi.fn((expr: string, variable: string) => {
+        switch (expr) {
+            case 'sin(x * a)':
+                return variable === 'x' ? 'a * cos(x * a)' : '1';
+            case 'sin(x) * cos(y)':
+                return variable === 'x' ? 'cos(y) * cos(x)' : '-(sin(x) * sin(y))';
+            case '-x':
+                return variable === 'x' ? '-1' : '0';
+            case 'y':
+                return variable === 'y' ? '1' : '0';
+            case '0':
+                return '0';
+            default:
+                return '1';
+        }
+    }),
+    symbolic_variables: vi.fn((expr: string, exclude: string[]) => {
+        const excluded = new Set(exclude);
+        return expr
+            .split(/[^A-Za-z_]/)
+            .filter((name) => name && !excluded.has(name) && !['sin', 'cos'].includes(name));
+    }),
+    parse_array_strings: vi.fn((expr: string) => {
+        switch (expr) {
+            case '[y, -x, 0]':
+                return '["y", "-x", "0"]';
+            case '[a, 1, 0]':
+                return '["a", "1", "0"]';
+            case '[[1, 2, 3], [a, 0, 1]]':
+                return '[["1", "2", "3"], ["a", "0", "1"]]';
+            case '[0, a, 0]':
+                return '["0", "a", "0"]';
+            default:
+                return '[]';
+        }
+    }),
+    matrix4_from_expr: vi.fn(() => [1, 0, 0, 2, 0, 1, 0, 3, 0, 0, 1, 4, 0, 0, 0, 1]),
     evaluate_scalar: vi.fn((
         expr: string,
         names: string[],
@@ -26,7 +74,13 @@ vi.mock('../../wasm/math_rs/math_rs', () => ({
         names.forEach((name, index) => {
             scope[name] = values[index];
         });
-        return math.evaluate(expr, scope);
+        scope.pi = Math.PI;
+        scope.e = Math.E;
+        const fn = new Function(
+            ...Object.keys(scope),
+            `return (${expr});`,
+        );
+        return fn(...Object.values(scope));
     }),
 }));
 
@@ -97,8 +151,8 @@ const ast: AstProgram = {
     ],
 };
 
-it('rewrites mathjs log() to the Rust ln() symbol', () => {
-    expect(toRustExpression(math.parse('log(x)'))).toBe('ln(x)');
+it('normalizes log() to the Rust ln() symbol', () => {
+    expect(toRustExpression('log(x)')).toBe('ln(x)');
 });
 
 describe('compileScene', () => {

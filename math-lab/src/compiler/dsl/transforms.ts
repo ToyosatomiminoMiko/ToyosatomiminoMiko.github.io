@@ -1,53 +1,25 @@
 /**
- * 场景矩阵与变换解析.
- * 负责 DSL 中的 matrix/transform 表达式和对象 transform 解析.
+ * 场景矩阵与变换解析。
+ *
+ * 矩阵语法解析与常量求值由 Rust/WASM 完成；这里只负责把扁平的 16 个
+ * 数值重新组织为 Mat4，并解析 DSL 的 transform 组合语法。
  */
-import * as math from 'mathjs';
-import type { MathNode } from 'mathjs';
 import type { MatrixOps } from '../../math/tensor/SceneTransform';
-import { evaluateMathNode, evaluateNumber } from './expression';
+import { evaluateMatrixExpr, evaluateNumber } from './expression';
 import { splitTopLevel } from './options';
 
 export type Mat4 = number[][];
 
-function arrayItems(node: MathNode): MathNode[] {
-    return (node as unknown as { items: MathNode[] }).items;
-}
-
-function matrixEntry(node: MathNode): number | null {
-    return evaluateMathNode(node);
-}
-
-function matrixFromNode(node: MathNode): Mat4 | null {
-    let source = node;
-    if (source.type === 'FunctionNode') {
-        const call = source as unknown as {
-            fn?: { name?: string };
-            args?: MathNode[];
-        };
-        if (call.fn?.name === 'matrix' && call.args?.length === 1) {
-            source = call.args[0];
-        }
-    }
-
-    if (source.type !== 'ArrayNode') return null;
-    const rows = arrayItems(source).map((row) => {
-        if (row.type !== 'ArrayNode') return null;
-        return arrayItems(row).map(matrixEntry);
-    });
-
-    if (rows.some((row) => row === null || row.some((entry) => entry === null))) {
+function flatToMat4(values: number[]): Mat4 | null {
+    if (values.length !== 16 || values.some((value) => !Number.isFinite(value))) {
         return null;
     }
-
-    const matrix = rows as number[][];
-    if (
-        matrix.length === 4
-        && matrix.every((row) => row.length === 4 && row.every(Number.isFinite))
-    ) {
-        return matrix as Mat4;
-    }
-    return null;
+    return [
+        values.slice(0, 4),
+        values.slice(4, 8),
+        values.slice(8, 12),
+        values.slice(12, 16),
+    ];
 }
 
 export function cloneMat4(matrix: Mat4): Mat4 {
@@ -56,7 +28,7 @@ export function cloneMat4(matrix: Mat4): Mat4 {
 
 export function evaluateMatrix(raw: string): Mat4 | null {
     try {
-        return matrixFromNode(math.parse(raw));
+        return flatToMat4(evaluateMatrixExpr(raw));
     } catch {
         return null;
     }
@@ -70,9 +42,16 @@ function parseTransformFunction(part: string, ops: MatrixOps): Mat4 | null {
     if (values.some((value) => value === null) || values.length !== 3) return null;
     const numbers = values as number[];
 
-    if (match[1] === 'translate') return ops.translate(numbers);
-    if (match[1] === 'scale') return ops.scale(numbers);
-    return ops.rotate(numbers);
+    switch (match[1]) {
+        case 'translate':
+            return ops.translate(numbers);
+        case 'scale':
+            return ops.scale(numbers);
+        case 'rotate':
+            return ops.rotate(numbers);
+        default:
+            return null;
+    }
 }
 
 export function parseTransformExpression(

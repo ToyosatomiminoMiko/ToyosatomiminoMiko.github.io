@@ -1,6 +1,6 @@
 /**
  * 积分计算 Worker.
- * 采样、求值与积分值计算全部由 Rust/WASM 完成,不再使用 mathjs.
+ * 采样、求值与积分值计算全部由 Rust/WASM 完成,不再使用外部 JS 数学库。
  */
 import init, {
     integrate1d,

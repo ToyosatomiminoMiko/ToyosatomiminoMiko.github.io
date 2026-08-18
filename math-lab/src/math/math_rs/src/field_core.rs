@@ -6,7 +6,7 @@ use crate::eval_core::{build_base_context, compile_expression, evaluate_node, se
 // field_core — 标量场 / 向量场的梯度\散度\旋度数值核心
 //
 // 架构流程:
-//   mathjs 负责解析表达式并生成符号偏导表达式
+//   Rust 符号引擎负责解析表达式并生成符号偏导表达式
 //     -> Rust 负责在给定点和系数下做数值求值
 //     -> wasm-bindgen 暴露给 Worker / 主线程
 //
@@ -35,7 +35,7 @@ fn build_context_with_point(
 /// 在给定系数和坐标下求值一个标量表达式.
 ///
 /// 该接口供编译期仍然需要在 TS 侧完成的 point / vector 坐标、transform
-/// 参数以及 analysis `at` 坐标使用,避免这些数值求值继续走 mathjs.
+/// 参数以及 analysis `at` 坐标使用,避免这些数值求值依赖外部 JS 数学库.
 pub fn evaluate_scalar(
     expr: &str,
     coeff_names: &[String],

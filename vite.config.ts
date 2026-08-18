@@ -18,6 +18,6 @@ export default defineConfig({
         },
     },
     optimizeDeps: {
-        include: ['three', 'mathjs'],
+        include: ['three'],
     },
 });

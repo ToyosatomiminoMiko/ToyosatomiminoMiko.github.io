@@ -120,9 +120,9 @@ export function compileAnalyses(
             const isCurve = blueprint.kind === 'curve';
             const [coeffNames, coeffValues] = coefficientArgs({ coefficients });
             const result = wasmEvaluateGradientPoint(
-                cachedRustExpression(blueprint.node),
-                cachedDerivativeExpression(blueprint.node, 'x'),
-                isCurve ? '0' : cachedDerivativeExpression(blueprint.node, 'y'),
+                cachedRustExpression(blueprint.expr),
+                cachedDerivativeExpression(blueprint.expr, 'x'),
+                isCurve ? '0' : cachedDerivativeExpression(blueprint.expr, 'y'),
                 coeffNames,
                 coeffValues,
                 at[0],
@@ -146,9 +146,9 @@ export function compileAnalyses(
 
             if (statement.op === 'divergence') {
                 const scalar = wasmEvaluateDivergencePoint(
-                    cachedDerivativeExpression(blueprint.nodeP, 'x'),
-                    cachedDerivativeExpression(blueprint.nodeQ, 'y'),
-                    cachedDerivativeExpression(blueprint.nodeR, 'z'),
+                    cachedDerivativeExpression(blueprint.pExpr, 'x'),
+                    cachedDerivativeExpression(blueprint.qExpr, 'y'),
+                    cachedDerivativeExpression(blueprint.rExpr, 'z'),
                     coeffNames,
                     coeffValues,
                     at[0],
@@ -166,12 +166,12 @@ export function compileAnalyses(
                 });
             } else {
                 const result = wasmEvaluateCurlPoint(
-                    cachedDerivativeExpression(blueprint.nodeR, 'y'),
-                    cachedDerivativeExpression(blueprint.nodeQ, 'z'),
-                    cachedDerivativeExpression(blueprint.nodeP, 'z'),
-                    cachedDerivativeExpression(blueprint.nodeR, 'x'),
-                    cachedDerivativeExpression(blueprint.nodeQ, 'x'),
-                    cachedDerivativeExpression(blueprint.nodeP, 'y'),
+                    cachedDerivativeExpression(blueprint.rExpr, 'y'),
+                    cachedDerivativeExpression(blueprint.qExpr, 'z'),
+                    cachedDerivativeExpression(blueprint.pExpr, 'z'),
+                    cachedDerivativeExpression(blueprint.rExpr, 'x'),
+                    cachedDerivativeExpression(blueprint.qExpr, 'x'),
+                    cachedDerivativeExpression(blueprint.pExpr, 'y'),
                     coeffNames,
                     coeffValues,
                     at[0],
