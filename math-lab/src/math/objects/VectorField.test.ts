@@ -9,10 +9,6 @@ vi.mock('../../wasm/math_rs/math_rs', () => ({
     }),
 }));
 
-vi.mock('../../service/logger', () => ({
-    logWarning: vi.fn(),
-}));
-
 describe('sampleVectorField fallback', () => {
     it('handles a single-point grid without producing NaN', () => {
         const vectors = sampleVectorField(

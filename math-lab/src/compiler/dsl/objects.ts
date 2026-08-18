@@ -74,6 +74,7 @@ export type PointBlueprint = {
     name: string;
     id: number;
     kind: 'point';
+    expr: string;
     coordinateExprs: [string, string, string];
     color: string;
 };
@@ -82,6 +83,7 @@ export type VectorBlueprint = {
     name: string;
     id: number;
     kind: 'vector';
+    expr: string;
     originExprs: [string, string, string];
     directionExprs: [string, string, string];
     color: string;
@@ -330,6 +332,7 @@ export function buildObjectBlueprint(
             name: statement.name,
             id,
             kind: 'point',
+            expr: statement.expr,
             coordinateExprs: parsePointComponents(statement.expr, `点 ${statement.name}`),
             color,
         };
@@ -342,6 +345,7 @@ export function buildObjectBlueprint(
             name: statement.name,
             id,
             kind: 'vector',
+            expr: statement.expr,
             originExprs: vector.originExprs,
             directionExprs: vector.directionExprs,
             color,
@@ -395,6 +399,7 @@ export function materializeObject(
             kind: 'point',
             id: blueprint.id,
             name: blueprint.name,
+            expr: blueprint.expr,
             x,
             y,
             z,
@@ -415,6 +420,7 @@ export function materializeObject(
             kind: 'vector',
             id: blueprint.id,
             name: blueprint.name,
+            expr: blueprint.expr,
             origin: { x: ox, y: oy, z: oz },
             direction: { x: dx, y: dy, z: dz },
             color: blueprint.color,

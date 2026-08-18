@@ -1,8 +1,10 @@
 /**
- * 诊断输出控制器.
- * 从 DslApp 拆出,负责清空诊断区域并添加分级日志.
+ * 仅保留错误与警告的紧凑提示控制器.
+ *
+ * 计算成功信息不进入这里;解析/编译错误、资源降采样等警告
+ * 会显示在右侧参数滑块下方.
  */
-export type DiagnosticLevel = 'info' | 'warning' | 'error' | 'log';
+export type DiagnosticLevel = 'warning' | 'error';
 
 export class DiagnosticsController {
     constructor(private readonly container: HTMLElement) {}

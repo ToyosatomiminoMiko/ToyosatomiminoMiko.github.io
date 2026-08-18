@@ -103,5 +103,6 @@ export function compileIntegralTask(
         segments,
         layers,
         show,
+        enabled: true,
     };
 }

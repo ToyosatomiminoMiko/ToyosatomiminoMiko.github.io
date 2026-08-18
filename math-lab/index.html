@@ -115,6 +115,7 @@ transform T2 = translate([2, 1, 0]) * rotate([0, 0, pi / 4]) * scale([1.5, 1, 1]
                 <button data-panel-toggle="#right-panel">收起</button>
             </header>
             <section id="params-panel"></section>
+            <section id="diagnostics" aria-live="polite"></section>
 
             <header class="panel-header">视图</header>
             <section id="view-controls">
@@ -144,11 +145,21 @@ transform T2 = translate([2, 1, 0]) * rotate([0, 0, pi / 4]) * scale([1.5, 1, 1]
 
         <footer id="bottom-panel" class="panel">
             <header class="panel-header">
-                <span class="panel-title">输出</span>
+                <span class="panel-title">对象</span>
                 <button data-panel-toggle="#bottom-panel">收起</button>
             </header>
-            <section id="output-panel">
-                <div id="diagnostics"></div>
+            <section id="object-panel">
+                <div class="object-list-column">
+                    <header class="object-list-title">实体对象</header>
+                    <div id="entity-object-list" class="object-list-body"></div>
+                </div>
+                <div class="object-list-column">
+                    <header class="object-list-title">求值对象</header>
+                    <div id="evaluation-object-list" class="object-list-body">
+                        <div id="analysis-object-list" class="object-sublist"></div>
+                        <div id="integral-object-list" class="object-sublist"></div>
+                    </div>
+                </div>
             </section>
             <div class="resize-handle resize-handle-top" data-resize-panel="bottom-panel"></div>
         </footer>

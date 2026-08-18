@@ -4,7 +4,6 @@ import { RENDER_CONFIG } from '../../config/renderConfig';
 import {
     surfaceComputeClient,
 } from '../../math/compute/workers/SurfaceComputeClient';
-import { logWarning } from '../../service/logger';
 import { LatestRequestExecutor } from '../../math/compute/workers/LatestRequestExecutor';
 import type {
     SurfaceWorkerRequest,
@@ -138,10 +137,7 @@ export class SurfaceMesh {
         this.executor
             .request(request)
             .then((result) => this._applyResult(result))
-            .catch((error: Error) => {
-                if (this._disposed || error.message === 'superseded') return;
-                logWarning('SurfaceMesh', '曲面采样失败:', error.message);
-            });
+            .catch(() => undefined);
     }
 
     /**

@@ -34,7 +34,7 @@ body {
     /* 这些变量由 PanelController 在拖拽/折叠时动态更新 */
     --left-panel-width: 300px;
     --right-panel-width: 300px;
-    --footer-height: 200px;
+    --footer-height: 240px;
     --collapsed-side-width: 44px;
     --collapsed-footer-height: 40px;
 }

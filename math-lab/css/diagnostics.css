@@ -1,37 +1,34 @@
-/* ==========================================================================
- * Math-Lab 诊断输出样式
- * --------------------------------------------------------------------------
- * 负责底部输出面板中的诊断信息列表,按 info/warning/error 分级着色.
- * ========================================================================== */
-
-/* 诊断信息列表:纵向排列,使用等宽字体方便阅读 */
+/* 右侧参数面板下方的错误/警告提示区 */
 #diagnostics {
+    flex: 0 1 auto;
+    max-height: 34%;
+    margin: 0 8px 8px;
+    padding: 6px;
     display: flex;
     flex-direction: column;
     gap: 4px;
+    overflow-y: auto;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    background: #0d1120;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 12px;
+    font-size: 11px;
 }
 
-/* 每条诊断信息的公共结构 */
+#diagnostics:empty {
+    display: none;
+}
+
 .diagnostic {
     padding: 4px 8px;
     border-radius: 6px;
 }
 
-/* info:解析成功、普通计算结果 */
-.diagnostic-info {
-    color: #9fd4ff;
-    background: rgba(70, 130, 255, 0.12);
-}
-
-/* warning:可继续运行但需要留意的信息 */
 .diagnostic-warning {
     color: #ffd38f;
     background: rgba(255, 190, 70, 0.12);
 }
 
-/* error:编译、解析或运行失败 */
 .diagnostic-error {
     color: #ff9aa8;
     background: rgba(255, 70, 90, 0.14);

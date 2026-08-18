@@ -18,6 +18,7 @@ import { RotationLockController } from '../render/controls/RotationLockControlle
 import { PanelController } from '../ui/PanelController';
 import { ParamPanelController } from '../ui/ParamPanelController';
 import { DiagnosticsController } from '../ui/DiagnosticsController';
+import { ObjectListController } from '../ui/ObjectListController';
 import { AnalysisRenderer } from '../render/core/renderers/AnalysisRenderer';
 import { DslIntegralRenderer } from '../render/visualization/DslIntegralRenderer';
 import { MathComputeEngine } from '../math/compute/MathComputeEngine';
@@ -30,7 +31,7 @@ import { disposeVectorFieldComputeClient } from '../math/compute/workers/VectorF
  * OpenSCAD 式 DSL Shell.
  *
  * 源码是唯一真相源:
- * 编辑 -> parseMiko -> compileScene -> 3D 视口 + param 面板 + 诊断输出.
+ * 编辑 -> parseMiko -> compileScene -> 3D 视口 + param 面板 + 对象列表.
  */
 export class DslApp {
     private readonly eventBus = new EventBus<MathLabEvents>();
@@ -42,6 +43,7 @@ export class DslApp {
     private readonly computeEngine = new MathComputeEngine();
     private readonly paramPanelController: ParamPanelController;
     private readonly diagnosticsController: DiagnosticsController;
+    private readonly objectListController: ObjectListController;
     private readonly analysisRenderer: AnalysisRenderer;
     private matrixOps: MatrixOps = createMatrixOps();
     private readonly editor: HTMLTextAreaElement;
@@ -57,7 +59,12 @@ export class DslApp {
     private readonly pendingParamChanges = new Set<string>();
     private runSequence = 0;
     private compiledObjects: SceneObject[] = [];
+    private objectTransforms: Record<number, number[][]> = {};
     private currentAst: AstProgram | null = null;
+    private readonly hiddenEntityIds = new Set<number>();
+    private readonly hiddenAnalysisNames = new Set<string>();
+    private readonly hiddenIntegralNames = new Set<string>();
+    private lastRunSource = '';
     private disposed = false;
 
     private readonly onResize = (): void => {
@@ -78,6 +85,9 @@ export class DslApp {
         this.runButton = document.getElementById('run-btn') as HTMLButtonElement;
         const paramsPanel = document.getElementById('params-panel')!;
         const diagnostics = document.getElementById('diagnostics')!;
+        const entityList = document.getElementById('entity-object-list')!;
+        const analysisList = document.getElementById('analysis-object-list')!;
+        const integralList = document.getElementById('integral-object-list')!;
 
         this.sceneManager = new SceneManager(this.viewport);
         this.cameraManager = new CameraManager(this.viewport);
@@ -88,6 +98,14 @@ export class DslApp {
         );
         this.paramPanelController = new ParamPanelController(paramsPanel, (name) => this._scheduleRefresh(name));
         this.diagnosticsController = new DiagnosticsController(diagnostics);
+        this.objectListController = new ObjectListController(
+            entityList,
+            analysisList,
+            integralList,
+            (id) => this._toggleObject(id),
+            (name) => this._toggleAnalysis(name),
+            (name) => this._toggleIntegral(name),
+        );
         this.analysisRenderer = new AnalysisRenderer();
         this.sceneManager.getScene().add(this.analysisRenderer.group);
     }
@@ -119,6 +137,7 @@ export class DslApp {
         this.integralRenderer.dispose();
         this.paramPanelController.dispose();
         this.diagnosticsController.dispose();
+        this.objectListController.dispose();
         this.analysisRenderer.dispose();
         this.plotter.dispose();
         this.computeEngine.dispose();
@@ -159,25 +178,20 @@ export class DslApp {
             if (this.disposed || runId !== this.runSequence) return;
             this.matrixOps = createWasmMatrixOps();
             this.currentAst = ast;
-            const scene = compileScene(ast, {}, this.matrixOps);
+            if (this.lastRunSource !== this.editor.value) {
+                this.hiddenEntityIds.clear();
+                this.hiddenAnalysisNames.clear();
+                this.hiddenIntegralNames.clear();
+                this.lastRunSource = this.editor.value;
+            }
+            const scene = this._compileWithVisibility(ast, {});
             this.paramPanelController.render(scene.params);
             this._applyScene(scene);
-            this.diagnosticsController.add(
-                'info',
-                `解析成功:${ast.statements.length} 条语句,${this.compiledObjects.length} 个对象`,
-            );
-
-            for (const analysis of scene.analyses) {
-                if (analysis.op === 'divergence') {
-                    this.diagnosticsController.add('info', `${analysis.name}: divergence = ${analysis.scalar}`);
-                } else if (analysis.op === 'curl') {
-                    this.diagnosticsController.add('info', `${analysis.name}: curl = [${analysis.vector.join(', ')}]`);
-                } else {
-                    this.diagnosticsController.add('info', `${analysis.name}: normal = [${analysis.vector.join(', ')}]`);
-                }
-            }
         } catch (error) {
-            this.diagnosticsController.add('error', error instanceof Error ? error.message : String(error));
+            this.diagnosticsController.add(
+                'error',
+                error instanceof Error ? error.message : String(error),
+            );
         }
     }
 
@@ -248,6 +262,10 @@ export class DslApp {
             this.currentAst,
             this.paramPanelController.getValues(),
             this.matrixOps,
+            {
+                hiddenAnalysisNames: this.hiddenAnalysisNames,
+                hiddenIntegralNames: this.hiddenIntegralNames,
+            },
         );
         this._applyScene(scene, changedParams);
         return scene;
@@ -259,6 +277,14 @@ export class DslApp {
     ): void {
         const nextIds = new Set(scene.objects.map((object) => object.id));
 
+        for (const id of this.hiddenEntityIds) {
+            if (!nextIds.has(id)) this.hiddenEntityIds.delete(id);
+        }
+        for (const object of scene.objects) {
+            object.enabled = !this.hiddenEntityIds.has(object.id);
+        }
+        this.objectTransforms = scene.objectTransforms;
+
         for (const previous of this.compiledObjects) {
             if (!nextIds.has(previous.id)) {
                 this.plotter.remove(previous.id);
@@ -267,8 +293,12 @@ export class DslApp {
 
         const dirtyObjectIds = new Set<number>();
         for (const object of scene.objects) {
+            if (!object.enabled) {
+                this.plotter.setVisible(object.id, false);
+                continue;
+            }
+
             const shouldRedraw = !changedParams
-                || changedParams.size === 0
                 || this._objectDependsOnParams(object, changedParams);
             if (shouldRedraw) {
                 dirtyObjectIds.add(object.id);
@@ -281,14 +311,25 @@ export class DslApp {
         }
 
         this.compiledObjects = scene.objects;
-        this.analysisRenderer.render(scene.analyses);
+        this._syncOverlays(scene, changedParams ? dirtyObjectIds : null);
+    }
+
+    private _syncOverlays(
+        scene: SceneIR,
+        dirtyObjectIds: ReadonlySet<number> | null,
+    ): void {
+        this.diagnosticsController.clear();
+        this.objectListController.renderScene(scene);
+        this.analysisRenderer.render(
+            scene.analyses.filter((analysis) => analysis.enabled),
+        );
         this.integralRenderer.sync(
             scene.integrals,
             scene.objects,
-            (level, message) => {
-                this.diagnosticsController.add(level, message);
-            },
-            changedParams ? dirtyObjectIds : null,
+            (level, message) => this.diagnosticsController.add(level, message),
+            dirtyObjectIds,
+            (name, value) => this.objectListController.setIntegralResult(name, value),
+            (name, message) => this.objectListController.setIntegralError(name, message),
         );
     }
 
@@ -304,5 +345,74 @@ export class DslApp {
             return true;
         }
         return object.coefficients.some((coefficient) => changedParams.has(coefficient.name));
+    }
+
+    private _toggleObject(id: number): void {
+        const object = this.compiledObjects.find((candidate) => candidate.id === id);
+        const nextVisible = !(object?.enabled ?? true);
+
+        if (object) object.enabled = nextVisible;
+        if (nextVisible) {
+            this.hiddenEntityIds.delete(id);
+        } else {
+            this.hiddenEntityIds.add(id);
+        }
+
+        if (!object) {
+            this.objectListController.setEntityVisible(id, nextVisible);
+            return;
+        }
+
+        if (nextVisible) {
+            this.plotter.updateObject(object, true);
+            this.plotter.applyTransform(object.id, this.objectTransforms[object.id] ?? null);
+        } else {
+            this.plotter.setVisible(id, false);
+        }
+        this.objectListController.setEntityVisible(id, nextVisible);
+    }
+
+    private _toggleAnalysis(name: string): void {
+        if (this.hiddenAnalysisNames.has(name)) {
+            this.hiddenAnalysisNames.delete(name);
+        } else {
+            this.hiddenAnalysisNames.add(name);
+        }
+        this._recompileForVisibilityChange();
+    }
+
+    private _toggleIntegral(name: string): void {
+        if (this.hiddenIntegralNames.has(name)) {
+            this.hiddenIntegralNames.delete(name);
+        } else {
+            this.hiddenIntegralNames.add(name);
+        }
+        this._recompileForVisibilityChange();
+    }
+
+    private _compileWithVisibility(
+        ast: AstProgram,
+        paramOverrides: Record<string, number>,
+    ): SceneIR {
+        return compileScene(ast, paramOverrides, this.matrixOps, {
+            hiddenAnalysisNames: this.hiddenAnalysisNames,
+            hiddenIntegralNames: this.hiddenIntegralNames,
+        });
+    }
+
+    private _recompileForVisibilityChange(): void {
+        if (!this.currentAst) return;
+
+        const scene = this._compileWithVisibility(
+            this.currentAst,
+            this.paramPanelController.getValues(),
+        );
+        for (const object of scene.objects) {
+            object.enabled = !this.hiddenEntityIds.has(object.id);
+        }
+
+        this.compiledObjects = scene.objects;
+        this.objectTransforms = scene.objectTransforms;
+        this._syncOverlays(scene, null);
     }
 }

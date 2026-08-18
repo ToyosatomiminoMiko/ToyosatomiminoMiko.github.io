@@ -11,7 +11,6 @@ import {
     LatestRequestExecutor,
     type RequestClient,
 } from '../../../math/compute/workers/LatestRequestExecutor';
-import { logWarning } from '../../../service/logger';
 
 const curveComputeEngine = new MathComputeEngine();
 
@@ -91,7 +90,6 @@ export class CurveRenderer implements IRenderer {
             })
             .catch((error: Error) => {
                 if (this.disposed || error.message === 'superseded') return;
-                logWarning('CurveRenderer', '曲线采样失败:', error);
                 this.group.visible = false;
             });
     }

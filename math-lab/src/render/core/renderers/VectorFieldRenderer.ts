@@ -4,7 +4,6 @@ import type { VectorFieldObject } from '../../../compiler/ir/types';
 import { VectorFieldMesh } from '../../visualization/VectorFieldMesh';
 import { vectorFieldComputeClient } from '../../../math/compute/workers/VectorFieldComputeClient';
 import type { VectorFieldWorkerRequest } from '../../../math/compute/workers/vectorFieldWorker';
-import { logWarning } from '../../../service/logger';
 import { LatestRequestExecutor } from '../../../math/compute/workers/LatestRequestExecutor';
 
 /**
@@ -75,7 +74,6 @@ export class VectorFieldRenderer implements IRenderer {
             })
             .catch((error: Error) => {
                 if (this._disposed || error.message === 'superseded') return;
-                logWarning('VectorFieldRenderer', '向量场采样失败:', error.message);
             });
 
         this.group.visible = this._data.enabled;

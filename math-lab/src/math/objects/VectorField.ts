@@ -4,7 +4,6 @@ import { NUMERIC_CONFIG } from '../../config/numericConfig';
 import { extractCoefficients } from './coefficientUtils';
 import { sample_vector_field as wasmSampleVectorField } from '../../wasm/math_rs/math_rs';
 import { ensureWasmReady } from '../../runtime/wasmRuntime';
-import { logWarning } from '../../service/logger';
 
 let wasmReady = false;
 const wasmInit = ensureWasmReady().then(() => {
@@ -95,8 +94,8 @@ export function sampleVectorField(
                 range.z[0], range.z[1],
                 gridSize[0], gridSize[1], gridSize[2],
             );
-        } catch (error) {
-            logWarning('VectorField', 'WASM 向量场采样失败,回退到 mathjs:', error);
+        } catch {
+            // 静默回退到 mathjs 采样。
         }
     }
 

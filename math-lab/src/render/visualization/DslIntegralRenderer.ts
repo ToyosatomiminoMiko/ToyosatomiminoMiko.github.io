@@ -10,8 +10,10 @@ import {
     clampLebesgue2DVisualization,
 } from '../../config/resourceBudget';
 
+export type IntegralResultCallback = (name: string, value: number) => void;
+export type IntegralErrorCallback = (name: string, message: string) => void;
 export type IntegralDiagnosticFn = (
-    level: 'info' | 'warning' | 'error' | 'log',
+    level: 'warning' | 'error',
     message: string,
 ) => void;
 
@@ -40,12 +42,14 @@ export class DslIntegralRenderer {
         objects: SceneObject[],
         diagnostics: IntegralDiagnosticFn,
         dirtyObjectIds: ReadonlySet<number> | null = null,
+        onResult?: IntegralResultCallback,
+        onError?: IntegralErrorCallback,
     ): void {
         if (dirtyObjectIds) {
             // 参数只影响部分对象时,只清除这些对象关联的积分可视化,
             // 其他积分继续保留,避免每次滑块变化都销毁/重建整组 GPU 对象.
             for (const task of tasks) {
-                if (dirtyObjectIds.has(task.objectId)) {
+                if (task.enabled && dirtyObjectIds.has(task.objectId)) {
                     this.taskSequences.set(task.name, ++this.sequence);
                     this.visualizer.clear(task.name);
                 }
@@ -59,12 +63,13 @@ export class DslIntegralRenderer {
         }
         this.visualizer.group.visible = true;
 
+        const activeTasks = tasks.filter((task) => task.enabled);
         const tasksToRender = dirtyObjectIds
-            ? tasks.filter((task) => dirtyObjectIds.has(task.objectId))
-            : tasks;
+            ? activeTasks.filter((task) => dirtyObjectIds.has(task.objectId))
+            : activeTasks;
         if (tasksToRender.length === 0) return;
 
-        void this._renderAll(tasksToRender, objects, diagnostics);
+        void this._renderAll(tasksToRender, objects, diagnostics, onResult, onError);
     }
 
     dispose(): void {
@@ -78,12 +83,16 @@ export class DslIntegralRenderer {
         tasks: IntegralTask[],
         objects: SceneObject[],
         diagnostics: IntegralDiagnosticFn,
+        onResult?: IntegralResultCallback,
+        onError?: IntegralErrorCallback,
     ): Promise<void> {
         for (const task of tasks) {
             const taskSequence = this.taskSequences.get(task.name) ?? this.sequence;
             const source = objects.find((object) => object.id === task.objectId);
             if (!source || (source.kind !== 'curve' && source.kind !== 'surface')) {
-                diagnostics('error', `积分 ${task.name} 找不到可积分的源对象`);
+                const message = `积分 ${task.name} 找不到可积分的源对象`;
+                diagnostics('error', message);
+                onError?.(task.name, message);
                 continue;
             }
 
@@ -95,13 +104,13 @@ export class DslIntegralRenderer {
                 if (task.show) {
                     this._visualize(task, source, result, diagnostics);
                 }
-                diagnostics('info', `积分 ${task.name}: S = ${value.toFixed(6)}`);
+                onResult?.(task.name, value);
             } catch (error) {
                 if (this.disposed || this.taskSequences.get(task.name) !== taskSequence) return;
-                diagnostics(
-                    'error',
-                    `积分 ${task.name} 计算失败: ${error instanceof Error ? error.message : String(error)}`,
-                );
+                const message =
+                    `积分 ${task.name} 计算失败: ${error instanceof Error ? error.message : String(error)}`;
+                diagnostics('error', message);
+                onError?.(task.name, message);
             }
         }
     }
@@ -128,7 +137,6 @@ export class DslIntegralRenderer {
                             `积分 ${task.name} 的绘图分段已从 ${segments} 降采样到 ${visual.segments}`,
                         );
                     }
-
                     if (task.method === 'riemann') {
                         this.visualizer.visualize2DRiemann(
                             source,
@@ -200,7 +208,6 @@ export class DslIntegralRenderer {
                         `积分 ${task.name} 的二维绘图每轴已从 ${segments} 降采样到 ${visual.segments}`,
                     );
                 }
-
                 if (task.method === 'riemann') {
                     this.visualizer.visualize3DRiemann(
                         source,

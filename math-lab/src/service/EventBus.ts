@@ -1,5 +1,3 @@
-import { logError } from './logger';
-
 /**
  * 泛型事件总线 — 跨层通信的桥梁
  * Core 层和 UI 层通过 EventBus 通信,互不直接引用
@@ -54,8 +52,8 @@ export class EventBus<Events extends Record<string, any>> {
             cbs.forEach(cb => {
                 try {
                     cb(data);
-                } catch (e) {
-                    logError('EventBus', `${String(event)} 回调出错:`, e);
+                } catch {
+                    // 事件回调错误不再写日志,避免恢复输出链路。
                 }
             });
         }

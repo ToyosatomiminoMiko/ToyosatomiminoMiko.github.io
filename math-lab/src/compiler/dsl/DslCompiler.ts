@@ -31,12 +31,20 @@ import {
  * - analyses.ts    微分分析编译
  * - staticScene.ts 静态场景构建与缓存
  */
+export interface CompileSceneOptions {
+    hiddenAnalysisNames?: ReadonlySet<string>;
+    hiddenIntegralNames?: ReadonlySet<string>;
+}
+
 export function compileScene(
     ast: AstProgram,
     paramOverrides: Record<string, number> = {},
     matrixOps: MatrixOps = jsMatrixOps,
+    options: CompileSceneOptions = {},
 ): SceneIR {
     const staticScene = getOrBuildStaticScene(ast, matrixOps);
+    const hiddenAnalysisNames = options.hiddenAnalysisNames ?? new Set<string>();
+    const hiddenIntegralNames = options.hiddenIntegralNames ?? new Set<string>();
 
     const params = cloneParams(staticScene.params);
     const objects = staticScene.objectBlueprints.map((blueprint) =>
@@ -55,14 +63,22 @@ export function compileScene(
     const integrals: IntegralTask[] = [];
     for (const statement of ast.statements) {
         if (statement.type !== 'integral') continue;
-        integrals.push(compileIntegralTask(statement, objectByName));
+        const task = compileIntegralTask(statement, objectByName);
+        task.enabled = !hiddenIntegralNames.has(statement.name);
+        integrals.push(task);
     }
 
     return {
         params: [...params.values()],
         objects,
         objectTransforms: cloneObjectTransforms(staticScene.objectTransforms),
-        analyses: compileAnalyses(ast, blueprintByName, params, paramOverrides),
+        analyses: compileAnalyses(
+            ast,
+            blueprintByName,
+            params,
+            paramOverrides,
+            hiddenAnalysisNames,
+        ),
         integrals,
     };
 }

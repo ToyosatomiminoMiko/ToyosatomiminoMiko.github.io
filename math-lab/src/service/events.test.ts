@@ -20,11 +20,4 @@ describe('MathLabEvents', () => {
             locked: boolean;
         }>();
     });
-
-    it('keeps integral result payload strongly typed', () => {
-        expectTypeOf<MathLabEvents['integral:calculated']>().toEqualTypeOf<{
-            results: { id: number; value: number }[];
-            total: number;
-        }>();
-    });
 });

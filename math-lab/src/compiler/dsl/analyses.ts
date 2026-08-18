@@ -45,6 +45,7 @@ export function compileAnalyses(
     blueprintByName: Map<string, ObjectBlueprint>,
     params: Map<string, ParamDeclaration>,
     overrides: Record<string, number>,
+    hiddenNames: ReadonlySet<string> = new Set(),
 ): AnalysisResult[] {
     const results: AnalysisResult[] = [];
 
@@ -62,6 +63,19 @@ export function compileAnalyses(
 
         // 分析声明目前只接受 show；其他字段应作为编译错误暴露。
         assertKnownOptions(statement.options, ['show'], `分析 ${statement.name}`);
+
+        if (hiddenNames.has(statement.name)) {
+            results.push({
+                name: statement.name,
+                op: statement.op,
+                point: [0, 0, 0],
+                vector: [0, 0, 0],
+                scalar: null,
+                show: [],
+                enabled: false,
+            });
+            continue;
+        }
 
         if (blueprint.kind !== 'curve' && blueprint.kind !== 'surface' && blueprint.kind !== 'vector_field') {
             throw new Error(`分析 ${statement.name} 不能应用于 ${blueprint.kind} 类型对象`);
@@ -123,7 +137,7 @@ export function compileAnalyses(
             const point: [number, number, number] = isCurve
                 ? [at[0], f0, 0]
                 : [at[0], at[1], f0];
-            results.push({ name: statement.name, op: 'gradient', point, vector, scalar: f0, show });
+            results.push({ name: statement.name, op: 'gradient', point, vector, scalar: f0, show, enabled: true });
             continue;
         }
 
@@ -141,7 +155,15 @@ export function compileAnalyses(
                     at[1],
                     at[2],
                 );
-                results.push({ name: statement.name, op: 'divergence', point: at, vector: [0, 0, 0], scalar, show });
+                results.push({
+                    name: statement.name,
+                    op: 'divergence',
+                    point: at,
+                    vector: [0, 0, 0],
+                    scalar,
+                    show,
+                    enabled: true,
+                });
             } else {
                 const result = wasmEvaluateCurlPoint(
                     cachedDerivativeExpression(blueprint.nodeR, 'y'),
@@ -157,7 +179,15 @@ export function compileAnalyses(
                     at[2],
                 );
                 const vector: [number, number, number] = [result.x, result.y, result.z];
-                results.push({ name: statement.name, op: 'curl', point: at, vector, scalar: null, show });
+                results.push({
+                    name: statement.name,
+                    op: 'curl',
+                    point: at,
+                    vector,
+                    scalar: null,
+                    show,
+                    enabled: true,
+                });
             }
             continue;
         }

@@ -14,7 +14,6 @@ export interface MathLabEvents {
     'camera:changed': { camMode: CamMode };
     'camera:view': { view: ViewHome };
     'camera:rotationLock': { locked: boolean };
-    'integral:calculated': { results: { id: number; value: number }[]; total: number };
     'coefficient:changed': { id: number };
     'selection:changed': { id: number | null; kind: string | null };
 }

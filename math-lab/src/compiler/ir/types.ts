@@ -80,6 +80,8 @@ export interface PointObject {
     kind: 'point';
     id: number;
     name?: string;
+    /** 原始坐标表达式,例如 `[a, b, 3]`. */
+    expr: string;
     x: number;
     y: number;
     z: number;
@@ -92,6 +94,8 @@ export interface VectorObject {
     kind: 'vector';
     id: number;
     name?: string;
+    /** 原始向量表达式,例如 `[[0, j, 0], [1, k, 0]]`. */
+    expr: string;
     origin: { x: number; y: number; z: number };
     direction: { x: number; y: number; z: number };
     color: string;
@@ -122,6 +126,8 @@ export interface AnalysisResult {
     vector: [number, number, number];
     scalar: number | null;
     show: AnalysisShow[];
+    /** 求值对象是否参与计算。为 false 时仅保留列表项,不执行数值计算。 */
+    enabled: boolean;
 }
 
 /** 数值积分任务. */
@@ -136,6 +142,8 @@ export interface IntegralTask {
     segments: number;
     layers: number;
     show: boolean;
+    /** 求值对象是否参与计算。为 false 时仅保留列表项,不执行数值计算。 */
+    enabled: boolean;
 }
 
 /** 完整场景 IR. */

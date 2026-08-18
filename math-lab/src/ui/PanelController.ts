@@ -3,9 +3,9 @@ type PanelId = 'left-panel' | 'right-panel' | 'bottom-panel';
 const SIDE_MIN_WIDTH = 220;
 const SIDE_MAX_WIDTH = 560;
 const SIDE_DEFAULT_WIDTH = 300;
-const FOOTER_MIN_HEIGHT = 120;
-const FOOTER_MAX_HEIGHT = 520;
-const FOOTER_DEFAULT_HEIGHT = 200;
+const FOOTER_MIN_HEIGHT = 160;
+const FOOTER_MAX_HEIGHT = 640;
+const FOOTER_DEFAULT_HEIGHT = 240;
 const COLLAPSED_SIDE_WIDTH = 44;
 const COLLAPSED_FOOTER_HEIGHT = 40;
 

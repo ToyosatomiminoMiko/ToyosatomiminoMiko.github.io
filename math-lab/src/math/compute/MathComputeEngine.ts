@@ -10,7 +10,6 @@ import type {
 import * as math from 'mathjs';
 import { NUMERIC_CONFIG } from '../../config/numericConfig';
 import { compilationCache } from '../objects/CompilationCache';
-import { logWarning } from '../../service/logger';
 import {
     lebesgue1d,
     lebesgue2d,
@@ -45,8 +44,7 @@ export class MathComputeEngine {
                 range: request.range,
                 segments: request.segments,
             });
-        } catch (error) {
-            logWarning('MathComputeEngine', 'WASM 曲线采样失败,回退到 mathjs:', error);
+        } catch {
             return this._sampleCurveFallback(request);
         }
     }
