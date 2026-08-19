@@ -2,6 +2,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { SceneManager } from '../render/core/SceneManager';
 import { CameraManager } from '../render/core/CameraManager';
 import { Plotter } from '../render/core/Plotter';
+import { AnimationPlayer } from '../render/core/AnimationPlayer';
 import { createWasmMatrixOps, parseMiko } from '../compiler/parser';
 import { createMatrixOps, type MatrixOps } from '../math/tensor/SceneTransform';
 import { compileScene } from '../compiler/dsl/DslCompiler';
@@ -45,6 +46,7 @@ export class DslApp {
     private readonly diagnosticsController: DiagnosticsController;
     private readonly objectListController: ObjectListController;
     private readonly analysisRenderer: AnalysisRenderer;
+    private readonly animationPlayer: AnimationPlayer;
     private matrixOps: MatrixOps = createMatrixOps();
     private readonly editor: HTMLTextAreaElement;
     private readonly runButton: HTMLButtonElement;
@@ -60,6 +62,7 @@ export class DslApp {
     private runSequence = 0;
     private compiledObjects: SceneObject[] = [];
     private objectTransforms: Record<number, number[][]> = {};
+    private animationStartTime = 0;
     private currentAst: AstProgram | null = null;
     private readonly hiddenEntityIds = new Set<number>();
     private readonly hiddenAnalysisNames = new Set<string>();
@@ -107,6 +110,7 @@ export class DslApp {
             (name) => this._toggleIntegral(name),
         );
         this.analysisRenderer = new AnalysisRenderer();
+        this.animationPlayer = new AnimationPlayer(this.matrixOps);
         this.sceneManager.getScene().add(this.analysisRenderer.group);
     }
 
@@ -118,7 +122,7 @@ export class DslApp {
         this.panelController.bind(document.getElementById('app')!);
         window.addEventListener('resize', this.onResize);
         document.addEventListener('keydown', this.onKeyDown);
-        this.animate();
+        this.animationFrameId = requestAnimationFrame(this.animate);
         this.run();
     }
 
@@ -177,6 +181,8 @@ export class DslApp {
             const ast = await parseMiko(this.editor.value);
             if (this.disposed || runId !== this.runSequence) return;
             this.matrixOps = createWasmMatrixOps();
+            this.animationPlayer.configure(this.matrixOps);
+            this.animationStartTime = performance.now();
             this.currentAst = ast;
             if (this.lastRunSource !== this.editor.value) {
                 this.hiddenEntityIds.clear();
@@ -226,10 +232,11 @@ export class DslApp {
         });
     }
 
-    private animate = (): void => {
+    private animate = (timestamp: number): void => {
         if (this.disposed) return;
         this.animationFrameId = requestAnimationFrame(this.animate);
         this.controls?.update();
+        this._updateAnimations(timestamp);
         this.sceneManager.render(this.cameraManager.getCamera());
     };
 
@@ -284,6 +291,11 @@ export class DslApp {
             object.enabled = !this.hiddenEntityIds.has(object.id);
         }
         this.objectTransforms = scene.objectTransforms;
+        this.animationPlayer.setScene(
+            scene.objectTransforms,
+            scene.animations,
+            scene.objectAnimations,
+        );
 
         for (const previous of this.compiledObjects) {
             if (!nextIds.has(previous.id)) {
@@ -303,7 +315,7 @@ export class DslApp {
             if (shouldRedraw) {
                 dirtyObjectIds.add(object.id);
                 this.plotter.updateObject(object, true);
-                this.plotter.applyTransform(object.id, scene.objectTransforms[object.id] ?? null);
+                this._applyObjectTransform(object.id);
             } else {
                 // 引用仍需同步,否则后续其他参数变化时,renderer 手里还拿着旧数据.
                 this.plotter.updateObject(object, false);
@@ -312,6 +324,26 @@ export class DslApp {
 
         this.compiledObjects = scene.objects;
         this._syncOverlays(scene, changedParams ? dirtyObjectIds : null);
+    }
+
+    private _updateAnimations(timestamp: number): void {
+        if (this.animationStartTime === 0) return;
+        const elapsedSeconds = (timestamp - this.animationStartTime) / 1000;
+        for (const object of this.compiledObjects) {
+            if (!object.enabled) continue;
+            this._applyObjectTransform(object.id, elapsedSeconds);
+        }
+    }
+
+    private _applyObjectTransform(id: number, elapsedSeconds?: number): void {
+        const elapsed = elapsedSeconds ?? this._getAnimationElapsedSeconds();
+        const matrix = this.animationPlayer.getObjectMatrix(id, elapsed);
+        this.plotter.applyTransform(id, matrix);
+    }
+
+    private _getAnimationElapsedSeconds(): number {
+        if (this.animationStartTime === 0) return 0;
+        return (performance.now() - this.animationStartTime) / 1000;
     }
 
     private _syncOverlays(
@@ -365,7 +397,7 @@ export class DslApp {
 
         if (nextVisible) {
             this.plotter.updateObject(object, true);
-            this.plotter.applyTransform(object.id, this.objectTransforms[object.id] ?? null);
+            this._applyObjectTransform(object.id);
         } else {
             this.plotter.setVisible(id, false);
         }
@@ -413,6 +445,11 @@ export class DslApp {
 
         this.compiledObjects = scene.objects;
         this.objectTransforms = scene.objectTransforms;
+        this.animationPlayer.setScene(
+            scene.objectTransforms,
+            scene.animations,
+            scene.objectAnimations,
+        );
         this._syncOverlays(scene, null);
     }
 }

@@ -28,6 +28,14 @@ export interface TensorStatement {
     span: SourceSpan;
 }
 
+export interface AnimationStatement {
+    type: 'animation';
+    name: string;
+    expr: string;
+    options: OptionPair[];
+    span: SourceSpan;
+}
+
 export type ObjectKind =
     | 'curve'
     | 'surface'
@@ -71,6 +79,7 @@ export interface IntegralStatement {
 export type AstStatement =
     | ParamStatement
     | TensorStatement
+    | AnimationStatement
     | ObjectStatement
     | AnalysisStatement
     | IntegralStatement;

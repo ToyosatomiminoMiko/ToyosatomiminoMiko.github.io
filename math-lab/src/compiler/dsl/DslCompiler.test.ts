@@ -597,6 +597,145 @@ describe('compileScene', () => {
         ]);
     });
 
+    it('compiles animation clips and binds an ordered clip list to an object', () => {
+        const animationAst: AstProgram = {
+            statements: [
+                {
+                    type: 'animation',
+                    name: 'spin',
+                    expr: 'rotate([0, 0, pi / 2])',
+                    options: [{ name: 'duration', value: '2' }],
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'animation',
+                    name: 'drift',
+                    expr: 'translate([1, 0, 0])',
+                    options: [{ name: 'duration', value: '1' }],
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'object',
+                    kind: 'curve',
+                    name: 'c',
+                    expr: 'x',
+                    options: [
+                        { name: 'range', value: '[-1, 1]' },
+                        { name: 'animation', value: '[spin, drift]' },
+                    ],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        const scene = compileScene(animationAst);
+
+        expect(scene.animations).toHaveLength(2);
+        expect(scene.animations[0]).toMatchObject({ name: 'spin', duration: 2 });
+        expect(scene.animations[1]).toMatchObject({ name: 'drift', duration: 1 });
+        expect(scene.animations[0].matrix[0][0]).toBeCloseTo(0);
+        expect(scene.animations[0].matrix[0][1]).toBeCloseTo(-1);
+        expect(scene.animations[0].matrix[1][0]).toBeCloseTo(1);
+        expect(scene.animations[0].matrix[1][1]).toBeCloseTo(0);
+        expect(scene.animations[1].matrix).toEqual([
+            [1, 0, 0, 1],
+            [0, 1, 0, 0],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1],
+        ]);
+        expect(scene.objectAnimations[1]).toEqual(['spin', 'drift']);
+    });
+
+    it('accepts a named matrix or transform as a single animation matrix', () => {
+        const animationAst: AstProgram = {
+            statements: [
+                {
+                    type: 'tensor',
+                    kind: 'matrix',
+                    name: 'M',
+                    expr: '[[1, 0, 0, 2], [0, 1, 0, 3], [0, 0, 1, 4], [0, 0, 0, 1]]',
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'tensor',
+                    kind: 'transform',
+                    name: 'T',
+                    expr: 'as_transform(M)',
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'animation',
+                    name: 'move',
+                    expr: 'T',
+                    options: [{ name: 'duration', value: '1' }],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        const scene = compileScene(animationAst);
+
+        expect(scene.animations).toHaveLength(1);
+        expect(scene.animations[0].matrix).toEqual([
+            [1, 0, 0, 2],
+            [0, 1, 0, 3],
+            [0, 0, 1, 4],
+            [0, 0, 0, 1],
+        ]);
+    });
+
+    it('rejects animation declarations that compose more than one matrix', () => {
+        const badAst: AstProgram = {
+            statements: [
+                {
+                    type: 'animation',
+                    name: 'bad',
+                    expr: 'translate([1, 0, 0]) * rotate([0, 0, pi / 4])',
+                    options: [{ name: 'duration', value: '2' }],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        expect(() => compileScene(badAst)).toThrow('动画 bad 只能包含一个矩阵变换');
+    });
+
+    it('rejects animation duration that is missing or non-positive', () => {
+        const badAst: AstProgram = {
+            statements: [
+                {
+                    type: 'animation',
+                    name: 'bad',
+                    expr: 'translate([1, 0, 0])',
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        expect(() => compileScene(badAst)).toThrow('动画 bad 的 duration 必须大于 0');
+    });
+
+    it('rejects object animation references to unknown clips', () => {
+        const badAst: AstProgram = {
+            statements: [
+                {
+                    type: 'object',
+                    kind: 'curve',
+                    name: 'c',
+                    expr: 'x',
+                    options: [
+                        { name: 'range', value: '[-1, 1]' },
+                        { name: 'animation', value: '[missing]' },
+                    ],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        expect(() => compileScene(badAst)).toThrow('对象 c 引用了不存在的动画 missing');
+    });
+
     it('evaluates matrix literals through the WASM scalar backend', () => {
         const matrixAst: AstProgram = {
             statements: [

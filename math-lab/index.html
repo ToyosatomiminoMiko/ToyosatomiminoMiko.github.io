@@ -96,10 +96,20 @@ curl c = curl(VF) at [1, 2, 3];
 // 三维变换
 transform T = as_transform(M);
 
+// 动画:每次只给一个矩阵,复杂动画用列表按顺序播放
+animation spin = rotate([0, 0, pi / 2]) {
+    duration = 3;
+};
+
+animation orbit = translate([3, 0, 0]) {
+    duration = 2;
+};
+
 sphere S = [0, 1, 0] {
     radius = 2;
     color = "#6dd5ff";
     opacity = 0.55;
+    animation = [spin, orbit];
 };
 
 box B = [1, 2, 3] {

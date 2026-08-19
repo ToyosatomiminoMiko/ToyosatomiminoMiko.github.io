@@ -151,13 +151,13 @@ export type ObjectBlueprint =
     | BoxBlueprint
     | ConicBlueprint;
 
-const CURVE_OPTION_NAMES = ['color', 'range', 'segments', 'transform'] as const;
-const SURFACE_OPTION_NAMES = ['color', 'range', 'segments', 'transform'] as const;
-const VECTOR_FIELD_OPTION_NAMES = ['color', 'range', 'grid', 'scale', 'transform'] as const;
-const POINT_OPTION_NAMES = ['color', 'transform'] as const;
-const VECTOR_OPTION_NAMES = ['color', 'transform'] as const;
-const SPHERE_OPTION_NAMES = ['color', 'radius', 'opacity', 'segments', 'transform'] as const;
-const BOX_OPTION_NAMES = ['color', 'size', 'opacity', 'transform'] as const;
+const CURVE_OPTION_NAMES = ['color', 'range', 'segments', 'transform', 'animation'] as const;
+const SURFACE_OPTION_NAMES = ['color', 'range', 'segments', 'transform', 'animation'] as const;
+const VECTOR_FIELD_OPTION_NAMES = ['color', 'range', 'grid', 'scale', 'transform', 'animation'] as const;
+const POINT_OPTION_NAMES = ['color', 'transform', 'animation'] as const;
+const VECTOR_OPTION_NAMES = ['color', 'transform', 'animation'] as const;
+const SPHERE_OPTION_NAMES = ['color', 'radius', 'opacity', 'segments', 'transform', 'animation'] as const;
+const BOX_OPTION_NAMES = ['color', 'size', 'opacity', 'transform', 'animation'] as const;
 const CONIC_OPTION_NAMES = [
     'color',
     'base',
@@ -167,6 +167,7 @@ const CONIC_OPTION_NAMES = [
     'opacity',
     'segments',
     'transform',
+    'animation',
 ] as const;
 
 function arrayItems(value: ExpressionArray): ExpressionArray[] | null {

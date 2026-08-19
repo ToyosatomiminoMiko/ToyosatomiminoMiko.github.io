@@ -42,6 +42,12 @@ enum AstStatement {
         expr: String,
         span: SourceSpan,
     },
+    Animation {
+        name: String,
+        expr: String,
+        options: Vec<OptionPair>,
+        span: SourceSpan,
+    },
     Object {
         kind: String,
         name: String,
@@ -159,6 +165,34 @@ fn tensor_to_stmt(pair: &Pair<'_, Rule>) -> AstStatement {
         kind,
         name,
         expr,
+        span: span_of(pair),
+    }
+}
+
+fn animation_to_stmt(pair: &Pair<'_, Rule>) -> AstStatement {
+    let mut name = String::new();
+    let mut expr = String::new();
+    let mut options: Vec<OptionPair> = Vec::new();
+
+    for child in pair.clone().into_inner() {
+        match child.as_rule() {
+            Rule::ident => name = child.as_str().to_string(),
+            Rule::expr => expr = child.as_str().trim().to_string(),
+            Rule::animation_end => {
+                if let Some(inner_options) =
+                    child.into_inner().find(|p| p.as_rule() == Rule::options)
+                {
+                    options = option_pairs(&inner_options);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    AstStatement::Animation {
+        name,
+        expr,
+        options,
         span: span_of(pair),
     }
 }
@@ -284,6 +318,7 @@ fn statement_to_ast(pair: Pair<'_, Rule>) -> Result<AstStatement, String> {
     match pair.as_rule() {
         Rule::param_stmt => Ok(param_to_stmt(&pair)),
         Rule::tensor_stmt => Ok(tensor_to_stmt(&pair)),
+        Rule::animation_stmt => Ok(animation_to_stmt(&pair)),
         Rule::object_stmt => Ok(object_to_stmt(&pair)),
         Rule::analysis_stmt => Ok(analysis_to_stmt(&pair)),
         Rule::integral_stmt => Ok(integral_to_stmt(&pair)),
@@ -318,10 +353,14 @@ scalar k = 2.5;
 vector v = [1, 2, 3];
 matrix M = [[1, 0], [0, 1]];
 transform T = translate([1, 2, 3]) * rotate([0, 0, pi / 4]);
+animation spin = rotate([0, 0, pi / 4]) {
+    duration = 2;
+};
 curve c1 = sin(x * a) {
     color = "#6dd5ff";
     range = [-8, 8];
     segments = 256;
+    animation = [spin];
 }
 surface s1 = sin(x) * cos(y) {
     transform = T;
@@ -378,6 +417,7 @@ integral I2 = integral(s1) {
         let json = parse_to_json(src).unwrap();
         assert!(json.contains("\"type\":\"param\""));
         assert!(json.contains("\"type\":\"tensor\""));
+        assert!(json.contains("\"type\":\"animation\""));
         assert!(json.contains("\"type\":\"object\""));
         assert!(json.contains("\"kind\":\"point\""));
         assert!(json.contains("\"kind\":\"vector\""));

@@ -221,6 +221,13 @@ export interface IntegralTask {
     enabled: boolean;
 }
 
+/** 一个动画片段:单个变换矩阵 + 持续时间. */
+export interface AnimationClip {
+    name: string;
+    duration: number;
+    matrix: number[][];
+}
+
 /** 完整场景 IR. */
 export interface SceneIR {
     params: ParamDeclaration[];
@@ -232,6 +239,16 @@ export interface SceneIR {
      * 便于未来跨线程 / 跨进程 / 桌面端消费.
      */
     objectTransforms: Record<number, number[][]>;
+    /**
+     * 场景中所有 animation 声明.
+     * 名称唯一,对象通过 objectAnimations 引用.
+     */
+    animations: AnimationClip[];
+    /**
+     * 对象 id -> 按顺序播放的动画名列表.
+     * 空列表或缺失表示该对象没有动画.
+     */
+    objectAnimations: Record<number, string[]>;
     analyses: AnalysisResult[];
     integrals: IntegralTask[];
 }

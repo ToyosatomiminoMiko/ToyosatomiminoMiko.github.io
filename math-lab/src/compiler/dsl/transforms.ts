@@ -78,6 +78,43 @@ export function parseTransformExpression(
     return result;
 }
 
+/**
+ * 解析单个动画变换.
+ *
+ * 动画声明刻意只接受“一个矩阵”，不接受 `*` 组合；复杂动画应由多个
+ * animation 声明按顺序引用。这里支持三种单矩阵写法:
+ * - `translate([...])` / `rotate([...])` / `scale([...])`
+ * - `as_transform(M)`
+ * - 直接引用已声明的 `matrix M` 或 `transform T`
+ */
+export function parseSingleTransformExpression(
+    raw: string,
+    matrices: Map<string, Mat4>,
+    transforms: Map<string, Mat4>,
+    ops: MatrixOps,
+): Mat4 | null {
+    const expression = raw.trim();
+
+    const asTransformMatch = /^as_transform\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)$/.exec(expression);
+    if (asTransformMatch) {
+        const matrix = matrices.get(asTransformMatch[1]);
+        return matrix ? cloneMat4(matrix) : null;
+    }
+
+    const namedMatch = /^([A-Za-z_][A-Za-z0-9_]*)$/.exec(expression);
+    if (namedMatch) {
+        const matrix = matrices.get(namedMatch[1]);
+        if (matrix) return cloneMat4(matrix);
+        const transform = transforms.get(namedMatch[1]);
+        if (transform) return cloneMat4(transform);
+        return null;
+    }
+
+    const parts = splitTopLevel(expression, '*').map((part) => part.trim());
+    if (parts.length !== 1 || parts[0].length === 0) return null;
+    return parseTransformFunction(parts[0], ops);
+}
+
 export function resolveObjectTransform(
     raw: string | undefined,
     transforms: Map<string, Mat4>,

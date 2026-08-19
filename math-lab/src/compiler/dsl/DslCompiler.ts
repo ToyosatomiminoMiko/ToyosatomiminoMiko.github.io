@@ -13,6 +13,8 @@ import { applyParamOverrides } from './params';
 import { compileIntegralTask } from './integrals';
 import { compileAnalyses } from './analyses';
 import {
+    cloneAnimations,
+    cloneObjectAnimations,
     cloneObjectTransforms,
     cloneParams,
     getOrBuildStaticScene,
@@ -72,6 +74,8 @@ export function compileScene(
         params: [...params.values()],
         objects,
         objectTransforms: cloneObjectTransforms(staticScene.objectTransforms),
+        animations: cloneAnimations(staticScene.animations),
+        objectAnimations: cloneObjectAnimations(staticScene.objectAnimations),
         analyses: compileAnalyses(
             ast,
             blueprintByName,

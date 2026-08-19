@@ -22,6 +22,9 @@ param_ui = { "in" ~ "[" ~ number ~ "," ~ number ~ "," ~ number ~ "]" }
 tensor_kind = { "scalar" | "vector" | "matrix" | "transform" }
 tensor_stmt = { tensor_kind ~ ident ~ "=" ~ expr ~ ";" }
 
+animation_stmt = { "animation" ~ ident ~ "=" ~ expr ~ animation_end }
+animation_end = { options ~ ";"? | ";" }
+
 object_kind = { "curve" | "surface" | "vector_field" | "point" | "vector" | "sphere" | "box" | "cylinder" | "cone" | "frustum" }
 object_stmt = { object_kind ~ ident ~ "=" ~ expr ~ object_end }
 object_end = { options ~ ";"? | ";" }
@@ -41,5 +44,5 @@ integral_stmt = { "integral" ~ ident ~ "=" ~ integral_call ~ integral_end }
 integral_call = { "integral" ~ "(" ~ ident ~ ")" }
 integral_end = { options ~ ";"? | ";" }
 
-statement = _{ param_stmt | tensor_stmt | object_stmt | analysis_stmt | integral_stmt }
+statement = _{ param_stmt | tensor_stmt | animation_stmt | object_stmt | analysis_stmt | integral_stmt }
 program = { SOI ~ statement* ~ EOI }
