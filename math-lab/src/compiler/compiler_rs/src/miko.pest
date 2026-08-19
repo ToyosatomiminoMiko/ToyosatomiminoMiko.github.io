@@ -22,7 +22,7 @@ param_ui = { "in" ~ "[" ~ number ~ "," ~ number ~ "," ~ number ~ "]" }
 tensor_kind = { "scalar" | "vector" | "matrix" | "transform" }
 tensor_stmt = { tensor_kind ~ ident ~ "=" ~ expr ~ ";" }
 
-object_kind = { "curve" | "surface" | "vector_field" | "point" | "vector" }
+object_kind = { "curve" | "surface" | "vector_field" | "point" | "vector" | "sphere" | "box" | "cylinder" | "cone" | "frustum" }
 object_stmt = { object_kind ~ ident ~ "=" ~ expr ~ object_end }
 object_end = { options ~ ";"? | ";" }
 options = { "{" ~ option* ~ "}" }

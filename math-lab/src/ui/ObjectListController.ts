@@ -14,6 +14,9 @@ const ENTITY_KIND_LABELS: Record<SceneObject['kind'], string> = {
     vector_field: '向量场',
     point: '点',
     vector: '向量',
+    sphere: '球体',
+    box: '方块',
+    conic: '旋转体',
 };
 
 const ANALYSIS_KIND_LABELS: Record<AnalysisResult['op'], string> = {
@@ -61,7 +64,27 @@ function sceneObjectExpression(object: SceneObject): string {
         case 'point':
         case 'vector':
             return object.expr;
+        case 'sphere':
+            return `中心=${formatVector([object.position.x, object.position.y, object.position.z])} · r=${formatNumber(object.radius)}`;
+        case 'box':
+            return `中心=${formatVector([object.position.x, object.position.y, object.position.z])} · size=${formatVector(object.size)}`;
+        case 'conic':
+            return `中心=${formatVector([object.position.x, object.position.y, object.position.z])} · base=${formatNumber(object.baseRadius)} · top=${formatNumber(object.topRadius)} · h=${formatNumber(object.height)}`;
     }
+}
+
+/** 旋转体的 UI 名称由实际上下底半径推出，而不是按 DSL 关键字固定. */
+function sceneObjectKindLabel(object: SceneObject): string {
+    if (object.kind !== 'conic') {
+        return ENTITY_KIND_LABELS[object.kind];
+    }
+    if (Math.abs(object.topRadius - object.baseRadius) < 1e-9) {
+        return '圆柱';
+    }
+    if (object.topRadius < 1e-9) {
+        return '圆锥';
+    }
+    return '圆台';
 }
 
 function analysisSummary(analysis: AnalysisResult): string {
@@ -189,7 +212,7 @@ export class ObjectListController {
             const badge = createElement(
                 'span',
                 `kind-badge kind-${object.kind}`,
-                ENTITY_KIND_LABELS[object.kind],
+                sceneObjectKindLabel(object),
             );
 
             const main = createElement('div', 'object-main');

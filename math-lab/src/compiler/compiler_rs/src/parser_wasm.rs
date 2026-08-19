@@ -339,6 +339,26 @@ point P = [1, 2, 3] {
 vector V = [[0, 0, 0], [1, 0, 0]] {
     color = "#ff6b8a";
 }
+sphere S = [0, 1, 0] {
+    radius = 2;
+    opacity = 0.6;
+}
+box B = [1, 2, 3] {
+    size = [2, 1, 1];
+}
+cylinder C = [0, 0, 0] {
+    base = 1;
+    height = 2;
+}
+cone K = [0, 0, 1] {
+    base = 2;
+    height = 3;
+}
+frustum F = [0, 0, -1] {
+    base = 2;
+    height = 3;
+    top = 1;
+}
 gradient g = grad(s1) at [a, b + 1] {
     show = [point, normal, tangent_plane];
 }
@@ -361,6 +381,11 @@ integral I2 = integral(s1) {
         assert!(json.contains("\"type\":\"object\""));
         assert!(json.contains("\"kind\":\"point\""));
         assert!(json.contains("\"kind\":\"vector\""));
+        assert!(json.contains("\"kind\":\"sphere\""));
+        assert!(json.contains("\"kind\":\"box\""));
+        assert!(json.contains("\"kind\":\"cylinder\""));
+        assert!(json.contains("\"kind\":\"cone\""));
+        assert!(json.contains("\"kind\":\"frustum\""));
         assert!(json.contains("\"type\":\"analysis\""));
         assert!(json.contains("\"type\":\"integral\""));
     }

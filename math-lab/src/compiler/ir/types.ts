@@ -102,6 +102,78 @@ export interface VectorObject {
     enabled: boolean;
 }
 
+/** 三维位置或尺寸分量,保持 IR 不依赖 three.js. */
+export interface Vec3 {
+    x: number;
+    y: number;
+    z: number;
+}
+
+/** 球体体积对象:中心点 + 半径. */
+export interface SphereObject {
+    kind: 'sphere';
+    id: number;
+    name: string;
+    /** 原始 DSL 表达式,例如 `[x, y, z]`. */
+    expr: string;
+    position: Vec3;
+    radius: number;
+    /** 半径/位置中出现的自由参数,供参数面板与增量刷新使用. */
+    coefficients: Coefficient[];
+    color: string;
+    opacity: number;
+    /** 径向分段数,只影响可视化质量,不改变数学半径. */
+    segments: number;
+    enabled: boolean;
+}
+
+/** 轴对齐方块体积对象:中心点 + 三轴尺寸. */
+export interface BoxObject {
+    kind: 'box';
+    id: number;
+    name: string;
+    /** 原始 DSL 表达式,例如 `[x, y, z]`. */
+    expr: string;
+    position: Vec3;
+    size: [number, number, number];
+    /** size/位置中出现的自由参数. */
+    coefficients: Coefficient[];
+    color: string;
+    opacity: number;
+    enabled: boolean;
+}
+
+/**
+ * 圆柱 / 圆锥 / 圆台的统一体积对象.
+ *
+ * 三种形体只用上下底半径和高描述:
+ * - 圆柱:topRadius === baseRadius
+ * - 圆锥:topRadius === 0
+ * - 圆台:0 < topRadius < baseRadius
+ *
+ * `sideAngle` 是母线相对轴的夹角,单位为弧度,由上下底半径和高推出；
+ * 同时保留它方便诊断和后续可视化控制.
+ */
+export interface ConicSolidObject {
+    kind: 'conic';
+    id: number;
+    name: string;
+    /** 原始 DSL 表达式,例如 `[x, y, z]`. */
+    expr: string;
+    position: Vec3;
+    baseRadius: number;
+    topRadius: number;
+    height: number;
+    sideAngle: number;
+    /** 几何参数/位置中出现的自由参数. */
+    coefficients: Coefficient[];
+    color: string;
+    opacity: number;
+    /** 圆周分段数. */
+    segments: number;
+    enabled: boolean;
+}
+
 /**
  * 场景中所有数学对象的联合类型.
  *
@@ -113,7 +185,10 @@ export type SceneObject =
     | SurfaceObject
     | VectorFieldObject
     | PointObject
-    | VectorObject;
+    | VectorObject
+    | SphereObject
+    | BoxObject
+    | ConicSolidObject;
 
 /** 微分分析结果(纯数值结果). */
 export type AnalysisOp = 'gradient' | 'divergence' | 'curl';

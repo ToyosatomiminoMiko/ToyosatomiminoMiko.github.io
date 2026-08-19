@@ -84,10 +84,15 @@ function buildStaticScene(ast: AstProgram, matrixOps: MatrixOps): StaticScene {
     }
 
     let nextId = 1;
+    const objectNames = new Set<string>();
     for (const statement of ast.statements) {
         if (statement.type === 'object') {
             const blueprint = buildObjectBlueprint(statement, nextId);
             if (blueprint) {
+                if (objectNames.has(blueprint.name)) {
+                    throw new Error(`对象 ${blueprint.name} 重复声明`);
+                }
+                objectNames.add(blueprint.name);
                 objectBlueprints.push(blueprint);
                 const transform = resolveObjectTransform(
                     findOption(statement.options, 'transform'),
@@ -101,7 +106,14 @@ function buildStaticScene(ast: AstProgram, matrixOps: MatrixOps): StaticScene {
     }
 
     for (const blueprint of objectBlueprints) {
-        if (blueprint.kind !== 'curve' && blueprint.kind !== 'surface' && blueprint.kind !== 'vector_field') {
+        if (
+            blueprint.kind !== 'curve'
+            && blueprint.kind !== 'surface'
+            && blueprint.kind !== 'vector_field'
+            && blueprint.kind !== 'sphere'
+            && blueprint.kind !== 'box'
+            && blueprint.kind !== 'conic'
+        ) {
             continue;
         }
         for (const name of blueprint.coefficientNames) {

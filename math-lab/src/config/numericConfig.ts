@@ -30,6 +30,13 @@ export const NUMERIC_CONFIG = {
         defaultGrid: [8, 8, 8] as [number, number, number],
         defaultGlyphScale: 1.2,
     },
+    volume: {
+        defaultSphereRadius: 1,
+        defaultBoxSize: [1, 1, 1] as [number, number, number],
+        defaultConicBase: 1,
+        defaultConicHeight: 1,
+        defaultRadialSegments: 48,
+    },
     integral: {
         defaultMethod: 'riemann' as const,
         defaultRange1D: [-4, 4] as [number, number],
@@ -60,6 +67,11 @@ export const NUMERIC_CONFIG = {
             // 单轴和总点数必须同时限制；100k 点比 200 万点更接近 Web 现实。
             maxAxisGrid: 128,
             maxTotalGridPoints: 100_000,
+        },
+        volume: {
+            // 球体/旋转体只按圆周分段，128 段已经足够平滑；
+            // 继续增大会让单个几何体变得沉重，但不会像二维积分一样 O(n^2) 爆炸。
+            maxRadialSegments: 128,
         },
         integral: {
             // 数值计算与可视化预算分开。

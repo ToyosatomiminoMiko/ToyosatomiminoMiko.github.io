@@ -83,24 +83,46 @@ integral I2 = integral(s1) {
 };
 
 // 向量场
-vector_field F = [y, -x, a] {
+vector_field VF = [y*a, x*b, a*j] {
     range = [-4, 4, -4, 4, -4, 4];
     grid = [8, 8, 8];
     scale = 1.2;
 }
 
-divergence d = div(F) at [1, 2, 3];
+divergence d = div(VF) at [1, 2, 3];
 
-curl c = curl(F) at [1, 2, 3];
+curl c = curl(VF) at [1, 2, 3];
 
 // 三维变换
 transform T = as_transform(M);
 
-surface s2 = sin(x) * cos(y) {
+sphere S = [0, 1, 0] {
+    radius = 2;
+    color = "#6dd5ff";
+    opacity = 0.55;
+};
+
+box B = [1, 2, 3] {
+    size = [2, 1, 1];
+    color = "#ff6b8a";
     transform = T;
-    range = [-6, 6, -6, 6];
-    segments = 96;
-}
+};
+
+cylinder C = [0, 0, 0] {
+    base = 1;
+    height = 2;
+};
+
+cone K = [0, 0, 1] {
+    base = 2;
+    height = 3;
+};
+
+frustum F = [0, 0, -1] {
+    base = 2;
+    height = 3;
+    top = 1;
+};
 
 transform T2 = translate([2, 1, 0]) * rotate([0, 0, pi / 4]) * scale([1.5, 1, 1]);
 

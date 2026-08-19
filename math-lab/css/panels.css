@@ -183,6 +183,7 @@
     border-color: rgba(255, 90, 110, 0.35);
 }
 
+/* 隐藏按钮 */
 .entity-visibility-btn {
     flex: 0 0 auto;
     background: rgba(255, 255, 255, 0.06);
@@ -190,7 +191,7 @@
     color: #8e9fc7;
     border-radius: 6px;
     padding: 3px 7px;
-    font-size: 11px;
+    font-size: 16px;
     cursor: pointer;
     white-space: nowrap;
 }
@@ -255,7 +256,7 @@
 .eval-result {
     display: block;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 11px;
+    font-size: 16px;
     line-height: 1.4;
     color: #8e9fc7;
     overflow-wrap: anywhere;

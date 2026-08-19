@@ -48,6 +48,33 @@ vector V = [[0, 0, 0], [1, 0, 0]] {
     color = "#ff6b8a";
 };
 
+sphere S = [0, 1, 0] {
+    radius = 2;
+    color = "#6dd5ff";
+    opacity = 0.55;
+};
+
+box B = [1, 2, 3] {
+    size = [2, 1, 1];
+    color = "#ff6b8a";
+};
+
+cylinder C = [0, 0, 0] {
+    base = 1;
+    height = 2;
+};
+
+cone K = [0, 0, 1] {
+    base = 2;
+    height = 3;
+};
+
+frustum Fr = [0, 0, -1] {
+    base = 2;
+    height = 3;
+    top = 1;
+};
+
 gradient g = grad(s1) at [a, b] {
     show = [point, normal, tangent_plane];
 }
@@ -78,12 +105,17 @@ integral I2 = integral(s1) {
 - `gradient` 的 `show = [point, normal, tangent_plane]`:已支持
 - `integral`:一维/二维数值积分和黎曼/勒贝格可视化,方法为
   `trapezoid`、`simpson`、`riemann`、`lebesgue`
+- `sphere` / `box` / `cylinder` / `cone` / `frustum`:透明体积图形；
+  `cylinder`、`cone`、`frustum` 统一映射为同一个 `conic` IR 类型
 
 相机状态不进入 DSL:透视/正交与旋转锁定由右侧 UI 开关控制,
 `camera:view` 按钮只负责预设视角.
 
 系数名不限于 `a`、`b`、`c`.只要不是 `sin`、`pi`、`e` 等内置符号,
 `k`、`omega`、`theta` 这类标识符都会被识别为自由参数.
+
+角度默认使用弧度，和 `rotate(pi / 4)` 保持一致。需要普通角度时可写
+`rotate(deg(180))`；`deg()` 在 Rust 符号归一化阶段展开为 `x * pi / 180`.
 
 ## 明确不支持但会报错
 

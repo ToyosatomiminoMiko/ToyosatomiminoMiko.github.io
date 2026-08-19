@@ -493,6 +493,18 @@ fn rewrite_aliases_inner(expr: &mut Expr) -> Result<(), String> {
                         Box::new(Expr::Call("sin".to_string(), args.clone())),
                     );
                 }
+                "deg" => {
+                    // 角度统一用弧度计算；DSL 里的角度写法通过 deg(180)
+                    // 转换成 180 * pi / 180，避免再引入一套角度单位分支。
+                    if args.len() != 1 {
+                        return Err("deg 只接受一个参数".to_string());
+                    }
+                    *expr = Expr::Binary(
+                        BinOp::Mul,
+                        Box::new(args[0].clone()),
+                        Box::new(Expr::Num(PI / 180.0)),
+                    );
+                }
                 _ => {}
             }
             Ok(())
@@ -1230,6 +1242,7 @@ fn builtin_symbol(name: &str) -> bool {
             | "sec"
             | "csc"
             | "cot"
+            | "deg"
             | "pi"
             | "PI"
             | "e"
@@ -1391,6 +1404,10 @@ mod tests {
         assert_eq!(normalize_expression("sec(x)").unwrap(), "1 / cos(x)");
         assert_eq!(normalize_expression("cot(x)").unwrap(), "cos(x) / sin(x)");
         assert_eq!(normalize_expression("pi").unwrap(), "3.141592653589793");
+        assert_eq!(
+            normalize_expression("deg(180)").unwrap(),
+            "180 * 0.017453292519943"
+        );
     }
 
     #[test]

@@ -2,6 +2,10 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { SceneObject } from '../../compiler/ir/types';
 import { RENDER_CONFIG } from '../../config/renderConfig';
+import {
+    createSolidEdgeMaterial,
+    createSolidMaterial,
+} from './solidPrimitives';
 
 // ============================================================
 // 渲染常量
@@ -467,24 +471,14 @@ export class IntegralVisualizer {
         geometries.forEach((geometry) => geometry.dispose());
         if (!merged) return;
 
-        const material = new THREE.MeshPhongMaterial({
-            color,
-            transparent: true,
-            opacity,
-            side: THREE.DoubleSide,
-            depthWrite: false,
-        });
+        const material = createSolidMaterial(color, opacity);
         const mesh = new THREE.Mesh(merged, material);
         const group = new THREE.Group();
         group.add(mesh);
 
         const edges = new THREE.LineSegments(
             new THREE.EdgesGeometry(merged, 30),
-            new THREE.LineBasicMaterial({
-                color,
-                transparent: true,
-                opacity: 0.35,
-            }),
+            createSolidEdgeMaterial(color, 0.35),
         );
         group.add(edges);
 
@@ -606,24 +600,14 @@ export class IntegralVisualizer {
         geometry.setIndex(indices);
         geometry.computeVertexNormals();
 
-        const material = new THREE.MeshPhongMaterial({
-            color,
-            transparent: true,
-            opacity,
-            side: THREE.DoubleSide,
-            depthWrite: false,
-        });
+        const material = createSolidMaterial(color, opacity);
         const mesh = new THREE.Mesh(geometry, material);
         const group = new THREE.Group();
         group.add(mesh);
 
         const edges = new THREE.LineSegments(
             new THREE.EdgesGeometry(geometry, 30),
-            new THREE.LineBasicMaterial({
-                color,
-                transparent: true,
-                opacity: 0.3,
-            }),
+            createSolidEdgeMaterial(color, 0.3),
         );
         group.add(edges);
 
@@ -737,24 +721,14 @@ export class IntegralVisualizer {
         geometry.setIndex(indices);
         geometry.computeVertexNormals();
 
-        const material = new THREE.MeshPhongMaterial({
-            color,
-            transparent: true,
-            opacity,
-            side: THREE.DoubleSide,
-            depthWrite: false,
-        });
+        const material = createSolidMaterial(color, opacity);
         const mesh = new THREE.Mesh(geometry, material);
         const group = new THREE.Group();
         group.add(mesh);
 
         const edges = new THREE.LineSegments(
             new THREE.EdgesGeometry(geometry, 30),
-            new THREE.LineBasicMaterial({
-                color,
-                transparent: true,
-                opacity: 0.3,
-            }),
+            createSolidEdgeMaterial(color, 0.3),
         );
         group.add(edges);
 
@@ -795,11 +769,10 @@ export class IntegralVisualizer {
     /** 用 InstancedMesh 批量渲染柱子(减少 draw call) */
     private _instancedMeshGroup(bars: BarDef[], opts: BarOptions = {}): THREE.Group {
         const { opacity, color, edgeOpacity, edgeColor } = opts;
-        const mat = new THREE.MeshPhongMaterial({
-            transparent: true,
-            opacity: opacity ?? 0.6,
-            side: THREE.DoubleSide,
-        });
+        const mat = createSolidMaterial(
+            color ?? new THREE.Color(0xffffff),
+            opacity ?? 0.6,
+        );
 
         const mesh = new THREE.InstancedMesh(SHARED_BOX_GEOMETRY, mat, bars.length);
         const dummy = new THREE.Object3D();
@@ -821,11 +794,10 @@ export class IntegralVisualizer {
 
         // 可选线框
         if (edgeOpacity && edgeOpacity > 0) {
-            const edgeMat = new THREE.LineBasicMaterial({
-                color: edgeColor ?? color ?? 0xffffff,
-                transparent: true,
-                opacity: edgeOpacity,
-            });
+            const edgeMat = createSolidEdgeMaterial(
+                edgeColor ?? color ?? new THREE.Color(0xffffff),
+                edgeOpacity,
+            );
             const wireMesh = new THREE.InstancedMesh(SHARED_EDGE_GEOMETRY, edgeMat, bars.length);
             for (let i = 0; i < bars.length; i++) {
                 const b = bars[i];

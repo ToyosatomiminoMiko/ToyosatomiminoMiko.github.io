@@ -5,10 +5,14 @@ import { SurfaceRenderer } from './renderers/SurfaceRenderer';
 import { PointRenderer } from './renderers/PointRenderer';
 import { VectorRenderer } from './renderers/VectorRenderer';
 import { VectorFieldRenderer } from './renderers/VectorFieldRenderer';
+import { SolidRenderer } from './renderers/SolidRenderer';
 import type {
+    BoxObject,
+    ConicSolidObject,
     CurveObject,
     PointObject,
     SceneObject,
+    SphereObject,
     SurfaceObject,
     VectorFieldObject,
     VectorObject,
@@ -66,6 +70,11 @@ export class Plotter {
     drawVectorField(vf: VectorFieldObject): void {
         const renderer = this._getOrCreate(vf.id, VectorFieldRenderer, vf);
         this._draw(renderer, vf);
+    }
+
+    drawSolid(solid: SphereObject | BoxObject | ConicSolidObject): void {
+        const renderer = this._getOrCreate(solid.id, SolidRenderer, solid);
+        this._draw(renderer, solid);
     }
 
     // ============================================================
@@ -137,6 +146,12 @@ export class Plotter {
                 break;
             case 'vector_field':
                 if (redraw) this.drawVectorField(obj);
+                else this._updateRef(obj);
+                break;
+            case 'sphere':
+            case 'box':
+            case 'conic':
+                if (redraw) this.drawSolid(obj);
                 else this._updateRef(obj);
                 break;
         }

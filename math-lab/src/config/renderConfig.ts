@@ -11,6 +11,10 @@ export const RENDER_CONFIG = {
         opacityLebesgue: 0.5,
         edgeOpacityRiemann: 0.4,
     },
+    volume: {
+        defaultOpacity: 0.55,
+        defaultEdgeOpacity: 0.3,
+    },
     vectorFieldMesh: {
         threshold: 1e-8,
         shaftRadius: 0.05,

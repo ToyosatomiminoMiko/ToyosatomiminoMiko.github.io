@@ -5,13 +5,17 @@
  * 采样、积分、分析和渲染都直接消费 Rust/evalexpr 可执行的字符串。
  */
 import { NUMERIC_CONFIG } from '../../config/numericConfig';
+import { RENDER_CONFIG } from '../../config/renderConfig';
 import type { ObjectStatement } from '../ast/types';
 import type {
+    BoxObject,
     Coefficient,
+    ConicSolidObject,
     CurveObject,
     ParamDeclaration,
     PointObject,
     SceneObject,
+    SphereObject,
     SurfaceObject,
     VectorFieldObject,
     VectorObject,
@@ -33,6 +37,8 @@ import {
     parseArrayStrings,
     type ExpressionArray,
 } from './expression';
+
+const RENDER_CONFIG_VOLUME_OPACITY = RENDER_CONFIG.volume.defaultOpacity;
 
 export type CurveBlueprint = {
     name: string;
@@ -93,18 +99,75 @@ export type VectorBlueprint = {
     color: string;
 };
 
+export type SphereBlueprint = {
+    name: string;
+    id: number;
+    kind: 'sphere';
+    expr: string;
+    positionExprs: [string, string, string];
+    radiusExpr: string;
+    coefficientNames: string[];
+    color: string;
+    segments: number;
+    opacity: number;
+};
+
+export type BoxBlueprint = {
+    name: string;
+    id: number;
+    kind: 'box';
+    expr: string;
+    positionExprs: [string, string, string];
+    sizeExprs: [string, string, string];
+    coefficientNames: string[];
+    color: string;
+    opacity: number;
+};
+
+export type ConicBlueprint = {
+    name: string;
+    id: number;
+    kind: 'conic';
+    expr: string;
+    declaredKind: 'cylinder' | 'cone' | 'frustum';
+    positionExprs: [string, string, string];
+    baseExpr: string;
+    heightExpr: string;
+    topExpr?: string;
+    angleExpr?: string;
+    coefficientNames: string[];
+    color: string;
+    segments: number;
+    opacity: number;
+};
+
 export type ObjectBlueprint =
     | CurveBlueprint
     | SurfaceBlueprint
     | VectorFieldBlueprint
     | PointBlueprint
-    | VectorBlueprint;
+    | VectorBlueprint
+    | SphereBlueprint
+    | BoxBlueprint
+    | ConicBlueprint;
 
 const CURVE_OPTION_NAMES = ['color', 'range', 'segments', 'transform'] as const;
 const SURFACE_OPTION_NAMES = ['color', 'range', 'segments', 'transform'] as const;
 const VECTOR_FIELD_OPTION_NAMES = ['color', 'range', 'grid', 'scale', 'transform'] as const;
 const POINT_OPTION_NAMES = ['color', 'transform'] as const;
 const VECTOR_OPTION_NAMES = ['color', 'transform'] as const;
+const SPHERE_OPTION_NAMES = ['color', 'radius', 'opacity', 'segments', 'transform'] as const;
+const BOX_OPTION_NAMES = ['color', 'size', 'opacity', 'transform'] as const;
+const CONIC_OPTION_NAMES = [
+    'color',
+    'base',
+    'height',
+    'angle',
+    'top',
+    'opacity',
+    'segments',
+    'transform',
+] as const;
 
 function arrayItems(value: ExpressionArray): ExpressionArray[] | null {
     return Array.isArray(value) ? value : null;
@@ -177,6 +240,50 @@ function parseVectorObject(
     }
 
     throw new Error(`${context} 需要 [dx, dy, dz] 或 [[x0,y0,z0],[dx,dy,dz]]`);
+}
+
+/**
+ * 解析体积对象的透明度选项.
+ *
+ * 体积对象默认和积分可视化一样使用半透明材质；这里只接受 [0, 1] 的常量，
+ * 不把 `opacity` 做成自由参数，因为透明度不需要参与数值计算。
+ */
+function parseOpacity(
+    raw: string | undefined,
+    context: string,
+    defaultValue: number,
+): number {
+    const value = optionalNumber(raw, context) ?? defaultValue;
+    if (value < 0 || value > 1) {
+        throw new Error(`${context} 必须在 0 到 1 之间,当前为 ${value}`);
+    }
+    return value;
+}
+
+/**
+ * 把 `size = 2` 或 `size = [2, 3, 4]` 统一成三轴表达式.
+ *
+ * 单个数值表示 cube，即三个轴共用同一个表达式。
+ */
+function parseSizeExpressions(raw: string, context: string): [string, string, string] {
+    const items = parseArrayItems(raw);
+    if (!items) {
+        return [raw, raw, raw];
+    }
+    if (items.length === 1) {
+        const scalar = stringItem(items[0]);
+        if (!scalar) throw new Error(`${context} 包含无效元素`);
+        return [scalar, scalar, scalar];
+    }
+    if (items.length === 3) {
+        return toExpressionTuple(items);
+    }
+    throw new Error(`${context} 需要 1 个或 3 个分量,当前为 ${items.length} 个`);
+}
+
+/** 收集体积对象位置与几何参数里的自由参数，供 param 面板和增量刷新使用。 */
+function collectVolumeCoefficientNames(expressions: string[]): string[] {
+    return extractCoefficientNames(expressions, new Set());
 }
 
 function extractCoefficientNames(
@@ -368,6 +475,109 @@ export function buildObjectBlueprint(
             };
         }
 
+        case 'sphere': {
+            assertKnownOptions(statement.options, SPHERE_OPTION_NAMES, `球体 ${statement.name}`);
+            const positionExprs = parsePointComponents(statement.expr, `球体 ${statement.name}`);
+            const radiusExpr = findOption(statement.options, 'radius') ?? String(
+                NUMERIC_CONFIG.volume.defaultSphereRadius,
+            );
+            const opacity = parseOpacity(
+                findOption(statement.options, 'opacity'),
+                `球体 ${statement.name} 的 opacity`,
+                RENDER_CONFIG_VOLUME_OPACITY,
+            );
+            const segments = parseCappedPositiveInteger(
+                findOption(statement.options, 'segments'),
+                `球体 ${statement.name} 的 segments`,
+                NUMERIC_CONFIG.limits.volume.maxRadialSegments,
+            ) ?? NUMERIC_CONFIG.volume.defaultRadialSegments;
+            return {
+                name: statement.name,
+                id,
+                kind: 'sphere',
+                expr: statement.expr,
+                positionExprs,
+                radiusExpr,
+                coefficientNames: collectVolumeCoefficientNames([...positionExprs, radiusExpr]),
+                color,
+                segments,
+                opacity,
+            };
+        }
+
+        case 'box': {
+            assertKnownOptions(statement.options, BOX_OPTION_NAMES, `方块 ${statement.name}`);
+            const positionExprs = parsePointComponents(statement.expr, `方块 ${statement.name}`);
+            const sizeExprs = parseSizeExpressions(
+                findOption(statement.options, 'size') ?? `[${NUMERIC_CONFIG.volume.defaultBoxSize.join(', ')}]`,
+                `方块 ${statement.name} 的 size`,
+            );
+            const opacity = parseOpacity(
+                findOption(statement.options, 'opacity'),
+                `方块 ${statement.name} 的 opacity`,
+                RENDER_CONFIG_VOLUME_OPACITY,
+            );
+            return {
+                name: statement.name,
+                id,
+                kind: 'box',
+                expr: statement.expr,
+                positionExprs,
+                sizeExprs,
+                coefficientNames: collectVolumeCoefficientNames([...positionExprs, ...sizeExprs]),
+                color,
+                opacity,
+            };
+        }
+
+        case 'cylinder':
+        case 'cone':
+        case 'frustum': {
+            assertKnownOptions(statement.options, CONIC_OPTION_NAMES, `旋转体 ${statement.name}`);
+            const positionExprs = parsePointComponents(statement.expr, `旋转体 ${statement.name}`);
+            const baseExpr = findOption(statement.options, 'base') ?? String(
+                NUMERIC_CONFIG.volume.defaultConicBase,
+            );
+            const heightExpr = findOption(statement.options, 'height') ?? String(
+                NUMERIC_CONFIG.volume.defaultConicHeight,
+            );
+            const topExpr = findOption(statement.options, 'top');
+            const angleExpr = findOption(statement.options, 'angle');
+            const opacity = parseOpacity(
+                findOption(statement.options, 'opacity'),
+                `旋转体 ${statement.name} 的 opacity`,
+                RENDER_CONFIG_VOLUME_OPACITY,
+            );
+            const segments = parseCappedPositiveInteger(
+                findOption(statement.options, 'segments'),
+                `旋转体 ${statement.name} 的 segments`,
+                NUMERIC_CONFIG.limits.volume.maxRadialSegments,
+            ) ?? NUMERIC_CONFIG.volume.defaultRadialSegments;
+            const declaredKind = statement.kind as 'cylinder' | 'cone' | 'frustum';
+            return {
+                name: statement.name,
+                id,
+                kind: 'conic',
+                expr: statement.expr,
+                declaredKind,
+                positionExprs,
+                baseExpr,
+                heightExpr,
+                topExpr,
+                angleExpr,
+                coefficientNames: collectVolumeCoefficientNames([
+                    ...positionExprs,
+                    baseExpr,
+                    heightExpr,
+                    ...(topExpr ? [topExpr] : []),
+                    ...(angleExpr ? [angleExpr] : []),
+                ]),
+                color,
+                segments,
+                opacity,
+            };
+        }
+
         default:
             return null;
     }
@@ -458,6 +668,141 @@ export function materializeObject(
                 range: blueprint.range,
                 glyphScale: blueprint.glyphScale,
             } satisfies VectorFieldObject;
+        }
+
+        case 'sphere': {
+            const scope = buildParamScope(params, overrides);
+            const [x, y, z] = blueprint.positionExprs.map((expr) =>
+                evaluateRequiredNumber(expr, scope, `球体 ${blueprint.name} 的中心`),
+            ) as [number, number, number];
+            const radius = evaluateRequiredNumber(
+                blueprint.radiusExpr,
+                scope,
+                `球体 ${blueprint.name} 的 radius`,
+            );
+            if (radius <= 0) {
+                throw new Error(`球体 ${blueprint.name} 的 radius 必须大于 0`);
+            }
+            return {
+                kind: 'sphere',
+                id: blueprint.id,
+                name: blueprint.name,
+                expr: blueprint.expr,
+                position: { x, y, z },
+                radius,
+                coefficients: materializeCoefficients(blueprint.coefficientNames, params, overrides),
+                color: blueprint.color,
+                opacity: blueprint.opacity,
+                segments: blueprint.segments,
+                enabled: true,
+            } satisfies SphereObject;
+        }
+
+        case 'box': {
+            const scope = buildParamScope(params, overrides);
+            const [x, y, z] = blueprint.positionExprs.map((expr) =>
+                evaluateRequiredNumber(expr, scope, `方块 ${blueprint.name} 的中心`),
+            ) as [number, number, number];
+            const size = blueprint.sizeExprs.map((expr) =>
+                evaluateRequiredNumber(expr, scope, `方块 ${blueprint.name} 的 size`),
+            ) as [number, number, number];
+            if (size.some((value) => value <= 0)) {
+                throw new Error(`方块 ${blueprint.name} 的 size 每个分量都必须大于 0`);
+            }
+            return {
+                kind: 'box',
+                id: blueprint.id,
+                name: blueprint.name,
+                expr: blueprint.expr,
+                position: { x, y, z },
+                size,
+                coefficients: materializeCoefficients(blueprint.coefficientNames, params, overrides),
+                color: blueprint.color,
+                opacity: blueprint.opacity,
+                enabled: true,
+            } satisfies BoxObject;
+        }
+
+        case 'conic': {
+            const scope = buildParamScope(params, overrides);
+            const [x, y, z] = blueprint.positionExprs.map((expr) =>
+                evaluateRequiredNumber(expr, scope, `旋转体 ${blueprint.name} 的中心`),
+            ) as [number, number, number];
+            const baseRadius = evaluateRequiredNumber(
+                blueprint.baseExpr,
+                scope,
+                `旋转体 ${blueprint.name} 的 base`,
+            );
+            const height = evaluateRequiredNumber(
+                blueprint.heightExpr,
+                scope,
+                `旋转体 ${blueprint.name} 的 height`,
+            );
+            if (baseRadius <= 0) {
+                throw new Error(`旋转体 ${blueprint.name} 的 base 必须大于 0`);
+            }
+            if (height <= 0) {
+                throw new Error(`旋转体 ${blueprint.name} 的 height 必须大于 0`);
+            }
+
+            let topRadius: number;
+            let sideAngle: number;
+            if (blueprint.topExpr && blueprint.angleExpr) {
+                throw new Error(
+                    `旋转体 ${blueprint.name} 不能同时指定 top 和 angle，请二选一`,
+                );
+            }
+            if (blueprint.topExpr) {
+                topRadius = evaluateRequiredNumber(
+                    blueprint.topExpr,
+                    scope,
+                    `旋转体 ${blueprint.name} 的 top`,
+                );
+                sideAngle = Math.atan((baseRadius - topRadius) / height);
+            } else if (blueprint.angleExpr) {
+                sideAngle = evaluateRequiredNumber(
+                    blueprint.angleExpr,
+                    scope,
+                    `旋转体 ${blueprint.name} 的 angle`,
+                );
+                topRadius = baseRadius - height * Math.tan(sideAngle);
+            } else if (blueprint.declaredKind === 'cylinder') {
+                topRadius = baseRadius;
+                sideAngle = 0;
+            } else if (blueprint.declaredKind === 'cone') {
+                topRadius = 0;
+                sideAngle = Math.atan(baseRadius / height);
+            } else {
+                throw new Error(
+                    `圆台 ${blueprint.name} 需要显式指定 top 或 angle`,
+                );
+            }
+
+            // 数值误差下允许极小的越界；真正越界时宁可报错也不画一个反向/负数半径的畸形体。
+            const epsilon = 1e-9;
+            if (topRadius < -epsilon || topRadius > baseRadius + epsilon) {
+                throw new Error(
+                    `旋转体 ${blueprint.name} 的 top 半径 ${topRadius} 不在 [0, ${baseRadius}] 内`,
+                );
+            }
+            topRadius = Math.min(baseRadius, Math.max(0, topRadius));
+
+            return {
+                kind: 'conic',
+                id: blueprint.id,
+                name: blueprint.name,
+                expr: blueprint.expr,
+                position: { x, y, z },
+                baseRadius,
+                topRadius,
+                height,
+                sideAngle,
+                coefficients: materializeCoefficients(blueprint.coefficientNames, params, overrides),
+                color: blueprint.color,
+                opacity: blueprint.opacity,
+                segments: blueprint.segments,
+                enabled: true,
+            } satisfies ConicSolidObject;
         }
     }
 }

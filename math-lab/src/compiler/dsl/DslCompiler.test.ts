@@ -57,6 +57,18 @@ vi.mock('../../wasm/math_rs/math_rs', () => ({
                 return '[["1", "2", "3"], ["a", "0", "1"]]';
             case '[0, a, 0]':
                 return '["0", "a", "0"]';
+            case '[0, 1, 0]':
+                return '["0", "1", "0"]';
+            case '[1, 2, 3]':
+                return '["1", "2", "3"]';
+            case '[0, 0, 0]':
+                return '["0", "0", "0"]';
+            case '[0, 0, 1]':
+                return '["0", "0", "1"]';
+            case '[0, 0, -1]':
+                return '["0", "0", "-1"]';
+            case '[2, 1, 1]':
+                return '["2", "1", "1"]';
             default:
                 return '[]';
         }
@@ -678,5 +690,99 @@ describe('compileScene', () => {
             origin: { x: 0, y: 0, z: 0 },
             direction: { x: 0, y: 4, z: 0 },
         });
+    });
+
+    it('compiles volume objects into one conic IR shape for cylinder/cone/frustum', () => {
+        const volumeAst: AstProgram = {
+            statements: [
+                {
+                    type: 'object',
+                    kind: 'sphere',
+                    name: 'S',
+                    expr: '[0, 1, 0]',
+                    options: [{ name: 'radius', value: '2' }],
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'object',
+                    kind: 'box',
+                    name: 'B',
+                    expr: '[1, 2, 3]',
+                    options: [{ name: 'size', value: '[2, 1, 1]' }],
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'object',
+                    kind: 'cylinder',
+                    name: 'C',
+                    expr: '[0, 0, 0]',
+                    options: [
+                        { name: 'base', value: '1' },
+                        { name: 'height', value: '2' },
+                    ],
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'object',
+                    kind: 'cone',
+                    name: 'K',
+                    expr: '[0, 0, 1]',
+                    options: [
+                        { name: 'base', value: '2' },
+                        { name: 'height', value: '3' },
+                    ],
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'object',
+                    kind: 'frustum',
+                    name: 'F',
+                    expr: '[0, 0, -1]',
+                    options: [
+                        { name: 'base', value: '2' },
+                        { name: 'height', value: '3' },
+                        { name: 'top', value: '1' },
+                    ],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        const scene = compileScene(volumeAst);
+
+        expect(scene.objects).toHaveLength(5);
+        expect(scene.objects[0]).toMatchObject({
+            kind: 'sphere',
+            position: { x: 0, y: 1, z: 0 },
+            radius: 2,
+        });
+        expect(scene.objects[1]).toMatchObject({
+            kind: 'box',
+            position: { x: 1, y: 2, z: 3 },
+            size: [2, 1, 1],
+        });
+        expect(scene.objects[2]).toMatchObject({
+            kind: 'conic',
+            baseRadius: 1,
+            topRadius: 1,
+            height: 2,
+        });
+        expect(scene.objects[3]).toMatchObject({
+            kind: 'conic',
+            baseRadius: 2,
+            topRadius: 0,
+            height: 3,
+        });
+        expect(scene.objects[4]).toMatchObject({
+            kind: 'conic',
+            baseRadius: 2,
+            topRadius: 1,
+            height: 3,
+        });
+        const frustum = scene.objects[4];
+        expect(frustum.kind).toBe('conic');
+        if (frustum.kind === 'conic') {
+            expect(frustum.sideAngle).toBeCloseTo(Math.atan(1 / 3));
+        }
     });
 });
