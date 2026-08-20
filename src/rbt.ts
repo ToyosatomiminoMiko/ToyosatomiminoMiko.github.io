@@ -114,7 +114,7 @@ function buildTreeFromExpression(expr: string): RBNode | null {
 }
 
 // ============================================================
-// 工具: 计算树深度 (根深度1)
+// 工具: 计算树深度 (根深度1) 未使用,保留
 // ============================================================
 function getTreeDepth(node: RBNode | null): number {
     if (!node) return 0;

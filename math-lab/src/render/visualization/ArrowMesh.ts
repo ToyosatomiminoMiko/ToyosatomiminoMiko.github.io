@@ -21,7 +21,6 @@ export class ArrowMesh {
     private _headMaterial: THREE.MeshPhongMaterial;
 
     // 预分配的向量,避免在 setTransform 循环中 new
-    private _tempOrigin: THREE.Vector3;
     private _tempDir: THREE.Vector3;
     private _tempUp: THREE.Vector3;
 
@@ -62,7 +61,6 @@ export class ArrowMesh {
         this.group.add(this._head);
 
         // 预分配
-        this._tempOrigin = new THREE.Vector3();
         this._tempDir = new THREE.Vector3();
         this._tempUp = new THREE.Vector3(0, 1, 0);
     }

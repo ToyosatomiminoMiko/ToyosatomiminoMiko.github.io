@@ -61,6 +61,13 @@ npm run build
 
 也可以使用根目录的 `bash ./build.sh`,它现在等同于 `npm run build`.
 
+重新生成wasm
+
+```sh
+npm run build:wasm
+npm run typecheck
+```
+
 ## 架构
 
 先说结论:`math-lab` 目前是有架构的，只是它被拆成了四条并行的线——**编译、渲染、异步计算、UI 控制**，最后由一个比较胖的编排器 [DslApp.ts](src/app/DslApp.ts) 缝在一起.你觉得“看不懂”，通常是因为同步编译和异步计算/渲染这两条时间线混在一个文件里.

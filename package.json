@@ -19,13 +19,18 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "npm run build:wasm && npm run build:app",
+    "clean": "node -e 'const fs = require(\"node:fs\"); for (const p of [\"dist\", \"math-lab/src/wasm\"]) fs.rmSync(p, { recursive: true, force: true });'",
+    "build:wasm:math": "cd math-lab/src/math/math_rs && wasm-pack build --release --target web --out-dir ../../wasm/math_rs",
+    "build:wasm:compiler": "cd math-lab/src/compiler/compiler_rs && wasm-pack build --release --target web --out-dir ../../wasm/compiler_rs",
+    "build:wasm:render": "cd math-lab/src/render/render_rs && wasm-pack build --release --target web --out-dir ../../wasm/render_rs",
+    "build:wasm": "npm run build:wasm:math && npm run build:wasm:compiler && npm run build:wasm:render",
     "build:app": "npm run typecheck && vite build",
-    "build:wasm": "cd math-lab/src/math/math_rs && wasm-pack build --target web --out-dir ../../wasm/math_rs && cd ../../compiler/compiler_rs && wasm-pack build --target web --out-dir ../../wasm/compiler_rs && cd ../../render/render_rs && wasm-pack build --target web --out-dir ../../wasm/render_rs",
+    "build": "npm run clean && npm run build:wasm && npm run build:app",
     "lint:rs": "cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings",
     "check": "npm run build:wasm && npm run typecheck && npm test && npm run lint:rs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "censorship": "npx tsc --noEmit --noUnusedLocals --noUnusedParameters"
   }
 }

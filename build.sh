@@ -1,22 +1,47 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# Production build entrypoint.
+# This script is intentionally thin: it only installs pinned dependencies and
+# delegates every build/check stage to package.json scripts.
 
-# 遇到错误立即退出
-set -euo pipefail
-# 项目根目录
-PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
+set -Eeuo pipefail
 
-log()  { echo "[LOG][$(date '+%Y.%m.%d.%H:%M:%S')] $*"; }
-err()  { echo "[ERR][$(date '+%Y.%m.%d.%H:%M:%S')] $*" >&2; }
-
-trap 'err "Build failed at line $LINENO"' ERR
-
-log "checking WASM build, typecheck, tests, rustfmt and clippy..."
-npm run check
-
-log "building..."
-
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_ROOT"
 
-npm run build:app
+log() {
+    printf '[BUILD][%s] %s\n' "$(date '+%Y.%m.%d.%H:%M:%S')" "$*"
+}
 
-log "build succeeded."
+err() {
+    printf '[BUILD][ERROR][%s] %s\n' "$(date '+%Y.%m.%d.%H:%M:%S')" "$*" >&2
+}
+
+require_command() {
+    local name="$1"
+    if ! command -v "$name" >/dev/null 2>&1; then
+        err "missing required command: ${name}"
+        exit 127
+    fi
+}
+
+trap 'err "build failed at line ${LINENO}"' ERR
+
+require_command node
+require_command npm
+require_command cargo
+require_command wasm-pack
+
+log "installing pinned dependencies from package-lock.json"
+npm ci --no-audit --no-fund
+
+log "running Rust format and clippy checks"
+npm run lint:rs
+
+log "running tests"
+npm test
+
+log "building production artifacts"
+npm run build
+
+log "build succeeded"
+log "output directory: ${PROJECT_ROOT}/dist"

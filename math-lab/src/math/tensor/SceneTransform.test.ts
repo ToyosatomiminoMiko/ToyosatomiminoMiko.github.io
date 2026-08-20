@@ -54,7 +54,7 @@ describe('SceneTransform', () => {
             scale: () => scale4([2, 2, 2]),
             rotate: () => rotate4([0, 0, 0]),
             multiply: (a: number[][], b: number[][]) => multiply4x4(a, b),
-            apply: (matrix: number[][], point: number[]) => [point[0] + 1, point[1], point[2]],
+            apply: (_matrix: number[][], point: number[]) => [point[0] + 1, point[1], point[2]],
         };
 
         const ops = createMatrixOps(backend);
