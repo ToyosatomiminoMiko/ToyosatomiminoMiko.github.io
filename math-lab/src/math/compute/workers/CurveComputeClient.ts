@@ -28,11 +28,17 @@ export class CurveComputeClient {
     }
 }
 
+/**
+ * @cache
+ * 缓存目的:曲线采样复用同一个 Worker client.
+ * 键/失效策略:模块级单例;应用销毁时由 disposeCurveComputeClient 释放.
+ * 生命周期:模块级，随页面存活.
+ */
 export const curveComputeClient = new CurveComputeClient();
 
 /**
  * 应用级释放入口.
- * 单个 CurveRenderer 的 dispose 不应调用这里；只有确认整个应用不再需要
+ * 单个 CurveRenderer 的 dispose 不应调用这里;只有确认整个应用不再需要
  * 曲线采样时才允许 terminate 这个共享 worker.
  */
 export function disposeCurveComputeClient(): void {

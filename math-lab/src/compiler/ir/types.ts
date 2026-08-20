@@ -151,7 +151,7 @@ export interface BoxObject {
  * - 圆锥:topRadius === 0
  * - 圆台:0 < topRadius < baseRadius
  *
- * `sideAngle` 是母线相对轴的夹角,单位为弧度,由上下底半径和高推出；
+ * `sideAngle` 是母线相对轴的夹角,单位为弧度,由上下底半径和高推出;
  * 同时保留它方便诊断和后续可视化控制.
  */
 export interface ConicSolidObject {
@@ -177,7 +177,7 @@ export interface ConicSolidObject {
 /**
  * 场景中所有数学对象的联合类型.
  *
- * 注意:`point` / `vector` 是保留对象类型,后续会补 DSL 语法；
+ * 注意:`point` / `vector` 是保留对象类型,后续会补 DSL 语法;
  * 当前先恢复渲染能力,不继续按 legacy 删除.
  */
 export type SceneObject =
@@ -201,7 +201,7 @@ export interface AnalysisResult {
     vector: [number, number, number];
     scalar: number | null;
     show: AnalysisShow[];
-    /** 求值对象是否参与计算。为 false 时仅保留列表项,不执行数值计算。 */
+    /** 求值对象是否参与计算.为 false 时仅保留列表项,不执行数值计算. */
     enabled: boolean;
 }
 
@@ -217,7 +217,7 @@ export interface IntegralTask {
     segments: number;
     layers: number;
     show: boolean;
-    /** 求值对象是否参与计算。为 false 时仅保留列表项,不执行数值计算。 */
+    /** 求值对象是否参与计算.为 false 时仅保留列表项,不执行数值计算. */
     enabled: boolean;
 }
 

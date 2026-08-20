@@ -61,7 +61,7 @@ export function compileAnalyses(
             throw new Error(`分析算子 ${statement.op} 暂未实现`);
         }
 
-        // 分析声明目前只接受 show；其他字段应作为编译错误暴露。
+        // 分析声明目前只接受 show;其他字段应作为编译错误暴露.
         assertKnownOptions(statement.options, ['show'], `分析 ${statement.name}`);
 
         if (hiddenNames.has(statement.name)) {

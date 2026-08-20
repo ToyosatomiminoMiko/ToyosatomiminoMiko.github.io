@@ -18,7 +18,12 @@ const {
     edgeOpacityRiemann: EDGE_OPACITY_RIEMANN,
 } = RENDER_CONFIG.integralVisualizer;
 
-// 所有柱条共享同一个单位立方体及其线框几何体,避免每次可视化重复分配.
+/**
+ * @cache
+ * 缓存目的:所有积分柱条共享同一个单位立方体及其线框几何体，避免重复分配.
+ * 键/失效策略:只读共享资源，不失效.
+ * 生命周期:模块级，随页面存活.
+ */
 const SHARED_BOX_GEOMETRY = new THREE.BoxGeometry(1, 1, 1);
 const SHARED_EDGE_GEOMETRY = new THREE.EdgesGeometry(SHARED_BOX_GEOMETRY);
 
@@ -53,6 +58,13 @@ type LayerCallback = (
 export class IntegralVisualizer {
     scene: THREE.Scene;
     group: THREE.Group;
+
+    /**
+     * @cache
+     * 缓存目的:保存积分可视化对应的 THREE.Group，避免同一任务重复创建 GPU 对象.
+     * 键/失效策略:任务名或对象 id -> { type, objects };clear/clearAll 时删除.
+     * 生命周期:跟随 IntegralVisualizer 实例.
+     */
     cache: Map<number | string, { type: string; objects: THREE.Group }>;
 
     constructor(scene: THREE.Scene) {
@@ -62,6 +74,10 @@ export class IntegralVisualizer {
         this.cache = new Map();
     }
 
+    /**
+     * @cache-access
+     * 清空场景对象和缓存.
+     */
     clearAll(): void {
         while (this.group.children.length > 0) {
             const child = this.group.children[0];
@@ -71,6 +87,10 @@ export class IntegralVisualizer {
         this.cache.clear();
     }
 
+    /**
+     * @cache-access
+     * 删除指定任务的黎曼与勒贝格缓存.
+     */
     clear(id: number | string): void {
         // 清除黎曼可视化缓存
         const entry = this.cache.get(id);
@@ -89,6 +109,10 @@ export class IntegralVisualizer {
         }
     }
 
+    /**
+     * @cache-access
+     * 清空缓存并把自己从场景移除.
+     */
     dispose(): void {
         this.clearAll();
         this.scene.remove(this.group);
@@ -98,7 +122,10 @@ export class IntegralVisualizer {
     // 2D / 3D 黎曼和可视化
     // ============================================================
 
-    /** 2D 黎曼和可视化 */
+    /**
+     * @cache-access
+     * 创建或替换 2D 黎曼可视化并写入缓存.
+     */
     visualize2DRiemann(
         obj: SceneObject,
         fn: (x: number) => number,
@@ -132,7 +159,10 @@ export class IntegralVisualizer {
         this.cache.set(cacheKey, { type: '2d', objects: group });
     }
 
-    /** 3D 黎曼和可视化 */
+    /**
+     * @cache-access
+     * 创建或替换 3D 黎曼可视化并写入缓存.
+     */
     visualize3DRiemann(
         obj: SceneObject,
         fn: (x: number, y: number) => number,
@@ -181,7 +211,10 @@ export class IntegralVisualizer {
     // 2D / 3D 梯形积分可视化
     // ============================================================
 
-    /** 一维梯形积分:每个区间画一个真实梯形棱柱. */
+    /**
+     * @cache-access
+     * 创建一维梯形积分可视化并写入缓存.
+     */
     visualize2DTrapezoid(
         obj: SceneObject,
         fn: (x: number) => number,
@@ -208,7 +241,10 @@ export class IntegralVisualizer {
         );
     }
 
-    /** 一维辛普森积分:每个双区间画插值抛物线下的面积. */
+    /**
+     * @cache-access
+     * 创建一维辛普森积分可视化并写入缓存.
+     */
     visualize2DSimpson(
         obj: SceneObject,
         fn: (x: number) => number,
@@ -256,7 +292,10 @@ export class IntegralVisualizer {
         );
     }
 
-    /** 二维梯形积分:绘制被积函数曲面和侧壁,不再误画黎曼柱. */
+    /**
+     * @cache-access
+     * 创建二维梯形积分可视化并写入缓存.
+     */
     visualize3DTrapezoid(
         obj: SceneObject,
         fn: (x: number, y: number) => number,
@@ -279,7 +318,10 @@ export class IntegralVisualizer {
         );
     }
 
-    /** 二维辛普森积分:同样绘制被积函数曲面,不误画黎曼柱. */
+    /**
+     * @cache-access
+     * 创建二维辛普森积分可视化并写入缓存.
+     */
     visualize3DSimpson(
         obj: SceneObject,
         fn: (x: number, y: number) => number,
@@ -306,7 +348,10 @@ export class IntegralVisualizer {
     // 2D / 3D 勒贝格可视化
     // ============================================================
 
-    /** 2D 勒贝格可视化 */
+    /**
+     * @cache-access
+     * 创建 2D 勒贝格可视化并写入带后缀的缓存.
+     */
     visualize2DLebesgue(
         obj: SceneObject,
         fn: (x: number) => number,
@@ -374,7 +419,10 @@ export class IntegralVisualizer {
         this.cache.set(`${cacheKey}_lebesgue`, { type: '2d', objects: group });
     }
 
-    /** 3D 勒贝格积分可视化(等高线切片) */
+    /**
+     * @cache-access
+     * 创建 3D 勒贝格积分可视化并写入带后缀的缓存.
+     */
     visualize3DLebesgue(
         obj: SceneObject,
         fn: (x: number, y: number) => number,
@@ -444,7 +492,10 @@ export class IntegralVisualizer {
     //  内部方法
     // ============================================================
 
-    /** 用若干带符号的一维面积多边形生成棱柱并合并成单个 Group. */
+    /**
+     * @cache-access
+     * 生成一维面积棱柱并写入缓存.
+     */
     private _areaPrismGroup(
         segments: Array<{ x0: number; x1: number; y0: number; y1: number }>,
         color: THREE.Color,
@@ -535,7 +586,10 @@ export class IntegralVisualizer {
         return points;
     }
 
-    /** 二维梯形积分:每个网格单元生成一个真实梯形棱柱. */
+    /**
+     * @cache-access
+     * 生成二维梯形棱柱并写入缓存.
+     */
     private _trapezoid2DAreaGroup(
         fn: (x: number, y: number) => number,
         xRange: [number, number],
@@ -615,7 +669,10 @@ export class IntegralVisualizer {
         this.cache.set(cacheKey, { type: cacheType, objects: group });
     }
 
-    /** 二维积分曲面可视化:透明被积函数曲面 + 边界侧壁. */
+    /**
+     * @cache-access
+     * 生成二维积分曲面并写入缓存.
+     */
     private _surfaceAreaGroup(
         fn: (x: number, y: number) => number,
         xRange: [number, number],

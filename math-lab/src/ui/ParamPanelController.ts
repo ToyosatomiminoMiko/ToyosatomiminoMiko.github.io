@@ -8,6 +8,12 @@ import type { ParamDeclaration } from '../compiler/ir/types';
 export type ParamChangeHandler = (name: string, value: number) => void;
 
 export class ParamPanelController {
+    /**
+     * @cache
+     * 缓存目的:维护参数面板的当前值，供编译覆盖和滑块双向同步.
+     * 键/失效策略:参数名 -> 当前值;render 时整体重建，输入时逐项更新.
+     * 生命周期:跟随 ParamPanelController 实例.
+     */
     private readonly values = new Map<string, number>();
 
     constructor(
@@ -15,6 +21,10 @@ export class ParamPanelController {
         private readonly onChange: ParamChangeHandler,
     ) {}
 
+    /**
+     * @cache-access
+     * 用新参数声明整体重建当前值缓存和面板 DOM.
+     */
     render(params: ParamDeclaration[]): void {
         this.panel.replaceChildren();
         this.values.clear();
@@ -25,10 +35,18 @@ export class ParamPanelController {
         }
     }
 
+    /**
+     * @cache-access
+     * 从当前值缓存生成编译覆盖对象.
+     */
     getValues(): Record<string, number> {
         return Object.fromEntries(this.values);
     }
 
+    /**
+     * @cache-access
+     * 清空参数面板和当前值缓存.
+     */
     dispose(): void {
         this.panel.replaceChildren();
         this.values.clear();

@@ -155,8 +155,8 @@ pub fn sample_function_1d(
     }
 }
 
-/// 参数较多是因为这是纯函数采样核心；当前不引入请求结构体，
-/// 保持与 WASM 边界的扁平参数一一对应，便于定位 FFI 问题。
+/// 参数较多是因为这是纯函数采样核心;当前不引入请求结构体，
+/// 保持与 WASM 边界的扁平参数一一对应，便于定位 FFI 问题.
 #[allow(clippy::too_many_arguments)]
 pub fn sample_function_2d(
     expr: &str,

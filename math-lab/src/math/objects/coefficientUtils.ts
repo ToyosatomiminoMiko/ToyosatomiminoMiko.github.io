@@ -3,9 +3,9 @@ import { extractSymbolNames } from '../../compiler/dsl/expression';
 import { NUMERIC_CONFIG } from '../../config/numericConfig';
 
 /**
- * 从表达式字符串中提取自由参数，并排除指定的坐标变量名。
+ * 从表达式字符串中提取自由参数，并排除指定的坐标变量名.
  *
- * 内置函数名、数学常量由 Rust 符号引擎统一排除，TS 不再维护黑名单。
+ * 内置函数名、数学常量由 Rust 符号引擎统一排除，TS 不再维护黑名单.
  */
 export function extractCoefficients(
     expr: string,

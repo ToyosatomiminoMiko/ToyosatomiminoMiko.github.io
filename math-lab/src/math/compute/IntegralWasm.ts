@@ -44,15 +44,31 @@ export type IntegralResult = {
 };
 
 // ---------- Worker 管理 ----------
+/**
+ * @cache
+ * 缓存目的:积分计算复用同一个 Worker client 和 latest-only 调度器.
+ * 键/失效策略:模块级单例;应用销毁时由 disposeIntegralWorker 显式释放.
+ * 生命周期:模块级，随页面存活.
+ */
 const integralClient = new ComputeWorkerClient<Request, Response>(() => new Worker(
     new URL('./workers/IntegralWorker.ts', import.meta.url),
     { type: 'module' },
 ));
 
-// 积分请求也走 latest-only.滑块高频刷新时,旧请求不会再无意义地堆积；
+// 积分请求也走 latest-only.滑块高频刷新时,旧请求不会再无意义地堆积;
 // 每个时刻最多只有一个积分请求真正交给 Worker.
+/**
+ * @cache
+ * 缓存目的:保证积分请求 latest-only，避免高频刷新堆积旧任务.
+ * 键/失效策略:单飞队列;新请求取代 pending 请求.
+ * 生命周期:模块级，随页面存活.
+ */
 const integralExecutor = new LatestRequestExecutor<Request, Response>(integralClient);
 
+/**
+ * @cache-access
+ * 通过 latest-only executor 调用积分 Worker.
+ */
 function callWasm(
     method: Method,
     expr: string,
@@ -73,6 +89,10 @@ function callWasm(
 /**
  * 应用级释放积分计算资源.
  * 先停掉 LatestRequestExecutor 的逻辑调度,再 terminate 共享 Worker.
+ */
+/**
+ * @cache-access
+ * 释放积分 latest-only 调度器和共享 Worker.
  */
 export function disposeIntegralWorker(): void {
     integralExecutor.dispose();

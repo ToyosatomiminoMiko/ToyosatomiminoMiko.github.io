@@ -1,0 +1,165 @@
+/**
+ * SceneStore —— math-lab 应用层的场景状态仓库.
+ *
+ * 这里只保存与“当前这次编译/渲染会话”直接相关的状态:
+ * - 最近一次成功解析的 AST
+ * - 当前矩阵运算后端
+ * - 最近一次编译出的场景对象快照
+ * - 实体/分析/积分的显隐状态
+ * - 动画计时起点
+ *
+ * 它不负责解析、编译、渲染，也不直接操作 DOM.CompileController 负责
+ * 写入 AST 和 matrixOps，RenderController 负责写入场景快照并读取显隐状态.
+ * 把状态从 DslApp 抽出来，是为了让 DslApp 只做装配和事件编排.
+ */
+import type { AstProgram } from '../compiler/ast/types';
+import type { SceneIR, SceneObject } from '../compiler/ir/types';
+import { createMatrixOps, type MatrixOps } from '../math/tensor/SceneTransform';
+
+export class SceneStore {
+    private _currentAst: AstProgram | null = null;
+    private _lastRunSource = '';
+    private _matrixOps: MatrixOps = createMatrixOps();
+    private _compiledObjects: SceneObject[] = [];
+
+    /**
+     * @cache
+     * 缓存目的:镜像最近一次 SceneIR.objectTransforms，方便未来做对象级
+     *          诊断、导出或状态恢复.
+     * 更新策略:每次 RenderController 提交 SceneIR 时整体替换.
+     * 生命周期:跟随 SceneStore 实例，应用销毁时由 GC 回收.
+     *
+     * 注意:当前渲染热路径已经直接使用 AnimationPlayer 的时间线矩阵，
+     * 因此这个字段暂时没有被读取;它是为新功能保留的状态快照，不参与
+     * 现有每帧渲染，避免误以为它还有实时副作用.
+     */
+    private _objectTransforms: Record<number, number[][]> = {};
+
+    private _animationStartTime = 0;
+
+    private readonly _hiddenEntityIds = new Set<number>();
+    private readonly _hiddenAnalysisNames = new Set<string>();
+    private readonly _hiddenIntegralNames = new Set<string>();
+
+    get ast(): AstProgram | null {
+        return this._currentAst;
+    }
+
+    get matrixOps(): MatrixOps {
+        return this._matrixOps;
+    }
+
+    get compiledObjects(): readonly SceneObject[] {
+        return this._compiledObjects;
+    }
+
+    get objectTransforms(): Readonly<Record<number, number[][]>> {
+        return this._objectTransforms;
+    }
+
+    get animationStartTime(): number {
+        return this._animationStartTime;
+    }
+
+    get hiddenEntityIds(): ReadonlySet<number> {
+        return this._hiddenEntityIds;
+    }
+
+    get hiddenAnalysisNames(): ReadonlySet<string> {
+        return this._hiddenAnalysisNames;
+    }
+
+    get hiddenIntegralNames(): ReadonlySet<string> {
+        return this._hiddenIntegralNames;
+    }
+
+    /**
+     * @cache-access
+     * 在一次源码解析成功后提交新的 AST 和矩阵后端.
+     *
+     * 只有当源码内容发生变化时才重置显隐状态.这样 Ctrl+Enter 重跑同一份
+     * 源码不会把用户手动隐藏的对象突然恢复出来.
+     */
+    commitSource(
+        source: string,
+        ast: AstProgram,
+        nextMatrixOps: MatrixOps,
+    ): void {
+        if (this._lastRunSource !== source) {
+            this._hiddenEntityIds.clear();
+            this._hiddenAnalysisNames.clear();
+            this._hiddenIntegralNames.clear();
+        }
+
+        this._lastRunSource = source;
+        this._currentAst = ast;
+        this._matrixOps = nextMatrixOps;
+    }
+
+    /**
+     * @cache-access
+     * 保存最近一次编译出的对象快照和变换镜像.
+     */
+    setScene(scene: SceneIR): void {
+        this._compiledObjects = scene.objects;
+        this._objectTransforms = scene.objectTransforms;
+    }
+
+    setAnimationStartTime(value: number): void {
+        this._animationStartTime = value;
+    }
+
+    /** 返回从动画起点开始经过的秒数;没有起点时按 0 处理. */
+    getElapsedSeconds(now: number = performance.now()): number {
+        if (this._animationStartTime === 0) return 0;
+        return (now - this._animationStartTime) / 1000;
+    }
+
+    /**
+     * @cache-access
+     * 从最近一次编译对象快照中查找实体.
+     */
+    findObject(id: number): SceneObject | undefined {
+        return this._compiledObjects.find((candidate) => candidate.id === id);
+    }
+
+    isEntityHidden(id: number): boolean {
+        return this._hiddenEntityIds.has(id);
+    }
+
+    /**
+     * @cache-access
+     * 更新实体显隐缓存.
+     */
+    setEntityHidden(id: number, hidden: boolean): void {
+        if (hidden) {
+            this._hiddenEntityIds.add(id);
+        } else {
+            this._hiddenEntityIds.delete(id);
+        }
+    }
+
+    /**
+     * @cache-access
+     * 更新分析对象显隐缓存.
+     */
+    toggleAnalysisHidden(name: string): void {
+        if (this._hiddenAnalysisNames.has(name)) {
+            this._hiddenAnalysisNames.delete(name);
+        } else {
+            this._hiddenAnalysisNames.add(name);
+        }
+    }
+
+    /**
+     * @cache-access
+     * 更新积分对象显隐缓存.
+     */
+    toggleIntegralHidden(name: string): void {
+        if (this._hiddenIntegralNames.has(name)) {
+            this._hiddenIntegralNames.delete(name);
+        } else {
+            this._hiddenIntegralNames.add(name);
+        }
+    }
+}

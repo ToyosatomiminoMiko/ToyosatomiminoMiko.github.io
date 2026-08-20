@@ -41,7 +41,12 @@ export type SurfaceWorkerResponse = {
     error?: string;
 };
 
-// 只初始化一次,所有后续请求共享同一个 WASM 实例
+/**
+ * @cache
+ * 缓存目的:Worker 内只初始化一次 render_rs WASM 实例，后续请求复用.
+ * 键/失效策略:模块级 Promise;永不失效.
+ * 生命周期:随 Worker 实例存活.
+ */
 const wasmReady = init();
 
 // 在 Worker 环境中 self 的类型与 DOM Window 不同,这里收窄为需要的接口

@@ -4,7 +4,7 @@ use crate::builtins::register_builtins;
 
 /// 构建包含自由系数和内置函数的求值上下文.
 ///
-/// 该上下文不包含 `x`、`y`、`z` 等采样坐标；坐标由调用方在每次求值前
+/// 该上下文不包含 `x`、`y`、`z` 等采样坐标;坐标由调用方在每次求值前
 /// 通过 [`set_variable`] 显式写入.这样可以让采样循环只解析一次表达式,
 /// 同时避免每个调用点各自维护一套 context 初始化逻辑.
 pub fn build_base_context(
@@ -34,7 +34,7 @@ pub fn set_variable(ctx: &mut HashMapContext, name: &str, value: f64) -> Result<
 
 /// 对已编译节点求值.
 ///
-/// 有限数值返回 `Ok(Some(value))`；非有限浮点结果返回 `Ok(None)`；
+/// 有限数值返回 `Ok(Some(value))`;非有限浮点结果返回 `Ok(None)`;
 /// 解析/求值错误返回 `Err`.这样调用方可以显式决定“跳过”“置零”还是报错,
 /// 不再把错误和非有限值都混成 `NaN`.
 pub fn evaluate_node_opt(node: &Node, ctx: &HashMapContext) -> Result<Option<f64>, String> {

@@ -36,7 +36,12 @@ export class Plotter {
     /** 所有渲染器的 Group 挂载点,挂到 Scene 下 */
     private readonly plotContainer = new THREE.Group();
 
-    /** id → 渲染器 映射 */
+    /**
+     * @cache
+     * 缓存目的:维护对象 id 到专属 renderer 的索引，避免每次刷新都创建 GPU 对象.
+     * 键/失效策略:对象 id -> UpdatableRenderer;对象消失或类型变化时 remove/重建.
+     * 生命周期:跟随 Plotter 实例，dispose 时清空.
+     */
     private readonly rendererMap = new Map<number, UpdatableRenderer>();
 
     constructor(private readonly scene: THREE.Scene) {
@@ -81,6 +86,10 @@ export class Plotter {
     //  生命周期 & 可见性
     // ============================================================
 
+    /**
+     * @cache-access
+     * 从 rendererMap 移除并释放指定 renderer.
+     */
     remove(id: number): void {
         const renderer = this.rendererMap.get(id);
         if (!renderer) return;
@@ -89,6 +98,10 @@ export class Plotter {
         this.rendererMap.delete(id);
     }
 
+    /**
+     * @cache-access
+     * 命中 rendererMap 并同步可见性.
+     */
     setVisible(id: number, visible: boolean): void {
         this.rendererMap.get(id)?.setVisible(visible);
     }
@@ -120,6 +133,7 @@ export class Plotter {
     }
 
     /**
+     * @cache-access
      * 更新一个对象.
      *
      * @param redraw false 时只同步 renderer 内部的 SceneObject 引用,
@@ -157,6 +171,10 @@ export class Plotter {
         }
     }
 
+    /**
+     * @cache-access
+     * 遍历并清空 rendererMap，再把 plotContainer 从场景移除.
+     */
     dispose(): void {
         for (const [id] of this.rendererMap) {
             this.remove(id);
@@ -174,6 +192,10 @@ export class Plotter {
         renderer.draw();
     }
 
+    /**
+     * @cache-access
+     * 从 rendererMap 命中已有 renderer，未命中或类型变化时创建并写入缓存.
+     */
     private _getOrCreate<T extends UpdatableRenderer, D extends SceneObject>(
         id: number,
         Ctor: new (data: D) => T,
@@ -190,7 +212,10 @@ export class Plotter {
         return renderer as T;
     }
 
-    /** 只同步引用和可见性,不触发数值采样与 GPU 重建. */
+    /**
+     * @cache-access
+     * 只同步 renderer 引用和可见性，不触发数值采样与 GPU 重建.
+     */
     private _updateRef(obj: SceneObject): void {
         const renderer = this.rendererMap.get(obj.id);
         if (!renderer) return;

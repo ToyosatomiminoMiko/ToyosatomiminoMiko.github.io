@@ -29,8 +29,8 @@ export function collectParams(ast: AstProgram): Map<string, ParamDeclaration> {
             ? toFiniteNumber(statement.ui.step, `参数 ${statement.name} 的 step`)
             : NUMERIC_CONFIG.param.defaultStep;
 
-        // 参数 UI 的范围是后续滑块的契约；不在这里校验，
-        // 后续会生成反直觉甚至无法使用的滑块。
+        // 参数 UI 的范围是后续滑块的契约;不在这里校验，
+        // 后续会生成反直觉甚至无法使用的滑块.
         if (min >= max) {
             throw new Error(`参数 ${statement.name} 需要满足 min < max`);
         }

@@ -130,10 +130,16 @@ function integralSourceLabel(
 /**
  * footer 对象列表控制器.
  *
- * 左栏展示场景实体对象,右栏展示分析与积分等求值结果。
+ * 左栏展示场景实体对象,右栏展示分析与积分等求值结果.
  * 控制器只负责 DOM,真正的可见性与数值计算由 DslApp 回调驱动.
  */
 export class ObjectListController {
+    /**
+     * @cache
+     * 缓存目的:复用积分列表 DOM 行，只更新结果文本，避免每次 sync 重建整棵树.
+     * 键/失效策略:积分名 -> { row, result, key };任务消失或任务参数变化时替换.
+     * 生命周期:跟随 ObjectListController 实例.
+     */
     private readonly integralRows = new Map<
         string,
         { row: HTMLElement; result: HTMLElement; key: string }
@@ -165,6 +171,10 @@ export class ObjectListController {
         button.setAttribute('aria-pressed', String(visible));
     }
 
+    /**
+     * @cache-access
+     * 命中积分 DOM 行缓存并更新结果文本.
+     */
     setIntegralResult(name: string, value: number): void {
         const item = this.integralRows.get(name);
         if (!item) return;
@@ -174,6 +184,10 @@ export class ObjectListController {
         item.row.classList.remove('has-error');
     }
 
+    /**
+     * @cache-access
+     * 命中积分 DOM 行缓存并更新错误文本.
+     */
     setIntegralError(name: string, message: string): void {
         const item = this.integralRows.get(name);
         if (!item) return;
@@ -183,6 +197,10 @@ export class ObjectListController {
         item.row.classList.add('has-error');
     }
 
+    /**
+     * @cache-access
+     * 清空实体、分析、积分列表及其 DOM 行缓存.
+     */
     clear(): void {
         this.entityList.replaceChildren();
         this.analysisList.replaceChildren();
@@ -265,6 +283,10 @@ export class ObjectListController {
         this.analysisList.replaceChildren(fragment);
     }
 
+    /**
+     * @cache-access
+     * 根据任务 key 复用或替换积分 DOM 行缓存.
+     */
     private _renderIntegrals(
         tasks: IntegralTask[],
         objects: SceneObject[],

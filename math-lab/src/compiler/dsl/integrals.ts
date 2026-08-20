@@ -28,8 +28,8 @@ export function compileIntegralTask(
         throw new Error(`积分 ${statement.name} 只能应用于 curve 或 surface`);
     }
 
-    // DSL 必须严格失败：未知 option 或重复 option 是用户错误，
-    // 不能静默忽略后按默认值画一张“看起来正确”的图。
+    // DSL 必须严格失败:未知 option 或重复 option 是用户错误，
+    // 不能静默忽略后按默认值画一张“看起来正确”的图.
     assertKnownOptions(
         statement.options,
         INTEGRAL_OPTION_NAMES,
@@ -68,9 +68,9 @@ export function compileIntegralTask(
         range = [rangeValues[0], rangeValues[1], rangeValues[2], rangeValues[3]];
     }
 
-    // 一维与二维积分的资源风险完全不同。
-    // 二维积分按 n*m 采样，必须使用更小的独立上限；
-    // 一维积分则可以允许更大的 segments，只受线性缓冲限制。
+    // 一维与二维积分的资源风险完全不同.
+    // 二维积分按 n*m 采样，必须使用更小的独立上限;
+    // 一维积分则可以允许更大的 segments，只受线性缓冲限制.
     const maxSegments = source.kind === 'curve'
         ? NUMERIC_CONFIG.limits.integral.maxSegments1D
         : NUMERIC_CONFIG.limits.integral.maxSegments2D;

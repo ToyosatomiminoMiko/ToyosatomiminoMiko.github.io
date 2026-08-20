@@ -35,6 +35,13 @@ export class SurfaceMesh {
     group: THREE.Group;
     /** dispose 后不再接受任何异步结果 */
     private _disposed = false;
+
+    /**
+     * @cache
+     * 缓存目的:把曲面采样请求收敛为 latest-only，主线程只等待最新结果.
+     * 键/失效策略:单飞队列;新请求取代 pending 请求.
+     * 生命周期:跟随 SurfaceMesh 实例.
+     */
     private readonly executor = new LatestRequestExecutor<
         SurfaceWorkerRequest,
         SurfaceWorkerResponse
@@ -65,11 +72,11 @@ export class SurfaceMesh {
         this.geometry.setAttribute(
             'normal', new THREE.BufferAttribute(normalArray, 3));
 
-        // 初始索引保持为空，等第一次 Worker 结果带回有效索引再设置。
+        // 初始索引保持为空，等第一次 Worker 结果带回有效索引再设置.
         //
-        // 这里不再生成 cols*rows*6 个 u32 的完整索引：
+        // 这里不再生成 cols*rows*6 个 u32 的完整索引:
         // 该数组在主线程会再被复制成 JS number[]，随后很快被 Worker 的
-        // 有效索引替换，属于一次完全没有收益的大块分配。
+        // 有效索引替换，属于一次完全没有收益的大块分配.
         this.geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(0), 1));
 
         // 材质:Phong + 顶点颜色 + 双面渲染
@@ -111,6 +118,10 @@ export class SurfaceMesh {
      * @param coefficients 当前系数列表
      * @param xMin/xMax    x 采样范围
      * @param yMin/yMax    y 采样范围
+     */
+    /**
+     * @cache-access
+     * 通过 latest-only executor 发起采样;几何体本身复用.
      */
     update(
         expr: string,
@@ -162,8 +173,8 @@ export class SurfaceMesh {
         normalAttr.array.set(result.normals);
         normalAttr.needsUpdate = true;
 
-        // 索引更新：优先复用已有 BufferAttribute，只写数据；
-        // 首帧 currentIndex 为空，会在这里创建真正的有效索引。
+        // 索引更新:优先复用已有 BufferAttribute，只写数据;
+        // 首帧 currentIndex 为空，会在这里创建真正的有效索引.
         const validIndices = result.validIndices;
         const currentIndex = this.geometry.index as THREE.BufferAttribute | null;
         if (currentIndex && currentIndex.count === validIndices.length) {

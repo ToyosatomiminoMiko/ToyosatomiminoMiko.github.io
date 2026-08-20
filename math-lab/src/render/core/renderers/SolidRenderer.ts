@@ -17,7 +17,7 @@ import {
  * 球体 / 方块 / 旋转体的统一渲染器.
  *
  * 圆柱、圆锥、圆台在 IR 中都收敛成 `ConicSolidObject`，因此这里只用一种
- * `conic` 分支；三种形体的区别完全由 baseRadius/topRadius/height 决定.
+ * `conic` 分支;三种形体的区别完全由 baseRadius/topRadius/height 决定.
  */
 export type SolidObject = SphereObject | BoxObject | ConicSolidObject;
 

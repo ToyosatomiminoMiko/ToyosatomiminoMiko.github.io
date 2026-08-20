@@ -4,7 +4,16 @@ import {
 } from '../../wasm/render_rs/render_rs';
 import { ensureWasmReady } from '../../runtime/wasmRuntime';
 
-// 立即触发初始化,后续调用者共享同一个 Promise
+/**
+ * @cache
+ * 缓存目的:保留主线程直接调用 render_rs 曲面后处理的 WASM 初始化状态.
+ * 键/失效策略:模块级单例;立即初始化，永不失效.
+ * 生命周期:随模块存活.
+ *
+ * 说明:当前运行路径已经改走 surfaceWorker + SurfaceMesh，这个文件暂未
+ *       被主运行路径使用;保留它是为了后续桌面端或主线程直算功能复用，
+ *       不要仅因为“未使用”就删除.
+ */
 const wasmReady = ensureWasmReady();
 let ready = false;
 void wasmReady.then(() => { ready = true; });

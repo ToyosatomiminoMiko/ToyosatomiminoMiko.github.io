@@ -1,8 +1,8 @@
 /**
- * 场景矩阵与变换解析。
+ * 场景矩阵与变换解析.
  *
- * 矩阵语法解析与常量求值由 Rust/WASM 完成；这里只负责把扁平的 16 个
- * 数值重新组织为 Mat4，并解析 DSL 的 transform 组合语法。
+ * 矩阵语法解析与常量求值由 Rust/WASM 完成;这里只负责把扁平的 16 个
+ * 数值重新组织为 Mat4，并解析 DSL 的 transform 组合语法.
  */
 import type { MatrixOps } from '../../math/tensor/SceneTransform';
 import { evaluateMatrixExpr, evaluateNumber } from './expression';
@@ -81,8 +81,8 @@ export function parseTransformExpression(
 /**
  * 解析单个动画变换.
  *
- * 动画声明刻意只接受“一个矩阵”，不接受 `*` 组合；复杂动画应由多个
- * animation 声明按顺序引用。这里支持三种单矩阵写法:
+ * 动画声明刻意只接受“一个矩阵”，不接受 `*` 组合;复杂动画应由多个
+ * animation 声明按顺序引用.这里支持三种单矩阵写法:
  * - `translate([...])` / `rotate([...])` / `scale([...])`
  * - `as_transform(M)`
  * - 直接引用已声明的 `matrix M` 或 `transform T`

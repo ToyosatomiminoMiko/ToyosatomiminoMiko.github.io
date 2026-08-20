@@ -15,10 +15,22 @@ export class VectorFieldRenderer implements IRenderer {
     readonly group: THREE.Group;
     private _mesh: VectorFieldMesh | null = null;
 
-    // 网格坐标缓存:只有在 range 或 gridSize 变化时才重建
+    /**
+     * @cache
+     * 缓存目的:保存网格点世界坐标，避免 range/gridSize 未变化时重复生成.
+     * 键/失效策略:_positionsKey 由 range+gridSize 序列化得到;变化时重建.
+     * 生命周期:跟随 VectorFieldRenderer 实例.
+     */
     private _positions: Float32Array | null = null;
     private _positionsKey = '';
     private _disposed = false;
+
+    /**
+     * @cache
+     * 缓存目的:把向量场采样请求收敛为 latest-only.
+     * 键/失效策略:单飞队列;新请求取代 pending 请求.
+     * 生命周期:跟随 VectorFieldRenderer 实例.
+     */
     private readonly executor = new LatestRequestExecutor<
         VectorFieldWorkerRequest,
         Float32Array
@@ -32,6 +44,10 @@ export class VectorFieldRenderer implements IRenderer {
         return this._data.enabled;
     }
 
+    /**
+     * @cache-access
+     * 命中或重建网格坐标缓存，并通过 latest-only executor 更新向量值.
+     */
     draw(): void {
         const { components, coefficients, range, gridSize, glyphScale, color } = this._data;
 

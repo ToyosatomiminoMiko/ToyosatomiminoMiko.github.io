@@ -1,6 +1,6 @@
 /**
  * 积分计算 Worker.
- * 采样、求值与积分值计算全部由 Rust/WASM 完成,不再使用外部 JS 数学库。
+ * 采样、求值与积分值计算全部由 Rust/WASM 完成,不再使用外部 JS 数学库.
  */
 import init, {
     integrate1d,
@@ -36,6 +36,12 @@ type IntegralResponse = {
     m?: number;
 };
 
+/**
+ * @cache
+ * 缓存目的:Worker 内只初始化一次 math_rs WASM 实例，后续请求复用.
+ * 键/失效策略:模块级 Promise;永不失效.
+ * 生命周期:随 Worker 实例存活.
+ */
 const wasmInit = init();
 const workerScope = self as unknown as {
     postMessage(message: IntegralResponse, transfer?: Transferable[]): void;

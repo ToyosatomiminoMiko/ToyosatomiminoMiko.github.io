@@ -28,11 +28,17 @@ export class VectorFieldComputeClient {
     }
 }
 
+/**
+ * @cache
+ * 缓存目的:向量场采样复用同一个 Worker client.
+ * 键/失效策略:模块级单例;应用销毁时由 disposeVectorFieldComputeClient 释放.
+ * 生命周期:模块级，随页面存活.
+ */
 export const vectorFieldComputeClient = new VectorFieldComputeClient();
 
 /**
  * 应用级释放入口.
- * 单个 VectorFieldRenderer 的 dispose 不应调用这里；只有确认整个应用不再
+ * 单个 VectorFieldRenderer 的 dispose 不应调用这里;只有确认整个应用不再
  * 需要向量场计算时才允许 terminate 这个共享 worker.
  */
 export function disposeVectorFieldComputeClient(): void {

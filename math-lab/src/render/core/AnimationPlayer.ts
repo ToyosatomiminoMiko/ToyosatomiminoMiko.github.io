@@ -68,6 +68,13 @@ function interpolateMat4(start: Mat4, end: Mat4, t: number): Mat4 {
  */
 export class AnimationPlayer {
     private matrixOps: MatrixOps;
+
+    /**
+     * @cache
+     * 缓存目的:保存每个对象的基础变换和动画 clip 时间线，供每帧插值快速查询.
+     * 键/失效策略:对象 id -> ObjectAnimationTimeline;setScene 时整体重建.
+     * 生命周期:跟随 AnimationPlayer 实例.
+     */
     private timelines = new Map<number, ObjectAnimationTimeline>();
 
     constructor(matrixOps: MatrixOps = jsMatrixOps) {
@@ -78,6 +85,10 @@ export class AnimationPlayer {
         this.matrixOps = matrixOps;
     }
 
+    /**
+     * @cache-access
+     * 用新的 SceneIR 重建动画时间线缓存.
+     */
     setScene(
         objectTransforms: Record<number, Mat4>,
         animations: AnimationClip[],
@@ -113,6 +124,10 @@ export class AnimationPlayer {
         }
     }
 
+    /**
+     * @cache-access
+     * 根据当前时间线缓存计算对象矩阵.
+     */
     getObjectMatrix(id: number, elapsedSeconds: number): Mat4 | null {
         const timeline = this.timelines.get(id);
         if (!timeline) return null;

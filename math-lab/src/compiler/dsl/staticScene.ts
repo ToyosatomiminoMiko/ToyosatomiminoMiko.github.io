@@ -31,8 +31,19 @@ export type StaticScene = {
  * 对象表达式、参数声明与 matrixOps 无关,但 transform 求值依赖具体后端;
  * 同一 AST 用不同 matrixOps 编译时若复用旧结果,会返回错误的 objectTransforms.
  */
+/**
+ * @cache
+ * 缓存目的:避免参数刷新时反复执行声明级建模，只按 AST 缓存静态场景.
+ * 键/失效策略:WeakMap<AstProgram, { matrixOps, scene }>;AST 被回收时自动
+ *              失效.若 matrixOps 后端变化，也会重新构建，避免复用旧变换.
+ * 生命周期:模块级，跟随页面存活.
+ */
 const staticSceneCache = new WeakMap<AstProgram, { matrixOps: MatrixOps; scene: StaticScene }>();
 
+/**
+ * @cache-access
+ * 获取 AST 对应的静态场景;缓存未命中时构建并写入.
+ */
 export function getOrBuildStaticScene(ast: AstProgram, matrixOps: MatrixOps): StaticScene {
     let cached = staticSceneCache.get(ast);
     if (!cached || cached.matrixOps !== matrixOps) {

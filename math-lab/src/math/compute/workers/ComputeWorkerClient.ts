@@ -17,12 +17,23 @@ export class ComputeWorkerClient<
     TRequest extends { id: number },
     TResponse extends { error?: string },
 > {
+    /**
+     * @cache
+     * 缓存目的:复用同一个 Worker 实例，并用 id 缓存未完成请求.
+     * 键/失效策略:_worker 按需创建，错误或 dispose 时置空;_pending 以请求
+     *              id 为键，响应后删除.
+     * 生命周期:跟随 ComputeWorkerClient 实例.
+     */
     private _worker: Worker | null = null;
     private readonly _pending = new Map<number, PendingRequest<TResponse>>();
     private _nextId = 0;
 
     constructor(private readonly workerFactory: () => Worker) {}
 
+    /**
+     * @cache-access
+     * 通过复用 Worker 发送请求，并登记到 pending 缓存.
+     */
     request(request: Omit<TRequest, 'id'>): Promise<TResponse> {
         const id = ++this._nextId;
         return new Promise<TResponse>((resolve, reject) => {
@@ -31,6 +42,10 @@ export class ComputeWorkerClient<
         });
     }
 
+    /**
+     * @cache-access
+     * 终止 Worker 并拒绝所有 pending 请求.
+     */
     dispose(): void {
         this._worker?.terminate();
         this._worker = null;
@@ -42,6 +57,10 @@ export class ComputeWorkerClient<
         this._pending.clear();
     }
 
+    /**
+     * @cache-access
+     * 返回当前 Worker;不存在时创建并缓存.
+     */
     private _getWorker(): Worker {
         if (this._worker) return this._worker;
 
@@ -63,6 +82,10 @@ export class ComputeWorkerClient<
         return this._worker;
     }
 
+    /**
+     * @cache-access
+     * 根据响应 id 命中 pending 缓存并完成对应 Promise.
+     */
     private _handleMessage(response: ComputeWorkerMessage<TResponse>): void {
         const pending = this._pending.get(response.id);
         if (!pending) return;

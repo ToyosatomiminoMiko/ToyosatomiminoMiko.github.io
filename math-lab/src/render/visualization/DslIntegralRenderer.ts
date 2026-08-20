@@ -27,6 +27,13 @@ export type IntegralDiagnosticFn = (
 export class DslIntegralRenderer {
     private readonly visualizer: IntegralVisualizer;
     private sequence = 0;
+
+    /**
+     * @cache
+     * 缓存目的:记录每个积分任务当前的请求序号，用于丢弃过期异步结果.
+     * 键/失效策略:积分名 -> sequence;sync 时按 dirty 范围刷新.
+     * 生命周期:跟随 DslIntegralRenderer 实例.
+     */
     private readonly taskSequences = new Map<string, number>();
     private disposed = false;
 
@@ -37,6 +44,10 @@ export class DslIntegralRenderer {
         this.visualizer = new IntegralVisualizer(scene);
     }
 
+    /**
+     * @cache-access
+     * 更新任务序号缓存，并只清理/重算受 dirty 对象影响的积分.
+     */
     sync(
         tasks: IntegralTask[],
         objects: SceneObject[],
@@ -72,6 +83,10 @@ export class DslIntegralRenderer {
         void this._renderAll(tasksToRender, objects, diagnostics, onResult, onError);
     }
 
+    /**
+     * @cache-access
+     * 清理任务序号缓存并释放可视化资源.
+     */
     dispose(): void {
         this.disposed = true;
         this.sequence += 1;

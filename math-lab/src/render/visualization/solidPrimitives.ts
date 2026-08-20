@@ -5,7 +5,7 @@ import { RENDER_CONFIG } from '../../config/renderConfig';
  * 共享的体积几何 / 材质工具.
  *
  * 积分可视化和体积对象都使用这里的材质与线框策略，避免两边各自维护一套
- * 透明度、edge、dispose 代码。这里不包含任何 DSL / IR 类型，只接受数值。
+ * 透明度、edge、dispose 代码.这里不包含任何 DSL / IR 类型，只接受数值.
  */
 
 const VOLUME_RENDER_CONFIG = RENDER_CONFIG.volume;
@@ -13,8 +13,8 @@ const VOLUME_RENDER_CONFIG = RENDER_CONFIG.volume;
 /**
  * 创建半透明实体材质.
  *
- * opacity < 1 时关闭深度写入，避免透明面互相遮挡出现黑块；opacity === 1
- * 时打开深度写入，保证完全不透明物体有正确的遮挡关系。
+ * opacity < 1 时关闭深度写入，避免透明面互相遮挡出现黑块;opacity === 1
+ * 时打开深度写入，保证完全不透明物体有正确的遮挡关系.
  */
 export function createSolidMaterial(
     color: string | THREE.Color,
@@ -44,7 +44,7 @@ export function createSolidEdgeMaterial(
     });
 }
 
-/** 轴对齐方块几何体；大小由三轴半长乘 2 得到完整尺寸. */
+/** 轴对齐方块几何体;大小由三轴半长乘 2 得到完整尺寸. */
 export function buildBoxGeometry(size: [number, number, number]): THREE.BoxGeometry {
     return new THREE.BoxGeometry(size[0], size[1], size[2]);
 }
@@ -60,7 +60,7 @@ export function buildSphereGeometry(
 /**
  * 旋转体几何体.
  *
- * Three.js 的 CylinderGeometry 同时覆盖圆柱、圆锥和圆台：
+ * Three.js 的 CylinderGeometry 同时覆盖圆柱、圆锥和圆台:
  * radiusTop / radiusBottom 分别对应上底、下底半径，且几何中心位于高度中点.
  */
 export function buildConicGeometry(
