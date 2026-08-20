@@ -26,7 +26,7 @@ pub fn filter_nan_triangles(full_indices: &[u32], z_values: &[f64]) -> Vec<u32> 
     // 预分配容量(最多等于原始长度)
     let mut filtered = Vec::with_capacity(full_indices.len());
 
-    for chunk in full_indices.chunks_exact(3) {
+    for chunk in full_indices.as_chunks::<3>().0 {
         let a = chunk[0] as usize;
         let b = chunk[1] as usize;
         let c = chunk[2] as usize;
@@ -250,7 +250,7 @@ pub fn compute_vertex_normals(positions: &[f32], valid_indices: &[u32]) -> Vec<f
     let mut normals = vec![0.0f32; positions.len()];
 
     // 第一遍:累加每个三角形对三个顶点的贡献
-    for triangle in valid_indices.chunks_exact(3) {
+    for triangle in valid_indices.as_chunks::<3>().0 {
         let ia = triangle[0] as usize;
         let ib = triangle[1] as usize;
         let ic = triangle[2] as usize;
@@ -299,7 +299,7 @@ pub fn compute_vertex_normals(positions: &[f32], valid_indices: &[u32]) -> Vec<f
     }
 
     // 第二遍:归一化,零向量保留为零
-    for normal in normals.chunks_exact_mut(3) {
+    for normal in normals.as_chunks_mut::<3>().0 {
         let x = normal[0];
         let y = normal[1];
         let z = normal[2];
