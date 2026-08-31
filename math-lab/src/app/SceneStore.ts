@@ -1,16 +1,16 @@
 /**
  * SceneStore —— math-lab 应用层的场景状态仓库.
  *
- * 这里只保存与“当前这次编译/渲染会话”直接相关的状态:
+ * 这里只保存与"当前这次编译/渲染会话"直接相关的状态:
  * - 最近一次成功解析的 AST
  * - 当前矩阵运算后端
  * - 最近一次编译出的场景对象快照
  * - 实体/分析/积分的显隐状态
  * - 动画计时起点
  *
- * 它不负责解析、编译、渲染，也不直接操作 DOM.CompileController 负责
- * 写入 AST 和 matrixOps，RenderController 负责写入场景快照并读取显隐状态.
- * 把状态从 DslApp 抽出来，是为了让 DslApp 只做装配和事件编排.
+ * 它不负责解析/编译/渲染,也不直接操作 DOM.CompileController 负责
+ * 写入 AST 和 matrixOps,RenderController 负责写入场景快照并读取显隐状态.
+ * 把状态从 DslApp 抽出来,是为了让 DslApp 只做装配和事件编排.
  */
 import type { AstProgram } from '../compiler/ast/types';
 import type { SceneIR, SceneObject } from '../compiler/ir/types';
@@ -24,14 +24,14 @@ export class SceneStore {
 
     /**
      * @cache
-     * 缓存目的:镜像最近一次 SceneIR.objectTransforms，方便未来做对象级
-     *          诊断、导出或状态恢复.
+     * 缓存目的:镜像最近一次 SceneIR.objectTransforms,方便未来做对象级
+     *          诊断/导出或状态恢复.
      * 更新策略:每次 RenderController 提交 SceneIR 时整体替换.
-     * 生命周期:跟随 SceneStore 实例，应用销毁时由 GC 回收.
+     * 生命周期:跟随 SceneStore 实例,应用销毁时由 GC 回收.
      *
-     * 注意:当前渲染热路径已经直接使用 AnimationPlayer 的时间线矩阵，
-     * 因此这个字段暂时没有被读取;它是为新功能保留的状态快照，不参与
-     * 现有每帧渲染，避免误以为它还有实时副作用.
+     * 注意:当前渲染热路径已经直接使用 AnimationPlayer 的时间线矩阵,
+     * 因此这个字段暂时没有被读取;它是为新功能保留的状态快照,不参与
+     * 现有每帧渲染,避免误以为它还有实时副作用.
      */
     private _objectTransforms: Record<number, number[][]> = {};
 

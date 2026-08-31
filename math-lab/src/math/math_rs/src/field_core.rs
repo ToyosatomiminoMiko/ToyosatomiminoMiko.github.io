@@ -34,7 +34,7 @@ fn build_context_with_point(
 
 /// 在给定系数和坐标下求值一个标量表达式.
 ///
-/// 该接口供编译期仍然需要在 TS 侧完成的 point / vector 坐标、transform
+/// 该接口供编译期仍然需要在 TS 侧完成的 point / vector 坐标/transform
 /// 参数以及 analysis `at` 坐标使用,避免这些数值求值依赖外部 JS 数学库.
 pub fn evaluate_scalar(
     expr: &str,

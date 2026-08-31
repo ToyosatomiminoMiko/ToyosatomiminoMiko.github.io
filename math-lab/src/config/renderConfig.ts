@@ -48,13 +48,20 @@ export const RENDER_CONFIG = {
         wireframeColor: 0x88aaff,
         wireframeOpacity: 0.15,
     },
+    // 坐标轴XYZ设置
     scene: {
         background: 0x111122,
         axesLength: 8,
         axisLabelLength: 8.5,
         gridSize: 20,
         gridDivisions: 20,
-        centerSphereRadius: 0.2,
+        gridColor: 0x444444,
+        // 原点小球:大小(可设置具体值) × 比例缩放,visible 控制可见性
+        originPoint: {
+            radius: 0.2,
+            scale: 1,
+            visible: true,
+        },
         labelCanvasSize: 64,
         labelFont: 'Bold 36px Arial',
         labelScale: 0.8,

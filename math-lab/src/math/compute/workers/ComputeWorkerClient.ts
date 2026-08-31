@@ -1,7 +1,7 @@
 /**
  * 通用 Worker 客户端.
- * 负责 pending map、请求 id、Worker 创建/销毁和错误传播,
- * 供 Surface、VectorField、Integral 等计算 Worker 复用.
+ * 负责 pending map/请求 id/Worker 创建/销毁和错误传播,
+ * 供 Surface/VectorField/Integral 等计算 Worker 复用.
  */
 type PendingRequest<TResponse> = {
     resolve: (response: TResponse) => void;
@@ -19,9 +19,9 @@ export class ComputeWorkerClient<
 > {
     /**
      * @cache
-     * 缓存目的:复用同一个 Worker 实例，并用 id 缓存未完成请求.
-     * 键/失效策略:_worker 按需创建，错误或 dispose 时置空;_pending 以请求
-     *              id 为键，响应后删除.
+     * 缓存目的:复用同一个 Worker 实例,并用 id 缓存未完成请求.
+     * 键/失效策略:_worker 按需创建,错误或 dispose 时置空;_pending 以请求
+     *              id 为键,响应后删除.
      * 生命周期:跟随 ComputeWorkerClient 实例.
      */
     private _worker: Worker | null = null;
@@ -32,7 +32,7 @@ export class ComputeWorkerClient<
 
     /**
      * @cache-access
-     * 通过复用 Worker 发送请求，并登记到 pending 缓存.
+     * 通过复用 Worker 发送请求,并登记到 pending 缓存.
      */
     request(request: Omit<TRequest, 'id'>): Promise<TResponse> {
         const id = ++this._nextId;

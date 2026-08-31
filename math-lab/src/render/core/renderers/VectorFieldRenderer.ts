@@ -17,7 +17,7 @@ export class VectorFieldRenderer implements IRenderer {
 
     /**
      * @cache
-     * 缓存目的:保存网格点世界坐标，避免 range/gridSize 未变化时重复生成.
+     * 缓存目的:保存网格点世界坐标,避免 range/gridSize 未变化时重复生成.
      * 键/失效策略:_positionsKey 由 range+gridSize 序列化得到;变化时重建.
      * 生命周期:跟随 VectorFieldRenderer 实例.
      */
@@ -46,7 +46,7 @@ export class VectorFieldRenderer implements IRenderer {
 
     /**
      * @cache-access
-     * 命中或重建网格坐标缓存，并通过 latest-only executor 更新向量值.
+     * 命中或重建网格坐标缓存,并通过 latest-only executor 更新向量值.
      */
     draw(): void {
         const { components, coefficients, range, gridSize, glyphScale, color } = this._data;

@@ -9,6 +9,7 @@ export class SceneManager {
     container: HTMLElement;
     scene: THREE.Scene;
     renderer: THREE.WebGLRenderer;
+    private readonly centerSphere: THREE.Mesh;
 
     constructor(container: HTMLElement) {
         this.container = container;
@@ -34,21 +35,32 @@ export class SceneManager {
         // --- 辅助元素 ---
         const axesHelper = new THREE.AxesHelper(RENDER_CONFIG.scene.axesLength);
         this.scene.add(axesHelper);
-
+        // 坐标系网格
         const gridHelper = new THREE.GridHelper(
             RENDER_CONFIG.scene.gridSize,
             RENDER_CONFIG.scene.gridDivisions,
+            undefined, // 坐标轴线颜色已经设置
+            RENDER_CONFIG.scene.gridColor
         );
+        // gridHelper.traverse((child) => {
+        //     if (child instanceof THREE.LineSegments) {
+        //         child.material.transparent = true;
+        //         child.material.opacity = 0;  // 网格坐标轴透明
+        //         child.material.depthWrite = false; // 不写入深度缓冲,避免遮挡其他物体
+        //     }
+        // });
         this.scene.add(gridHelper);
 
-        const sphereGeo = new THREE.SphereGeometry(
-            RENDER_CONFIG.scene.centerSphereRadius,
-            16,
-            16,
-        );
+        // 原点小球:使用单位球,大小/缩放通过 scale 控制,避免每次改值重建几何体
+        const sphereGeo = new THREE.SphereGeometry(1, 16, 16);
         const sphereMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        const centerSphere = new THREE.Mesh(sphereGeo, sphereMat);
-        this.scene.add(centerSphere);
+        this.centerSphere = new THREE.Mesh(sphereGeo, sphereMat);
+        this.centerSphere.scale.setScalar(
+            RENDER_CONFIG.scene.originPoint.radius
+            * RENDER_CONFIG.scene.originPoint.scale,
+        );
+        this.centerSphere.visible = RENDER_CONFIG.scene.originPoint.visible;
+        this.scene.add(this.centerSphere);
 
         // --- XYZ 轴标签(使用 Sprite)---
         const makeLabel = (text: string, position: THREE.Vector3, color: string): void => {
@@ -58,7 +70,7 @@ export class SceneManager {
             const ctx = canvas.getContext('2d')!;
             ctx.fillStyle = 'rgba(0,0,0,0)';
             ctx.fillRect(0, 0, RENDER_CONFIG.scene.labelCanvasSize, RENDER_CONFIG.scene.labelCanvasSize);
-            ctx.font = RENDER_CONFIG.scene.labelFont;
+            ctx.font = RENDER_CONFIG.scene.labelFont; // 字体设置加载预设
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillStyle = color; // 使用传入的颜色
@@ -107,6 +119,16 @@ export class SceneManager {
 
     removeFromScene(object: THREE.Object3D): void {
         this.scene.remove(object);
+    }
+
+    /** 设置原点小球可见性 */
+    setOriginVisible(visible: boolean): void {
+        this.centerSphere.visible = visible;
+    }
+
+    /** 设置原点小球半径(已由调用方计算 大小 × 比例缩放) */
+    setOriginRadius(radius: number): void {
+        this.centerSphere.scale.setScalar(Math.max(0, radius));
     }
 
     render(camera: THREE.Camera): void {

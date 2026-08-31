@@ -37,7 +37,7 @@
     white-space: nowrap;
 }
 
-/* 折叠时隐藏标题和左侧“运行”按钮,仅保留展开按钮 */
+/* 折叠时隐藏标题和左侧"运行"按钮,仅保留展开按钮 */
 .panel.collapsed .panel-title,
 .panel.collapsed #run-btn {
     display: none;

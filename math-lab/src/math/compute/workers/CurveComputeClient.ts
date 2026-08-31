@@ -32,7 +32,7 @@ export class CurveComputeClient {
  * @cache
  * 缓存目的:曲线采样复用同一个 Worker client.
  * 键/失效策略:模块级单例;应用销毁时由 disposeCurveComputeClient 释放.
- * 生命周期:模块级，随页面存活.
+ * 生命周期:模块级,随页面存活.
  */
 export const curveComputeClient = new CurveComputeClient();
 

@@ -4,11 +4,11 @@
  * 职责被刻意收敛为:
  * - 找到并保存 DOM 入口
  * - 组装 SceneStore / CompileController / RenderController
- * - 装配参数面板、对象列表、诊断区等 UI 控制器
- * - 处理“运行源码”和“拖参数刷新”两条入口
+ * - 装配参数面板/对象列表/诊断区等 UI 控制器
+ * - 处理"运行源码"和"拖参数刷新"两条入口
  * - 驱动 requestAnimationFrame 主循环
  *
- * 编译细节在 CompileController，场景与计算细节在 RenderController.
+ * 编译细节在 CompileController,场景与计算细节在 RenderController.
  * 源码仍然是唯一真相源:
  *   编辑 -> parseMiko -> compileScene -> 3D 视口 + param 面板 + 对象列表.
  */
@@ -41,7 +41,7 @@ export class DslApp {
 
     /**
      * @cache
-     * 缓存目的:在同一个 rAF 帧内合并多个参数变化，避免连续 input 触发多次编译.
+     * 缓存目的:在同一个 rAF 帧内合并多个参数变化,避免连续 input 触发多次编译.
      * 键/失效策略:参数名集合;rAF 回调开始时取出并清空.
      * 生命周期:跟随 DslApp 实例.
      */
@@ -139,7 +139,7 @@ export class DslApp {
          *       ├─► ParamPanelController.render
          *       └─► RenderController.applyScene
          *
-         * 之后拖动滑块只走 _refreshObjects，不会在 run() 里重复解析同一个 AST.
+         * 之后拖动滑块只走 _refreshObjects,不会在 run() 里重复解析同一个 AST.
          */
         this.diagnosticsController.clear();
         this._cancelPendingRefresh();
@@ -178,7 +178,7 @@ export class DslApp {
 
     /**
      * @cache-access
-     * 把参数变化写入待刷新缓存，并在下一帧合并处理.
+     * 把参数变化写入待刷新缓存,并在下一帧合并处理.
      */
     private _scheduleRefresh(name: string): void {
         if (this.disposed) return;

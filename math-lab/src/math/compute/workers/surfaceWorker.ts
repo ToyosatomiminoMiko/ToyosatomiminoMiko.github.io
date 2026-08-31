@@ -43,7 +43,7 @@ export type SurfaceWorkerResponse = {
 
 /**
  * @cache
- * 缓存目的:Worker 内只初始化一次 render_rs WASM 实例，后续请求复用.
+ * 缓存目的:Worker 内只初始化一次 render_rs WASM 实例,后续请求复用.
  * 键/失效策略:模块级 Promise;永不失效.
  * 生命周期:随 Worker 实例存活.
  */

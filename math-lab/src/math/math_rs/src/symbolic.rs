@@ -4,9 +4,9 @@ use std::f64::consts::{E, PI};
 // ============================================================
 // 轻量符号表达式引擎.
 //
-// 目标不是复刻完整的外部数学库，而是把项目中实际依赖的符号能力
-// （解析、别名归一化、符号求导、自由变量提取、数组解析、常量矩阵求值）
-// 迁到 Rust/WASM，使 TS 编译层和数值层不再依赖外部 JS 数学库.
+// 目标不是复刻完整的外部数学库,而是把项目中实际依赖的符号能力
+// （解析/别名归一化/符号求导/自由变量提取/数组解析/常量矩阵求值）
+// 迁到 Rust/WASM,使 TS 编译层和数值层不再依赖外部 JS 数学库.
 // ============================================================
 
 #[derive(Debug, Clone, PartialEq)]
@@ -286,7 +286,7 @@ impl Parser {
                 // 幂运算右结合.
                 (Some(BinOp::Pow), 70, 70)
             } else if self.is_atom() {
-                // 2x、2 sin(x)、(x+1)(x-1) 等隐式乘法.
+                // 2x/2 sin(x)/(x+1)(x-1) 等隐式乘法.
                 (Some(BinOp::Mul), 50, 51)
             } else {
                 (None, 0, 0)
@@ -303,7 +303,7 @@ impl Parser {
                 self.peek(),
                 Token::Plus | Token::Minus | Token::Star | Token::Slash | Token::Caret
             ) {
-                // 隐式乘法:当前 token 是右操作数的开始，不能先消费.
+                // 隐式乘法:当前 token 是右操作数的开始,不能先消费.
             } else {
                 self.bump();
             }
@@ -375,7 +375,7 @@ impl Parser {
             }
             Token::LBracket => self.parse_list(),
             other => Err(format!(
-                "期望数字、变量、函数或括号，但得到: {}",
+                "期望数字/变量/函数或括号,但得到: {}",
                 self.token_desc(&other)
             )),
         }
@@ -495,7 +495,7 @@ fn rewrite_aliases_inner(expr: &mut Expr) -> Result<(), String> {
                 }
                 "deg" => {
                     // 角度统一用弧度计算;DSL 里的角度写法通过 deg(180)
-                    // 转换成 180 * pi / 180，避免再引入一套角度单位分支.
+                    // 转换成 180 * pi / 180,避免再引入一套角度单位分支.
                     if args.len() != 1 {
                         return Err("deg 只接受一个参数".to_string());
                     }
@@ -547,7 +547,7 @@ fn validate_supported(expr: &Expr) -> Result<(), String> {
         Expr::Call(name, args) => {
             if !is_supported_function(name) {
                 return Err(format!(
-                    "表达式暂不支持函数 {name}，无法交给 Rust/WASM 数值求值"
+                    "表达式暂不支持函数 {name},无法交给 Rust/WASM 数值求值"
                 ));
             }
             for arg in args {

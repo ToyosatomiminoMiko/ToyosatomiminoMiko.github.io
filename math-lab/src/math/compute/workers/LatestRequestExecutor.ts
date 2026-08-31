@@ -22,7 +22,7 @@ export class LatestRequestExecutor<
     /**
      * @cache
      * 缓存目的:维护 latest-only 队列所需的当前请求号和待处理请求.
-     * 键/失效策略:_latestId 只增;_pending 只保留最新一个请求，旧请求拒绝.
+     * 键/失效策略:_latestId 只增;_pending 只保留最新一个请求,旧请求拒绝.
      * 生命周期:跟随 LatestRequestExecutor 实例.
      */
     private _latestId = 0;

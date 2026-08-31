@@ -1,11 +1,11 @@
 /**
- * RenderController —— 3D 视口、相机、绘图与异步计算的渲染编排器.
+ * RenderController —— 3D 视口/相机/绘图与异步计算的渲染编排器.
  *
- * DslApp 只负责把编译结果交给这里，不再直接管理 Three.js 场景、renderer、
- * camera、Plotter、动画和积分可视化.RenderController 对外暴露:
+ * DslApp 只负责把编译结果交给这里,不再直接管理 Three.js 场景/renderer/
+ * camera/Plotter/动画和积分可视化.RenderController 对外暴露:
  * - `applyScene`:完整运行或参数刷新后更新对象;
  * - `commitSceneWithoutRedraw`:仅显隐变化时同步 SceneIR 和 overlay;
- * - `frame`:每帧更新 OrbitControls、动画并渲染;
+ * - `frame`:每帧更新 OrbitControls/动画并渲染;
  * - `toggleObject`:切换单个实体的可见性.
  */
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -19,6 +19,7 @@ import { MathComputeEngine } from '../math/compute/MathComputeEngine';
 import { CameraToggle } from '../render/controls/CameraToggle';
 import { ViewCubeController } from '../render/controls/ViewCubeController';
 import { RotationLockController } from '../render/controls/RotationLockController';
+import { OriginPointController } from '../render/controls/OriginPointController';
 import type { SceneIR, SceneObject } from '../compiler/ir/types';
 import type { MathLabEvents } from '../types';
 import { EventBus } from '../service/EventBus';
@@ -43,10 +44,11 @@ export class RenderController {
     private cameraToggle: CameraToggle | null = null;
     private viewCubeController: ViewCubeController | null = null;
     private rotationLockController: RotationLockController | null = null;
+    private originPointController: OriginPointController | null = null;
 
     /**
      * @cache
-     * 缓存目的:保存上一份 SceneIR 的对象快照，用于识别消失对象并移除 renderer.
+     * 缓存目的:保存上一份 SceneIR 的对象快照,用于识别消失对象并移除 renderer.
      * 键/失效策略:applyScene/commitSceneWithoutRedraw 后整体替换.
      * 生命周期:跟随 RenderController 实例.
      */
@@ -85,7 +87,7 @@ export class RenderController {
         this.controls = controls;
     }
 
-    /** 把相机相关 UI 控件挂到 EventBus，保持 DslApp 不直接处理相机细节. */
+    /** 把相机相关 UI 控件挂到 EventBus,保持 DslApp 不直接处理相机细节. */
     wireViewControls(eventBus: EventBus<MathLabEvents>): void {
         this.cameraToggle = new CameraToggle(eventBus);
         this.viewCubeController = new ViewCubeController(eventBus);
@@ -100,9 +102,16 @@ export class RenderController {
         eventBus.on('camera:rotationLock', ({ locked }) =>
             this.cameraManager.setRotationLock(locked),
         );
+
+        // 先注册监听,再创建控制器,确保控制器启动时同步的初始状态不会丢失
+        eventBus.on('origin:changed', ({ size, scale, visible }) => {
+            this.sceneManager.setOriginVisible(visible);
+            this.sceneManager.setOriginRadius(size * scale);
+        });
+        this.originPointController = new OriginPointController(eventBus);
     }
 
-    /** 每帧执行一次，由 DslApp 的 requestAnimationFrame 循环调用. */
+    /** 每帧执行一次,由 DslApp 的 requestAnimationFrame 循环调用. */
     frame(timestamp: number): void {
         this.controls?.update();
         this._updateAnimations(timestamp);
@@ -124,7 +133,7 @@ export class RenderController {
      * 完整应用一份 SceneIR.
      *
      * @param changedParams 传入集合时只重绘依赖这些参数的对象;不传则视为
-     *                      完整运行，所有对象都重新采样.
+     *                      完整运行,所有对象都重新采样.
      */
     applyScene(
         scene: SceneIR,
@@ -168,7 +177,7 @@ export class RenderController {
                 this.plotter.updateObject(object, true);
                 this._applyObjectTransform(object.id);
             } else {
-                // 引用仍需同步，否则后续其他参数变化时，renderer 手里还拿着旧数据.
+                // 引用仍需同步,否则后续其他参数变化时,renderer 手里还拿着旧数据.
                 this.plotter.updateObject(object, false);
             }
         }
@@ -178,7 +187,7 @@ export class RenderController {
     }
 
     /**
-     * 显隐变化时不需要重新采样几何对象，只需更新 SceneIR、动画时间线
+     * 显隐变化时不需要重新采样几何对象,只需更新 SceneIR/动画时间线
      * 和分析/积分/对象列表等 overlay.
      */
     commitSceneWithoutRedraw(scene: SceneIR): void {
@@ -213,6 +222,7 @@ export class RenderController {
         this.cameraToggle?.dispose();
         this.viewCubeController?.dispose();
         this.rotationLockController?.dispose();
+        this.originPointController?.dispose();
         this.cameraManager.dispose();
         this.integralRenderer.dispose();
         this.analysisRenderer.dispose();
@@ -270,8 +280,8 @@ export class RenderController {
     }
 
     /**
-     * point/vector 的坐标表达式虽然暂时没有 coefficients 字段，
-     * 但它们也可能引用 param，因此参数变化时保守地标记为 dirty.
+     * point/vector 的坐标表达式虽然暂时没有 coefficients 字段,
+     * 但它们也可能引用 param,因此参数变化时保守地标记为 dirty.
      */
     private _objectDependsOnParams(
         object: SceneObject,

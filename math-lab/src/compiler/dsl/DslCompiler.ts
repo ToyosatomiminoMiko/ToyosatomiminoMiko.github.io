@@ -25,9 +25,9 @@ import {
  *
  * 具体职责已经拆到:
  * - options.ts     选项与列表解析
- * - params.ts      参数收集、覆盖、求值 scope
+ * - params.ts      参数收集/覆盖/求值 scope
  * - objects.ts     对象 blueprint 构建与物化
- * - expression.ts  Rust 符号归一化、求导与数值求值
+ * - expression.ts  Rust 符号归一化/求导与数值求值
  * - transforms.ts  矩阵/变换求值
  * - integrals.ts   积分任务编译
  * - analyses.ts    微分分析编译

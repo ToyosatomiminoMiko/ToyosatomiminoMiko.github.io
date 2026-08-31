@@ -20,9 +20,9 @@ const {
 
 /**
  * @cache
- * 缓存目的:所有积分柱条共享同一个单位立方体及其线框几何体，避免重复分配.
- * 键/失效策略:只读共享资源，不失效.
- * 生命周期:模块级，随页面存活.
+ * 缓存目的:所有积分柱条共享同一个单位立方体及其线框几何体,避免重复分配.
+ * 键/失效策略:只读共享资源,不失效.
+ * 生命周期:模块级,随页面存活.
  */
 const SHARED_BOX_GEOMETRY = new THREE.BoxGeometry(1, 1, 1);
 const SHARED_EDGE_GEOMETRY = new THREE.EdgesGeometry(SHARED_BOX_GEOMETRY);
@@ -61,7 +61,7 @@ export class IntegralVisualizer {
 
     /**
      * @cache
-     * 缓存目的:保存积分可视化对应的 THREE.Group，避免同一任务重复创建 GPU 对象.
+     * 缓存目的:保存积分可视化对应的 THREE.Group,避免同一任务重复创建 GPU 对象.
      * 键/失效策略:任务名或对象 id -> { type, objects };clear/clearAll 时删除.
      * 生命周期:跟随 IntegralVisualizer 实例.
      */

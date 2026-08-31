@@ -14,10 +14,10 @@ import {
 
 /**
  * @cache
- * 缓存目的:所有 CurveRenderer 共享同一个 MathComputeEngine，避免重复持有
+ * 缓存目的:所有 CurveRenderer 共享同一个 MathComputeEngine,避免重复持有
  *           worker client 状态.
  * 键/失效策略:模块级单例;不手动失效.
- * 生命周期:模块级，随页面存活，worker 由应用级 dispose 统一释放.
+ * 生命周期:模块级,随页面存活,worker 由应用级 dispose 统一释放.
  */
 const curveComputeEngine = new MathComputeEngine();
 
@@ -54,7 +54,7 @@ export class CurveRenderer implements IRenderer {
     private line: THREE.Line | null = null;
     /**
      * @cache
-     * 缓存目的:记录当前顶点缓冲能容纳的最大分段数，避免低 segments 创建的
+     * 缓存目的:记录当前顶点缓冲能容纳的最大分段数,避免低 segments 创建的
      *           buffer 被高 segments 悄悄截断.
      * 键/失效策略:与 line/geometry 生命周期绑定;segments 超过容量时重建并更新.
      * 生命周期:跟随 CurveRenderer 实例.
@@ -66,7 +66,7 @@ export class CurveRenderer implements IRenderer {
     private disposed = false;
     /**
      * @cache
-     * 缓存目的:把曲线采样请求收敛为 latest-only，避免高频参数刷新积压旧任务.
+     * 缓存目的:把曲线采样请求收敛为 latest-only,避免高频参数刷新积压旧任务.
      * 键/失效策略:单飞队列;新请求会取代 pending 请求.
      * 生命周期:跟随 CurveRenderer 实例.
      */
@@ -124,7 +124,7 @@ export class CurveRenderer implements IRenderer {
         const nextSteps = curve.segments ?? NUMERIC_CONFIG.curve.defaultSegments;
 
         // 分段数变大时必须释放旧 line 并重新分配.
-        // 否则 _writeSampled() 只能按旧容量截断，用户会看到一条被裁剪的曲线.
+        // 否则 _writeSampled() 只能按旧容量截断,用户会看到一条被裁剪的曲线.
         if (nextSteps > this.capacitySteps) {
             this._disposeLine();
         }

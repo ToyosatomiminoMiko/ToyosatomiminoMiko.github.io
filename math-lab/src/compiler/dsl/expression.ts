@@ -1,8 +1,8 @@
 /**
- * 表达式解析、归一化、求值、符号求导与数组解析的统一入口.
+ * 表达式解析/归一化/求值/符号求导与数组解析的统一入口.
  *
- * 这里的解析和符号运算全部由 Rust/WASM 完成，TypeScript 只负责缓存和
- * 组合调用，不再依赖外部 JavaScript 数学库.
+ * 这里的解析和符号运算全部由 Rust/WASM 完成,TypeScript 只负责缓存和
+ * 组合调用,不再依赖外部 JavaScript 数学库.
  */
 import {
     evaluate_scalar as wasmEvaluateScalar,
@@ -114,22 +114,22 @@ export function evaluateMatrixExpr(raw: string): number[] {
 /**
  * @cache
  * 缓存目的:避免对同一字符串反复调用 Rust/WASM normalize_expression.
- * 键/失效策略:原表达式字符串 -> 归一化表达式;无失效机制，表达式集合通常有限.
- * 生命周期:模块级，跟随页面存活.
+ * 键/失效策略:原表达式字符串 -> 归一化表达式;无失效机制,表达式集合通常有限.
+ * 生命周期:模块级,跟随页面存活.
  */
 const rustExpressionCache = new Map<string, string>();
 
 /**
  * @cache
- * 缓存目的:缓存符号求导结果，避免参数刷新时重复计算偏导数.
+ * 缓存目的:缓存符号求导结果,避免参数刷新时重复计算偏导数.
  * 键/失效策略:原表达式 -> (变量 -> 导数表达式);无失效机制.
- * 生命周期:模块级，跟随页面存活.
+ * 生命周期:模块级,跟随页面存活.
  */
 const derivativeExpressionCache = new Map<string, Map<string, string>>();
 
 /**
  * @cache-access
- * 返回归一化后的 Rust 表达式，命中缓存时直接返回.
+ * 返回归一化后的 Rust 表达式,命中缓存时直接返回.
  */
 export function cachedRustExpression(expr: string): string {
     let cached = rustExpressionCache.get(expr);
@@ -142,7 +142,7 @@ export function cachedRustExpression(expr: string): string {
 
 /**
  * @cache-access
- * 返回表达式对指定变量的符号导数，命中缓存时直接返回.
+ * 返回表达式对指定变量的符号导数,命中缓存时直接返回.
  */
 export function cachedDerivativeExpression(expr: string, variable: string): string {
     let byVariable = derivativeExpressionCache.get(expr);

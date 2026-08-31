@@ -62,7 +62,7 @@ pub fn sample_vector_field(
         return Err("向量场采样需要每个轴都有有效的 min < max 区间".to_string());
     }
     if nx == 0 || ny == 0 || nz == 0 {
-        return Err("向量场采样需要 nx、ny、nz 均大于 0".to_string());
+        return Err("向量场采样需要 nx/ny/nz 均大于 0".to_string());
     }
 
     let p_node = compile_expression(p_expr)?;
@@ -155,8 +155,8 @@ pub fn sample_function_1d(
     }
 }
 
-/// 参数较多是因为这是纯函数采样核心;当前不引入请求结构体，
-/// 保持与 WASM 边界的扁平参数一一对应，便于定位 FFI 问题.
+/// 参数较多是因为这是纯函数采样核心;当前不引入请求结构体,
+/// 保持与 WASM 边界的扁平参数一一对应,便于定位 FFI 问题.
 #[allow(clippy::too_many_arguments)]
 pub fn sample_function_2d(
     expr: &str,

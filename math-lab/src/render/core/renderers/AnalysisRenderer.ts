@@ -1,6 +1,6 @@
 /**
  * 分析结果渲染器.
- * 从 DslApp 拆出,负责把 gradient/divergence/curl 的点、法向和切平面
+ * 从 DslApp 拆出,负责把 gradient/divergence/curl 的点/法向和切平面
  * 渲染到独立 THREE.Group.
  */
 import * as THREE from 'three';

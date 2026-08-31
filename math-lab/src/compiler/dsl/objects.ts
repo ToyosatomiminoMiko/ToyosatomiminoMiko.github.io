@@ -1,8 +1,8 @@
 /**
  * 对象 blueprint 构建与物化.
  *
- * 表达式在进入 blueprint 前统一经 Rust 符号引擎归一化，因此后续
- * 采样、积分、分析和渲染都直接消费 Rust/evalexpr 可执行的字符串.
+ * 表达式在进入 blueprint 前统一经 Rust 符号引擎归一化,因此后续
+ * 采样/积分/分析和渲染都直接消费 Rust/evalexpr 可执行的字符串.
  */
 import { NUMERIC_CONFIG } from '../../config/numericConfig';
 import { RENDER_CONFIG } from '../../config/renderConfig';
@@ -246,8 +246,8 @@ function parseVectorObject(
 /**
  * 解析体积对象的透明度选项.
  *
- * 体积对象默认和积分可视化一样使用半透明材质;这里只接受 [0, 1] 的常量，
- * 不把 `opacity` 做成自由参数，因为透明度不需要参与数值计算.
+ * 体积对象默认和积分可视化一样使用半透明材质;这里只接受 [0, 1] 的常量,
+ * 不把 `opacity` 做成自由参数,因为透明度不需要参与数值计算.
  */
 function parseOpacity(
     raw: string | undefined,
@@ -264,7 +264,7 @@ function parseOpacity(
 /**
  * 把 `size = 2` 或 `size = [2, 3, 4]` 统一成三轴表达式.
  *
- * 单个数值表示 cube，即三个轴共用同一个表达式.
+ * 单个数值表示 cube,即三个轴共用同一个表达式.
  */
 function parseSizeExpressions(raw: string, context: string): [string, string, string] {
     const items = parseArrayItems(raw);
@@ -282,7 +282,7 @@ function parseSizeExpressions(raw: string, context: string): [string, string, st
     throw new Error(`${context} 需要 1 个或 3 个分量,当前为 ${items.length} 个`);
 }
 
-/** 收集体积对象位置与几何参数里的自由参数，供 param 面板和增量刷新使用. */
+/** 收集体积对象位置与几何参数里的自由参数,供 param 面板和增量刷新使用. */
 function collectVolumeCoefficientNames(expressions: string[]): string[] {
     return extractCoefficientNames(expressions, new Set());
 }
@@ -750,7 +750,7 @@ export function materializeObject(
             let sideAngle: number;
             if (blueprint.topExpr && blueprint.angleExpr) {
                 throw new Error(
-                    `旋转体 ${blueprint.name} 不能同时指定 top 和 angle，请二选一`,
+                    `旋转体 ${blueprint.name} 不能同时指定 top 和 angle,请二选一`,
                 );
             }
             if (blueprint.topExpr) {

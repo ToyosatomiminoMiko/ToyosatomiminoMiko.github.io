@@ -10,8 +10,8 @@ export type ParamChangeHandler = (name: string, value: number) => void;
 export class ParamPanelController {
     /**
      * @cache
-     * 缓存目的:维护参数面板的当前值，供编译覆盖和滑块双向同步.
-     * 键/失效策略:参数名 -> 当前值;render 时整体重建，输入时逐项更新.
+     * 缓存目的:维护参数面板的当前值,供编译覆盖和滑块双向同步.
+     * 键/失效策略:参数名 -> 当前值;render 时整体重建,输入时逐项更新.
      * 生命周期:跟随 ParamPanelController 实例.
      */
     private readonly values = new Map<string, number>();

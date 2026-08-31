@@ -63,7 +63,7 @@ function interpolateMat4(start: Mat4, end: Mat4, t: number): Mat4 {
 /**
  * 按时间轴计算对象动画矩阵.
  *
- * 动画 clip 有序执行,每个 clip 都是基于“前一个 clip 结束后的矩阵”继续
+ * 动画 clip 有序执行,每个 clip 都是基于"前一个 clip 结束后的矩阵"继续
  * 右乘一次;这对应 DSL 中多个 animation 串成复杂动画的语义.
  */
 export class AnimationPlayer {
@@ -71,7 +71,7 @@ export class AnimationPlayer {
 
     /**
      * @cache
-     * 缓存目的:保存每个对象的基础变换和动画 clip 时间线，供每帧插值快速查询.
+     * 缓存目的:保存每个对象的基础变换和动画 clip 时间线,供每帧插值快速查询.
      * 键/失效策略:对象 id -> ObjectAnimationTimeline;setScene 时整体重建.
      * 生命周期:跟随 AnimationPlayer 实例.
      */

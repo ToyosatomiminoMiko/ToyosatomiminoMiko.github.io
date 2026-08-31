@@ -29,7 +29,7 @@ interface UpdatableRenderer extends IRenderer {
 /**
  * 绘图门面 -- 将数学对象路由到对应的专属渲染器
  *
- * 统一 3D 场景:curve 默认绘制在 z=0 平面,surface、point、vector
+ * 统一 3D 场景:curve 默认绘制在 z=0 平面,surface/point/vector
  * 与 vector_field 共存于同一个场景.
  */
 export class Plotter {
@@ -38,9 +38,9 @@ export class Plotter {
 
     /**
      * @cache
-     * 缓存目的:维护对象 id 到专属 renderer 的索引，避免每次刷新都创建 GPU 对象.
+     * 缓存目的:维护对象 id 到专属 renderer 的索引,避免每次刷新都创建 GPU 对象.
      * 键/失效策略:对象 id -> UpdatableRenderer;对象消失或类型变化时 remove/重建.
-     * 生命周期:跟随 Plotter 实例，dispose 时清空.
+     * 生命周期:跟随 Plotter 实例,dispose 时清空.
      */
     private readonly rendererMap = new Map<number, UpdatableRenderer>();
 
@@ -173,7 +173,7 @@ export class Plotter {
 
     /**
      * @cache-access
-     * 遍历并清空 rendererMap，再把 plotContainer 从场景移除.
+     * 遍历并清空 rendererMap,再把 plotContainer 从场景移除.
      */
     dispose(): void {
         for (const [id] of this.rendererMap) {
@@ -194,7 +194,7 @@ export class Plotter {
 
     /**
      * @cache-access
-     * 从 rendererMap 命中已有 renderer，未命中或类型变化时创建并写入缓存.
+     * 从 rendererMap 命中已有 renderer,未命中或类型变化时创建并写入缓存.
      */
     private _getOrCreate<T extends UpdatableRenderer, D extends SceneObject>(
         id: number,
@@ -214,7 +214,7 @@ export class Plotter {
 
     /**
      * @cache-access
-     * 只同步 renderer 引用和可见性，不触发数值采样与 GPU 重建.
+     * 只同步 renderer 引用和可见性,不触发数值采样与 GPU 重建.
      */
     private _updateRef(obj: SceneObject): void {
         const renderer = this.rendererMap.get(obj.id);

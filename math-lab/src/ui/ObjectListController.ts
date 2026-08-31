@@ -73,7 +73,7 @@ function sceneObjectExpression(object: SceneObject): string {
     }
 }
 
-/** 旋转体的 UI 名称由实际上下底半径推出，而不是按 DSL 关键字固定. */
+/** 旋转体的 UI 名称由实际上下底半径推出,而不是按 DSL 关键字固定. */
 function sceneObjectKindLabel(object: SceneObject): string {
     if (object.kind !== 'conic') {
         return ENTITY_KIND_LABELS[object.kind];
@@ -136,7 +136,7 @@ function integralSourceLabel(
 export class ObjectListController {
     /**
      * @cache
-     * 缓存目的:复用积分列表 DOM 行，只更新结果文本，避免每次 sync 重建整棵树.
+     * 缓存目的:复用积分列表 DOM 行,只更新结果文本,避免每次 sync 重建整棵树.
      * 键/失效策略:积分名 -> { row, result, key };任务消失或任务参数变化时替换.
      * 生命周期:跟随 ObjectListController 实例.
      */
@@ -199,7 +199,7 @@ export class ObjectListController {
 
     /**
      * @cache-access
-     * 清空实体、分析、积分列表及其 DOM 行缓存.
+     * 清空实体/分析/积分列表及其 DOM 行缓存.
      */
     clear(): void {
         this.entityList.replaceChildren();

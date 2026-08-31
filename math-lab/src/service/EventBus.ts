@@ -11,7 +11,7 @@ export class EventBus<Events extends Record<string, any>> {
     /**
      * @cache
      * 缓存目的:维护事件名到监听器数组的注册表.
-     * 键/失效策略:事件名 -> 回调数组;off 时移除单条，clear 时清空.
+     * 键/失效策略:事件名 -> 回调数组;off 时移除单条,clear 时清空.
      * 生命周期:跟随 EventBus 实例.
      */
     private _listeners: Map<keyof Events, Array<(data: any) => void>>;

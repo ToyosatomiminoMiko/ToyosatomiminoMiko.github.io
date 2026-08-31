@@ -1,6 +1,6 @@
 /**
  * 选项与列表解析辅助函数.
- * 从 DslCompiler 拆出,负责 DSL 选项、数字列表和顶层分隔解析.
+ * 从 DslCompiler 拆出,负责 DSL 选项/数字列表和顶层分隔解析.
  */
 import type { OptionPair } from '../ast/types';
 
@@ -13,8 +13,8 @@ export function findOption(options: OptionPair[], name: string): string | undefi
 /**
  * DSL option 白名单校验.
  *
- * 数学工具最危险的行为不是报错，而是用户写错一个字段后静默使用默认值.
- * 这里同时拒绝未知选项和重复选项，让编译期错误尽量靠近源码问题.
+ * 数学工具最危险的行为不是报错,而是用户写错一个字段后静默使用默认值.
+ * 这里同时拒绝未知选项和重复选项,让编译期错误尽量靠近源码问题.
  */
 export function assertKnownOptions(
     options: OptionPair[],
@@ -140,7 +140,7 @@ export function toFiniteNumber(raw: string, context: string): number {
 /**
  * 解析 boolean 选项.
  *
- * 这里只接受明确的 true/false;空字符串、1/0、yes/no 都属于 DSL 错误.
+ * 这里只接受明确的 true/false;空字符串/1/0/yes/no 都属于 DSL 错误.
  */
 export function parseBooleanOption(
     options: OptionPair[],
@@ -158,7 +158,7 @@ export function parseBooleanOption(
         case 'false':
             return false;
         default:
-            throw new Error(`${context} 只能是 true 或 false，当前为 ${raw}`);
+            throw new Error(`${context} 只能是 true 或 false,当前为 ${raw}`);
     }
 }
 
@@ -168,7 +168,7 @@ export function parseShowOption(
     const raw = findOption(options, 'show');
     if (!raw) return ['point', 'normal'];
 
-    // 不再过滤未知项.show 里的拼写错误必须直接报错，
+    // 不再过滤未知项.show 里的拼写错误必须直接报错,
     // 否则 gradient 的 normal/tangent_plane 可能被用户误认为已经绘制.
     const items = raw.replace(/[[\]]/g, '').split(',').map((item) => item.trim());
     if (items.length === 0 || items.some((item) => item.length === 0)) {

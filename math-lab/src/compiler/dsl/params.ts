@@ -1,5 +1,5 @@
 /**
- * 参数收集、覆盖与求值 scope 辅助函数.
+ * 参数收集/覆盖与求值 scope 辅助函数.
  * 从 DslCompiler 拆出,保持参数相关逻辑集中管理.
  */
 import type { AstProgram } from '../ast/types';
@@ -29,7 +29,7 @@ export function collectParams(ast: AstProgram): Map<string, ParamDeclaration> {
             ? toFiniteNumber(statement.ui.step, `参数 ${statement.name} 的 step`)
             : NUMERIC_CONFIG.param.defaultStep;
 
-        // 参数 UI 的范围是后续滑块的契约;不在这里校验，
+        // 参数 UI 的范围是后续滑块的契约;不在这里校验,
         // 后续会生成反直觉甚至无法使用的滑块.
         if (min >= max) {
             throw new Error(`参数 ${statement.name} 需要满足 min < max`);

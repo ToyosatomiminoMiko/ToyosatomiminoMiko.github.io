@@ -48,7 +48,7 @@ export type IntegralResult = {
  * @cache
  * 缓存目的:积分计算复用同一个 Worker client 和 latest-only 调度器.
  * 键/失效策略:模块级单例;应用销毁时由 disposeIntegralWorker 显式释放.
- * 生命周期:模块级，随页面存活.
+ * 生命周期:模块级,随页面存活.
  */
 const integralClient = new ComputeWorkerClient<Request, Response>(() => new Worker(
     new URL('./workers/IntegralWorker.ts', import.meta.url),
@@ -59,9 +59,9 @@ const integralClient = new ComputeWorkerClient<Request, Response>(() => new Work
 // 每个时刻最多只有一个积分请求真正交给 Worker.
 /**
  * @cache
- * 缓存目的:保证积分请求 latest-only，避免高频刷新堆积旧任务.
+ * 缓存目的:保证积分请求 latest-only,避免高频刷新堆积旧任务.
  * 键/失效策略:单飞队列;新请求取代 pending 请求.
- * 生命周期:模块级，随页面存活.
+ * 生命周期:模块级,随页面存活.
  */
 const integralExecutor = new LatestRequestExecutor<Request, Response>(integralClient);
 
