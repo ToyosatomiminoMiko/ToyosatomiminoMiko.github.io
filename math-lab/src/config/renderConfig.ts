@@ -53,6 +53,8 @@ export const RENDER_CONFIG = {
         background: 0x111122,
         axesLength: 8,
         axisLabelLength: 8.5,
+        // Line2 坐标轴线宽(像素),可在右侧"视图"面板调整
+        axisLineWidth: 3,
         gridSize: 20,
         gridDivisions: 20,
         gridColor: 0x444444,

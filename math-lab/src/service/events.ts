@@ -14,7 +14,8 @@ export interface MathLabEvents {
     'camera:changed': { camMode: CamMode };
     'camera:view': { view: ViewHome };
     'camera:rotationLock': { locked: boolean };
-    'origin:changed': { size: number; scale: number; visible: boolean };
+    'axis:lineWidthChanged': { width: number };
+    'origin:changed': { radius: number; visible: boolean };
     'coefficient:changed': { id: number };
     'selection:changed': { id: number | null; kind: string | null };
 }

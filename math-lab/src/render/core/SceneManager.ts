@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { Line2 } from 'three/addons/lines/Line2.js';
+import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { RENDER_CONFIG } from '../../config/renderConfig';
 
 /**
@@ -10,6 +13,8 @@ export class SceneManager {
     scene: THREE.Scene;
     renderer: THREE.WebGLRenderer;
     private readonly centerSphere: THREE.Mesh;
+    /** Line2 坐标轴材质,resize 时同步分辨率,线宽变化时统一更新 */
+    private readonly axisLineMaterials: LineMaterial[] = [];
 
     constructor(container: HTMLElement) {
         this.container = container;
@@ -33,8 +38,22 @@ export class SceneManager {
         container.appendChild(this.renderer.domElement);
 
         // --- 辅助元素 ---
-        const axesHelper = new THREE.AxesHelper(RENDER_CONFIG.scene.axesLength);
-        this.scene.add(axesHelper);
+        // XYZ 坐标轴改用 Line2 绘制,支持像素线宽
+        this.createAxisLine(
+            [0, 0, 0],
+            [RENDER_CONFIG.scene.axesLength, 0, 0],
+            RENDER_CONFIG.scene.axisColors.x,
+        );
+        this.createAxisLine(
+            [0, 0, 0],
+            [0, RENDER_CONFIG.scene.axesLength, 0],
+            RENDER_CONFIG.scene.axisColors.y,
+        );
+        this.createAxisLine(
+            [0, 0, 0],
+            [0, 0, RENDER_CONFIG.scene.axesLength],
+            RENDER_CONFIG.scene.axisColors.z,
+        );
         // 坐标系网格
         const gridHelper = new THREE.GridHelper(
             RENDER_CONFIG.scene.gridSize,
@@ -131,6 +150,14 @@ export class SceneManager {
         this.centerSphere.scale.setScalar(Math.max(0, radius));
     }
 
+    /** 设置坐标轴线宽(像素) */
+    setAxisLineWidth(width: number): void {
+        const clamped = Math.max(1, width);
+        for (const material of this.axisLineMaterials) {
+            material.linewidth = clamped;
+        }
+    }
+
     render(camera: THREE.Camera): void {
         this.renderer.render(this.scene, camera);
     }
@@ -139,7 +166,34 @@ export class SceneManager {
         const width = this.container.clientWidth;
         const height = this.container.clientHeight;
         this.renderer.setSize(width, height);
+        for (const material of this.axisLineMaterials) {
+            material.resolution.set(width, height);
+        }
         return { width, height };
+    }
+
+    /**
+     * 创建一段 Line2 坐标轴,并记录材质供线宽/分辨率更新.
+     */
+    private createAxisLine(
+        start: [number, number, number],
+        end: [number, number, number],
+        color: string,
+    ): void {
+        const geometry = new LineGeometry();
+        geometry.setPositions([...start, ...end]);
+
+        const material = new LineMaterial({
+            color,
+            linewidth: RENDER_CONFIG.scene.axisLineWidth,
+            resolution: new THREE.Vector2(
+                this.container.clientWidth,
+                this.container.clientHeight,
+            ),
+        });
+        const line = new Line2(geometry, material);
+        this.scene.add(line);
+        this.axisLineMaterials.push(material);
     }
 
     dispose(): void {

@@ -20,6 +20,7 @@ import { CameraToggle } from '../render/controls/CameraToggle';
 import { ViewCubeController } from '../render/controls/ViewCubeController';
 import { RotationLockController } from '../render/controls/RotationLockController';
 import { OriginPointController } from '../render/controls/OriginPointController';
+import { AxisLineWidthController } from '../render/controls/AxisLineWidthController';
 import type { SceneIR, SceneObject } from '../compiler/ir/types';
 import type { MathLabEvents } from '../types';
 import { EventBus } from '../service/EventBus';
@@ -45,6 +46,7 @@ export class RenderController {
     private viewCubeController: ViewCubeController | null = null;
     private rotationLockController: RotationLockController | null = null;
     private originPointController: OriginPointController | null = null;
+    private axisLineWidthController: AxisLineWidthController | null = null;
 
     /**
      * @cache
@@ -104,11 +106,16 @@ export class RenderController {
         );
 
         // 先注册监听,再创建控制器,确保控制器启动时同步的初始状态不会丢失
-        eventBus.on('origin:changed', ({ size, scale, visible }) => {
+        eventBus.on('origin:changed', ({ radius, visible }) => {
             this.sceneManager.setOriginVisible(visible);
-            this.sceneManager.setOriginRadius(size * scale);
+            this.sceneManager.setOriginRadius(radius);
         });
         this.originPointController = new OriginPointController(eventBus);
+
+        eventBus.on('axis:lineWidthChanged', ({ width }) => {
+            this.sceneManager.setAxisLineWidth(width);
+        });
+        this.axisLineWidthController = new AxisLineWidthController(eventBus);
     }
 
     /** 每帧执行一次,由 DslApp 的 requestAnimationFrame 循环调用. */
@@ -223,6 +230,7 @@ export class RenderController {
         this.viewCubeController?.dispose();
         this.rotationLockController?.dispose();
         this.originPointController?.dispose();
+        this.axisLineWidthController?.dispose();
         this.cameraManager.dispose();
         this.integralRenderer.dispose();
         this.analysisRenderer.dispose();

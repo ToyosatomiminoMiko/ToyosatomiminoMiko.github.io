@@ -116,7 +116,8 @@
  * 原点小球控制
  * ========================================================================== */
 
-.origin-controls {
+.origin-controls,
+.axis-controls {
     border-top: 1px solid rgba(255, 255, 255, 0.06);
     padding-top: 8px;
     display: flex;
@@ -124,12 +125,14 @@
     gap: 8px;
 }
 
-.origin-title {
+.origin-title,
+.axis-title {
     font-size: 12px;
     color: #aac8ff;
 }
 
-.origin-row {
+.origin-row,
+.axis-row {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -137,7 +140,8 @@
     color: #8e9fc7;
 }
 
-.origin-row input[type="number"] {
+.origin-row input[type="number"],
+.axis-row input[type="number"] {
     width: 76px;
     margin-left: auto;
     background: #0d1120;
@@ -146,4 +150,27 @@
     border-radius: 6px;
     padding: 4px 6px;
     font-size: 12px;
+}
+
+/* 大小/缩放模式切换按钮 */
+.origin-mode {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+}
+
+.origin-mode button {
+    padding: 5px 0;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    color: #8e9fc7;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.origin-mode button.active {
+    background: rgba(70, 130, 255, 0.25);
+    border-color: rgba(70, 130, 255, 0.45);
+    color: #aac8ff;
 }
