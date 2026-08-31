@@ -22,6 +22,7 @@ import { RotationLockController } from '../render/controls/RotationLockControlle
 import { PointStyleController } from '../render/controls/PointStyleController';
 import { AxisLineWidthController } from '../render/controls/AxisLineWidthController';
 import { GridTicksController } from '../render/controls/GridTicksController';
+import { AxisLabelController } from '../render/controls/AxisLabelController';
 import type { SceneIR, SceneObject } from '../compiler/ir/types';
 import type { MathLabEvents } from '../types';
 import { EventBus } from '../service/EventBus';
@@ -49,6 +50,7 @@ export class RenderController {
     private pointStyleController: PointStyleController | null = null;
     private axisLineWidthController: AxisLineWidthController | null = null;
     private gridTicksController: GridTicksController | null = null;
+    private axisLabelController: AxisLabelController | null = null;
 
     /**
      * @cache
@@ -118,8 +120,17 @@ export class RenderController {
         });
         this.axisLineWidthController = new AxisLineWidthController(eventBus);
 
-        eventBus.on('grid:changed', ({ gridVisible, ticksVisible, majorWidth, minorWidth }) => {
-            this.sceneManager.setGridVisible(gridVisible);
+        eventBus.on('axis:labelVisibility', ({ x, y, z }) => {
+            this.sceneManager.setAxisLabelVisible('x', x);
+            this.sceneManager.setAxisLabelVisible('y', y);
+            this.sceneManager.setAxisLabelVisible('z', z);
+        });
+        this.axisLabelController = new AxisLabelController(eventBus);
+
+        eventBus.on('grid:changed', ({ xzVisible, xyVisible, yzVisible, ticksVisible, majorWidth, minorWidth }) => {
+            this.sceneManager.setPlaneVisible('xz', xzVisible);
+            this.sceneManager.setPlaneVisible('xy', xyVisible);
+            this.sceneManager.setPlaneVisible('yz', yzVisible);
             this.sceneManager.setTicksVisible(ticksVisible);
             this.sceneManager.setGridLineWidths(majorWidth, minorWidth);
         });
@@ -240,6 +251,7 @@ export class RenderController {
         this.pointStyleController?.dispose();
         this.axisLineWidthController?.dispose();
         this.gridTicksController?.dispose();
+        this.axisLabelController?.dispose();
         this.cameraManager.dispose();
         this.integralRenderer.dispose();
         this.analysisRenderer.dispose();

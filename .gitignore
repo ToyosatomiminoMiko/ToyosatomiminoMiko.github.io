@@ -5,6 +5,5 @@ math-lab/src/wasm/
 math-lab/target/
 dist/
 .vscode
-issue.md
-feature.md
+/prompt
 **/docs

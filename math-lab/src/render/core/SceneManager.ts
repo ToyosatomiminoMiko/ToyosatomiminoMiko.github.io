@@ -6,6 +6,9 @@ import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 import { RENDER_CONFIG } from '../../config/renderConfig';
 
+type AxisName = 'x' | 'y' | 'z';
+type GridPlane = 'xz' | 'xy' | 'yz';
+
 /**
  * 场景管理器 — 负责创建场景,渲染器,灯光,坐标轴等基础元素
  * CameraManager 通过注入 SceneManager 获取 renderer 引用
@@ -14,7 +17,12 @@ export class SceneManager {
     container: HTMLElement;
     scene: THREE.Scene;
     renderer: THREE.WebGLRenderer;
-    private readonly gridGroup = new THREE.Group();
+    /** 三个坐标平面网格,各自独立显隐 */
+    private readonly planeGroups: Record<GridPlane, THREE.Group> = {
+        xz: new THREE.Group(),
+        xy: new THREE.Group(),
+        yz: new THREE.Group(),
+    };
     private readonly tickGroup = new THREE.Group();
     /** Line2 坐标轴材质,resize 时同步分辨率,线宽变化时统一更新 */
     private readonly axisLineMaterials: LineMaterial[] = [];
@@ -24,6 +32,14 @@ export class SceneManager {
     private gridMinorMaterial: LineMaterial | null = null;
     private tickMajorMaterial: LineMaterial | null = null;
     private tickMinorMaterial: LineMaterial | null = null;
+    /** 各轴标签 Sprite */
+    private readonly axisLabels: Partial<Record<AxisName, THREE.Sprite>> = {};
+    /** 各轴刻度数字 Sprite,随对应轴标签一起显隐 */
+    private readonly axisTickNumbers: Record<AxisName, THREE.Sprite[]> = {
+        x: [],
+        y: [],
+        z: [],
+    };
 
     constructor(container: HTMLElement) {
         this.container = container;
@@ -66,50 +82,31 @@ export class SceneManager {
 
         // 大/小刻度网格 + 坐标轴刻度
         this.buildGridAndTicks();
-        this.scene.add(this.gridGroup);
+        this.scene.add(
+            this.planeGroups.xz,
+            this.planeGroups.xy,
+            this.planeGroups.yz,
+        );
         this.scene.add(this.tickGroup);
 
         // XYZ 轴标签(使用 Sprite)
-        const makeLabel = (text: string, position: THREE.Vector3, color: string): void => {
-            const canvas = document.createElement('canvas');
-            canvas.width = RENDER_CONFIG.scene.labelCanvasSize;
-            canvas.height = RENDER_CONFIG.scene.labelCanvasSize;
-            const ctx = canvas.getContext('2d')!;
-            ctx.fillStyle = 'rgba(0,0,0,0)';
-            ctx.fillRect(0, 0, RENDER_CONFIG.scene.labelCanvasSize, RENDER_CONFIG.scene.labelCanvasSize);
-            ctx.font = RENDER_CONFIG.scene.labelFont; // 字体设置加载预设
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillStyle = color; // 使用传入的颜色
-            ctx.shadowColor = 'rgba(0,0,0,0.8)';
-            ctx.shadowBlur = 4;
-            ctx.fillText(
-                text,
-                RENDER_CONFIG.scene.labelCanvasSize / 2,
-                RENDER_CONFIG.scene.labelCanvasSize / 2,
-            );
-
-            const texture = new THREE.CanvasTexture(canvas);
-            const material = new THREE.SpriteMaterial({
-                map: texture,
-                transparent: true,
-                depthTest: false,
-            });
-            const sprite = new THREE.Sprite(material);
+        const axisLen = RENDER_CONFIG.scene.axisLabelLength;
+        const axisLabel = (
+            axis: AxisName,
+            text: string,
+            position: THREE.Vector3,
+            color: string,
+        ): void => {
+            const sprite = this.createTextSprite(text, color);
             sprite.position.copy(position);
-            sprite.scale.set(
-                RENDER_CONFIG.scene.labelScale,
-                RENDER_CONFIG.scene.labelScale,
-                1,
-            );
+            sprite.visible = RENDER_CONFIG.scene.axisLabels[axis];
+            this.axisLabels[axis] = sprite;
             this.scene.add(sprite);
         };
-
-        const axisLen = RENDER_CONFIG.scene.axisLabelLength;
         // X 红色 | Y 绿色 | Z 蓝色 与 AxesHelper 配色一致
-        makeLabel('X', new THREE.Vector3(axisLen, 0, 0), RENDER_CONFIG.scene.axisColors.x);
-        makeLabel('Y', new THREE.Vector3(0, axisLen, 0), RENDER_CONFIG.scene.axisColors.y);
-        makeLabel('Z', new THREE.Vector3(0, 0, axisLen), RENDER_CONFIG.scene.axisColors.z);
+        axisLabel('x', 'X', new THREE.Vector3(axisLen, 0, 0), RENDER_CONFIG.scene.axisColors.x);
+        axisLabel('y', 'Y', new THREE.Vector3(0, axisLen, 0), RENDER_CONFIG.scene.axisColors.y);
+        axisLabel('z', 'Z', new THREE.Vector3(0, 0, axisLen), RENDER_CONFIG.scene.axisColors.z);
     }
 
     getScene(): THREE.Scene {
@@ -136,9 +133,9 @@ export class SceneManager {
         }
     }
 
-    /** 设置网格可见性 */
-    setGridVisible(visible: boolean): void {
-        this.gridGroup.visible = visible;
+    /** 设置某个坐标平面网格的可见性 */
+    setPlaneVisible(plane: GridPlane, visible: boolean): void {
+        this.planeGroups[plane].visible = visible;
     }
 
     /** 设置坐标轴刻度可见性 */
@@ -154,6 +151,15 @@ export class SceneManager {
         if (this.gridMinorMaterial) this.gridMinorMaterial.linewidth = minor;
         if (this.tickMajorMaterial) this.tickMajorMaterial.linewidth = major;
         if (this.tickMinorMaterial) this.tickMinorMaterial.linewidth = minor;
+    }
+
+    /** 设置某条轴的标签可见性,同时隐藏/显示该轴的刻度数字 */
+    setAxisLabelVisible(axis: AxisName, visible: boolean): void {
+        const label = this.axisLabels[axis];
+        if (label) label.visible = visible;
+        for (const sprite of this.axisTickNumbers[axis]) {
+            sprite.visible = visible;
+        }
     }
 
     render(camera: THREE.Camera): void {
@@ -203,28 +209,43 @@ export class SceneManager {
         this.tickMajorMaterial = makeMaterial(axisTicks.color, grid.majorLineWidth);
         this.tickMinorMaterial = makeMaterial(axisTicks.color, grid.minorLineWidth);
 
-        // --- 网格线(XZ 平面,y=0)---
-        const majorSegments: number[] = [];
-        const minorSegments: number[] = [];
-        for (let v = -half; v <= half + eps; v += minorStep) {
-            if (Math.abs(v) < eps) continue; // 中心线由坐标轴承担
-            const isMajor = Math.abs(v % majorStep) < eps;
-            const target = isMajor ? majorSegments : minorSegments;
-            // 沿 Z 方向与沿 X 方向各一条
-            target.push(v, 0, -half, v, 0, half);
-            target.push(-half, 0, v, half, 0, v);
+        // --- 三个坐标平面的网格线(XZ/XY/YZ,大/小刻度同风格)---
+        for (const plane of ['xz', 'xy', 'yz'] as const) {
+            const majorSegments: number[] = [];
+            const minorSegments: number[] = [];
+            for (let v = -half; v <= half + eps; v += minorStep) {
+                const isMajor = Math.abs(v % majorStep) < eps;
+                const target = isMajor ? majorSegments : minorSegments;
+                if (plane === 'xz') {
+                    // y=0:沿 Z 方向与沿 X 方向各一条
+                    target.push(v, 0, -half, v, 0, half);
+                    target.push(-half, 0, v, half, 0, v);
+                } else if (plane === 'xy') {
+                    // z=0:沿 Y 方向与沿 X 方向各一条
+                    target.push(v, -half, 0, v, half, 0);
+                    target.push(-half, v, 0, half, v, 0);
+                } else {
+                    // x=0:沿 Z 方向与沿 Y 方向各一条
+                    target.push(0, v, -half, 0, v, half);
+                    target.push(0, -half, v, 0, half, v);
+                }
+            }
+            if (majorSegments.length) {
+                const geometry = new LineSegmentsGeometry();
+                geometry.setPositions(majorSegments);
+                this.planeGroups[plane].add(
+                    new LineSegments2(geometry, this.gridMajorMaterial),
+                );
+            }
+            if (minorSegments.length) {
+                const geometry = new LineSegmentsGeometry();
+                geometry.setPositions(minorSegments);
+                this.planeGroups[plane].add(
+                    new LineSegments2(geometry, this.gridMinorMaterial),
+                );
+            }
+            this.planeGroups[plane].visible = grid.planes[plane];
         }
-        if (majorSegments.length) {
-            const geometry = new LineSegmentsGeometry();
-            geometry.setPositions(majorSegments);
-            this.gridGroup.add(new LineSegments2(geometry, this.gridMajorMaterial));
-        }
-        if (minorSegments.length) {
-            const geometry = new LineSegmentsGeometry();
-            geometry.setPositions(minorSegments);
-            this.gridGroup.add(new LineSegments2(geometry, this.gridMinorMaterial));
-        }
-        this.gridGroup.visible = grid.visible;
 
         // --- 坐标轴刻度线 ---
         const axisLength = RENDER_CONFIG.scene.axesLength;
@@ -250,7 +271,64 @@ export class SceneManager {
             geometry.setPositions(tickMinorSegments);
             this.tickGroup.add(new LineSegments2(geometry, this.tickMinorMaterial));
         }
+
+        // --- 刻度数字(与 XYZ 轴标签共用字体/画布尺寸/缩放)---
+        const { labelColor, labelOffset } = axisTicks;
+        for (let pos = minorStep; pos <= axisLength + eps; pos += minorStep) {
+            const xLabel = this.createTextSprite(String(pos), labelColor);
+            xLabel.position.set(pos, 0, labelOffset);
+            xLabel.visible = RENDER_CONFIG.scene.axisLabels.x;
+            this.axisTickNumbers.x.push(xLabel);
+            this.tickGroup.add(xLabel);
+
+            const yLabel = this.createTextSprite(String(pos), labelColor);
+            yLabel.position.set(labelOffset, pos, 0);
+            yLabel.visible = RENDER_CONFIG.scene.axisLabels.y;
+            this.axisTickNumbers.y.push(yLabel);
+            this.tickGroup.add(yLabel);
+
+            const zLabel = this.createTextSprite(String(pos), labelColor);
+            zLabel.position.set(labelOffset, 0, pos);
+            zLabel.visible = RENDER_CONFIG.scene.axisLabels.z;
+            this.axisTickNumbers.z.push(zLabel);
+            this.tickGroup.add(zLabel);
+        }
         this.tickGroup.visible = axisTicks.visible;
+    }
+
+    /**
+     * 创建文字 Sprite.
+     * 刻度数字与 XYZ 轴标签共用同一字体/画布尺寸/缩放,保证一起缩放.
+     */
+    private createTextSprite(text: string, color: string): THREE.Sprite {
+        const size = RENDER_CONFIG.scene.labelCanvasSize;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d')!;
+        ctx.fillStyle = 'rgba(0,0,0,0)';
+        ctx.fillRect(0, 0, size, size);
+        ctx.font = RENDER_CONFIG.scene.labelFont;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = color;
+        ctx.shadowColor = 'rgba(0,0,0,0.8)';
+        ctx.shadowBlur = 4;
+        ctx.fillText(text, size / 2, size / 2);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        const material = new THREE.SpriteMaterial({
+            map: texture,
+            transparent: true,
+            depthTest: false,
+        });
+        const sprite = new THREE.Sprite(material);
+        sprite.scale.set(
+            RENDER_CONFIG.scene.labelScale,
+            RENDER_CONFIG.scene.labelScale,
+            1,
+        );
+        return sprite;
     }
 
     /**

@@ -15,8 +15,11 @@ export interface MathLabEvents {
     'camera:view': { view: ViewHome };
     'camera:rotationLock': { locked: boolean };
     'axis:lineWidthChanged': { width: number };
+    'axis:labelVisibility': { x: boolean; y: boolean; z: boolean };
     'grid:changed': {
-        gridVisible: boolean;
+        xzVisible: boolean;
+        xyVisible: boolean;
+        yzVisible: boolean;
         ticksVisible: boolean;
         majorWidth: number;
         minorWidth: number;

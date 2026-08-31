@@ -152,6 +152,15 @@
     font-size: 12px;
 }
 
+/* 同一行内的开关组(如 X/Y/Z 标签、刻度/网格) */
+.axis-switch-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: #8e9fc7;
+}
+
 /* 大小/缩放模式切换按钮 */
 .point-mode {
     display: grid;

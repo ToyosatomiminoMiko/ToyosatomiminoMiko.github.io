@@ -207,11 +207,53 @@ transform T2 = translate([2, 1, 0]) * rotate([0, 0, pi / 4]) * scale([1.5, 1, 1]
                         </label>
                     </div>
                     <div class="axis-row">
+                        <span>标签</span>
+                        <div class="axis-switch-group">
+                            <span>X</span>
+                            <label class="switch">
+                                <input type="checkbox" id="axisLabelX" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="axis-switch-group">
+                            <span>Y</span>
+                            <label class="switch">
+                                <input type="checkbox" id="axisLabelY" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="axis-switch-group">
+                            <span>Z</span>
+                            <label class="switch">
+                                <input type="checkbox" id="axisLabelZ" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="axis-row">
                         <span>网格</span>
-                        <label class="switch">
-                            <input type="checkbox" id="gridVisible" checked>
-                            <span class="slider"></span>
-                        </label>
+                        <div class="axis-switch-group">
+                            <span>XZ</span>
+                            <label class="switch">
+                                <input type="checkbox" id="gridVisibleXZ" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="axis-switch-group">
+                            <span>XY</span>
+                            <label class="switch">
+                                <input type="checkbox" id="gridVisibleXY" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="axis-switch-group">
+                            <span>YZ</span>
+                            <label class="switch">
+                                <input type="checkbox" id="gridVisibleYZ" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
                     </div>
                     <div class="axis-row">
                         <label for="gridMajorWidth">大刻度线宽</label>

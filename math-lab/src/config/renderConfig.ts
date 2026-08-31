@@ -64,14 +64,28 @@ export const RENDER_CONFIG = {
             minorColor: 0x2e2e3d,
             majorLineWidth: 1.5,
             minorLineWidth: 0.75,
-            visible: true,
+            // 三个坐标平面各自独立显隐
+            planes: {
+                xz: true,
+                xy: true,
+                yz: true,
+            },
         },
         // 坐标轴刻度线(大刻度长/粗,小刻度短/细)
         axisTicks: {
             majorLength: 0.22,
             minorLength: 0.1,
             color: 0x8899aa,
+            // 刻度数字与 XYZ 轴标签共用 labelFont/labelCanvasSize/labelScale
+            labelColor: '#9fb2d8',
+            labelOffset: 0.35,
             visible: true,
+        },
+        // 各轴标签(隐藏标签时同步隐藏该轴的刻度数字)
+        axisLabels: {
+            x: true,
+            y: true,
+            z: true,
         },
         // 点对象:全局渲染样式,大小(可设置具体值)/比例缩放/可见性
         point: {

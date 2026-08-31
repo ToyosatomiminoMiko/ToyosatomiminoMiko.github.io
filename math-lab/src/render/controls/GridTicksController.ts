@@ -5,25 +5,32 @@ import { RENDER_CONFIG } from '../../config/renderConfig';
 /**
  * 网格与坐标轴刻度控制.
  *
- * - 网格/刻度可见性开关;
+ * - XZ/XY/YZ 三个坐标平面网格各自独立的可见性开关 + 刻度开关;
  * - 大刻度线宽、小刻度线宽(像素),同时作用于网格线和坐标轴刻度.
  * 变化通过 EventBus 广播,由 RenderController 应用到场景.
  */
 export class GridTicksController {
-    private readonly gridToggle: HTMLInputElement | null;
+    private readonly planeToggles: Record<'xz' | 'xy' | 'yz', HTMLInputElement | null>;
     private readonly ticksToggle: HTMLInputElement | null;
     private readonly majorWidthInput: HTMLInputElement | null;
     private readonly minorWidthInput: HTMLInputElement | null;
     private readonly _abortController = new AbortController();
 
-    private gridVisible = RENDER_CONFIG.scene.grid.visible;
+    private readonly planeVisible: Record<'xz' | 'xy' | 'yz', boolean> = {
+        xz: RENDER_CONFIG.scene.grid.planes.xz,
+        xy: RENDER_CONFIG.scene.grid.planes.xy,
+        yz: RENDER_CONFIG.scene.grid.planes.yz,
+    };
     private ticksVisible = RENDER_CONFIG.scene.axisTicks.visible;
     private majorWidth = RENDER_CONFIG.scene.grid.majorLineWidth;
     private minorWidth = RENDER_CONFIG.scene.grid.minorLineWidth;
 
     constructor(private readonly eventBus: EventBus<MathLabEvents>) {
-        this.gridToggle =
-            document.getElementById('gridVisible') as HTMLInputElement | null;
+        this.planeToggles = {
+            xz: document.getElementById('gridVisibleXZ') as HTMLInputElement | null,
+            xy: document.getElementById('gridVisibleXY') as HTMLInputElement | null,
+            yz: document.getElementById('gridVisibleYZ') as HTMLInputElement | null,
+        };
         this.ticksToggle =
             document.getElementById('axisTicksVisible') as HTMLInputElement | null;
         this.majorWidthInput =
@@ -31,16 +38,22 @@ export class GridTicksController {
         this.minorWidthInput =
             document.getElementById('gridMinorWidth') as HTMLInputElement | null;
 
-        if (this.gridToggle) this.gridToggle.checked = this.gridVisible;
+        (['xz', 'xy', 'yz'] as const).forEach((plane) => {
+            const toggle = this.planeToggles[plane];
+            if (toggle) toggle.checked = this.planeVisible[plane];
+        });
         if (this.ticksToggle) this.ticksToggle.checked = this.ticksVisible;
         if (this.majorWidthInput) this.majorWidthInput.value = String(this.majorWidth);
         if (this.minorWidthInput) this.minorWidthInput.value = String(this.minorWidth);
 
         const signal = this._abortController.signal;
-        this.gridToggle?.addEventListener('change', () => {
-            this.gridVisible = this.gridToggle?.checked ?? true;
-            this._emit();
-        }, { signal });
+        (['xz', 'xy', 'yz'] as const).forEach((plane) => {
+            const toggle = this.planeToggles[plane];
+            toggle?.addEventListener('change', () => {
+                this.planeVisible[plane] = toggle?.checked ?? true;
+                this._emit();
+            }, { signal });
+        });
         this.ticksToggle?.addEventListener('change', () => {
             this.ticksVisible = this.ticksToggle?.checked ?? true;
             this._emit();
@@ -83,7 +96,9 @@ export class GridTicksController {
 
     private _emit(): void {
         this.eventBus.emit('grid:changed', {
-            gridVisible: this.gridVisible,
+            xzVisible: this.planeVisible.xz,
+            xyVisible: this.planeVisible.xy,
+            yzVisible: this.planeVisible.yz,
             ticksVisible: this.ticksVisible,
             majorWidth: this.majorWidth,
             minorWidth: this.minorWidth,
