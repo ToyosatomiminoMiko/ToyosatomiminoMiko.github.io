@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { Line2 } from 'three/addons/lines/Line2.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 import { RENDER_CONFIG } from '../../config/renderConfig';
 
 /**
@@ -12,9 +14,16 @@ export class SceneManager {
     container: HTMLElement;
     scene: THREE.Scene;
     renderer: THREE.WebGLRenderer;
-    private readonly centerSphere: THREE.Mesh;
+    private readonly gridGroup = new THREE.Group();
+    private readonly tickGroup = new THREE.Group();
     /** Line2 坐标轴材质,resize 时同步分辨率,线宽变化时统一更新 */
     private readonly axisLineMaterials: LineMaterial[] = [];
+    /** 所有 Line2/LineSegments2 材质,resize 时统一同步分辨率 */
+    private readonly resolutionMaterials: LineMaterial[] = [];
+    private gridMajorMaterial: LineMaterial | null = null;
+    private gridMinorMaterial: LineMaterial | null = null;
+    private tickMajorMaterial: LineMaterial | null = null;
+    private tickMinorMaterial: LineMaterial | null = null;
 
     constructor(container: HTMLElement) {
         this.container = container;
@@ -54,34 +63,13 @@ export class SceneManager {
             [0, 0, RENDER_CONFIG.scene.axesLength],
             RENDER_CONFIG.scene.axisColors.z,
         );
-        // 坐标系网格
-        const gridHelper = new THREE.GridHelper(
-            RENDER_CONFIG.scene.gridSize,
-            RENDER_CONFIG.scene.gridDivisions,
-            undefined, // 坐标轴线颜色已经设置
-            RENDER_CONFIG.scene.gridColor
-        );
-        // gridHelper.traverse((child) => {
-        //     if (child instanceof THREE.LineSegments) {
-        //         child.material.transparent = true;
-        //         child.material.opacity = 0;  // 网格坐标轴透明
-        //         child.material.depthWrite = false; // 不写入深度缓冲,避免遮挡其他物体
-        //     }
-        // });
-        this.scene.add(gridHelper);
 
-        // 原点小球:使用单位球,大小/缩放通过 scale 控制,避免每次改值重建几何体
-        const sphereGeo = new THREE.SphereGeometry(1, 16, 16);
-        const sphereMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        this.centerSphere = new THREE.Mesh(sphereGeo, sphereMat);
-        this.centerSphere.scale.setScalar(
-            RENDER_CONFIG.scene.originPoint.radius
-            * RENDER_CONFIG.scene.originPoint.scale,
-        );
-        this.centerSphere.visible = RENDER_CONFIG.scene.originPoint.visible;
-        this.scene.add(this.centerSphere);
+        // 大/小刻度网格 + 坐标轴刻度
+        this.buildGridAndTicks();
+        this.scene.add(this.gridGroup);
+        this.scene.add(this.tickGroup);
 
-        // --- XYZ 轴标签(使用 Sprite)---
+        // XYZ 轴标签(使用 Sprite)
         const makeLabel = (text: string, position: THREE.Vector3, color: string): void => {
             const canvas = document.createElement('canvas');
             canvas.width = RENDER_CONFIG.scene.labelCanvasSize;
@@ -140,22 +128,32 @@ export class SceneManager {
         this.scene.remove(object);
     }
 
-    /** 设置原点小球可见性 */
-    setOriginVisible(visible: boolean): void {
-        this.centerSphere.visible = visible;
-    }
-
-    /** 设置原点小球半径(已由调用方计算 大小 × 比例缩放) */
-    setOriginRadius(radius: number): void {
-        this.centerSphere.scale.setScalar(Math.max(0, radius));
-    }
-
     /** 设置坐标轴线宽(像素) */
     setAxisLineWidth(width: number): void {
         const clamped = Math.max(1, width);
         for (const material of this.axisLineMaterials) {
             material.linewidth = clamped;
         }
+    }
+
+    /** 设置网格可见性 */
+    setGridVisible(visible: boolean): void {
+        this.gridGroup.visible = visible;
+    }
+
+    /** 设置坐标轴刻度可见性 */
+    setTicksVisible(visible: boolean): void {
+        this.tickGroup.visible = visible;
+    }
+
+    /** 设置大/小刻度线宽(像素),同时作用于网格线和坐标轴刻度 */
+    setGridLineWidths(majorWidth: number, minorWidth: number): void {
+        const major = Math.max(1, majorWidth);
+        const minor = Math.max(0.5, minorWidth);
+        if (this.gridMajorMaterial) this.gridMajorMaterial.linewidth = major;
+        if (this.gridMinorMaterial) this.gridMinorMaterial.linewidth = minor;
+        if (this.tickMajorMaterial) this.tickMajorMaterial.linewidth = major;
+        if (this.tickMinorMaterial) this.tickMinorMaterial.linewidth = minor;
     }
 
     render(camera: THREE.Camera): void {
@@ -166,10 +164,93 @@ export class SceneManager {
         const width = this.container.clientWidth;
         const height = this.container.clientHeight;
         this.renderer.setSize(width, height);
-        for (const material of this.axisLineMaterials) {
+        for (const material of this.resolutionMaterials) {
             material.resolution.set(width, height);
         }
         return { width, height };
+    }
+
+    /**
+     * 构建大/小刻度网格(XZ 平面)和 XYZ 轴刻度线.
+     * - 大刻度线:较粗、较亮,按 majorStep 间隔;
+     * - 小刻度线:较细、较暗,按 minorStep 间隔;
+     * - 中心线(经过原点)由坐标轴承担,网格不再重复绘制.
+     */
+    private buildGridAndTicks(): void {
+        const { grid, axisTicks } = RENDER_CONFIG.scene;
+        const { size, majorStep, minorStep } = grid;
+        const half = size / 2;
+        const eps = minorStep * 1e-6;
+
+        const makeMaterial = (
+            color: number,
+            linewidth: number,
+        ): LineMaterial => {
+            const material = new LineMaterial({
+                color,
+                linewidth,
+                resolution: new THREE.Vector2(
+                    this.container.clientWidth,
+                    this.container.clientHeight,
+                ),
+            });
+            this.resolutionMaterials.push(material);
+            return material;
+        };
+
+        this.gridMajorMaterial = makeMaterial(grid.majorColor, grid.majorLineWidth);
+        this.gridMinorMaterial = makeMaterial(grid.minorColor, grid.minorLineWidth);
+        this.tickMajorMaterial = makeMaterial(axisTicks.color, grid.majorLineWidth);
+        this.tickMinorMaterial = makeMaterial(axisTicks.color, grid.minorLineWidth);
+
+        // --- 网格线(XZ 平面,y=0)---
+        const majorSegments: number[] = [];
+        const minorSegments: number[] = [];
+        for (let v = -half; v <= half + eps; v += minorStep) {
+            if (Math.abs(v) < eps) continue; // 中心线由坐标轴承担
+            const isMajor = Math.abs(v % majorStep) < eps;
+            const target = isMajor ? majorSegments : minorSegments;
+            // 沿 Z 方向与沿 X 方向各一条
+            target.push(v, 0, -half, v, 0, half);
+            target.push(-half, 0, v, half, 0, v);
+        }
+        if (majorSegments.length) {
+            const geometry = new LineSegmentsGeometry();
+            geometry.setPositions(majorSegments);
+            this.gridGroup.add(new LineSegments2(geometry, this.gridMajorMaterial));
+        }
+        if (minorSegments.length) {
+            const geometry = new LineSegmentsGeometry();
+            geometry.setPositions(minorSegments);
+            this.gridGroup.add(new LineSegments2(geometry, this.gridMinorMaterial));
+        }
+        this.gridGroup.visible = grid.visible;
+
+        // --- 坐标轴刻度线 ---
+        const axisLength = RENDER_CONFIG.scene.axesLength;
+        const tickMajorSegments: number[] = [];
+        const tickMinorSegments: number[] = [];
+        for (let pos = minorStep; pos <= axisLength + eps; pos += minorStep) {
+            const isMajor = Math.abs(pos % majorStep) < eps;
+            const length = isMajor ? axisTicks.majorLength : axisTicks.minorLength;
+            const halfLen = length / 2;
+            const target = isMajor ? tickMajorSegments : tickMinorSegments;
+            // X 轴刻度沿 Z 方向;Y/Z 轴刻度沿 X 方向
+            target.push(pos, 0, -halfLen, pos, 0, halfLen);
+            target.push(-halfLen, pos, 0, halfLen, pos, 0);
+            target.push(-halfLen, 0, pos, halfLen, 0, pos);
+        }
+        if (tickMajorSegments.length) {
+            const geometry = new LineSegmentsGeometry();
+            geometry.setPositions(tickMajorSegments);
+            this.tickGroup.add(new LineSegments2(geometry, this.tickMajorMaterial));
+        }
+        if (tickMinorSegments.length) {
+            const geometry = new LineSegmentsGeometry();
+            geometry.setPositions(tickMinorSegments);
+            this.tickGroup.add(new LineSegments2(geometry, this.tickMinorMaterial));
+        }
+        this.tickGroup.visible = axisTicks.visible;
     }
 
     /**
@@ -194,6 +275,7 @@ export class SceneManager {
         const line = new Line2(geometry, material);
         this.scene.add(line);
         this.axisLineMaterials.push(material);
+        this.resolutionMaterials.push(material);
     }
 
     dispose(): void {

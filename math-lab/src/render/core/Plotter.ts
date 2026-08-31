@@ -2,10 +2,11 @@ import * as THREE from 'three';
 import { type IRenderer } from './renderers/IRenderer';
 import { CurveRenderer } from './renderers/CurveRenderer';
 import { SurfaceRenderer } from './renderers/SurfaceRenderer';
-import { PointRenderer } from './renderers/PointRenderer';
+import { PointRenderer, type PointStyle } from './renderers/PointRenderer';
 import { VectorRenderer } from './renderers/VectorRenderer';
 import { VectorFieldRenderer } from './renderers/VectorFieldRenderer';
 import { SolidRenderer } from './renderers/SolidRenderer';
+import { RENDER_CONFIG } from '../../config/renderConfig';
 import type {
     BoxObject,
     ConicSolidObject,
@@ -35,6 +36,12 @@ interface UpdatableRenderer extends IRenderer {
 export class Plotter {
     /** 所有渲染器的 Group 挂载点,挂到 Scene 下 */
     private readonly plotContainer = new THREE.Group();
+
+    /** 点对象的全局渲染样式(尺寸/可见性) */
+    private readonly pointStyle: PointStyle = {
+        radius: RENDER_CONFIG.scene.point.radius,
+        visible: RENDER_CONFIG.scene.point.visible,
+    };
 
     /**
      * @cache
@@ -132,6 +139,17 @@ export class Plotter {
         renderer.group.matrix.copy(transform);
     }
 
+    /** 更新所有点对象的全局样式(尺寸/可见性) */
+    setPointStyle(style: PointStyle): void {
+        this.pointStyle.radius = style.radius;
+        this.pointStyle.visible = style.visible;
+        for (const renderer of this.rendererMap.values()) {
+            if (renderer instanceof PointRenderer) {
+                renderer.setStyle(this.pointStyle);
+            }
+        }
+    }
+
     /**
      * @cache-access
      * 更新一个对象.
@@ -206,6 +224,9 @@ export class Plotter {
             renderer?.dispose();
             if (renderer) this.plotContainer.remove(renderer.group);
             renderer = new Ctor(initialData);
+            if (renderer instanceof PointRenderer) {
+                renderer.setStyle(this.pointStyle);
+            }
             this.plotContainer.add(renderer.group);
             this.rendererMap.set(id, renderer);
         }

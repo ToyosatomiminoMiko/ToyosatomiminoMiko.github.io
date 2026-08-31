@@ -55,11 +55,26 @@ export const RENDER_CONFIG = {
         axisLabelLength: 8.5,
         // Line2 坐标轴线宽(像素),可在右侧"视图"面板调整
         axisLineWidth: 3,
-        gridSize: 20,
-        gridDivisions: 20,
-        gridColor: 0x444444,
-        // 原点小球:大小(可设置具体值) × 比例缩放,visible 控制可见性
-        originPoint: {
+        // 网格:大刻度线粗、小刻度线细,均用 Line2 系列绘制
+        grid: {
+            size: 20,
+            majorStep: 5,
+            minorStep: 1,
+            majorColor: 0x555566,
+            minorColor: 0x2e2e3d,
+            majorLineWidth: 1.5,
+            minorLineWidth: 0.75,
+            visible: true,
+        },
+        // 坐标轴刻度线(大刻度长/粗,小刻度短/细)
+        axisTicks: {
+            majorLength: 0.22,
+            minorLength: 0.1,
+            color: 0x8899aa,
+            visible: true,
+        },
+        // 点对象:全局渲染样式,大小(可设置具体值)/比例缩放/可见性
+        point: {
             radius: 0.2,
             scale: 1,
             visible: true,

@@ -19,8 +19,9 @@ import { MathComputeEngine } from '../math/compute/MathComputeEngine';
 import { CameraToggle } from '../render/controls/CameraToggle';
 import { ViewCubeController } from '../render/controls/ViewCubeController';
 import { RotationLockController } from '../render/controls/RotationLockController';
-import { OriginPointController } from '../render/controls/OriginPointController';
+import { PointStyleController } from '../render/controls/PointStyleController';
 import { AxisLineWidthController } from '../render/controls/AxisLineWidthController';
+import { GridTicksController } from '../render/controls/GridTicksController';
 import type { SceneIR, SceneObject } from '../compiler/ir/types';
 import type { MathLabEvents } from '../types';
 import { EventBus } from '../service/EventBus';
@@ -45,8 +46,9 @@ export class RenderController {
     private cameraToggle: CameraToggle | null = null;
     private viewCubeController: ViewCubeController | null = null;
     private rotationLockController: RotationLockController | null = null;
-    private originPointController: OriginPointController | null = null;
+    private pointStyleController: PointStyleController | null = null;
     private axisLineWidthController: AxisLineWidthController | null = null;
+    private gridTicksController: GridTicksController | null = null;
 
     /**
      * @cache
@@ -106,16 +108,22 @@ export class RenderController {
         );
 
         // 先注册监听,再创建控制器,确保控制器启动时同步的初始状态不会丢失
-        eventBus.on('origin:changed', ({ radius, visible }) => {
-            this.sceneManager.setOriginVisible(visible);
-            this.sceneManager.setOriginRadius(radius);
+        eventBus.on('point:changed', ({ radius, visible }) => {
+            this.plotter.setPointStyle({ radius, visible });
         });
-        this.originPointController = new OriginPointController(eventBus);
+        this.pointStyleController = new PointStyleController(eventBus);
 
         eventBus.on('axis:lineWidthChanged', ({ width }) => {
             this.sceneManager.setAxisLineWidth(width);
         });
         this.axisLineWidthController = new AxisLineWidthController(eventBus);
+
+        eventBus.on('grid:changed', ({ gridVisible, ticksVisible, majorWidth, minorWidth }) => {
+            this.sceneManager.setGridVisible(gridVisible);
+            this.sceneManager.setTicksVisible(ticksVisible);
+            this.sceneManager.setGridLineWidths(majorWidth, minorWidth);
+        });
+        this.gridTicksController = new GridTicksController(eventBus);
     }
 
     /** 每帧执行一次,由 DslApp 的 requestAnimationFrame 循环调用. */
@@ -229,8 +237,9 @@ export class RenderController {
         this.cameraToggle?.dispose();
         this.viewCubeController?.dispose();
         this.rotationLockController?.dispose();
-        this.originPointController?.dispose();
+        this.pointStyleController?.dispose();
         this.axisLineWidthController?.dispose();
+        this.gridTicksController?.dispose();
         this.cameraManager.dispose();
         this.integralRenderer.dispose();
         this.analysisRenderer.dispose();

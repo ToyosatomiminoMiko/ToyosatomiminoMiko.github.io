@@ -15,7 +15,13 @@ export interface MathLabEvents {
     'camera:view': { view: ViewHome };
     'camera:rotationLock': { locked: boolean };
     'axis:lineWidthChanged': { width: number };
-    'origin:changed': { radius: number; visible: boolean };
+    'grid:changed': {
+        gridVisible: boolean;
+        ticksVisible: boolean;
+        majorWidth: number;
+        minorWidth: number;
+    };
+    'point:changed': { radius: number; visible: boolean };
     'coefficient:changed': { id: number };
     'selection:changed': { id: number | null; kind: string | null };
 }

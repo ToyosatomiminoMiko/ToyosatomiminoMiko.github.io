@@ -113,10 +113,10 @@
 }
 
 /* ==========================================================================
- * 原点小球控制
+ * 点对象控制
  * ========================================================================== */
 
-.origin-controls,
+.point-controls,
 .axis-controls {
     border-top: 1px solid rgba(255, 255, 255, 0.06);
     padding-top: 8px;
@@ -125,13 +125,13 @@
     gap: 8px;
 }
 
-.origin-title,
+.point-title,
 .axis-title {
     font-size: 12px;
     color: #aac8ff;
 }
 
-.origin-row,
+.point-row,
 .axis-row {
     display: flex;
     align-items: center;
@@ -140,7 +140,7 @@
     color: #8e9fc7;
 }
 
-.origin-row input[type="number"],
+.point-row input[type="number"],
 .axis-row input[type="number"] {
     width: 76px;
     margin-left: auto;
@@ -153,13 +153,13 @@
 }
 
 /* 大小/缩放模式切换按钮 */
-.origin-mode {
+.point-mode {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 6px;
 }
 
-.origin-mode button {
+.point-mode button {
     padding: 5px 0;
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 8px;
@@ -169,7 +169,7 @@
     cursor: pointer;
 }
 
-.origin-mode button.active {
+.point-mode button.active {
     background: rgba(70, 130, 255, 0.25);
     border-color: rgba(70, 130, 255, 0.45);
     color: #aac8ff;

@@ -24,6 +24,8 @@
             </header>
             <section id="editor-panel">
                 <textarea id="dsl-editor" spellcheck="false">
+point P = [0, 0, 0];
+
 // 临时示例,后续统一加入文档
 
 // 定义系数
@@ -33,7 +35,7 @@ param j = 0 in [-5, 5, 0.1];
 param k = 0 in [-5, 5, 0.1];
 
 // 点
-point P = [a, b, 3] {
+point Q = [a, b, 3] {
     color = "#6dd5ff";
 }
 
@@ -172,22 +174,22 @@ transform T2 = translate([2, 1, 0]) * rotate([0, 0, pi / 4]) * scale([1.5, 1, 1]
                     <button type="button" data-view="isometric" class="active">ISO</button>
                 </div>
 
-                <section id="origin-controls" class="origin-controls">
-                    <header class="origin-title">原点</header>
-                    <div class="origin-row">
-                        <span>可见</span>
+                <section id="point-controls" class="point-controls">
+                    <header class="point-title">点</header>
+                    <div class="point-row">
+                        <span>全局可见</span>
                         <label class="switch">
-                            <input type="checkbox" id="originVisible" checked>
+                            <input type="checkbox" id="pointVisible" checked>
                             <span class="slider"></span>
                         </label>
                     </div>
-                    <div class="origin-mode">
-                        <button type="button" data-origin-mode="size" class="active">设定大小</button>
-                        <button type="button" data-origin-mode="scale">按比例缩放</button>
+                    <div class="point-mode">
+                        <button type="button" data-point-mode="size" class="active">设定大小</button>
+                        <button type="button" data-point-mode="scale">按比例缩放</button>
                     </div>
-                    <div class="origin-row">
-                        <label for="originValue" id="originValueLabel">大小</label>
-                        <input type="number" id="originValue" min="0" step="0.05" value="0.2">
+                    <div class="point-row">
+                        <label for="pointValue" id="pointValueLabel">大小</label>
+                        <input type="number" id="pointValue" min="0" step="0.05" value="0.2">
                     </div>
                 </section>
 
@@ -195,7 +197,29 @@ transform T2 = translate([2, 1, 0]) * rotate([0, 0, pi / 4]) * scale([1.5, 1, 1]
                     <header class="axis-title">坐标轴</header>
                     <div class="axis-row">
                         <label for="axisLineWidth">线宽</label>
-                        <input type="number" id="axisLineWidth" min="1" step="0.5" value="2">
+                        <input type="number" id="axisLineWidth" min="1" step="0.5" value="3">
+                    </div>
+                    <div class="axis-row">
+                        <span>刻度</span>
+                        <label class="switch">
+                            <input type="checkbox" id="axisTicksVisible" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="axis-row">
+                        <span>网格</span>
+                        <label class="switch">
+                            <input type="checkbox" id="gridVisible" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="axis-row">
+                        <label for="gridMajorWidth">大刻度线宽</label>
+                        <input type="number" id="gridMajorWidth" min="1" step="0.5" value="1.5">
+                    </div>
+                    <div class="axis-row">
+                        <label for="gridMinorWidth">小刻度线宽</label>
+                        <input type="number" id="gridMinorWidth" min="0.5" step="0.25" value="0.75">
                     </div>
                 </section>
             </section>
