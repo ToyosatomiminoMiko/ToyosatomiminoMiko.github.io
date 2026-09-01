@@ -12,6 +12,7 @@ import { materializeObject, type ObjectBlueprint } from './objects';
 import { applyParamOverrides } from './params';
 import { compileIntegralTask } from './integrals';
 import { compileAnalyses } from './analyses';
+import { compileIntersections } from './intersections';
 import {
     cloneAnimations,
     cloneObjectAnimations,
@@ -36,6 +37,7 @@ import {
 export interface CompileSceneOptions {
     hiddenAnalysisNames?: ReadonlySet<string>;
     hiddenIntegralNames?: ReadonlySet<string>;
+    hiddenIntersectionNames?: ReadonlySet<string>;
 }
 
 export function compileScene(
@@ -47,6 +49,7 @@ export function compileScene(
     const staticScene = getOrBuildStaticScene(ast, matrixOps);
     const hiddenAnalysisNames = options.hiddenAnalysisNames ?? new Set<string>();
     const hiddenIntegralNames = options.hiddenIntegralNames ?? new Set<string>();
+    const hiddenIntersectionNames = options.hiddenIntersectionNames ?? new Set<string>();
 
     const params = cloneParams(staticScene.params);
     const objects = staticScene.objectBlueprints.map((blueprint) =>
@@ -70,12 +73,15 @@ export function compileScene(
         integrals.push(task);
     }
 
+    const objectTransforms = cloneObjectTransforms(staticScene.objectTransforms);
+    const objectAnimations = cloneObjectAnimations(staticScene.objectAnimations);
+
     return {
         params: [...params.values()],
         objects,
-        objectTransforms: cloneObjectTransforms(staticScene.objectTransforms),
+        objectTransforms,
         animations: cloneAnimations(staticScene.animations),
-        objectAnimations: cloneObjectAnimations(staticScene.objectAnimations),
+        objectAnimations,
         analyses: compileAnalyses(
             ast,
             blueprintByName,
@@ -84,5 +90,12 @@ export function compileScene(
             hiddenAnalysisNames,
         ),
         integrals,
+        intersections: compileIntersections(
+            ast,
+            objectByName,
+            objectTransforms,
+            objectAnimations,
+            hiddenIntersectionNames,
+        ),
     };
 }

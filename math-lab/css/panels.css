@@ -239,6 +239,11 @@
     background: #8ee6a5;
 }
 
+.kind-intersection {
+    color: #0d1120;
+    background: #ffd93d;
+}
+
 .object-main {
     min-width: 0;
     flex: 1;

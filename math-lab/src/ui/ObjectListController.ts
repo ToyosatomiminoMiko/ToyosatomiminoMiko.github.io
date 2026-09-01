@@ -1,6 +1,7 @@
 import type {
     AnalysisResult,
     IntegralTask,
+    IntersectionResult,
     SceneIR,
     SceneObject,
 } from '../compiler/ir/types';
@@ -31,6 +32,18 @@ const INTEGRAL_METHOD_LABELS: Record<IntegralTask['method'], string> = {
     riemann: '黎曼和',
     lebesgue: '勒贝格法',
 };
+
+function intersectionSummary(result: IntersectionResult): string {
+    const source = `${result.aName} ∩ ${result.bName}`;
+    if (result.points.length > 0) {
+        return `${source} · 交点 ${result.points.length} 个`;
+    }
+    const pointCount = result.curves.reduce(
+        (total, curve) => total + curve.length,
+        0,
+    );
+    return `${source} · 交线 ${result.curves.length} 条 · ${pointCount} 个点`;
+}
 
 function createElement(tag: string, className?: string, text?: string): HTMLElement {
     const element = document.createElement(tag);
@@ -149,15 +162,18 @@ export class ObjectListController {
         private readonly entityList: HTMLElement,
         private readonly analysisList: HTMLElement,
         private readonly integralList: HTMLElement,
+        private readonly intersectionList: HTMLElement,
         private readonly onToggleEntity: ToggleEntityHandler,
         private readonly onToggleAnalysis: ToggleEvaluationHandler,
         private readonly onToggleIntegral: ToggleEvaluationHandler,
+        private readonly onToggleIntersection: ToggleEvaluationHandler,
     ) {}
 
     renderScene(scene: SceneIR): void {
         this._renderEntities(scene.objects);
         this._renderAnalyses(scene.analyses);
         this._renderIntegrals(scene.integrals, scene.objects);
+        this._renderIntersections(scene.intersections);
     }
 
     setEntityVisible(id: number, visible: boolean): void {
@@ -205,6 +221,7 @@ export class ObjectListController {
         this.entityList.replaceChildren();
         this.analysisList.replaceChildren();
         this.integralList.replaceChildren();
+        this.intersectionList.replaceChildren();
         this.integralRows.clear();
     }
 
@@ -354,5 +371,45 @@ export class ObjectListController {
         main.append(name, meta, result);
         row.append(button, badge, main);
         return row;
+    }
+
+    private _renderIntersections(intersections: IntersectionResult[]): void {
+        const fragment = document.createDocumentFragment();
+
+        for (const intersection of intersections) {
+            const row = createElement('article', 'object-row evaluation-row');
+            row.classList.toggle('is-hidden', !intersection.enabled);
+
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'entity-visibility-btn';
+            button.textContent = intersection.enabled ? '隐藏' : '显示';
+            button.setAttribute('aria-pressed', String(intersection.enabled));
+            button.addEventListener('click', () =>
+                this.onToggleIntersection(intersection.name),
+            );
+
+            const badge = createElement(
+                'span',
+                'kind-badge kind-intersection',
+                '求交',
+            );
+            const main = createElement('div', 'object-main');
+            const name = createElement('strong', 'object-name', intersection.name);
+            const result = createElement(
+                'code',
+                intersection.enabled
+                    ? 'eval-result is-ready'
+                    : 'eval-result is-disabled',
+                intersection.enabled
+                    ? intersectionSummary(intersection)
+                    : '已隐藏,不参与计算',
+            );
+            main.append(name, result);
+            row.append(button, badge, main);
+            fragment.append(row);
+        }
+
+        this.intersectionList.replaceChildren(fragment);
     }
 }

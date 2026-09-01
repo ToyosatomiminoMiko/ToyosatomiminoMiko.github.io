@@ -40,6 +40,7 @@ export class SceneStore {
     private readonly _hiddenEntityIds = new Set<number>();
     private readonly _hiddenAnalysisNames = new Set<string>();
     private readonly _hiddenIntegralNames = new Set<string>();
+    private readonly _hiddenIntersectionNames = new Set<string>();
 
     get ast(): AstProgram | null {
         return this._currentAst;
@@ -73,6 +74,10 @@ export class SceneStore {
         return this._hiddenIntegralNames;
     }
 
+    get hiddenIntersectionNames(): ReadonlySet<string> {
+        return this._hiddenIntersectionNames;
+    }
+
     /**
      * @cache-access
      * 在一次源码解析成功后提交新的 AST 和矩阵后端.
@@ -89,6 +94,7 @@ export class SceneStore {
             this._hiddenEntityIds.clear();
             this._hiddenAnalysisNames.clear();
             this._hiddenIntegralNames.clear();
+            this._hiddenIntersectionNames.clear();
         }
 
         this._lastRunSource = source;
@@ -160,6 +166,18 @@ export class SceneStore {
             this._hiddenIntegralNames.delete(name);
         } else {
             this._hiddenIntegralNames.add(name);
+        }
+    }
+
+    /**
+     * @cache-access
+     * 更新求交对象显隐缓存.
+     */
+    toggleIntersectionHidden(name: string): void {
+        if (this._hiddenIntersectionNames.has(name)) {
+            this._hiddenIntersectionNames.delete(name);
+        } else {
+            this._hiddenIntersectionNames.add(name);
         }
     }
 }

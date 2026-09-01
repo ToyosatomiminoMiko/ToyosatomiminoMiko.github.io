@@ -44,5 +44,10 @@ integral_stmt = { "integral" ~ ident ~ "=" ~ integral_call ~ integral_end }
 integral_call = { "integral" ~ "(" ~ ident ~ ")" }
 integral_end = { options ~ ";"? | ";" }
 
-statement = _{ param_stmt | tensor_stmt | animation_stmt | object_stmt | analysis_stmt | integral_stmt }
+intersection_kind = { "intersection" | "intersect" }
+intersection_call = { intersection_kind ~ "(" ~ ident ~ "," ~ ident ~ ")" }
+intersection_stmt = { intersection_kind ~ ident ~ "=" ~ intersection_call ~ intersection_end }
+intersection_end = { options ~ ";"? | ";" }
+
+statement = _{ param_stmt | tensor_stmt | animation_stmt | object_stmt | analysis_stmt | integral_stmt | intersection_stmt }
 program = { SOI ~ statement* ~ EOI }

@@ -142,6 +142,33 @@ pub fn sample_curve(
         .map_err(math_error)
 }
 
+#[wasm_bindgen]
+#[allow(clippy::too_many_arguments)]
+pub fn sample_surface_values(
+    expr: &str,
+    coeff_names: Vec<String>,
+    coeff_values: Vec<f64>,
+    x_min: f64,
+    x_max: f64,
+    y_min: f64,
+    y_max: f64,
+    nx: usize,
+    ny: usize,
+) -> Result<Vec<f64>, JsValue> {
+    sampling_core::sample_surface_values(
+        expr,
+        &coeff_names,
+        &coeff_values,
+        x_min,
+        x_max,
+        y_min,
+        y_max,
+        nx,
+        ny,
+    )
+    .map_err(math_error)
+}
+
 #[allow(clippy::too_many_arguments)]
 #[wasm_bindgen]
 pub fn sample_vector_field(

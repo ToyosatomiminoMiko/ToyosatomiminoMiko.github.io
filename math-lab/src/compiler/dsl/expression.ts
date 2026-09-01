@@ -57,6 +57,29 @@ export function evaluateScalar(
     return evaluateRustScalar(expr, scope);
 }
 
+/**
+ * 带坐标参数的标量求值.
+ *
+ * `scope` 只允许放自由系数,不能包含 x/y/z——Rust 求值后端会用
+ * 传入的坐标参数覆盖同名的 scope 键.曲线/曲面采样点逐点求值应走这里.
+ */
+export function evaluateScalarAt(
+    expr: string,
+    scope: Record<string, number> = {},
+    x = Number.NaN,
+    y = Number.NaN,
+    z = Number.NaN,
+): number | null {
+    const names = Object.keys(scope);
+    const values = new Float64Array(names.map((name) => scope[name]));
+    try {
+        const value = wasmEvaluateScalar(expr, names, values, x, y, z);
+        return typeof value === 'number' && Number.isFinite(value) ? value : null;
+    } catch {
+        return null;
+    }
+}
+
 export function evaluateNumber(
     raw: string,
     scope?: Record<string, number>,

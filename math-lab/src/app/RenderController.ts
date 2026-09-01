@@ -14,6 +14,7 @@ import { CameraManager } from '../render/core/CameraManager';
 import { Plotter } from '../render/core/Plotter';
 import { AnimationPlayer } from '../render/core/AnimationPlayer';
 import { AnalysisRenderer } from '../render/core/renderers/AnalysisRenderer';
+import { IntersectionRenderer } from '../render/core/renderers/IntersectionRenderer';
 import { DslIntegralRenderer } from '../render/visualization/DslIntegralRenderer';
 import { MathComputeEngine } from '../math/compute/MathComputeEngine';
 import { CameraToggle } from '../render/controls/CameraToggle';
@@ -40,6 +41,7 @@ export class RenderController {
     private readonly plotter: Plotter;
     private readonly animationPlayer: AnimationPlayer;
     private readonly analysisRenderer: AnalysisRenderer;
+    private readonly intersectionRenderer: IntersectionRenderer;
     private readonly integralRenderer: DslIntegralRenderer;
     private readonly computeEngine: MathComputeEngine;
 
@@ -75,8 +77,10 @@ export class RenderController {
             this.computeEngine,
         );
         this.analysisRenderer = new AnalysisRenderer();
+        this.intersectionRenderer = new IntersectionRenderer();
         this.animationPlayer = new AnimationPlayer(this.store.matrixOps);
         this.sceneManager.getScene().add(this.analysisRenderer.group);
+        this.sceneManager.getScene().add(this.intersectionRenderer.group);
     }
 
     setupControls(): void {
@@ -255,6 +259,7 @@ export class RenderController {
         this.cameraManager.dispose();
         this.integralRenderer.dispose();
         this.analysisRenderer.dispose();
+        this.intersectionRenderer.dispose();
         this.plotter.dispose();
         this.computeEngine.dispose();
         this.sceneManager.dispose();
@@ -295,6 +300,9 @@ export class RenderController {
         this.objectListController.renderScene(scene);
         this.analysisRenderer.render(
             scene.analyses.filter((analysis) => analysis.enabled),
+        );
+        this.intersectionRenderer.render(
+            scene.intersections.filter((intersection) => intersection.enabled),
         );
         this.integralRenderer.sync(
             scene.integrals,

@@ -40,6 +40,10 @@ export const RENDER_CONFIG = {
         tangentPlaneOpacity: 0.55,
         tolerance: 1e-12,
     },
+    intersection: {
+        pointSize: 0.18,
+        lineWidth: 2,
+    },
     surfaceMesh: {
         defaultSegments: 128,
         materialOpacity: 0.85,

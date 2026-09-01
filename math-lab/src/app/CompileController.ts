@@ -63,6 +63,14 @@ export class CompileController {
         return this.recompileForVisibilityChange(paramOverrides);
     }
 
+    toggleIntersection(
+        name: string,
+        paramOverrides: Record<string, number>,
+    ): SceneIR | null {
+        this.store.toggleIntersectionHidden(name);
+        return this.recompileForVisibilityChange(paramOverrides);
+    }
+
     dispose(): void {
         this.disposed = true;
         this.runSequence += 1;
@@ -91,6 +99,7 @@ export class CompileController {
         return compileScene(ast, paramOverrides, this.store.matrixOps, {
             hiddenAnalysisNames: this.store.hiddenAnalysisNames,
             hiddenIntegralNames: this.store.hiddenIntegralNames,
+            hiddenIntersectionNames: this.store.hiddenIntersectionNames,
         });
     }
 }

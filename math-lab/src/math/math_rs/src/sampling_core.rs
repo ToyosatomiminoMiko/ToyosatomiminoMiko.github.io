@@ -37,6 +37,47 @@ pub fn sample_curve(
     Ok(points)
 }
 
+/// 在二维网格上采样曲面 z = f(x, y).
+///
+/// 返回行优先数组 `[f(x0,y0), f(x1,y0), ..., f(xn,ym)]`,长度为
+/// `(nx + 1) * (ny + 1)`;非有限值会写成 `NaN`,由调用方决定跳过还是报错.
+/// 求交功能需要把两个曲面/一个曲面的隐式差放到同一张网格上做等值线追踪,
+/// 因此这里提供批量采样,避免每个网格点重复编译表达式.
+#[allow(clippy::too_many_arguments)]
+pub fn sample_surface_values(
+    expr: &str,
+    coeff_names: &[String],
+    coeff_values: &[f64],
+    xa: f64,
+    xb: f64,
+    ya: f64,
+    yb: f64,
+    nx: usize,
+    ny: usize,
+) -> Result<Vec<f64>, String> {
+    if xa >= xb || ya >= yb {
+        return Err("曲面采样需要有效的二维区间".to_string());
+    }
+    if nx == 0 || ny == 0 {
+        return Err("曲面采样需要 nx/ny 均大于 0".to_string());
+    }
+
+    let node = compile_expression(expr)?;
+    let mut ctx = build_base_context(coeff_names, coeff_values)?;
+
+    let mut values = Vec::with_capacity((nx + 1) * (ny + 1));
+    for j in 0..=ny {
+        let y = ya + (yb - ya) * (j as f64 / ny as f64);
+        set_variable(&mut ctx, "y", y)?;
+        for i in 0..=nx {
+            let x = xa + (xb - xa) * (i as f64 / nx as f64);
+            set_variable(&mut ctx, "x", x)?;
+            values.push(evaluate_node_opt(&node, &ctx)?.unwrap_or(f64::NAN));
+        }
+    }
+    Ok(values)
+}
+
 /// 在三维网格上采样向量场 F(x, y, z) = [P, Q, R].
 ///
 /// 返回扁平数组 `[vx, vy, vz, vx, vy, vz, ...]`,长度为 `nx * ny * nz * 3`.
@@ -248,5 +289,18 @@ mod tests {
         assert_eq!(vectors[0], -1.0);
         assert_eq!(vectors[1], -1.0);
         assert_eq!(vectors[2], -1.0);
+    }
+
+    #[test]
+    fn surface_values_sample_row_major_grid() {
+        let values = sample_surface_values("x + y", &[], &[], 0.0, 2.0, 0.0, 1.0, 2, 1).unwrap();
+
+        assert_eq!(values.len(), 6);
+        assert_eq!(values[0], 0.0); // (0, 0)
+        assert_eq!(values[1], 1.0); // (1, 0)
+        assert_eq!(values[2], 2.0); // (2, 0)
+        assert_eq!(values[3], 1.0); // (0, 1)
+        assert_eq!(values[4], 2.0); // (1, 1)
+        assert_eq!(values[5], 3.0); // (2, 1)
     }
 }

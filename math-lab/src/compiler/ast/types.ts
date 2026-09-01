@@ -76,13 +76,23 @@ export interface IntegralStatement {
     span: SourceSpan;
 }
 
+export interface IntersectionStatement {
+    type: 'intersection';
+    name: string;
+    a: string;
+    b: string;
+    options: OptionPair[];
+    span: SourceSpan;
+}
+
 export type AstStatement =
     | ParamStatement
     | TensorStatement
     | AnimationStatement
     | ObjectStatement
     | AnalysisStatement
-    | IntegralStatement;
+    | IntegralStatement
+    | IntersectionStatement;
 
 export interface AstProgram {
     statements: AstStatement[];

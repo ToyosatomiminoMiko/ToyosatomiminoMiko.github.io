@@ -138,6 +138,18 @@ frustum F = [0, 0, -1] {
 
 transform T2 = translate([2, 1, 0]) * rotate([0, 0, pi / 4]) * scale([1.5, 1, 1]);
 
+// 求交示例:曲面与曲面
+surface s2 = sin(x * a) * cos(y * b) + 0.8 {
+    color = "#ffd93d";
+    range = [-4, 4, -4, 4];
+    segments = 64;
+}
+
+intersection X = intersection(s1, s2) {
+    color = "#ffffff";
+    segments = 96;
+};
+
 </textarea>
             </section>
             <div class="resize-handle resize-handle-right" data-resize-panel="left-panel"></div>
@@ -283,6 +295,7 @@ transform T2 = translate([2, 1, 0]) * rotate([0, 0, pi / 4]) * scale([1.5, 1, 1]
                     <div id="evaluation-object-list" class="object-list-body">
                         <div id="analysis-object-list" class="object-sublist"></div>
                         <div id="integral-object-list" class="object-sublist"></div>
+                        <div id="intersection-object-list" class="object-sublist"></div>
                     </div>
                 </div>
             </section>

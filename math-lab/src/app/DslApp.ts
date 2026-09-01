@@ -65,6 +65,7 @@ export class DslApp {
         const entityList = document.getElementById('entity-object-list')!;
         const analysisList = document.getElementById('analysis-object-list')!;
         const integralList = document.getElementById('integral-object-list')!;
+        const intersectionList = document.getElementById('intersection-object-list')!;
 
         this.editor = document.getElementById('dsl-editor') as HTMLTextAreaElement;
         this.runButton = document.getElementById('run-btn') as HTMLButtonElement;
@@ -75,9 +76,11 @@ export class DslApp {
             entityList,
             analysisList,
             integralList,
+            intersectionList,
             (id) => this._toggleObject(id),
             (name) => this._toggleAnalysis(name),
             (name) => this._toggleIntegral(name),
+            (name) => this._toggleIntersection(name),
         );
         this.paramPanelController = new ParamPanelController(
             paramsPanel,
@@ -239,6 +242,14 @@ export class DslApp {
 
     private _toggleIntegral(name: string): void {
         const scene = this.compileController.toggleIntegral(
+            name,
+            this.paramPanelController.getValues(),
+        );
+        if (scene) this.renderController.commitSceneWithoutRedraw(scene);
+    }
+
+    private _toggleIntersection(name: string): void {
+        const scene = this.compileController.toggleIntersection(
             name,
             this.paramPanelController.getValues(),
         );

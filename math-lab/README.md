@@ -27,9 +27,43 @@ Math-lab 的当前入口是 `index.html`,它加载 `src/main.ts`,再由
   `trapezoid`/`simpson`/`riemann`/`lebesgue`
 - `sphere` / `box` / `cylinder` / `cone` / `frustum`:透明体积图形;
   `cylinder`/`cone`/`frustum` 统一映射为同一个 `conic` IR 类型
+- `intersection`:求交.曲线参与的求交得到离散交点,曲面/体积参与的求交得到空间交线;
+  支持 曲线∩曲线、曲线∩曲面、曲线∩体积、曲面∩曲面、曲面∩体积、体积∩体积
 
 相机状态不进入 DSL:透视/正交与旋转锁定由右侧 UI 开关控制,
 `camera:view` 按钮只负责预设视角.
+
+## 求交
+
+语法:
+
+```text
+intersection 名称 = intersection(对象A, 对象B) {
+    color = "#ffffff";   // 可选,默认取调色板
+    segments = 96;       // 可选,采样分辨率,最大 256
+};
+```
+
+求交结果自动按组合区分:
+
+- 曲线参与的求交(`intersection(c1, s1)`、`intersection(c1, c2)`、
+  `intersection(c1, S)`)渲染为交点;
+- 曲面/体积参与的求交(`intersection(s1, s2)`、`intersection(s1, S)`、
+  `intersection(S, B)`)渲染为三维交线.
+
+体积对象包括球体、方块和旋转体(圆柱/圆锥/圆台).旋转体的交线包含
+侧面与上下底面,和它的数学体积定义一致.求交坐标会计入对象的静态
+`transform`,但暂不支持带动画的对象,也不支持 `point` / `vector` /
+`vector_field` 参与求交.
+
+示例:
+
+```text
+intersection X = intersection(s1, s2) {
+    color = "#ffffff";
+    segments = 96;
+};
+```
 
 点对象(例如默认源码开头的 `point P = [0, 0, 0]`)的全局样式由
 右侧"视图"面板的"点"区域控制:可在"设定大小"与"按比例缩放"

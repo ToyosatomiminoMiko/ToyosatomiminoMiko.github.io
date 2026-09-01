@@ -70,6 +70,13 @@ enum AstStatement {
         options: Vec<OptionPair>,
         span: SourceSpan,
     },
+    Intersection {
+        name: String,
+        a: String,
+        b: String,
+        options: Vec<OptionPair>,
+        span: SourceSpan,
+    },
 }
 
 #[derive(Serialize)]
@@ -314,6 +321,46 @@ fn integral_to_stmt(pair: &Pair<'_, Rule>) -> AstStatement {
     }
 }
 
+fn intersection_to_stmt(pair: &Pair<'_, Rule>) -> AstStatement {
+    let mut name = String::new();
+    let mut a = String::new();
+    let mut b = String::new();
+    let mut options: Vec<OptionPair> = Vec::new();
+
+    for child in pair.clone().into_inner() {
+        match child.as_rule() {
+            Rule::ident => name = child.as_str().to_string(),
+            Rule::intersection_call => {
+                let mut args = child
+                    .into_inner()
+                    .filter(|inner| inner.as_rule() == Rule::ident);
+                if let Some(first) = args.next() {
+                    a = first.as_str().to_string();
+                }
+                if let Some(second) = args.next() {
+                    b = second.as_str().to_string();
+                }
+            }
+            Rule::intersection_end => {
+                if let Some(inner_options) =
+                    child.into_inner().find(|p| p.as_rule() == Rule::options)
+                {
+                    options = option_pairs(&inner_options);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    AstStatement::Intersection {
+        name,
+        a,
+        b,
+        options,
+        span: span_of(pair),
+    }
+}
+
 fn statement_to_ast(pair: Pair<'_, Rule>) -> Result<AstStatement, String> {
     match pair.as_rule() {
         Rule::param_stmt => Ok(param_to_stmt(&pair)),
@@ -322,6 +369,7 @@ fn statement_to_ast(pair: Pair<'_, Rule>) -> Result<AstStatement, String> {
         Rule::object_stmt => Ok(object_to_stmt(&pair)),
         Rule::analysis_stmt => Ok(analysis_to_stmt(&pair)),
         Rule::integral_stmt => Ok(integral_to_stmt(&pair)),
+        Rule::intersection_stmt => Ok(intersection_to_stmt(&pair)),
         _ => Err(format!("未知语句规则: {:?}", pair.as_rule())),
     }
 }
@@ -413,6 +461,11 @@ integral I2 = integral(s1) {
     segments = 32;
     layers = 16;
 };
+intersection X = intersection(c1, s1) {
+    color = "#ffffff";
+    segments = 96;
+};
+intersect Y = intersect(s1, S);
 "##;
         let json = parse_to_json(src).unwrap();
         assert!(json.contains("\"type\":\"param\""));
@@ -428,6 +481,13 @@ integral I2 = integral(s1) {
         assert!(json.contains("\"kind\":\"frustum\""));
         assert!(json.contains("\"type\":\"analysis\""));
         assert!(json.contains("\"type\":\"integral\""));
+        assert!(json.contains("\"type\":\"intersection\""));
+        assert!(json.contains("\"a\":\"c1\""));
+        assert!(json.contains("\"b\":\"s1\""));
+        assert!(json.contains("\"type\":\"intersection\""));
+        assert!(json.contains("\"name\":\"Y\""));
+        assert!(json.contains("\"a\":\"s1\""));
+        assert!(json.contains("\"b\":\"S\""));
     }
 
     #[test]

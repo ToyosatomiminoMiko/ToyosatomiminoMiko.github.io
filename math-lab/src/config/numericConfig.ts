@@ -37,6 +37,9 @@ export const NUMERIC_CONFIG = {
         defaultConicHeight: 1,
         defaultRadialSegments: 48,
     },
+    intersection: {
+        defaultSegments: 128,
+    },
     integral: {
         defaultMethod: 'riemann' as const,
         defaultRange1D: [-4, 4] as [number, number],
@@ -72,6 +75,10 @@ export const NUMERIC_CONFIG = {
             // 球体/旋转体只按圆周分段,128 段已经足够平滑;
             // 继续增大会让单个几何体变得沉重,但不会像二维积分一样 O(n^2) 爆炸.
             maxRadialSegments: 128,
+        },
+        intersection: {
+            // 求交网格是 O(n^2) 采样,256 是主线程同步计算的合理上限.
+            maxSegments: 256,
         },
         integral: {
             // 数值计算与可视化预算分开.
