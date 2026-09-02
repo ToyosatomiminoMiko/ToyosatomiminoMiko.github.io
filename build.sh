@@ -37,11 +37,17 @@ npm ci --no-audit --no-fund
 log "running Rust format and clippy checks"
 npm run lint:rs
 
+log "cleaning previous artifacts"
+npm run clean
+
+log "building WASM modules"
+npm run build:wasm
+
 log "running tests"
 npm test
 
-log "building production artifacts"
-npm run build
+log "typechecking and building the app"
+npm run build:app
 
 log "build succeeded"
 log "output directory: ${PROJECT_ROOT}/dist"

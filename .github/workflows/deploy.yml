@@ -39,8 +39,8 @@ jobs:
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-      # 生产构建唯一入口:安装锁定依赖 -> Rust lint -> 前端/Rust 测试 ->
-      # WASM 构建 -> TypeScript 检查 -> Vite 构建,分阶段日志由脚本输出.
+      # 生产构建唯一入口:安装锁定依赖 -> Rust lint -> 清理并构建 WASM ->
+      # 前端/Rust 测试 -> TypeScript 检查 -> Vite 构建,分阶段日志由脚本输出.
       - name: Install, lint, test and build
         run: bash ./build.sh
 

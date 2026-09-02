@@ -112,8 +112,9 @@ npm run build
 4. `vite build`
 
 生产/CI 统一入口是根目录的 `bash ./build.sh`:依次执行
-`npm ci`、Rust lint、前端/Rust 测试、`npm run build`,每个阶段都有
-日志输出;GitHub Actions 只调用这一个脚本,不再重复编排各步骤.
+`npm ci`、Rust lint、清理旧产物与 WASM 构建、前端/Rust 测试、
+前端类型检查与打包,每个阶段都有日志输出;GitHub Actions 只调用这一个
+脚本,不再重复编排各步骤.
 
 重新生成wasm
 
