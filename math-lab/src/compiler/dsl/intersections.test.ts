@@ -2,18 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { compileScene } from './DslCompiler';
 import { jsMatrixOps } from '../../math/tensor/SceneTransform';
 import type { AstProgram, ObjectStatement } from '../ast/types';
+import { buildIntersectionInput } from '../../math/intersection/IntersectionMath';
 
 vi.mock('../../wasm/math_rs/math_rs', () => {
-    function buildScope(names: string[], values: ArrayLike<number>): Record<string, number> {
-        const scope: Record<string, number> = {};
-        names.forEach((name, index) => {
-            scope[name] = values[index];
-        });
-        scope.pi = Math.PI;
-        scope.e = Math.E;
-        return scope;
-    }
-
     function evaluate(
         expr: string,
         names: string[],
@@ -22,7 +13,12 @@ vi.mock('../../wasm/math_rs/math_rs', () => {
         y: number,
         z: number,
     ): number {
-        const scope = buildScope(names, values);
+        const scope: Record<string, number> = {};
+        names.forEach((name, index) => {
+            scope[name] = values[index];
+        });
+        scope.pi = Math.PI;
+        scope.e = Math.E;
         scope.x = x;
         scope.y = y;
         scope.z = z;
@@ -55,45 +51,8 @@ vi.mock('../../wasm/math_rs/math_rs', () => {
             0, 0, 1, 0,
             0, 0, 0, 1,
         ]),
-        sample_curve: vi.fn((
-            expr: string,
-            names: string[],
-            values: Float64Array,
-            xMin: number,
-            xMax: number,
-            steps: number,
-        ) => {
-            const points: number[] = [];
-            for (let i = 0; i <= steps; i += 1) {
-                const x = xMin + ((xMax - xMin) * i) / steps;
-                const y = evaluate(expr, names, values, x, 0, 0);
-                if (Number.isFinite(y)) {
-                    points.push(x, y, 0);
-                }
-            }
-            return new Float32Array(points);
-        }),
-        sample_surface_values: vi.fn((
-            expr: string,
-            names: string[],
-            values: Float64Array,
-            xa: number,
-            xb: number,
-            ya: number,
-            yb: number,
-            nx: number,
-            ny: number,
-        ) => {
-            const grid: number[] = [];
-            for (let j = 0; j <= ny; j += 1) {
-                const y = ya + ((yb - ya) * j) / ny;
-                for (let i = 0; i <= nx; i += 1) {
-                    const x = xa + ((xb - xa) * i) / nx;
-                    grid.push(evaluate(expr, names, values, x, y, 0));
-                }
-            }
-            return new Float64Array(grid);
-        }),
+        sample_curve: vi.fn(() => new Float32Array()),
+        sample_surface_values: vi.fn(() => new Float64Array()),
         evaluate_gradient_point: vi.fn(() => ({ f0: 0, fx: 0, fy: 0 })),
         evaluate_divergence_point: vi.fn(() => 0),
         evaluate_curl_point: vi.fn(() => ({ x: 0, y: 0, z: 0 })),
@@ -116,7 +75,12 @@ function object(
     };
 }
 
-function intersection(name: string, a: string, b: string, options: Array<{ name: string; value: string }> = []): AstProgram['statements'][number] {
+function intersection(
+    name: string,
+    a: string,
+    b: string,
+    options: Array<{ name: string; value: string }> = [],
+): AstProgram['statements'][number] {
     return {
         type: 'intersection',
         name,
@@ -146,7 +110,7 @@ function program(...statements: AstProgram['statements']): AstProgram {
 }
 
 describe('compileIntersections', () => {
-    it('finds points where two planar curves cross', () => {
+    it('emits a task with source ids and default segments', () => {
         const scene = compileScene(program(
             curve('a', 'x'),
             curve('b', '-x + 2'),
@@ -154,150 +118,26 @@ describe('compileIntersections', () => {
         ));
 
         expect(scene.intersections).toHaveLength(1);
-        const result = scene.intersections[0];
-        expect(result.points).toHaveLength(1);
-        expect(result.points[0].x).toBeCloseTo(1, 4);
-        expect(result.points[0].y).toBeCloseTo(1, 4);
-        expect(result.points[0].z).toBe(0);
-        expect(result.curves).toHaveLength(0);
+        const task = scene.intersections[0];
+        expect(task.name).toBe('I');
+        expect(task.aName).toBe('a');
+        expect(task.bName).toBe('b');
+        expect(task.aId).toBe(scene.objects.find((o) => o.name === 'a')!.id);
+        expect(task.bId).toBe(scene.objects.find((o) => o.name === 'b')!.id);
+        expect(task.segments).toBe(128);
+        expect(task.enabled).toBe(true);
     });
 
-    it('finds points where a curve pierces a surface', () => {
+    it('honors the segments option', () => {
         const scene = compileScene(program(
-            curve('c', 'x'),
-            surface('s', 'y'),
-            intersection('I', 'c', 's'),
+            curve('a', 'x'),
+            curve('b', '-x + 2'),
+            intersection('I', 'a', 'b', [{ name: 'segments', value: '96' }]),
         ));
-
-        expect(scene.intersections[0].points).toHaveLength(1);
-        expect(scene.intersections[0].points[0].x).toBeCloseTo(0, 4);
-        expect(scene.intersections[0].points[0].y).toBeCloseTo(0, 4);
+        expect(scene.intersections[0].segments).toBe(96);
     });
 
-    it('finds points where a curve crosses a sphere boundary', () => {
-        const scene = compileScene(program(
-            curve('c', 'x'),
-            object('sphere', 'S', '[0, 0, 0]', [
-                { name: 'radius', value: '1' },
-            ]),
-            intersection('I', 'c', 'S'),
-        ));
-
-        const points = scene.intersections[0].points;
-        expect(points).toHaveLength(2);
-        const xs = points.map((point) => point.x).sort((a, b) => a - b);
-        expect(xs[0]).toBeCloseTo(-1 / Math.sqrt(2), 3);
-        expect(xs[1]).toBeCloseTo(1 / Math.sqrt(2), 3);
-    });
-
-    it('traces the intersection curve of two surfaces', () => {
-        const scene = compileScene(program(
-            surface('s1', '0'),
-            surface('s2', 'x'),
-            intersection('I', 's1', 's2'),
-        ));
-
-        const result = scene.intersections[0];
-        expect(result.points).toHaveLength(0);
-        expect(result.curves.length).toBeGreaterThanOrEqual(1);
-
-        const points = result.curves.flat();
-        expect(points.length).toBeGreaterThanOrEqual(16);
-        for (const point of points) {
-            expect(point.x).toBeCloseTo(0, 2);
-            expect(point.z).toBeCloseTo(0, 2);
-        }
-        const ys = points.map((point) => point.y);
-        expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(3);
-    });
-
-    it('clips surface intersection curves to the second surface range', () => {
-        const scene = compileScene(program(
-            surface('s1', '0'),
-            surface('s2', 'x', '[-1, 1, -1, 1]'),
-            intersection('I', 's1', 's2'),
-        ));
-
-        const points = scene.intersections[0].curves.flat();
-        expect(points.length).toBeGreaterThanOrEqual(8);
-        for (const point of points) {
-            expect(Math.abs(point.y)).toBeLessThanOrEqual(1.02);
-            expect(Math.abs(point.x)).toBeLessThanOrEqual(1.02);
-        }
-    });
-
-    it('traces the circle where a plane surface cuts a sphere', () => {
-        const scene = compileScene(program(
-            object('sphere', 'S', '[0, 0, 0]', [
-                { name: 'radius', value: '1' },
-            ]),
-            surface('s', '0', '[-1.5, 1.5, -1.5, 1.5]'),
-            intersection('I', 's', 'S'),
-        ));
-
-        const result = scene.intersections[0];
-        expect(result.curves.length).toBeGreaterThanOrEqual(1);
-        const points = result.curves.flat();
-        expect(points.length).toBeGreaterThanOrEqual(24);
-        for (const point of points) {
-            expect(Math.hypot(point.x, point.y)).toBeCloseTo(1, 1);
-            expect(point.z).toBeCloseTo(0, 2);
-        }
-    });
-
-    it('traces curves where two volume boundaries cross', () => {
-        const scene = compileScene(program(
-            object('sphere', 'S', '[0, 0, 0]', [
-                { name: 'radius', value: '1.5' },
-            ]),
-            object('box', 'B', '[0, 0, 0]', [
-                { name: 'size', value: '[2, 2, 2]' },
-            ]),
-            intersection('I', 'S', 'B'),
-        ));
-
-        const result = scene.intersections[0];
-        expect(result.curves.length).toBeGreaterThanOrEqual(4);
-        const points = result.curves.flat();
-        expect(points.length).toBeGreaterThanOrEqual(20);
-        for (const point of points) {
-            expect(Math.hypot(point.x, point.y, point.z)).toBeCloseTo(1.5, 1);
-            expect(Math.max(
-                Math.abs(point.x),
-                Math.abs(point.y),
-                Math.abs(point.z),
-            )).toBeCloseTo(1, 1);
-        }
-    });
-
-    it('accounts for static transforms on the curve side', () => {
-        const scene = compileScene(program(
-            {
-                type: 'tensor',
-                kind: 'transform',
-                name: 'T',
-                expr: 'translate([0, 1, 0])',
-                span: { start: 0, end: 0 },
-            },
-            {
-                ...curve('c', 'x'),
-                options: [
-                    { name: 'range', value: '[-2, 2]' },
-                    { name: 'segments', value: '64' },
-                    { name: 'transform', value: 'T' },
-                ],
-            },
-            surface('s', 'y'),
-            intersection('I', 'c', 's'),
-        ));
-
-        const point = scene.intersections[0].points[0];
-        expect(point.x).toBeCloseTo(-1, 3);
-        expect(point.y).toBeCloseTo(0, 3);
-        expect(point.z).toBeCloseTo(0, 3);
-    });
-
-    it('skips computation for hidden intersections but keeps the list item', () => {
+    it('keeps hidden tasks in the list without scheduling computation', () => {
         const scene = compileScene(
             program(
                 curve('a', 'x'),
@@ -311,7 +151,31 @@ describe('compileIntersections', () => {
 
         expect(scene.intersections).toHaveLength(1);
         expect(scene.intersections[0].enabled).toBe(false);
-        expect(scene.intersections[0].points).toHaveLength(0);
+        expect(scene.intersections[0].aId).toBe(-1);
+    });
+
+    it('assigns colors from the palette in declaration order', () => {
+        const scene = compileScene(program(
+            curve('a', 'x'),
+            curve('b', '-x + 2'),
+            surface('s', 'y'),
+            intersection('I1', 'a', 'b'),
+            intersection('I2', 'a', 's'),
+        ));
+        expect(scene.intersections[0].color).not.toBe(scene.intersections[1].color);
+    });
+
+    it('keeps intersection computation independent of source visibility', () => {
+        const scene = compileScene(program(
+            surface('s1', '0'),
+            surface('s2', 'x'),
+            intersection('I', 's1', 's2'),
+        ));
+        const task = scene.intersections[0];
+        const source = scene.objects.find((object) => object.name === 's1')!;
+        source.enabled = false;
+
+        expect(buildIntersectionInput(task, scene.objects, {})).not.toBeNull();
     });
 
     it('rejects unknown options instead of ignoring them', () => {
@@ -349,6 +213,7 @@ describe('compileIntersections', () => {
                 ...curve('c', 'x'),
                 options: [
                     { name: 'range', value: '[-2, 2]' },
+                    { name: 'segments', value: '64' },
                     { name: 'animation', value: '[drift]' },
                 ],
             },
@@ -363,5 +228,27 @@ describe('compileIntersections', () => {
             object('vector_field', 'F', '[x, y, z]'),
             intersection('I', 'c', 'F'),
         ))).toThrow('求交 I 不支持 vector_field 类型的对象 F');
+    });
+
+    it('rejects singular transform matrices at compile time', () => {
+        expect(() => compileScene(program(
+            {
+                type: 'tensor',
+                kind: 'transform',
+                name: 'Z',
+                expr: 'scale([0, 0, 0])',
+                span: { start: 0, end: 0 },
+            },
+            {
+                ...curve('c', 'x'),
+                options: [
+                    { name: 'range', value: '[-2, 2]' },
+                    { name: 'segments', value: '64' },
+                    { name: 'transform', value: 'Z' },
+                ],
+            },
+            surface('s', 'y'),
+            intersection('I', 'c', 's'),
+        ))).toThrow('变换矩阵不可逆');
     });
 });

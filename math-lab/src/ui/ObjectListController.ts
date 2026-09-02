@@ -1,7 +1,8 @@
 import type {
     AnalysisResult,
     IntegralTask,
-    IntersectionResult,
+    IntersectionOutput,
+    IntersectionTask,
     SceneIR,
     SceneObject,
 } from '../compiler/ir/types';
@@ -35,16 +36,19 @@ const INTEGRAL_METHOD_LABELS: Record<IntegralTask['method'], string> = {
     lebesgue: '勒贝格法',
 };
 
-function intersectionSummary(result: IntersectionResult): string {
-    const source = `${result.aName} ∩ ${result.bName}`;
-    if (result.points.length > 0) {
-        return `${source} · 交点 ${result.points.length} 个`;
+function intersectionSummary(
+    task: IntersectionTask,
+    output: IntersectionOutput,
+): string {
+    const source = `${task.aName} ∩ ${task.bName}`;
+    if (output.points.length > 0) {
+        return `${source} · 交点 ${output.points.length} 个`;
     }
-    const pointCount = result.curves.reduce(
+    const pointCount = output.curves.reduce(
         (total, curve) => total + curve.length,
         0,
     );
-    return `${source} · 交线 ${result.curves.length} 条 · ${pointCount} 个点`;
+    return `${source} · 交线 ${output.curves.length} 条 · ${pointCount} 个点`;
 }
 
 function createElement(tag: string, className?: string, text?: string): HTMLElement {
@@ -128,6 +132,19 @@ function integralTaskKey(task: IntegralTask): string {
     ]);
 }
 
+function intersectionTaskKey(task: IntersectionTask): string {
+    return JSON.stringify([
+        task.name,
+        task.aName,
+        task.bName,
+        task.aId,
+        task.bId,
+        task.segments,
+        task.color,
+        task.enabled,
+    ]);
+}
+
 function integralSourceLabel(
     task: IntegralTask,
     objects: SceneObject[],
@@ -158,6 +175,17 @@ export class ObjectListController {
     private readonly integralRows = new Map<
         string,
         { row: HTMLElement; result: HTMLElement; key: string }
+    >();
+
+    /**
+     * @cache
+     * 缓存目的:复用求交列表 DOM 行,Worker 结果回来后只更新结果文本.
+     * 键/失效策略:求交名 -> { row, result, key };任务消失或任务参数变化时替换.
+     * 生命周期:跟随 ObjectListController 实例.
+     */
+    private readonly intersectionRows = new Map<
+        string,
+        { row: HTMLElement; result: HTMLElement; key: string; task: IntersectionTask }
     >();
 
     constructor(
@@ -217,6 +245,32 @@ export class ObjectListController {
 
     /**
      * @cache-access
+     * 命中求交 DOM 行缓存并更新结果摘要.
+     */
+    setIntersectionResult(name: string, output: IntersectionOutput): void {
+        const item = this.intersectionRows.get(name);
+        if (!item) return;
+
+        item.result.textContent = intersectionSummary(item.task, output);
+        item.result.className = 'eval-result is-ready';
+        item.row.classList.remove('has-error');
+    }
+
+    /**
+     * @cache-access
+     * 命中求交 DOM 行缓存并更新错误文本.
+     */
+    setIntersectionError(name: string, message: string): void {
+        const item = this.intersectionRows.get(name);
+        if (!item) return;
+
+        item.result.textContent = message;
+        item.result.className = 'eval-result is-error';
+        item.row.classList.add('has-error');
+    }
+
+    /**
+     * @cache-access
      * 清空实体/分析/积分列表及其 DOM 行缓存.
      */
     clear(): void {
@@ -225,6 +279,7 @@ export class ObjectListController {
         this.integralList.replaceChildren();
         this.intersectionList.replaceChildren();
         this.integralRows.clear();
+        this.intersectionRows.clear();
     }
 
     dispose(): void {
@@ -375,43 +430,68 @@ export class ObjectListController {
         return row;
     }
 
-    private _renderIntersections(intersections: IntersectionResult[]): void {
-        const fragment = document.createDocumentFragment();
+    /**
+     * @cache-access
+     * 根据任务 key 复用或替换求交 DOM 行缓存.
+     */
+    private _renderIntersections(tasks: IntersectionTask[]): void {
+        const nextNames = new Set(tasks.map((task) => task.name));
 
-        for (const intersection of intersections) {
-            const row = createElement('article', 'object-row evaluation-row');
-            row.classList.toggle('is-hidden', !intersection.enabled);
-
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'entity-visibility-btn';
-            button.textContent = intersection.enabled ? '隐藏' : '显示';
-            button.setAttribute('aria-pressed', String(intersection.enabled));
-            button.addEventListener('click', () =>
-                this.onToggleIntersection(intersection.name),
-            );
-
-            const badge = createElement(
-                'span',
-                'kind-badge kind-intersection',
-                '求交',
-            );
-            const main = createElement('div', 'object-main');
-            const name = createElement('strong', 'object-name', intersection.name);
-            const result = createElement(
-                'code',
-                intersection.enabled
-                    ? 'eval-result is-ready'
-                    : 'eval-result is-disabled',
-                intersection.enabled
-                    ? intersectionSummary(intersection)
-                    : '已隐藏,不参与计算',
-            );
-            main.append(name, result);
-            row.append(button, badge, main);
-            fragment.append(row);
+        for (const [name, item] of this.intersectionRows) {
+            if (!nextNames.has(name)) {
+                item.row.remove();
+                this.intersectionRows.delete(name);
+            }
         }
 
-        this.intersectionList.replaceChildren(fragment);
+        for (const task of tasks) {
+            const key = intersectionTaskKey(task);
+            const existing = this.intersectionRows.get(task.name);
+            if (existing && existing.key === key) continue;
+
+            if (existing) {
+                existing.row.remove();
+                this.intersectionRows.delete(task.name);
+            }
+
+            const row = this._createIntersectionRow(task);
+            this.intersectionList.append(row);
+            this.intersectionRows.set(task.name, {
+                row,
+                result: row.querySelector<HTMLElement>('.eval-result')!,
+                key,
+                task,
+            });
+        }
+    }
+
+    private _createIntersectionRow(task: IntersectionTask): HTMLElement {
+        const row = createElement('article', 'object-row evaluation-row');
+        row.classList.toggle('is-hidden', !task.enabled);
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'entity-visibility-btn';
+        button.textContent = task.enabled ? '隐藏' : '显示';
+        button.setAttribute('aria-pressed', String(task.enabled));
+        button.addEventListener('click', () =>
+            this.onToggleIntersection(task.name),
+        );
+
+        const badge = createElement(
+            'span',
+            'kind-badge kind-intersection',
+            '求交',
+        );
+        const main = createElement('div', 'object-main');
+        const name = createElement('strong', 'object-name', task.name);
+        const result = createElement(
+            'code',
+            task.enabled ? 'eval-result is-pending' : 'eval-result is-disabled',
+            task.enabled ? '计算中…' : '已隐藏,不参与计算',
+        );
+        main.append(name, result);
+        row.append(button, badge, main);
+        return row;
     }
 }

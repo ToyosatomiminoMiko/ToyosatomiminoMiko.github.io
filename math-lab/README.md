@@ -141,8 +141,8 @@ DslCompiler.compileScene()
    ├─ getOrBuildStaticScene()   // 缓存:params / matrix / transform / animation / blueprint
    ├─ materializeObject()       // 用当前参数生成 SceneObject
    ├─ compileAnalyses()         // gradient / divergence / curl
-   ├─ compileIntegralTask()     // integral
-   └─ compileIntersections()    // 求交(当前 demo:编译期同步数值计算)
+   ├─ compileIntegralTask()     // integral 任务
+   └─ compileIntersections()    // intersection 任务(数值交给 Worker)
    │
    ▼
 SceneIR（纯数据,不含 three.js/DOM）
@@ -150,6 +150,7 @@ SceneIR（纯数据,不含 three.js/DOM）
    ├─ Plotter → 各种 Renderer → THREE 场景
    ├─ AnalysisRenderer → 分析可视化
    ├─ DslIntegralRenderer → 积分计算与可视化
+   ├─ IntersectionRenderer → 求交 Worker 调度与交线渲染
    └─ ParamPanel / ObjectList / Diagnostics
 ```
 
@@ -212,8 +213,14 @@ new DslApp().start()
 | 曲面采样 | `SurfaceRenderer` → `SurfaceMesh` | `surfaceWorker` | `render_rs.sample_and_process_surface` | 位置/颜色/法线/索引 |
 | 向量场采样 | `VectorFieldRenderer` | `vectorFieldWorker` | `math_rs.sample_vector_field` | 向量数组 |
 | 数值积分 | `DslIntegralRenderer` → `MathComputeEngine` | `IntegralWorker` | `math_rs.integrate1d/2d` | 积分值/样本 |
+| 求交 | `IntersectionRenderer` | `IntersectionWorker` | `math_rs.intersect_pair` | 交点/交线折线 |
 
 这些链路都使用 `LatestRequestExecutor`:同一时间最多一个请求真正在跑,高频拖动滑块时,旧请求会被标记为 `superseded`,只保留最新请求.这是防止 Worker 积压的关键.
+
+求交编译只产出 `IntersectionTask`(引用对象、颜色、segments),数值内核在
+`math_rs::intersection_core`;IntersectionRenderer 用任务输入指纹做增量缓存,
+参数无关的刷新不重算、只有隐藏求交本身才移除,结果回来后只重建对应任务的
+geometry.求交结果按独立求值对象处理:隐藏某个参与面并不会隐藏交线.
 
 ## 五/UI 通信:两种方式各有明确边界
 
@@ -252,7 +259,8 @@ new DslApp().start()
    MATLAB 兼容入口、SceneTransform 高层封装等均为预留能力,文件头或
    声明处注明了保留原因;没有注释的未使用代码按死代码处理.
 
-5. **求交仍是 demo 阶段**  
-   `IntersectionMath.ts` 是 TS 演示实现,数值计算在编译期同步执行;规划
-   是移植到 `math_rs` 的 intersection 内核并走 Worker(见该文件头说明),
-   移植完成前保留现有文件用于对照验证.
+5. **求交已经走 Rust/Worker**
+   数值内核在 `math_rs::intersection_core`(表达式只编译一次、上下文复用),
+   编译期只产 `IntersectionTask`,计算由 `IntersectionWorker` 异步执行;
+   旧 `IntersectionMath.ts` 已收敛为矩阵求逆与描述符转换的适配层,不再保留
+   逐点 WASM FFI 的 TS 演示实现.

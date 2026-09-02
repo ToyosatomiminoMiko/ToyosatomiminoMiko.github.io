@@ -7,6 +7,11 @@
  *   使用者,应删除而不是让两层 API 并存.
  */
 import type { MatrixTensorValue, VectorTensorValue } from './types';
+import {
+    assertMat4,
+    cloneMat4,
+    type Mat4,
+} from './rowMajorMatrix';
 
 export type TransformSource =
     | 'translate'
@@ -26,8 +31,6 @@ export interface SceneTransform {
     matrix: number[][]; // 4x4
     source?: TransformSource;
 }
-
-type Mat4 = number[][];
 
 /** 矩阵运算后端,可由 WASM 实现,也可由 JS fallback 实现. */
 export interface MatrixWasmBackend {
@@ -49,18 +52,8 @@ export interface MatrixOps {
     apply(matrix: Mat4, point: number[]): number[];
 }
 
-function clone4x4(matrix: number[][]): number[][] {
-    return matrix.map((row) => [...row]);
-}
-
-function assert4x4(matrix: number[][]): void {
-    if (matrix.length !== 4 || matrix.some((row) => row.length !== 4)) {
-        throw new TypeError('SceneTransform 需要 4x4 矩阵');
-    }
-}
-
 function applyMatrix(matrix: number[][], point: number[]): number[] {
-    assert4x4(matrix);
+    assertMat4(matrix);
     if (point.length !== 3) {
         throw new TypeError('apply(matrix, point) 需要 3 分量向量');
     }
@@ -89,7 +82,7 @@ export function asTransform(matrix: MatrixTensorValue): SceneTransform {
 
     return {
         kind: 'transform',
-        matrix: clone4x4(matrix.values),
+        matrix: cloneMat4(matrix.values),
         source: 'matrix',
     };
 }
@@ -104,7 +97,7 @@ export function matrix4(transform: SceneTransform): MatrixTensorValue {
         kind: 'matrix',
         rows: 4,
         cols: 4,
-        values: clone4x4(transform.matrix),
+        values: cloneMat4(transform.matrix),
     };
 }
 
@@ -174,8 +167,8 @@ export function rotate4(values: number[]): Mat4 {
 
 /** 两个 4x4 矩阵相乘,结果仍为行主序 4x4. */
 export function multiply4x4(a: number[][], b: number[][]): number[][] {
-    assert4x4(a);
-    assert4x4(b);
+    assertMat4(a);
+    assertMat4(b);
 
     const out: number[][] = Array.from({ length: 4 }, () => [0, 0, 0, 0]);
     for (let i = 0; i < 4; i += 1) {

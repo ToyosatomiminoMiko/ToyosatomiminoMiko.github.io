@@ -234,28 +234,42 @@ export interface IntegralTask {
 }
 
 /**
- * 求交结果(纯数值结果).
+ * 求交任务(编译产物).
+ *
+ * 编译器只负责描述“要算哪两个对象、用什么分辨率”,真正的数值计算由
+ * Worker + Rust `intersection_core` 异步完成;结果缓存与渲染由
+ * IntersectionRenderer 按任务名管理.
+ */
+export interface IntersectionTask {
+    name: string;
+    aName: string;
+    bName: string;
+    aId: number;
+    bId: number;
+    segments: number;
+    color: string;
+    /** 求交任务是否参与计算.为 false 时仅保留列表项,不执行数值计算. */
+    enabled: boolean;
+}
+
+/**
+ * 求交数值输出.
  *
  * 两个对象相交时可能是离散交点,也可能是空间交线:
  * - 曲线参与的求交(曲线∩曲线/曲面/体积)产生 `points`;
  * - 曲面/体积参与的求交(曲面∩曲面/体积,体积∩体积)产生 `curves`.
  * 坐标一律是世界坐标(已计入对象静态 transform).
  */
-export interface IntersectionResult {
-    name: string;
-    aName: string;
-    bName: string;
+export interface IntersectionOutput {
     points: Vec3[];
     curves: Vec3[][];
-    color: string;
-    /** 求交对象是否参与计算.为 false 时仅保留列表项,不执行数值计算. */
-    enabled: boolean;
 }
 
 /** 一个动画片段:单个变换矩阵 + 持续时间. */
 export interface AnimationClip {
     name: string;
     duration: number;
+    /** 行主序 4x4 矩阵,布局见 `math/tensor/rowMajorMatrix.ts`. */
     matrix: number[][];
 }
 
@@ -269,6 +283,7 @@ export interface SceneIR {
      * 使用 Record 而不是 Map,是为了让 IR 保持可序列化,
      * 便于未来跨线程 / 跨进程 / 桌面端消费.
      */
+    /** 对象 id -> 行主序 4x4 矩阵,布局见 `math/tensor/rowMajorMatrix.ts`. */
     objectTransforms: Record<number, number[][]>;
     /**
      * 场景中所有 animation 声明.
@@ -282,7 +297,7 @@ export interface SceneIR {
     objectAnimations: Record<number, string[]>;
     analyses: AnalysisResult[];
     integrals: IntegralTask[];
-    intersections: IntersectionResult[];
+    intersections: IntersectionTask[];
 }
 
 // ================================================================

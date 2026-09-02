@@ -35,6 +35,7 @@ import { disposeCurveComputeClient } from '../math/compute/workers/CurveComputeC
 import { disposeSurfaceComputeClient } from '../math/compute/workers/SurfaceComputeClient';
 import { disposeVectorFieldComputeClient } from '../math/compute/workers/VectorFieldComputeClient';
 import { disposeIntegralWorker } from '../math/compute/IntegralWasm';
+import { disposeIntersectionComputeClient } from '../math/compute/workers/IntersectionComputeClient';
 
 export class RenderController {
     private readonly sceneManager: SceneManager;
@@ -227,7 +228,11 @@ export class RenderController {
         }
 
         this.previousObjects = scene.objects;
-        this._syncOverlays(scene, changedParams ? dirtyObjectIds : null);
+        this._syncOverlays(
+            scene,
+            changedParams ? dirtyObjectIds : null,
+            !changedParams,
+        );
     }
 
     /**
@@ -243,7 +248,7 @@ export class RenderController {
             scene.objectAnimations,
         );
         this.previousObjects = scene.objects;
-        this._syncOverlays(scene, null);
+        this._syncOverlays(scene, null, false);
     }
 
     toggleObject(object: SceneObject): void {
@@ -285,6 +290,7 @@ export class RenderController {
         disposeSurfaceComputeClient();
         disposeVectorFieldComputeClient();
         disposeIntegralWorker();
+        disposeIntersectionComputeClient();
     }
 
     private _updateAnimations(timestamp: number): void {
@@ -310,15 +316,14 @@ export class RenderController {
     private _syncOverlays(
         scene: SceneIR,
         dirtyObjectIds: ReadonlySet<number> | null,
+        forceIntersections: boolean,
     ): void {
         this.diagnosticsController.clear();
         this.objectListController.renderScene(scene);
         this.analysisRenderer.render(
             scene.analyses.filter((analysis) => analysis.enabled),
         );
-        this.intersectionRenderer.render(
-            scene.intersections.filter((intersection) => intersection.enabled),
-        );
+        this._syncIntersections(scene, forceIntersections);
         this.integralRenderer.sync(
             scene.integrals,
             scene.objects,
@@ -328,6 +333,24 @@ export class RenderController {
                 this.objectListController.setIntegralResult(name, value),
             (name, message) =>
                 this.objectListController.setIntegralError(name, message),
+        );
+    }
+
+    private _syncIntersections(scene: SceneIR, force: boolean): void {
+        this.intersectionRenderer.sync(
+            scene.intersections,
+            scene.objects,
+            scene.objectTransforms,
+            force,
+            (name, output) =>
+                this.objectListController.setIntersectionResult(name, output),
+            (name, message) => {
+                this.objectListController.setIntersectionError(name, message);
+                this.diagnosticsController.add(
+                    'error',
+                    `求交 ${name} 失败: ${message}`,
+                );
+            },
         );
     }
 

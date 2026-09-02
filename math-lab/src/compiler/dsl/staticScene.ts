@@ -5,17 +5,16 @@
 import type { AstProgram } from '../ast/types';
 import type { AnimationClip, ParamDeclaration } from '../ir/types';
 import type { MatrixOps } from '../../math/tensor/SceneTransform';
+import { cloneMat4, type Mat4 } from '../../math/tensor/rowMajorMatrix';
 import { NUMERIC_CONFIG } from '../../config/numericConfig';
 import { buildObjectBlueprint, type ObjectBlueprint } from './objects';
 import { assertKnownOptions, findOption, toFiniteNumber } from './options';
 import { collectParams } from './params';
 import {
-    cloneMat4,
     evaluateMatrix,
     parseSingleTransformExpression,
     parseTransformExpression,
     resolveObjectTransform,
-    type Mat4,
 } from './transforms';
 
 export type StaticScene = {

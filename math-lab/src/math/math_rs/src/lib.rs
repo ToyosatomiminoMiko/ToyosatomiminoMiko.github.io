@@ -3,6 +3,7 @@ pub mod config;
 pub mod eval_core;
 pub mod field_core;
 pub mod integral_core;
+pub mod intersection_core;
 pub mod sampling_core;
 pub mod symbolic;
 pub mod transform_core;
@@ -434,6 +435,16 @@ pub struct CurlPointResult {
     pub z: f64,
 }
 
+#[wasm_bindgen(getter_with_clone)]
+pub struct IntersectionOutput {
+    /// 离散交点,扁平 `[x, y, z, ...]`.
+    pub points: Vec<f64>,
+    /// 交线折线点,扁平 `[x, y, z, ...]`.
+    pub curve_points: Vec<f64>,
+    /// 每条折线在 `curve_points` 里的起始点下标,末尾为总点数.
+    pub curve_offsets: Vec<u32>,
+}
+
 #[wasm_bindgen]
 pub fn evaluate_scalar(
     expr: &str,
@@ -445,6 +456,59 @@ pub fn evaluate_scalar(
 ) -> Result<f64, JsValue> {
     field_core::evaluate_scalar(expr, &coeff_names, &coeff_values, x, y, z)
         .map_err(|e| JsValue::from_str(&e))
+}
+
+/// 求交统一入口.
+///
+/// 两个对象各用 `(kind, expr, coeff_names, coeff_values, params, matrix, inverse)`
+/// 描述;`params` 布局见 `intersection_core` 模块注释.表达式/系数只在 Rust
+/// 内核里编译一次,后续逐点求值都复用上下文,不再每次跨 JS/WASM 边界重建.
+#[allow(clippy::too_many_arguments)]
+#[wasm_bindgen]
+pub fn intersect_pair(
+    kind_a: &str,
+    expr_a: &str,
+    coeff_names_a: Vec<String>,
+    coeff_values_a: Vec<f64>,
+    params_a: Vec<f64>,
+    matrix_a: Vec<f64>,
+    inverse_a: Vec<f64>,
+    kind_b: &str,
+    expr_b: &str,
+    coeff_names_b: Vec<String>,
+    coeff_values_b: Vec<f64>,
+    params_b: Vec<f64>,
+    matrix_b: Vec<f64>,
+    inverse_b: Vec<f64>,
+    segments: usize,
+) -> Result<IntersectionOutput, JsValue> {
+    let a = intersection_core::parse_object_descriptor(
+        kind_a,
+        expr_a,
+        coeff_names_a,
+        coeff_values_a,
+        params_a,
+        matrix_a,
+        inverse_a,
+    )
+    .map_err(math_error)?;
+    let b = intersection_core::parse_object_descriptor(
+        kind_b,
+        expr_b,
+        coeff_names_b,
+        coeff_values_b,
+        params_b,
+        matrix_b,
+        inverse_b,
+    )
+    .map_err(math_error)?;
+
+    let output = intersection_core::compute_pair(&a, &b, segments).map_err(math_error)?;
+    Ok(IntersectionOutput {
+        points: output.points,
+        curve_points: output.curve_points,
+        curve_offsets: output.curve_offsets,
+    })
 }
 
 // ================================================================

@@ -5,30 +5,17 @@
  * 数值重新组织为 Mat4,并解析 DSL 的 transform 组合语法.
  */
 import type { MatrixOps } from '../../math/tensor/SceneTransform';
+import {
+    cloneMat4,
+    mat4FromFlat,
+    type Mat4,
+} from '../../math/tensor/rowMajorMatrix';
 import { evaluateMatrixExpr, evaluateNumber } from './expression';
 import { splitTopLevel } from './options';
 
-export type Mat4 = number[][];
-
-function flatToMat4(values: number[]): Mat4 | null {
-    if (values.length !== 16 || values.some((value) => !Number.isFinite(value))) {
-        return null;
-    }
-    return [
-        values.slice(0, 4),
-        values.slice(4, 8),
-        values.slice(8, 12),
-        values.slice(12, 16),
-    ];
-}
-
-export function cloneMat4(matrix: Mat4): Mat4 {
-    return matrix.map((row) => [...row]);
-}
-
 export function evaluateMatrix(raw: string): Mat4 | null {
     try {
-        return flatToMat4(evaluateMatrixExpr(raw));
+        return mat4FromFlat(evaluateMatrixExpr(raw));
     } catch {
         return null;
     }

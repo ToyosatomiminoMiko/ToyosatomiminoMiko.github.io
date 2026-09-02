@@ -1,19 +1,17 @@
 import * as THREE from 'three';
 import type { AnimationClip } from '../../compiler/ir/types';
 import {
+    cloneMat4,
+    type Mat4,
+} from '../../math/tensor/rowMajorMatrix';
+import {
     jsMatrixOps,
     type MatrixOps,
 } from '../../math/tensor/SceneTransform';
 
-type Mat4 = number[][];
-
 interface ObjectAnimationTimeline {
     base: Mat4 | null;
     clips: AnimationClip[];
-}
-
-function cloneMat4(matrix: Mat4): Mat4 {
-    return matrix.map((row) => [...row]);
 }
 
 function rowMajorToColumnMajor(matrix: Mat4): number[] {

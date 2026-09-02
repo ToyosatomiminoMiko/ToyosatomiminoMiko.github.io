@@ -139,7 +139,7 @@ frustum F = [0, 0, -1] {
 transform T2 = translate([2, 1, 0]) * rotate([0, 0, pi / 4]) * scale([1.5, 1, 1]);
 
 // 求交示例:曲面与曲面
-surface s2 = sin(x * a) * cos(y * b) + 0.8 {
+surface s2 = j {
     color = "#ffd93d";
     range = [-4, 4, -4, 4];
     segments = 64;
