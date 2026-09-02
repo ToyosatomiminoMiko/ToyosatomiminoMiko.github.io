@@ -1,4 +1,5 @@
 import init, { sample_and_process_surface } from '../../../wasm/render_rs/render_rs';
+import { createWasmWorker } from './wasmWorkerRuntime';
 
 // ================================================================
 // surfaceWorker — 曲面采样 Worker
@@ -49,18 +50,9 @@ export type SurfaceWorkerResponse = {
  */
 const wasmReady = init();
 
-// 在 Worker 环境中 self 的类型与 DOM Window 不同,这里收窄为需要的接口
-const workerScope = self as unknown as {
-    onmessage: ((event: MessageEvent<SurfaceWorkerRequest>) => void) | null;
-    postMessage(message: SurfaceWorkerResponse, transfer?: Transferable[]): void;
-};
-
-workerScope.onmessage = async (event: MessageEvent<SurfaceWorkerRequest>) => {
-    const req = event.data;
-
-    try {
-        await wasmReady;
-
+createWasmWorker<SurfaceWorkerRequest, SurfaceWorkerResponse>(
+    wasmReady,
+    (req, post) => {
         // Worker 收到的普通数组先转成 WASM 期望的 Float64Array
         const coeffValues = new Float64Array(req.coeffValues);
         const result = sample_and_process_surface(
@@ -95,22 +87,11 @@ workerScope.onmessage = async (event: MessageEvent<SurfaceWorkerRequest>) => {
         };
 
         // 用 Transferable 传回主线程,避免结构化克隆再复制一遍大数组
-        workerScope.postMessage(response, [
+        post(response, [
             positions.buffer,
             colors.buffer,
             normals.buffer,
             validIndices.buffer,
         ]);
-    } catch (error) {
-        workerScope.postMessage({
-            id: req.id,
-            positions: new Float32Array(0),
-            colors: new Float32Array(0),
-            normals: new Float32Array(0),
-            validIndices: new Uint32Array(0),
-            zMin: 0,
-            zMax: 0,
-            error: (error as Error).message,
-        });
-    }
-};
+    },
+);

@@ -7,16 +7,10 @@
 import type { IntersectionComputeInput } from '../../intersection/IntersectionMath';
 import { ComputeWorkerClient } from './ComputeWorkerClient';
 import { LatestRequestExecutor } from './LatestRequestExecutor';
-
-type Request = IntersectionComputeInput & { id: number };
-
-type Response = {
-    id: number;
-    points?: Float64Array;
-    curvePoints?: Float64Array;
-    curveOffsets?: Uint32Array;
-    error?: string;
-};
+import type {
+    IntersectionWorkerRequest,
+    IntersectionWorkerResponse,
+} from './IntersectionWorker';
 
 export type IntersectionComputeResult = {
     points: Float64Array;
@@ -30,7 +24,7 @@ export type IntersectionComputeResult = {
  * 键/失效策略:模块级单例;应用销毁时由 disposeIntersectionComputeClient 释放.
  * 生命周期:模块级,随页面存活.
  */
-const intersectionClient = new ComputeWorkerClient<Request, Response>(() => new Worker(
+const intersectionClient = new ComputeWorkerClient<IntersectionWorkerRequest, IntersectionWorkerResponse>(() => new Worker(
     new URL('./IntersectionWorker.ts', import.meta.url),
     { type: 'module' },
 ));
@@ -41,7 +35,7 @@ const intersectionClient = new ComputeWorkerClient<Request, Response>(() => new 
  * 键/失效策略:单飞队列;新请求取代 pending 请求.
  * 生命周期:模块级,随页面存活.
  */
-const intersectionExecutor = new LatestRequestExecutor<Request, Response>(
+const intersectionExecutor = new LatestRequestExecutor<IntersectionWorkerRequest, IntersectionWorkerResponse>(
     intersectionClient,
 );
 
@@ -55,9 +49,6 @@ export function requestIntersection(
     return intersectionExecutor
         .request(input)
         .then((response) => {
-            if (response.error) {
-                throw new Error(response.error);
-            }
             return {
                 points: response.points!,
                 curvePoints: response.curvePoints!,

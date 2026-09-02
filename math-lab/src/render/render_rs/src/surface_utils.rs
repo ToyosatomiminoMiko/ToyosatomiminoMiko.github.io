@@ -1,5 +1,3 @@
-use math_rs::eval_core::{build_base_context, compile_expression, evaluate_node_opt, set_variable};
-
 use crate::config::{
     DEGENERATE_Z_MAX, DEGENERATE_Z_MIN, FLAT_COLOR_T, SURFACE_HUE_START, SURFACE_LIGHTNESS_BASE,
     SURFACE_LIGHTNESS_RANGE, SURFACE_SATURATION,
@@ -128,12 +126,20 @@ fn sample_surface_values(
     cols: u32,
     rows: u32,
 ) -> Result<(Vec<f32>, Vec<f64>, f64, f64), String> {
-    let node = compile_expression(expr)?;
-    let mut ctx = build_base_context(coeff_names, coeff_values)?;
+    let z_vals = math_rs::sampling_core::sample_surface_values(
+        expr,
+        coeff_names,
+        coeff_values,
+        x_min,
+        x_max,
+        y_min,
+        y_max,
+        cols as usize,
+        rows as usize,
+    )?;
 
-    let total = ((cols + 1) * (rows + 1)) as usize;
+    let total = z_vals.len();
     let mut positions = Vec::with_capacity(total * 3);
-    let mut z_vals = Vec::with_capacity(total);
     let mut z_min = f64::INFINITY;
     let mut z_max = f64::NEG_INFINITY;
 
@@ -141,15 +147,11 @@ fn sample_surface_values(
         let y = y_min + (y_max - y_min) * (j as f64 / rows as f64);
         for i in 0..=cols {
             let x = x_min + (x_max - x_min) * (i as f64 / cols as f64);
-
-            set_variable(&mut ctx, "x", x)?;
-            set_variable(&mut ctx, "y", y)?;
-            let z = evaluate_node_opt(&node, &ctx)?.unwrap_or(f64::NAN);
+            let z = z_vals[(j * (cols + 1) + i) as usize];
 
             positions.push(x as f32);
             positions.push(y as f32);
             positions.push(z as f32);
-            z_vals.push(z);
 
             if z.is_finite() {
                 z_min = z_min.min(z);

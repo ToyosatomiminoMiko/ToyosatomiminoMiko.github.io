@@ -6,12 +6,15 @@ import init, {
     integrate1d,
     integrate2d,
 } from "../../../wasm/math_rs/math_rs";
+import { createWasmWorker } from './wasmWorkerRuntime';
 
-type IntegralRequest = {
-    id: number;
-    method:
+export type IntegralMethod =
     | 'trapz1d' | 'simpson1d' | 'riemann1d_left' | 'riemann1d_right' | 'riemann1d_mid' | 'lebesgue1d'
     | 'trapz2d' | 'simpson2d' | 'riemann2d_left' | 'lebesgue2d';
+
+export type IntegralWorkerRequest = {
+    id: number;
+    method: IntegralMethod;
     expr: string;
     coeffs: Record<string, number>;
     a?: number;
@@ -26,7 +29,7 @@ type IntegralRequest = {
     m?: number;
 };
 
-type IntegralResponse = {
+export type IntegralWorkerResponse = {
     id: number;
     value?: number;
     error?: string;
@@ -43,22 +46,18 @@ type IntegralResponse = {
  * 生命周期:随 Worker 实例存活.
  */
 const wasmInit = init();
-const workerScope = self as unknown as {
-    postMessage(message: IntegralResponse, transfer?: Transferable[]): void;
-};
 
 function coeffArgs(coeffs: Record<string, number>): [string[], Float64Array] {
     const names = Object.keys(coeffs).sort();
     return [names, new Float64Array(names.map((name) => coeffs[name]))];
 }
 
-self.onmessage = async (e: MessageEvent<IntegralRequest>) => {
-    const req = e.data;
-    try {
-        await wasmInit;
+createWasmWorker<IntegralWorkerRequest, IntegralWorkerResponse>(
+    wasmInit,
+    (req, post) => {
         const [coeffNames, coeffValues] = coeffArgs(req.coeffs);
         const result = compute(req, coeffNames, coeffValues);
-        const resp: IntegralResponse = {
+        const resp: IntegralWorkerResponse = {
             id: req.id,
             value: result.value,
             samples: Float64Array.from(result.samples),
@@ -66,18 +65,12 @@ self.onmessage = async (e: MessageEvent<IntegralRequest>) => {
             n: result.n,
             m: result.m || undefined,
         };
-        workerScope.postMessage(resp, [resp.samples!.buffer]);
-    } catch (err) {
-        const resp: IntegralResponse = {
-            id: req.id,
-            error: (err as Error).message,
-        };
-        workerScope.postMessage(resp);
-    }
-};
+        post(resp, [resp.samples!.buffer]);
+    },
+);
 
 function compute(
-    req: IntegralRequest,
+    req: IntegralWorkerRequest,
     coeffNames: string[],
     coeffValues: Float64Array,
 ): {

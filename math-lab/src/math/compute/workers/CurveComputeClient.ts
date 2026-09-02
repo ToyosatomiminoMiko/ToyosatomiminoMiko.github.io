@@ -2,31 +2,11 @@
  * 曲线采样 Worker 的主线程客户端.
  * 曲线采样原先直接在主线程调用 WASM,这里改为与其他计算一致的 Worker 路径.
  */
-import { ComputeWorkerClient } from './ComputeWorkerClient';
+import { createComputeWorkerClient } from './ComputeWorkerClient';
 import type {
     CurveWorkerRequest,
     CurveWorkerResponse,
 } from './curveWorker';
-
-export class CurveComputeClient {
-    private readonly client = new ComputeWorkerClient<
-        CurveWorkerRequest,
-        CurveWorkerResponse
-    >(() => new Worker(
-        new URL('./curveWorker.ts', import.meta.url),
-        { type: 'module' },
-    ));
-
-    request(
-        request: Omit<CurveWorkerRequest, 'id'>,
-    ): Promise<Float32Array> {
-        return this.client.request(request).then((response) => response.points);
-    }
-
-    dispose(): void {
-        this.client.dispose();
-    }
-}
 
 /**
  * @cache
@@ -34,7 +14,17 @@ export class CurveComputeClient {
  * 键/失效策略:模块级单例;应用销毁时由 disposeCurveComputeClient 释放.
  * 生命周期:模块级,随页面存活.
  */
-export const curveComputeClient = new CurveComputeClient();
+export const curveComputeClient = createComputeWorkerClient<
+    CurveWorkerRequest,
+    CurveWorkerResponse,
+    Float32Array
+>(
+    () => new Worker(
+        new URL('./curveWorker.ts', import.meta.url),
+        { type: 'module' },
+    ),
+    (response) => response.points,
+);
 
 /**
  * 应用级释放入口.

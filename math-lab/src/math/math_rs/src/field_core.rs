@@ -1,6 +1,4 @@
-use evalexpr::HashMapContext;
-
-use crate::eval_core::{build_base_context, compile_expression, evaluate_node, set_variable};
+use crate::eval_core::CompiledEvaluator;
 
 // ================================================================
 // field_core — 标量场 / 向量场的梯度\散度\旋度数值核心
@@ -17,21 +15,6 @@ use crate::eval_core::{build_base_context, compile_expression, evaluate_node, se
 // ∇ = ∂/∂x + ∂/∂y + ∂/∂z
 // ================================================================
 
-/// 构建带系数和坐标的求值上下文.
-fn build_context_with_point(
-    coeff_names: &[String],
-    coeff_values: &[f64],
-    x: f64,
-    y: f64,
-    z: f64,
-) -> Result<HashMapContext, String> {
-    let mut ctx = build_base_context(coeff_names, coeff_values)?;
-    set_variable(&mut ctx, "x", x)?;
-    set_variable(&mut ctx, "y", y)?;
-    set_variable(&mut ctx, "z", z)?;
-    Ok(ctx)
-}
-
 /// 在给定系数和坐标下求值一个标量表达式.
 ///
 /// 该接口供编译期仍然需要在 TS 侧完成的 point / vector 坐标/transform
@@ -44,9 +27,8 @@ pub fn evaluate_scalar(
     y: f64,
     z: f64,
 ) -> Result<f64, String> {
-    let node = compile_expression(expr)?;
-    let ctx = build_context_with_point(coeff_names, coeff_values, x, y, z)?;
-    evaluate_node(&node, &ctx)
+    let mut evaluator = CompiledEvaluator::new(expr, coeff_names, coeff_values)?;
+    evaluator.eval_at_strict(x, y, z)
 }
 
 // ================================================================
@@ -81,14 +63,16 @@ pub fn evaluate_gradient_point(
     x: f64,
     y: f64,
 ) -> Result<(f64, f64, f64), String> {
-    let surface_node = compile_expression(surface_expr)?;
-    let fx_node = compile_expression(fx_expr)?;
-    let fy_node = compile_expression(fy_expr)?;
-    let ctx = build_context_with_point(coeff_names, coeff_values, x, y, 0.0)?;
+    let mut surface_evaluator: CompiledEvaluator =
+        CompiledEvaluator::new(surface_expr, coeff_names, coeff_values)?;
+    let mut fx_evaluator: CompiledEvaluator =
+        CompiledEvaluator::new(fx_expr, coeff_names, coeff_values)?;
+    let mut fy_evaluator: CompiledEvaluator =
+        CompiledEvaluator::new(fy_expr, coeff_names, coeff_values)?;
 
-    let f0 = evaluate_node(&surface_node, &ctx)?;
-    let fx = evaluate_node(&fx_node, &ctx)?;
-    let fy = evaluate_node(&fy_node, &ctx)?;
+    let f0: f64 = surface_evaluator.eval_at_strict(x, y, 0.0)?;
+    let fx: f64 = fx_evaluator.eval_at_strict(x, y, 0.0)?;
+    let fy: f64 = fy_evaluator.eval_at_strict(x, y, 0.0)?;
 
     Ok((f0, fx, fy))
 }
@@ -123,14 +107,16 @@ pub fn evaluate_divergence_point(
     y: f64,
     z: f64,
 ) -> Result<f64, String> {
-    let dpx_node = compile_expression(dpx_expr)?;
-    let dqy_node = compile_expression(dqy_expr)?;
-    let drz_node = compile_expression(drz_expr)?;
-    let ctx = build_context_with_point(coeff_names, coeff_values, x, y, z)?;
+    let mut dpx_evaluator: CompiledEvaluator =
+        CompiledEvaluator::new(dpx_expr, coeff_names, coeff_values)?;
+    let mut dqy_evaluator: CompiledEvaluator =
+        CompiledEvaluator::new(dqy_expr, coeff_names, coeff_values)?;
+    let mut drz_evaluator: CompiledEvaluator =
+        CompiledEvaluator::new(drz_expr, coeff_names, coeff_values)?;
 
-    let dpx = evaluate_node(&dpx_node, &ctx)?;
-    let dqy = evaluate_node(&dqy_node, &ctx)?;
-    let drz = evaluate_node(&drz_node, &ctx)?;
+    let dpx: f64 = dpx_evaluator.eval_at_strict(x, y, z)?;
+    let dqy: f64 = dqy_evaluator.eval_at_strict(x, y, z)?;
+    let drz: f64 = drz_evaluator.eval_at_strict(x, y, z)?;
 
     Ok(dpx + dqy + drz)
 }
@@ -173,20 +159,25 @@ pub fn evaluate_curl_point(
     y: f64,
     z: f64,
 ) -> Result<(f64, f64, f64), String> {
-    let dr_dy_node = compile_expression(dr_dy_expr)?;
-    let dq_dz_node = compile_expression(dq_dz_expr)?;
-    let dp_dz_node = compile_expression(dp_dz_expr)?;
-    let dr_dx_node = compile_expression(dr_dx_expr)?;
-    let dq_dx_node = compile_expression(dq_dx_expr)?;
-    let dp_dy_node = compile_expression(dp_dy_expr)?;
-    let ctx = build_context_with_point(coeff_names, coeff_values, x, y, z)?;
+    let mut dr_dy_evaluator: CompiledEvaluator =
+        CompiledEvaluator::new(dr_dy_expr, coeff_names, coeff_values)?;
+    let mut dq_dz_evaluator: CompiledEvaluator =
+        CompiledEvaluator::new(dq_dz_expr, coeff_names, coeff_values)?;
+    let mut dp_dz_evaluator: CompiledEvaluator =
+        CompiledEvaluator::new(dp_dz_expr, coeff_names, coeff_values)?;
+    let mut dr_dx_evaluator: CompiledEvaluator =
+        CompiledEvaluator::new(dr_dx_expr, coeff_names, coeff_values)?;
+    let mut dq_dx_evaluator: CompiledEvaluator =
+        CompiledEvaluator::new(dq_dx_expr, coeff_names, coeff_values)?;
+    let mut dp_dy_evaluator: CompiledEvaluator =
+        CompiledEvaluator::new(dp_dy_expr, coeff_names, coeff_values)?;
 
-    let dr_dy = evaluate_node(&dr_dy_node, &ctx)?;
-    let dq_dz = evaluate_node(&dq_dz_node, &ctx)?;
-    let dp_dz = evaluate_node(&dp_dz_node, &ctx)?;
-    let dr_dx = evaluate_node(&dr_dx_node, &ctx)?;
-    let dq_dx = evaluate_node(&dq_dx_node, &ctx)?;
-    let dp_dy = evaluate_node(&dp_dy_node, &ctx)?;
+    let dr_dy: f64 = dr_dy_evaluator.eval_at_strict(x, y, z)?;
+    let dq_dz: f64 = dq_dz_evaluator.eval_at_strict(x, y, z)?;
+    let dp_dz: f64 = dp_dz_evaluator.eval_at_strict(x, y, z)?;
+    let dr_dx: f64 = dr_dx_evaluator.eval_at_strict(x, y, z)?;
+    let dq_dx: f64 = dq_dx_evaluator.eval_at_strict(x, y, z)?;
+    let dp_dy: f64 = dp_dy_evaluator.eval_at_strict(x, y, z)?;
 
     Ok((dr_dy - dq_dz, dp_dz - dr_dx, dq_dx - dp_dy))
 }

@@ -65,3 +65,49 @@ pub fn evaluate_expr(
     let ctx = build_base_context(coeff_names, coeff_values)?;
     evaluate_node(&node, &ctx)
 }
+
+/// 已编译表达式 + 可复用求值上下文.
+///
+/// 采样/求交/场分析都要做大量逐点求值;把它们各自的"compile + 建 context
+/// + 每次写入坐标"收口到这里,避免每个调用点重复这套初始化逻辑.
+pub struct CompiledEvaluator {
+    node: Node,
+    context: HashMapContext,
+}
+
+impl CompiledEvaluator {
+    pub fn new(expr: &str, coeff_names: &[String], coeff_values: &[f64]) -> Result<Self, String> {
+        let node = compile_expression(expr)?;
+        let context = build_base_context(coeff_names, coeff_values)?;
+        Ok(Self { node, context })
+    }
+
+    /// 在给定三维坐标处求值;不参与该表达式的坐标传 NaN 即可.
+    pub fn eval_at(&mut self, x: f64, y: f64, z: f64) -> Result<Option<f64>, String> {
+        set_variable(&mut self.context, "x", x)?;
+        set_variable(&mut self.context, "y", y)?;
+        set_variable(&mut self.context, "z", z)?;
+        evaluate_node_opt(&self.node, &self.context)
+    }
+
+    /// 一元函数求值: y = f(x).
+    pub fn eval_1d(&mut self, x: f64) -> Result<Option<f64>, String> {
+        set_variable(&mut self.context, "x", x)?;
+        evaluate_node_opt(&self.node, &self.context)
+    }
+
+    /// 二元函数求值: z = f(x, y).
+    pub fn eval_2d(&mut self, x: f64, y: f64) -> Result<Option<f64>, String> {
+        set_variable(&mut self.context, "x", x)?;
+        set_variable(&mut self.context, "y", y)?;
+        evaluate_node_opt(&self.node, &self.context)
+    }
+
+    /// 在给定坐标处严格求值:非有限结果同样视为错误.
+    pub fn eval_at_strict(&mut self, x: f64, y: f64, z: f64) -> Result<f64, String> {
+        match self.eval_at(x, y, z)? {
+            Some(value) => Ok(value),
+            None => Err("表达式结果为非有限数值".to_string()),
+        }
+    }
+}

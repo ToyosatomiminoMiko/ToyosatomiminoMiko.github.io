@@ -31,22 +31,11 @@ type CurveRendererRequest = {
     segments: number;
 };
 
-// 把 CurveRenderer 自己的 latest-only 请求形状适配到 MathComputeEngine.
+// CurveRenderer 的请求形状与 MathComputeEngine 直接一致.
 // 每个曲线 renderer 都有一个 executor,拖动滑块时不会向共享 worker 堆积旧请求.
 const curveRequestClient: RequestClient<CurveRendererRequest, Float32Array> = {
     request(request) {
-        return curveComputeEngine.sampleCurve({
-            expr: request.expr,
-            coefficients: request.coeffNames.map((name, index) => ({
-                name,
-                value: request.coeffValues[index] ?? 0,
-                min: 0,
-                max: 0,
-                step: 1,
-            })),
-            range: request.range,
-            segments: request.segments,
-        });
+        return curveComputeEngine.sampleCurve(request);
     },
 };
 

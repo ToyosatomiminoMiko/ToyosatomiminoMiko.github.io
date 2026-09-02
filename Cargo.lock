@@ -176,7 +176,6 @@ dependencies = [
 name = "render_rs"
 version = "0.1.0"
 dependencies = [
- "evalexpr",
  "math_rs",
  "wasm-bindgen",
 ]

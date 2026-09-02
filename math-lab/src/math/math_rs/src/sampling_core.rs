@@ -1,4 +1,4 @@
-use crate::eval_core::{build_base_context, compile_expression, evaluate_node_opt, set_variable};
+use crate::eval_core::CompiledEvaluator;
 
 /// 采样一元函数 y = f(x).
 ///
@@ -19,15 +19,13 @@ pub fn sample_curve(
         return Err("曲线采样需要 steps > 0".to_string());
     }
 
-    let node = compile_expression(expr)?;
-    let mut ctx = build_base_context(coeff_names, coeff_values)?;
+    let mut evaluator: CompiledEvaluator = CompiledEvaluator::new(expr, coeff_names, coeff_values)?;
 
-    let mut points = Vec::with_capacity((steps + 1) * 3);
+    let mut points: Vec<f32> = Vec::with_capacity((steps + 1) * 3);
     for i in 0..=steps {
         let x = x_min + (x_max - x_min) * (i as f64 / steps as f64);
-        set_variable(&mut ctx, "x", x)?;
 
-        if let Some(y) = evaluate_node_opt(&node, &ctx)? {
+        if let Some(y) = evaluator.eval_1d(x)? {
             points.push(x as f32);
             points.push(y as f32);
             points.push(0.0);
@@ -62,17 +60,14 @@ pub fn sample_surface_values(
         return Err("曲面采样需要 nx/ny 均大于 0".to_string());
     }
 
-    let node = compile_expression(expr)?;
-    let mut ctx = build_base_context(coeff_names, coeff_values)?;
+    let mut evaluator: CompiledEvaluator = CompiledEvaluator::new(expr, coeff_names, coeff_values)?;
 
-    let mut values = Vec::with_capacity((nx + 1) * (ny + 1));
+    let mut values: Vec<f64> = Vec::with_capacity((nx + 1) * (ny + 1));
     for j in 0..=ny {
         let y = ya + (yb - ya) * (j as f64 / ny as f64);
-        set_variable(&mut ctx, "y", y)?;
         for i in 0..=nx {
             let x = xa + (xb - xa) * (i as f64 / nx as f64);
-            set_variable(&mut ctx, "x", x)?;
-            values.push(evaluate_node_opt(&node, &ctx)?.unwrap_or(f64::NAN));
+            values.push(evaluator.eval_2d(x, y)?.unwrap_or(f64::NAN));
         }
     }
     Ok(values)
@@ -106,10 +101,12 @@ pub fn sample_vector_field(
         return Err("向量场采样需要 nx/ny/nz 均大于 0".to_string());
     }
 
-    let p_node = compile_expression(p_expr)?;
-    let q_node = compile_expression(q_expr)?;
-    let r_node = compile_expression(r_expr)?;
-    let mut ctx = build_base_context(coeff_names, coeff_values)?;
+    let mut p_evaluator: CompiledEvaluator =
+        CompiledEvaluator::new(p_expr, coeff_names, coeff_values)?;
+    let mut q_evaluator: CompiledEvaluator =
+        CompiledEvaluator::new(q_expr, coeff_names, coeff_values)?;
+    let mut r_evaluator: CompiledEvaluator =
+        CompiledEvaluator::new(r_expr, coeff_names, coeff_values)?;
 
     let step_x = if nx > 1 {
         (x_max - x_min) / (nx - 1) as f64
@@ -130,19 +127,16 @@ pub fn sample_vector_field(
     let mut vectors = Vec::with_capacity(nx * ny * nz * 3);
     for iz in 0..nz {
         let z = z_min + iz as f64 * step_z;
-        set_variable(&mut ctx, "z", z)?;
 
         for iy in 0..ny {
             let y = y_min + iy as f64 * step_y;
-            set_variable(&mut ctx, "y", y)?;
 
             for ix in 0..nx {
                 let x = x_min + ix as f64 * step_x;
-                set_variable(&mut ctx, "x", x)?;
 
-                let vx = evaluate_node_opt(&p_node, &ctx)?.unwrap_or(0.0);
-                let vy = evaluate_node_opt(&q_node, &ctx)?.unwrap_or(0.0);
-                let vz = evaluate_node_opt(&r_node, &ctx)?.unwrap_or(0.0);
+                let vx = p_evaluator.eval_at(x, y, z)?.unwrap_or(0.0);
+                let vy = q_evaluator.eval_at(x, y, z)?.unwrap_or(0.0);
+                let vz = r_evaluator.eval_at(x, y, z)?.unwrap_or(0.0);
 
                 vectors.push(vx as f32);
                 vectors.push(vy as f32);
@@ -170,8 +164,7 @@ pub fn sample_function_1d(
         return Err("积分采样需要 n > 0".to_string());
     }
 
-    let node = compile_expression(expr)?;
-    let mut ctx = build_base_context(coeff_names, coeff_values)?;
+    let mut evaluator = CompiledEvaluator::new(expr, coeff_names, coeff_values)?;
 
     match sample_shape {
         "mid" => {
@@ -179,8 +172,7 @@ pub fn sample_function_1d(
             let mut values = Vec::with_capacity(n);
             for i in 0..n {
                 let x = a + (i as f64 + 0.5) * h;
-                set_variable(&mut ctx, "x", x)?;
-                values.push(evaluate_node_opt(&node, &ctx)?.unwrap_or(f64::NAN));
+                values.push(evaluator.eval_1d(x)?.unwrap_or(f64::NAN));
             }
             Ok(values)
         }
@@ -188,8 +180,7 @@ pub fn sample_function_1d(
             let mut values = Vec::with_capacity(n + 1);
             for i in 0..=n {
                 let x = a + (b - a) * (i as f64 / n as f64);
-                set_variable(&mut ctx, "x", x)?;
-                values.push(evaluate_node_opt(&node, &ctx)?.unwrap_or(f64::NAN));
+                values.push(evaluator.eval_1d(x)?.unwrap_or(f64::NAN));
             }
             Ok(values)
         }
@@ -218,36 +209,22 @@ pub fn sample_function_2d(
         return Err("积分采样需要 n 和 m 均大于 0".to_string());
     }
 
-    let node = compile_expression(expr)?;
-    let mut ctx = build_base_context(coeff_names, coeff_values)?;
-
     if sample_shape == "corner" {
         let hx = (xb - xa) / n as f64;
         let hy = (yb - ya) / m as f64;
         let mut values = Vec::with_capacity(n * m);
+        let mut evaluator = CompiledEvaluator::new(expr, coeff_names, coeff_values)?;
         for j in 0..m {
             let y = ya + j as f64 * hy;
-            set_variable(&mut ctx, "y", y)?;
             for i in 0..n {
                 let x = xa + i as f64 * hx;
-                set_variable(&mut ctx, "x", x)?;
-                values.push(evaluate_node_opt(&node, &ctx)?.unwrap_or(f64::NAN));
+                values.push(evaluator.eval_2d(x, y)?.unwrap_or(f64::NAN));
             }
         }
         return Ok(values);
     }
 
-    let mut values = Vec::with_capacity((n + 1) * (m + 1));
-    for j in 0..=m {
-        let y = ya + (yb - ya) * (j as f64 / m as f64);
-        set_variable(&mut ctx, "y", y)?;
-        for i in 0..=n {
-            let x = xa + (xb - xa) * (i as f64 / n as f64);
-            set_variable(&mut ctx, "x", x)?;
-            values.push(evaluate_node_opt(&node, &ctx)?.unwrap_or(f64::NAN));
-        }
-    }
-    Ok(values)
+    sample_surface_values(expr, coeff_names, coeff_values, xa, xb, ya, yb, n, m)
 }
 
 #[cfg(test)]
@@ -263,6 +240,17 @@ mod tests {
         assert_eq!(points[1], 1.0);
         assert_eq!(points[12], 4.0);
         assert_eq!(points[13], 9.0);
+    }
+
+    #[test]
+    fn curve_keeps_coefficients_named_like_other_axes() {
+        // y/z 在这里是系数而不是采样坐标;一元采样不能覆盖它们.
+        let names: Vec<String> = vec!["y".to_string(), "z".to_string()];
+        let values: Vec<f64> = vec![2.0, 3.0];
+        let points: Vec<f32> = sample_curve("y * x + z", &names, &values, 0.0, 1.0, 1).unwrap();
+
+        assert_eq!(points[1], 3.0);
+        assert_eq!(points[4], 5.0);
     }
 
     #[test]

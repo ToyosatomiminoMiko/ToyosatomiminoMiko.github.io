@@ -11,9 +11,7 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-use evalexpr::{HashMapContext, Node};
-
-use crate::eval_core::{build_base_context, compile_expression, evaluate_node_opt, set_variable};
+use crate::eval_core::CompiledEvaluator;
 use crate::transform_core::{apply_to_point, Mat4};
 
 const TAU: f64 = std::f64::consts::TAU;
@@ -187,56 +185,20 @@ fn kind_name(kind: ObjectKind) -> &'static str {
     }
 }
 
-// ================================================================
-// 表达式求值器(一次编译,上下文复用)
-// ================================================================
-
-struct CompiledExpr {
-    node: Node,
-    context: HashMapContext,
-}
-
-impl CompiledExpr {
-    fn new(
-        expr: &str,
-        coefficient_names: &[String],
-        coefficient_values: &[f64],
-    ) -> Result<Self, String> {
-        let node = compile_expression(expr)?;
-        let context = build_base_context(coefficient_names, coefficient_values)?;
-        Ok(Self { node, context })
-    }
-
-    fn eval_at(&mut self, x: f64, y: f64, z: f64) -> Result<Option<f64>, String> {
-        set_variable(&mut self.context, "x", x)?;
-        set_variable(&mut self.context, "y", y)?;
-        set_variable(&mut self.context, "z", z)?;
-        evaluate_node_opt(&self.node, &self.context)
-    }
-
-    fn eval_1d(&mut self, x: f64) -> Result<Option<f64>, String> {
-        self.eval_at(x, f64::NAN, f64::NAN)
-    }
-
-    fn eval_2d(&mut self, x: f64, y: f64) -> Result<Option<f64>, String> {
-        self.eval_at(x, y, f64::NAN)
-    }
-}
-
 struct CurveEval {
-    expr: CompiledExpr,
+    expr: CompiledEvaluator,
     range: [f64; 2],
 }
 
 impl CurveEval {
     fn new(descriptor: &ObjectDescriptor) -> Result<Self, String> {
-        let expr = CompiledExpr::new(
+        let expr = CompiledEvaluator::new(
             &descriptor.expr,
             &descriptor.coefficient_names,
             &descriptor.coefficient_values,
         )?;
-        let x0 = descriptor.params[0];
-        let x1 = descriptor.params[1];
+        let x0: f64 = descriptor.params[0];
+        let x1: f64 = descriptor.params[1];
         if x0.partial_cmp(&x1) != Some(Ordering::Less) {
             return Err("曲线 range 需要 min < max".to_string());
         }
@@ -264,9 +226,9 @@ fn sample_curve(
     steps: usize,
 ) -> Result<Vec<(f64, V3)>, String> {
     let [lo, hi] = expr.range;
-    let mut samples = Vec::with_capacity(steps + 1);
+    let mut samples: Vec<(f64, [f64; 3])> = Vec::with_capacity(steps + 1);
     for i in 0..=steps {
-        let x = lo + (hi - lo) * (i as f64 / steps as f64);
+        let x: f64 = lo + (hi - lo) * (i as f64 / steps as f64);
         if let Some(point) = expr.world_at(matrix, x)? {
             samples.push((x, point));
         }
@@ -280,7 +242,7 @@ fn sample_curve(
 
 enum FieldKind {
     Surface {
-        expr: CompiledExpr,
+        expr: CompiledEvaluator,
         range: [f64; 4],
     },
     Sphere {
@@ -308,7 +270,7 @@ impl FieldEval {
     fn new(descriptor: &ObjectDescriptor) -> Result<Self, String> {
         let kind = match descriptor.kind {
             ObjectKind::Surface => {
-                let expr = CompiledExpr::new(
+                let expr = CompiledEvaluator::new(
                     &descriptor.expr,
                     &descriptor.coefficient_names,
                     &descriptor.coefficient_values,
@@ -423,20 +385,17 @@ impl SurfaceGrid {
         if !(xa < xb && ya < yb) {
             return Err("曲面 range 需要 min < max".to_string());
         }
-        let mut expr = CompiledExpr::new(
+        let z_values: Vec<f64> = crate::sampling_core::sample_surface_values(
             &descriptor.expr,
             &descriptor.coefficient_names,
             &descriptor.coefficient_values,
+            xa,
+            xb,
+            ya,
+            yb,
+            nx,
+            ny,
         )?;
-        let width = nx + 1;
-        let mut z_values = Vec::with_capacity(width * (ny + 1));
-        for j in 0..=ny {
-            let y = ya + (yb - ya) * (j as f64 / ny as f64);
-            for i in 0..=nx {
-                let x = xa + (xb - xa) * (i as f64 / nx as f64);
-                z_values.push(expr.eval_2d(x, y)?.unwrap_or(f64::NAN));
-            }
-        }
         Ok(Self {
             z_values,
             nx,

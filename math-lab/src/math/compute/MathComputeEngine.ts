@@ -3,7 +3,6 @@
  * 当前先把积分计算收口到这里,后续再把曲线/曲面/向量场采样逐步迁入.
  */
 import type {
-    Coefficient,
     IntegralTask,
     SceneObject,
 } from '../../compiler/ir/types';
@@ -27,7 +26,8 @@ export type IntegralSource = Extract<SceneObject, { kind: 'curve' | 'surface' }>
 
 export type CurveSampleRequest = {
     expr: string;
-    coefficients: Coefficient[];
+    coeffNames: string[];
+    coeffValues: number[];
     range: [number, number];
     segments: number;
 };
@@ -37,13 +37,7 @@ export class MathComputeEngine {
         // 曲线采样与曲面/向量场保持一致:交给 Worker 执行,避免高 segments
         // 或大量曲线时阻塞主线程.失败直接上抛,由渲染层统一上报诊断,
         // 不再做主线程静默兜底(否则 Worker 故障会被悄悄掩盖).
-        return curveComputeClient.request({
-            expr: request.expr,
-            coeffNames: request.coefficients.map((coefficient) => coefficient.name),
-            coeffValues: request.coefficients.map((coefficient) => coefficient.value),
-            range: request.range,
-            segments: request.segments,
-        });
+        return curveComputeClient.request(request);
     }
 
     async integrate(task: IntegralTask, source: IntegralSource): Promise<IntegralResult> {

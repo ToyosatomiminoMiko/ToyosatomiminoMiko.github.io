@@ -6,15 +6,16 @@
  */
 import init, { intersect_pair } from '../../../wasm/math_rs/math_rs';
 import type { IntersectionComputeSide } from '../../intersection/IntersectionMath';
+import { createWasmWorker } from './wasmWorkerRuntime';
 
-type IntersectionRequest = {
+export type IntersectionWorkerRequest = {
     id: number;
     a: IntersectionComputeSide;
     b: IntersectionComputeSide;
     segments: number;
 };
 
-type IntersectionResponse = {
+export type IntersectionWorkerResponse = {
     id: number;
     points?: Float64Array;
     curvePoints?: Float64Array;
@@ -29,9 +30,6 @@ type IntersectionResponse = {
  * 生命周期:随 Worker 实例存活.
  */
 const wasmInit = init();
-const workerScope = self as unknown as {
-    postMessage(message: IntersectionResponse, transfer?: Transferable[]): void;
-};
 
 function sideArgs(side: IntersectionComputeSide): [
     string,
@@ -53,10 +51,9 @@ function sideArgs(side: IntersectionComputeSide): [
     ];
 }
 
-self.onmessage = async (event: MessageEvent<IntersectionRequest>) => {
-    const request = event.data;
-    try {
-        await wasmInit;
+createWasmWorker<IntersectionWorkerRequest, IntersectionWorkerResponse>(
+    wasmInit,
+    (request, post) => {
         const [kindA, exprA, namesA, valuesA, paramsA, matrixA, inverseA] =
             sideArgs(request.a);
         const [kindB, exprB, namesB, valuesB, paramsB, matrixB, inverseB] =
@@ -81,7 +78,7 @@ self.onmessage = async (event: MessageEvent<IntersectionRequest>) => {
         const points = output.points;
         const curvePoints = output.curve_points;
         const curveOffsets = output.curve_offsets;
-        workerScope.postMessage(
+        post(
             {
                 id: request.id,
                 points,
@@ -90,10 +87,5 @@ self.onmessage = async (event: MessageEvent<IntersectionRequest>) => {
             },
             [points.buffer, curvePoints.buffer, curveOffsets.buffer],
         );
-    } catch (error) {
-        workerScope.postMessage({
-            id: request.id,
-            error: error instanceof Error ? error.message : String(error),
-        });
-    }
-};
+    },
+);

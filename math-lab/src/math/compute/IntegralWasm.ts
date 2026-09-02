@@ -1,39 +1,13 @@
 import type { Range1D } from '../../compiler/ir/types';
 import { ComputeWorkerClient } from './workers/ComputeWorkerClient';
 import { LatestRequestExecutor } from './workers/LatestRequestExecutor';
+import type {
+    IntegralMethod,
+    IntegralWorkerRequest,
+    IntegralWorkerResponse,
+} from './workers/IntegralWorker';
 
-type Method =
-    | 'trapz1d' | 'simpson1d' | 'riemann1d_left' | 'riemann1d_right' | 'riemann1d_mid' | 'lebesgue1d'
-    | 'trapz2d' | 'simpson2d' | 'riemann2d_left' | 'lebesgue2d';
-
-type Request = {
-    id: number;
-    method: Method;
-    expr: string;
-    coeffs: Record<string, number>;
-    a?: number;
-    b?: number;
-    n?: number;
-    layers?: number;
-    sampleN?: number;
-    xa?: number;
-    xb?: number;
-    ya?: number;
-    yb?: number;
-    m?: number;
-};
-
-type Response = {
-    id: number;
-    value?: number;
-    error?: string;
-    samples?: Float64Array;
-    sampleShape?: '1d-grid' | '1d-mid' | '2d-grid' | '2d-corner';
-    n?: number;
-    m?: number;
-};
-
-export type IntegralSampleShape = NonNullable<Response['sampleShape']>;
+export type IntegralSampleShape = NonNullable<IntegralWorkerResponse['sampleShape']>;
 
 export type IntegralResult = {
     value: number;
@@ -50,7 +24,7 @@ export type IntegralResult = {
  * 键/失效策略:模块级单例;应用销毁时由 disposeIntegralWorker 显式释放.
  * 生命周期:模块级,随页面存活.
  */
-const integralClient = new ComputeWorkerClient<Request, Response>(() => new Worker(
+const integralClient = new ComputeWorkerClient<IntegralWorkerRequest, IntegralWorkerResponse>(() => new Worker(
     new URL('./workers/IntegralWorker.ts', import.meta.url),
     { type: 'module' },
 ));
@@ -63,14 +37,16 @@ const integralClient = new ComputeWorkerClient<Request, Response>(() => new Work
  * 键/失效策略:单飞队列;新请求取代 pending 请求.
  * 生命周期:模块级,随页面存活.
  */
-const integralExecutor = new LatestRequestExecutor<Request, Response>(integralClient);
+const integralExecutor = new LatestRequestExecutor<IntegralWorkerRequest, IntegralWorkerResponse>(
+    integralClient,
+);
 
 /**
  * @cache-access
  * 通过 latest-only executor 调用积分 Worker.
  */
 function callWasm(
-    method: Method,
+    method: IntegralMethod,
     expr: string,
     coeffs: Record<string, number>,
     params: Record<string, number>,

@@ -1,4 +1,5 @@
 import init, { sample_vector_field } from '../../../wasm/math_rs/math_rs';
+import { createWasmWorker } from './wasmWorkerRuntime';
 
 export type VectorFieldWorkerRequest = {
     id: number;
@@ -21,11 +22,6 @@ export type VectorFieldWorkerResponse = {
     error?: string;
 };
 
-const workerScope = self as unknown as {
-    onmessage: ((event: MessageEvent<VectorFieldWorkerRequest>) => void) | null;
-    postMessage(message: VectorFieldWorkerResponse, transfer?: Transferable[]): void;
-};
-
 /**
  * @cache
  * 缓存目的:Worker 内只初始化一次 math_rs WASM 实例,后续请求复用.
@@ -34,11 +30,9 @@ const workerScope = self as unknown as {
  */
 const wasmInit = init();
 
-workerScope.onmessage = async (event: MessageEvent<VectorFieldWorkerRequest>) => {
-    const req = event.data;
-
-    try {
-        await wasmInit;
+createWasmWorker<VectorFieldWorkerRequest, VectorFieldWorkerResponse>(
+    wasmInit,
+    (req, post) => {
         const vectors = sample_vector_field(
             req.pExpr,
             req.qExpr,
@@ -55,12 +49,6 @@ workerScope.onmessage = async (event: MessageEvent<VectorFieldWorkerRequest>) =>
             req.gridSize[1],
             req.gridSize[2],
         );
-        workerScope.postMessage({ id: req.id, vectors }, [vectors.buffer]);
-    } catch (error) {
-        workerScope.postMessage({
-            id: req.id,
-            vectors: new Float32Array(0),
-            error: error instanceof Error ? error.message : String(error),
-        });
-    }
-};
+        post({ id: req.id, vectors }, [vectors.buffer]);
+    },
+);
