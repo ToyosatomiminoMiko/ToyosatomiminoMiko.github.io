@@ -394,6 +394,22 @@ mod tests {
     }
 
     #[test]
+    fn riemann_left_right_mid_use_matching_endpoints() {
+        // f(x)=x 在 [0,1] 上按 n=4 均匀采样:
+        // 左端点 0.375、右端点 0.625、中点 0.5.
+        let grid = vec![0.0, 0.25, 0.5, 0.75, 1.0];
+        let mid = vec![0.125, 0.375, 0.625, 0.875];
+
+        let left = riemann1d_left_from_values(&grid, 0.0, 1.0).unwrap();
+        let right = riemann1d_right_from_values(&grid, 0.0, 1.0).unwrap();
+        let middle = riemann1d_mid_from_values(&mid, 0.0, 1.0).unwrap();
+
+        assert!((left - 0.375).abs() < 1e-12);
+        assert!((right - 0.625).abs() < 1e-12);
+        assert!((middle - 0.5).abs() < 1e-12);
+    }
+
+    #[test]
     fn empty_1d_values_return_error() {
         assert!(trapz1d_from_values(&[], 0.0, 1.0).is_err());
         assert!(lebesgue1d_from_values(&[], 0.0, 1.0, 8).is_err());

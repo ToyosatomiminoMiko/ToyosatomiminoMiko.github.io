@@ -13,7 +13,27 @@ import {
     parseNumberList,
 } from './options';
 
-const INTEGRAL_METHODS = new Set<IntegralMethod>(['trapezoid', 'simpson', 'riemann', 'lebesgue']);
+/**
+ * DSL 接受的 method 整串.
+ *
+ * 裸 `riemann` 是历史写法,编译期归一化为 `riemann:left`;
+ * `riemann:left/right/mid` 与 `lebesgue`/`trapezoid`/`simpson` 同级.
+ */
+const INTEGRAL_METHODS = new Set<string>([
+    'trapezoid',
+    'simpson',
+    'riemann',
+    'riemann:left',
+    'riemann:right',
+    'riemann:mid',
+    'lebesgue',
+]);
+
+function normalizeIntegralMethod(raw: string): IntegralMethod {
+    if (raw === 'riemann') return 'riemann:left';
+    return raw as IntegralMethod;
+}
+
 const INTEGRAL_OPTION_NAMES = ['method', 'range', 'segments', 'layers', 'show'] as const;
 
 export function compileIntegralTask(
@@ -37,10 +57,20 @@ export function compileIntegralTask(
     );
 
     const rawMethod = findOption(statement.options, 'method') ?? NUMERIC_CONFIG.integral.defaultMethod;
-    if (!INTEGRAL_METHODS.has(rawMethod as IntegralMethod)) {
+    if (!INTEGRAL_METHODS.has(rawMethod)) {
         throw new Error(`未知积分方法: ${rawMethod}`);
     }
-    const method = rawMethod as IntegralMethod;
+    const method = normalizeIntegralMethod(rawMethod);
+
+    if (
+        source.kind === 'surface'
+        && (method === 'riemann:right' || method === 'riemann:mid')
+    ) {
+        throw new Error(
+            `积分 ${statement.name} 的 ${method} 仅支持一维曲线积分;`
+            + '二维黎曼目前只有左端点实现',
+        );
+    }
 
     const rawRange = findOption(statement.options, 'range');
     let range: [number, number] | [number, number, number, number];

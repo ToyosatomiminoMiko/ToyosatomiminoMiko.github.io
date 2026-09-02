@@ -41,7 +41,7 @@ export const NUMERIC_CONFIG = {
         defaultSegments: 128,
     },
     integral: {
-        defaultMethod: 'riemann' as const,
+        defaultMethod: 'riemann:left' as const,
         defaultRange1D: [-4, 4] as [number, number],
         defaultRange2D: [-3, 3, -3, 3] as [number, number, number, number],
         defaultSegments: 32,

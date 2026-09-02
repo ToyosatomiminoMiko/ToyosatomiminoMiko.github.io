@@ -24,7 +24,9 @@ Math-lab 的当前入口是 `index.html`,它加载 `src/main.ts`,再由
 - `gradient` / `divergence` / `curl`:点分析
 - `gradient` 的 `show = [point, normal, tangent_plane]`:已支持
 - `integral`:一维/二维数值积分和黎曼/勒贝格可视化,方法为
-  `trapezoid`/`simpson`/`riemann`/`lebesgue`
+  `trapezoid`/`simpson`/`lebesgue`,以及黎曼系列 `riemann:left`/
+  `riemann:right`/`riemann:mid`;裸写 `riemann` 等价于 `riemann:left`.
+  黎曼端点方法只对一维曲线开放,二维曲面黎曼目前只有左端点实现.
 - `sphere` / `box` / `cylinder` / `cone` / `frustum`:透明体积图形;
   `cylinder`/`cone`/`frustum` 统一映射为同一个 `conic` IR 类型
 - `intersection`:求交.曲线参与的求交得到离散交点,曲面/体积参与的求交得到空间交线;

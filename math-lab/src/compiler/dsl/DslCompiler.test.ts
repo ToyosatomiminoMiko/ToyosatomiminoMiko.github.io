@@ -200,8 +200,61 @@ describe('compileScene', () => {
             0,
         );
         expect(scene.integrals).toHaveLength(1);
-        expect(scene.integrals[0].method).toBe('riemann');
+        expect(scene.integrals[0].method).toBe('riemann:left');
         expect(scene.integrals[0].sourceKind).toBe('curve');
+    });
+
+    it('normalizes bare riemann to left and accepts right/mid variants', () => {
+        const variants: Array<[string, string]> = [
+            ['riemann:right', 'riemann:right'],
+            ['riemann:mid', 'riemann:mid'],
+            ['riemann', 'riemann:left'],
+        ];
+
+        for (const [rawMethod, expectedMethod] of variants) {
+            const variantAst: AstProgram = {
+                statements: [
+                    ast.statements[2],
+                    {
+                        type: 'integral',
+                        name: 'I',
+                        source: 'c',
+                        options: [
+                            { name: 'method', value: rawMethod },
+                            { name: 'range', value: '[-4, 4]' },
+                            { name: 'segments', value: '32' },
+                        ],
+                        span: { start: 0, end: 0 },
+                    },
+                ],
+            };
+
+            const scene = compileScene(variantAst);
+            expect(scene.integrals[0].method).toBe(expectedMethod);
+        }
+    });
+
+    it('rejects right/mid riemann on surfaces until a 2D Rust backend exists', () => {
+        const badAst: AstProgram = {
+            statements: [
+                ast.statements[3],
+                {
+                    type: 'integral',
+                    name: 'I2D',
+                    source: 's',
+                    options: [
+                        { name: 'method', value: 'riemann:right' },
+                        { name: 'range', value: '[-1, 1, -1, 1]' },
+                        { name: 'segments', value: '32' },
+                    ],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        expect(() => compileScene(badAst)).toThrow(
+            '仅支持一维曲线积分',
+        );
     });
 
     it('evaluates analysis at expressions with current parameter overrides', () => {

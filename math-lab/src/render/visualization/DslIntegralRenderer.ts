@@ -1,5 +1,9 @@
 import * as THREE from 'three';
-import type { IntegralTask, SceneObject } from '../../compiler/ir/types';
+import type {
+    IntegralTask,
+    RiemannSide,
+    SceneObject,
+} from '../../compiler/ir/types';
 import { IntegralVisualizer } from './IntegralVisualizer';
 import type { MathComputeEngine } from '../../math/compute/MathComputeEngine';
 import type { IntegralResult } from '../../math/compute/IntegralWasm';
@@ -16,6 +20,20 @@ export type IntegralDiagnosticFn = (
     level: 'warning' | 'error',
     message: string,
 ) => void;
+
+/** 从整串方法名取出黎曼端点;只有一维曲线允许 right/mid. */
+function riemannSideOf(method: IntegralTask['method']): RiemannSide {
+    switch (method) {
+        case 'riemann:left':
+            return 'left';
+        case 'riemann:right':
+            return 'right';
+        case 'riemann:mid':
+            return 'mid';
+        default:
+            throw new Error(`方法 ${method} 不是黎曼方法`);
+    }
+}
 
 /**
  * DSL 积分可视化执行器.
@@ -142,7 +160,9 @@ export class DslIntegralRenderer {
             const segments = task.segments;
 
             switch (task.method) {
-                case 'riemann':
+                case 'riemann:left':
+                case 'riemann:right':
+                case 'riemann:mid':
                 case 'trapezoid':
                 case 'simpson': {
                     const visual = clampIntegral1DVisualization(segments);
@@ -152,7 +172,11 @@ export class DslIntegralRenderer {
                             `积分 ${task.name} 的绘图分段已从 ${segments} 降采样到 ${visual.segments}`,
                         );
                     }
-                    if (task.method === 'riemann') {
+                    if (
+                        task.method === 'riemann:left'
+                        || task.method === 'riemann:right'
+                        || task.method === 'riemann:mid'
+                    ) {
                         this.visualizer.visualize2DRiemann(
                             source,
                             fn,
@@ -160,6 +184,7 @@ export class DslIntegralRenderer {
                             b,
                             visual.segments,
                             task.name,
+                            riemannSideOf(task.method),
                         );
                     } else if (task.method === 'trapezoid') {
                         this.visualizer.visualize2DTrapezoid(
@@ -213,7 +238,7 @@ export class DslIntegralRenderer {
         const segments = task.segments;
 
         switch (task.method) {
-            case 'riemann':
+            case 'riemann:left':
             case 'trapezoid':
             case 'simpson': {
                 const visual = clampIntegral2DVisualization(segments);
@@ -223,7 +248,7 @@ export class DslIntegralRenderer {
                         `积分 ${task.name} 的二维绘图每轴已从 ${segments} 降采样到 ${visual.segments}`,
                     );
                 }
-                if (task.method === 'riemann') {
+                if (task.method === 'riemann:left') {
                     this.visualizer.visualize3DRiemann(
                         source,
                         fn,

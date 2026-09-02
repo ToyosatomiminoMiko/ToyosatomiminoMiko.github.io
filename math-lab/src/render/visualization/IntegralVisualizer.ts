@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import type { SceneObject } from '../../compiler/ir/types';
+import type { RiemannSide, SceneObject } from '../../compiler/ir/types';
 import { RENDER_CONFIG } from '../../config/renderConfig';
 import {
     createSolidEdgeMaterial,
@@ -133,6 +133,7 @@ export class IntegralVisualizer {
         b: number,
         N: number,
         cacheKey: number | string = obj.id,
+        side: RiemannSide = 'left',
     ): void {
         const h = (b - a) / N;
         const color = new THREE.Color(obj.color);
@@ -140,7 +141,12 @@ export class IntegralVisualizer {
 
         for (let i = 0; i < N; i++) {
             const x0 = a + i * h;
-            const yVal = fn(x0);
+            // 柱子的采样端与数值方法保持一致:左端点/右端点/中点.
+            const sampleX =
+                side === 'left' ? x0
+                    : side === 'right' ? x0 + h
+                        : x0 + h / 2;
+            const yVal = fn(sampleX);
             if (!isFinite(yVal) || Math.abs(yVal) < 1e-12) continue;
             bars.push({
                 pos: [x0 + h / 2, yVal / 2, 0],

@@ -206,7 +206,19 @@ export interface AnalysisResult {
 }
 
 /** 数值积分任务. */
-export type IntegralMethod = 'trapezoid' | 'simpson' | 'riemann' | 'lebesgue';
+export type RiemannSide = 'left' | 'right' | 'mid';
+
+/**
+ * DSL 中的 method 作为整串进入 IR:
+ * - 一维黎曼区分端点:`riemann:left` / `riemann:right` / `riemann:mid`;
+ * - DSL 里写裸 `riemann` 时编译期归一化为 `riemann:left`(兼容旧写法);
+ * - 二维曲面黎曼目前只有左端点实现.
+ */
+export type IntegralMethod =
+    | 'trapezoid'
+    | 'simpson'
+    | `riemann:${RiemannSide}`
+    | 'lebesgue';
 
 export interface IntegralTask {
     name: string;

@@ -29,7 +29,9 @@ const ANALYSIS_KIND_LABELS: Record<AnalysisResult['op'], string> = {
 const INTEGRAL_METHOD_LABELS: Record<IntegralTask['method'], string> = {
     trapezoid: '梯形法',
     simpson: '辛普森法',
-    riemann: '黎曼和',
+    'riemann:left': '黎曼和(左端点)',
+    'riemann:right': '黎曼和(右端点)',
+    'riemann:mid': '黎曼和(中点)',
     lebesgue: '勒贝格法',
 };
 

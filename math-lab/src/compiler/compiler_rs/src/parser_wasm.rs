@@ -461,6 +461,11 @@ integral I2 = integral(s1) {
     segments = 32;
     layers = 16;
 };
+integral I3 = integral(c1) {
+    method = riemann:right;
+    range = [-8, 8];
+    segments = 32;
+};
 intersection X = intersection(c1, s1) {
     color = "#ffffff";
     segments = 96;
@@ -481,6 +486,7 @@ intersect Y = intersect(s1, S);
         assert!(json.contains("\"kind\":\"frustum\""));
         assert!(json.contains("\"type\":\"analysis\""));
         assert!(json.contains("\"type\":\"integral\""));
+        assert!(json.contains("riemann:right"));
         assert!(json.contains("\"type\":\"intersection\""));
         assert!(json.contains("\"a\":\"c1\""));
         assert!(json.contains("\"b\":\"s1\""));

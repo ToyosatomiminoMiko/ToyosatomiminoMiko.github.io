@@ -13,6 +13,8 @@ import {
     lebesgue2d,
     riemann1dLeft,
     riemann2dLeft,
+    riemann1dRight,
+    riemann1dMid,
     simpson1d,
     simpson2d,
     trapz1d,
@@ -56,12 +58,18 @@ export class MathComputeEngine {
                     return trapz1d(expr, coeffs, a, b, segments);
                 case 'simpson':
                     return simpson1d(expr, coeffs, a, b, segments);
-                case 'riemann':
+                case 'riemann:left':
                     return riemann1dLeft(expr, coeffs, a, b, segments);
+                case 'riemann:right':
+                    return riemann1dRight(expr, coeffs, a, b, segments);
+                case 'riemann:mid':
+                    return riemann1dMid(expr, coeffs, a, b, segments);
                 case 'lebesgue': {
                     const sampleN = segments * NUMERIC_CONFIG.integral.lebesgueOversample1D;
                     return lebesgue1d(expr, coeffs, a, b, task.layers, sampleN);
                 }
+                default:
+                    throw new Error(`一维积分不支持方法 ${task.method}`);
             }
         }
 
@@ -71,7 +79,7 @@ export class MathComputeEngine {
                 return trapz2d(expr, coeffs, [xMin, xMax], [yMin, yMax], segments, segments);
             case 'simpson':
                 return simpson2d(expr, coeffs, [xMin, xMax], [yMin, yMax], segments, segments);
-            case 'riemann':
+            case 'riemann:left':
                 return riemann2dLeft(expr, coeffs, [xMin, xMax], [yMin, yMax], segments, segments);
             case 'lebesgue': {
                 const sampleGrid = segments * NUMERIC_CONFIG.integral.lebesgueOversample2D;
@@ -84,6 +92,9 @@ export class MathComputeEngine {
                     sampleGrid,
                 );
             }
+            default:
+                // 编译器已拒绝二维 right/mid;这里兜底,避免静默返回 undefined.
+                throw new Error(`二维积分不支持方法 ${task.method}`);
         }
     }
 
