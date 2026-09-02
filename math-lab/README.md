@@ -135,7 +135,7 @@ npm run typecheck
 源码 textarea
    │ run()
    ▼
-parseMiko()  → Rust pest 解析 → AstProgram
+parseMiko()  -> Rust pest 解析 -> AstProgram
    │
    ▼
 DslCompiler.compileScene()
@@ -148,10 +148,10 @@ DslCompiler.compileScene()
    ▼
 SceneIR（纯数据,不含 three.js/DOM）
    │
-   ├─ Plotter → 各种 Renderer → THREE 场景
-   ├─ AnalysisRenderer → 分析可视化
-   ├─ DslIntegralRenderer → 积分计算与可视化
-   ├─ IntersectionRenderer → 求交 Worker 调度与交线渲染
+   ├─ Plotter -> 各种 Renderer -> THREE 场景
+   ├─ AnalysisRenderer -> 分析可视化
+   ├─ DslIntegralRenderer -> 积分计算与可视化
+   ├─ IntersectionRenderer -> 求交 Worker 调度与交线渲染
    └─ ParamPanel / ObjectList / Diagnostics
 ```
 
@@ -194,10 +194,10 @@ new DslApp().start()
 
 ```text
 滑块 input
-   → requestAnimationFrame 合并多个变化
-   → compileScene(currentAst, paramPanelController.getValues())
-   → renderController.applyScene(scene, changedParams)
-   → 只重绘依赖了这些参数的对象
+   -> requestAnimationFrame 合并多个变化
+   -> compileScene(currentAst, paramPanelController.getValues())
+   -> renderController.applyScene(scene, changedParams)
+   -> 只重绘依赖了这些参数的对象
 ```
 
 这里有个很重要的机制:对象会携带 `coefficients`,说明它引用了哪些参数.`_objectDependsOnParams` 据此判断哪些对象需要真正重采样;不相关的对象只更新引用,不重新生成几何体.
@@ -211,9 +211,9 @@ new DslApp().start()
 | 内容 | 渲染/调用入口 | Worker | Rust/WASM | 返回 |
 | --- | --- | --- | --- | --- |
 | 曲线采样 | `CurveRenderer` | `curveWorker` | `math_rs.sample_curve` | 顶点数组 |
-| 曲面采样 | `SurfaceRenderer` → `SurfaceMesh` | `surfaceWorker` | `render_rs.sample_and_process_surface` | 位置/颜色/法线/索引 |
+| 曲面采样 | `SurfaceRenderer` -> `SurfaceMesh` | `surfaceWorker` | `render_rs.sample_and_process_surface` | 位置/颜色/法线/索引 |
 | 向量场采样 | `VectorFieldRenderer` | `vectorFieldWorker` | `math_rs.sample_vector_field` | 向量数组 |
-| 数值积分 | `DslIntegralRenderer` → `MathComputeEngine` | `IntegralWorker` | `math_rs.integrate1d/2d` | 积分值/样本 |
+| 数值积分 | `DslIntegralRenderer` -> `MathComputeEngine` | `IntegralWorker` | `math_rs.integrate1d/2d` | 积分值/样本 |
 | 求交 | `IntersectionRenderer` | `IntersectionWorker` | `math_rs.intersect_pair` | 交点/交线折线 |
 
 这些链路都使用 `LatestRequestExecutor`:同一时间最多一个请求真正在跑,高频拖动滑块时,旧请求会被标记为 `superseded`,只保留最新请求.这是防止 Worker 积压的关键.

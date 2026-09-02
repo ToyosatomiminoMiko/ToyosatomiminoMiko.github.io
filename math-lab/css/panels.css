@@ -267,6 +267,12 @@
     overflow-wrap: anywhere;
 }
 
+/* KaTeX 生成的公式继承对象列表配色,不套用代码字体. */
+.object-expr .katex {
+    color: inherit;
+    font-size: 1em;
+}
+
 .eval-result.is-pending {
     color: #ffd38f;
 }

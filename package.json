@@ -6,10 +6,12 @@
   "type": "module",
   "dependencies": {
     "bootstrap": "^5.3.8",
+    "katex": "^0.18.5",
     "three": "^0.185.1",
     "vue": "^3.5.40"
   },
   "devDependencies": {
+    "@types/katex": "^0.16.8",
     "@types/three": "^0.185.3",
     "typescript": "^7.0.2",
     "vite": "^8.2.0",

@@ -6,6 +6,8 @@ import type {
     SceneIR,
     SceneObject,
 } from '../compiler/ir/types';
+import { integralLatex, sceneObjectLatex } from '../compiler/dsl/latex';
+import { createFormulaElement } from './FormulaView';
 
 type ToggleEntityHandler = (id: number) => void;
 type ToggleEvaluationHandler = (name: string) => void;
@@ -309,11 +311,14 @@ export class ObjectListController {
 
             const main = createElement('div', 'object-main');
             const name = createElement('strong', 'object-name', object.name ?? `#${object.id}`);
-            const expression = createElement(
-                'code',
-                'object-expr',
-                sceneObjectExpression(object),
-            );
+            const formula = sceneObjectLatex(object);
+            const expression = formula
+                ? createFormulaElement(formula, 'object-expr')
+                : createElement(
+                    'code',
+                    'object-expr',
+                    sceneObjectExpression(object),
+                );
             main.append(name, expression);
 
             row.append(button, badge, main);
@@ -415,11 +420,17 @@ export class ObjectListController {
         );
         const main = createElement('div', 'object-main');
         const name = createElement('strong', 'object-name', task.name);
-        const meta = createElement(
-            'code',
-            'object-expr',
-            integralSourceLabel(task, objects),
-        );
+        const formula = integralLatex(task, objects);
+        const meta = formula
+            ? createFormulaElement(
+                `${formula}\\quad\\text{${INTEGRAL_METHOD_LABELS[task.method]}}`,
+                'object-expr',
+            )
+            : createElement(
+                'code',
+                'object-expr',
+                integralSourceLabel(task, objects),
+            );
         const result = createElement(
             'code',
             task.enabled ? 'eval-result is-pending' : 'eval-result is-disabled',

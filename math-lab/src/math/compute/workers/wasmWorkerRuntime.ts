@@ -2,8 +2,8 @@
  * Worker 侧统一入口.
  *
  * 每个计算 Worker 的差异只有三件事:初始化哪个 WASM 包、请求/响应类型、
- * 调用哪个 wasm 函数。这里把 WASM init、onmessage 挂载、异常转 error
- * 响应收口成一份实现,Worker 文件只需声明类型并注册自己的处理函数。
+ * 调用哪个 wasm 函数.这里把 WASM init、onmessage 挂载、异常转 error
+ * 响应收口成一份实现,Worker 文件只需声明类型并注册自己的处理函数.
  */
 type WorkerScope = {
     onmessage: ((event: MessageEvent) => void) | null;

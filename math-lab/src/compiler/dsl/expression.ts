@@ -6,6 +6,7 @@
  */
 import {
     evaluate_scalar as wasmEvaluateScalar,
+    latex_expression as wasmLatexExpression,
     matrix4_from_expr as wasmMatrix4FromExpr,
     normalize_expression as wasmNormalizeExpression,
     parse_array_strings as wasmParseArrayStrings,
@@ -24,6 +25,15 @@ function throwExpressionError(raw: string, error: unknown): never {
 export function normalizeExpression(raw: string): string {
     try {
         return wasmNormalizeExpression(raw);
+    } catch (error) {
+        throwExpressionError(raw, error);
+    }
+}
+
+/** 把 DSL 表达式转成 UI 展示用的 LaTeX 字符串. */
+export function latexExpression(raw: string): string {
+    try {
+        return wasmLatexExpression(raw);
     } catch (error) {
         throwExpressionError(raw, error);
     }
@@ -144,6 +154,14 @@ const rustExpressionCache = new Map<string, string>();
 
 /**
  * @cache
+ * 缓存目的:避免对象列表每次重绘都对同一表达式调用 Rust/WASM 生成 LaTeX.
+ * 键/失效策略:原表达式字符串 -> LaTeX 字符串;无失效机制,表达式集合通常有限.
+ * 生命周期:模块级,跟随页面存活.
+ */
+const latexExpressionCache = new Map<string, string>();
+
+/**
+ * @cache
  * 缓存目的:缓存符号求导结果,避免参数刷新时重复计算偏导数.
  * 键/失效策略:原表达式 -> (变量 -> 导数表达式);无失效机制.
  * 生命周期:模块级,跟随页面存活.
@@ -159,6 +177,19 @@ export function cachedRustExpression(expr: string): string {
     if (!cached) {
         cached = normalizeExpression(expr);
         rustExpressionCache.set(expr, cached);
+    }
+    return cached;
+}
+
+/**
+ * @cache-access
+ * 返回表达式的 LaTeX 展示字符串,命中缓存时直接返回.
+ */
+export function cachedLatexExpression(expr: string): string {
+    let cached = latexExpressionCache.get(expr);
+    if (!cached) {
+        cached = latexExpression(expr);
+        latexExpressionCache.set(expr, cached);
     }
     return cached;
 }

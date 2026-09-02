@@ -112,7 +112,7 @@ export type ComputeWorkerApi<
  *
  * 不同计算域（曲线/曲面/向量场/积分/求交）的差异只有 Worker 入口和响应
  * 字段映射，pending/错误传播/dispose 由 ComputeWorkerClient 统一处理；
- * 调用方不再需要各自写一个“几乎一样”的包装类。
+ * 调用方不再需要各自写一个“几乎一样”的包装类.
  */
 export function createComputeWorkerClient<
     TRequest extends { id: number },

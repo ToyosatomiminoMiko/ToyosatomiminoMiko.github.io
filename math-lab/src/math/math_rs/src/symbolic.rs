@@ -674,6 +674,266 @@ fn expr_prec(expr: &Expr) -> u8 {
 }
 
 // ============================================================
+// LaTeX 输出(仅用于 UI 公式展示)
+//
+// 注意:这里不复用 `rewrite_aliases` + `to_string` 的数值归一化路径,
+// 因为那条路径会把 `pi` / `e` / `deg(180)` 展开成小数.LaTeX 打印器
+// 直接从同一棵 Expr 树生成排版字符串,保留符号形式,并处理函数名、
+// 隐式乘法与分数的 LaTeX 记法.
+// ============================================================
+
+fn latex_number(value: f64) -> String {
+    if value == PI {
+        "\\pi".to_string()
+    } else if value == E {
+        "e".to_string()
+    } else {
+        format_number(value)
+    }
+}
+
+fn latex_greek(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "alpha" => "\\alpha",
+        "beta" => "\\beta",
+        "gamma" => "\\gamma",
+        "delta" => "\\delta",
+        "epsilon" => "\\epsilon",
+        "zeta" => "\\zeta",
+        "eta" => "\\eta",
+        "theta" => "\\theta",
+        "iota" => "\\iota",
+        "kappa" => "\\kappa",
+        "lambda" => "\\lambda",
+        "mu" => "\\mu",
+        "nu" => "\\nu",
+        "xi" => "\\xi",
+        "omicron" => "\\omicron",
+        "rho" => "\\rho",
+        "sigma" => "\\sigma",
+        "tau" => "\\tau",
+        "upsilon" => "\\upsilon",
+        "phi" => "\\phi",
+        "chi" => "\\chi",
+        "psi" => "\\psi",
+        "omega" => "\\omega",
+        "Gamma" => "\\Gamma",
+        "Delta" => "\\Delta",
+        "Theta" => "\\Theta",
+        "Lambda" => "\\Lambda",
+        "Xi" => "\\Xi",
+        "Pi" => "\\Pi",
+        "Sigma" => "\\Sigma",
+        "Upsilon" => "\\Upsilon",
+        "Phi" => "\\Phi",
+        "Psi" => "\\Psi",
+        "Omega" => "\\Omega",
+        _ => return None,
+    })
+}
+
+fn latex_symbol(name: &str) -> String {
+    match name {
+        "pi" | "PI" => return "\\pi".to_string(),
+        "e" | "E" => return "e".to_string(),
+        "Infinity" => return "\\infty".to_string(),
+        _ => {}
+    }
+
+    if let Some((head, tail)) = name.split_once('_') {
+        return format!("{}_{{{}}}", latex_symbol(head), tail.replace('_', "\\_"));
+    }
+    if let Some(greek) = latex_greek(name) {
+        return greek.to_string();
+    }
+    if name.len() == 1 {
+        return name.to_string();
+    }
+    format!("\\mathit{{{name}}}")
+}
+
+fn latex_paren(inner: &str, needed: bool) -> String {
+    if needed {
+        format!("({inner})")
+    } else {
+        inner.to_string()
+    }
+}
+
+fn latex_function_name(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "sin" => "\\sin",
+        "cos" => "\\cos",
+        "tan" => "\\tan",
+        "asin" => "\\arcsin",
+        "acos" => "\\arccos",
+        "atan" => "\\arctan",
+        "sinh" => "\\sinh",
+        "cosh" => "\\cosh",
+        "tanh" => "\\tanh",
+        "ln" | "log" => "\\ln",
+        _ => return None,
+    })
+}
+
+fn latex_join_args(args: &[Expr]) -> String {
+    args.iter()
+        .map(|arg| to_latex(arg, 0))
+        .collect::<Vec<_>>()
+        .join(",\\ ")
+}
+
+/// 幂运算底数:只有原子/函数调用可以直接跟随上标,其余需要括号.
+fn latex_pow_base(expr: &Expr) -> String {
+    let text = to_latex(expr, 0);
+    match expr {
+        Expr::Num(_) | Expr::Sym(_) | Expr::Call(_, _) | Expr::List(_) => text,
+        _ => latex_paren(&text, true),
+    }
+}
+
+fn latex_call(name: &str, args: &[Expr]) -> String {
+    match name {
+        "pow" if args.len() == 2 => {
+            format!("{}^{{{}}}", latex_pow_base(&args[0]), to_latex(&args[1], 0))
+        }
+        "exp" if args.len() == 1 => {
+            format!("e^{{{}}}", to_latex(&args[0], 0))
+        }
+        "sqrt" if args.len() == 1 => {
+            format!("\\sqrt{{{}}}", to_latex(&args[0], 0))
+        }
+        "abs" if args.len() == 1 => {
+            format!("\\left|{}\\right|", to_latex(&args[0], 0))
+        }
+        "deg" if args.len() == 1 => {
+            format!("{}^{{\\circ}}", latex_pow_base(&args[0]))
+        }
+        "log10" if args.len() == 1 => {
+            format!("\\log_{{10}}\\left({}\\right)", to_latex(&args[0], 0))
+        }
+        "log2" if args.len() == 1 => {
+            format!("\\log_{{2}}\\left({}\\right)", to_latex(&args[0], 0))
+        }
+        _ => {
+            if let Some(function) = latex_function_name(name) {
+                format!("{function}\\left({}\\right)", latex_join_args(args))
+            } else {
+                format!(
+                    "\\operatorname{{{name}}}\\left({}\\right)",
+                    latex_join_args(args)
+                )
+            }
+        }
+    }
+}
+
+fn latex_product_factor(expr: &Expr) -> String {
+    match expr {
+        Expr::Binary(BinOp::Add | BinOp::Sub, _, _) => latex_paren(&to_latex(expr, 0), true),
+        Expr::Unary(UnaryOp::Neg, _) => latex_paren(&to_latex(expr, 0), true),
+        _ => to_latex(expr, 0),
+    }
+}
+
+fn collect_latex_factors(expr: &Expr, negative: &mut bool, factors: &mut Vec<Expr>) {
+    match expr {
+        Expr::Binary(BinOp::Mul, left, right) => {
+            collect_latex_factors(left, negative, factors);
+            collect_latex_factors(right, negative, factors);
+        }
+        Expr::Unary(UnaryOp::Neg, operand) => {
+            *negative = !*negative;
+            collect_latex_factors(operand, negative, factors);
+        }
+        Expr::Num(value) if *value < 0.0 => {
+            *negative = !*negative;
+            factors.push(Expr::Num(-value));
+        }
+        other => factors.push(other.clone()),
+    }
+}
+
+fn latex_product(expr: &Expr) -> String {
+    let mut negative = false;
+    let mut factors = Vec::new();
+    collect_latex_factors(expr, &mut negative, &mut factors);
+
+    let mut body = String::new();
+    for (index, factor) in factors.iter().enumerate() {
+        if index > 0 {
+            let previous_is_number = matches!(factors[index - 1], Expr::Num(_));
+            let current_is_number = matches!(factor, Expr::Num(_));
+            body.push_str(if previous_is_number && current_is_number {
+                " \\cdot "
+            } else {
+                "\\,"
+            });
+        }
+        body.push_str(&latex_product_factor(factor));
+    }
+    if negative {
+        format!("-{body}")
+    } else {
+        body
+    }
+}
+
+fn to_latex(expr: &Expr, parent_prec: u8) -> String {
+    match expr {
+        Expr::Num(value) => latex_number(*value),
+        Expr::Sym(name) => latex_symbol(name),
+        Expr::List(items) => {
+            let body = items
+                .iter()
+                .map(|item| to_latex(item, 0))
+                .collect::<Vec<_>>()
+                .join(",\\ ");
+            format!("[{body}]")
+        }
+        Expr::Unary(UnaryOp::Neg, operand) => {
+            let body = to_latex(operand, 0);
+            let needs_parentheses = matches!(
+                operand.as_ref(),
+                Expr::Binary(op, _, _) if matches!(op, BinOp::Add | BinOp::Sub)
+            );
+            let text = if needs_parentheses {
+                format!("-{}", latex_paren(&body, true))
+            } else {
+                format!("-{body}")
+            };
+            latex_paren(&text, 60 < parent_prec)
+        }
+        Expr::Call(name, args) => latex_call(name, args),
+        Expr::Binary(BinOp::Add, left, right) => {
+            let text = format!("{} + {}", to_latex(left, 20), to_latex(right, 21));
+            latex_paren(&text, 20 < parent_prec)
+        }
+        Expr::Binary(BinOp::Sub, left, right) => {
+            let text = format!("{} - {}", to_latex(left, 20), to_latex(right, 21));
+            latex_paren(&text, 20 < parent_prec)
+        }
+        Expr::Binary(BinOp::Mul, _, _) => {
+            let text = latex_product(expr);
+            latex_paren(&text, 40 < parent_prec)
+        }
+        Expr::Binary(BinOp::Div, left, right) => {
+            let text = format!("\\frac{{{}}}{{{}}}", to_latex(left, 0), to_latex(right, 0));
+            latex_paren(&text, 40 < parent_prec)
+        }
+        Expr::Binary(BinOp::Pow, left, right) => {
+            let text = format!("{}^{{{}}}", latex_pow_base(left), to_latex(right, 0));
+            latex_paren(&text, 70 < parent_prec)
+        }
+    }
+}
+
+pub fn latex_expression(expr: &str) -> Result<String, String> {
+    let parsed = parse_expr(expr)?;
+    Ok(to_latex(&parsed, 0))
+}
+
+// ============================================================
 // 常量求值（用于 matrix 表达式）
 // ============================================================
 
@@ -1436,6 +1696,36 @@ mod tests {
         let mut vars = symbolic_variables("sin(a * x) + b^2", &["x".to_string()]).unwrap();
         vars.sort();
         assert_eq!(vars, vec!["a", "b"]);
+    }
+
+    #[test]
+    fn renders_latex_expressions() {
+        assert_eq!(
+            latex_expression("sin(x * a) * cos(x * b)").unwrap(),
+            "\\sin\\left(x\\,a\\right)\\,\\cos\\left(x\\,b\\right)"
+        );
+        assert_eq!(latex_expression("2x").unwrap(), "2\\,x");
+        assert_eq!(latex_expression("pow(x, 2)").unwrap(), "x^{2}");
+        assert_eq!(latex_expression("-(a + b)").unwrap(), "-(a + b)");
+        assert_eq!(
+            latex_expression("sqrt(x^2 + y^2)").unwrap(),
+            "\\sqrt{x^{2} + y^{2}}"
+        );
+    }
+
+    #[test]
+    fn renders_latex_constants_symbolically() {
+        assert_eq!(latex_expression("pi / 4").unwrap(), "\\frac{\\pi}{4}");
+        // normalize_expression 会把 pi 展开成浮点数;LaTeX 打印器按精确值
+        // 还原成 \pi,避免 UI 公式出现一长串小数.
+        assert_eq!(
+            latex_expression("3.141592653589793 / 4").unwrap(),
+            "\\frac{\\pi}{4}"
+        );
+        assert_eq!(
+            latex_expression("log10(x) + theta").unwrap(),
+            "\\log_{10}\\left(x\\right) + \\theta"
+        );
     }
 
     #[test]

@@ -3,7 +3,7 @@
  *
  * 当前 DSL 是 `.miko`,UI 只调用 parseMiko();parseMatlab() 通过本模块
  * 归一化 MATLAB 写法后复用同一解析器,作为未来 MATLAB 输入入口保留,
- * 并有 matlabCompat.test.ts 覆盖。若确认不再需要 MATLAB 兼容,应删除.
+ * 并有 matlabCompat.test.ts 覆盖.若确认不再需要 MATLAB 兼容,应删除.
  */
 type MatlabAlias = 'surf' | 'plot' | 'quiver3' | 'divergence' | 'curl' | 'gradient';
 

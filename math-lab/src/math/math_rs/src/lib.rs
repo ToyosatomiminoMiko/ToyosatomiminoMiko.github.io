@@ -521,6 +521,11 @@ pub fn normalize_expression(expr: &str) -> Result<String, JsValue> {
 }
 
 #[wasm_bindgen]
+pub fn latex_expression(expr: &str) -> Result<String, JsValue> {
+    symbolic::latex_expression(expr).map_err(|e| JsValue::from_str(&e))
+}
+
+#[wasm_bindgen]
 pub fn symbolic_derivative(expr: &str, variable: &str) -> Result<String, JsValue> {
     symbolic::symbolic_derivative(expr, variable).map_err(|e| JsValue::from_str(&e))
 }
