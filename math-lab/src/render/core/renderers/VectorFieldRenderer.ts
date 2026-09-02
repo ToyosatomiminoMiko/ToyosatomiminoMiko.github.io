@@ -5,6 +5,7 @@ import { VectorFieldMesh } from '../../visualization/VectorFieldMesh';
 import { vectorFieldComputeClient } from '../../../math/compute/workers/VectorFieldComputeClient';
 import type { VectorFieldWorkerRequest } from '../../../math/compute/workers/vectorFieldWorker';
 import { LatestRequestExecutor } from '../../../math/compute/workers/LatestRequestExecutor';
+import { reportSamplingFailure } from '../samplingErrors';
 
 /**
  * 向量场渲染器
@@ -90,6 +91,11 @@ export class VectorFieldRenderer implements IRenderer {
             })
             .catch((error: Error) => {
                 if (this._disposed || error.message === 'superseded') return;
+                reportSamplingFailure({
+                    kind: 'vector_field',
+                    name: this._data.name,
+                    message: error.message,
+                });
             });
 
         this.group.visible = this._data.enabled;

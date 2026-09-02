@@ -283,3 +283,7 @@ export interface SceneIR {
 export type Integral1DFn = (x: number) => number;
 export type Integral2DFn = (x: number, y: number) => number;
 export type Range1D = [number, number];
+
+// 预留说明:Integral1DFn/Integral2DFn 面向"函数式积分接口",当前 DSL 积分
+// 走 IntegralTask + Worker 数值采样,不使用这两个类型;仅在需要提供可注入
+// 的数学函数接口时再消费它们,否则应删除.

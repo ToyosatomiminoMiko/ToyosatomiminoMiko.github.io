@@ -102,13 +102,16 @@ npm run build
 
 该命令会依次执行:
 
-1. `npm run build:wasm`:分别重建 `src/math/math_rs`/
+1. `npm run clean`:清空旧的 `dist/` 与 `math-lab/src/wasm/`
+2. `npm run build:wasm`:分别重建 `src/math/math_rs`/
    `src/compiler/compiler_rs`/`src/render/render_rs`
    三个 Rust crate,并把产物输出到对应的 `src/wasm/*` 目录
-2. `npm run typecheck`:执行 `tsc --noEmit`
-3. `vite build`
+3. `npm run typecheck`:执行 `tsc --noEmit`
+4. `vite build`
 
-也可以使用根目录的 `bash ./build.sh`,它现在等同于 `npm run build`.
+生产/CI 统一入口是根目录的 `bash ./build.sh`:依次执行
+`npm ci`、Rust lint、前端/Rust 测试、`npm run build`,每个阶段都有
+日志输出;GitHub Actions 只调用这一个脚本,不再重复编排各步骤.
 
 重新生成wasm
 
@@ -136,7 +139,8 @@ DslCompiler.compileScene()
    ├─ getOrBuildStaticScene()   // 缓存:params / matrix / transform / animation / blueprint
    ├─ materializeObject()       // 用当前参数生成 SceneObject
    ├─ compileAnalyses()         // gradient / divergence / curl
-   └─ compileIntegralTask()     // integral
+   ├─ compileIntegralTask()     // integral
+   └─ compileIntersections()    // 求交(当前 demo:编译期同步数值计算)
    │
    ▼
 SceneIR（纯数据,不含 three.js/DOM）
@@ -152,6 +156,10 @@ SceneIR（纯数据,不含 three.js/DOM）
 - [compiler/ast/types.ts](src/compiler/ast/types.ts):解析结果 `AstProgram`
 - [compiler/ir/types.ts](src/compiler/ir/types.ts):编译结果 `SceneIR`
 - [DslCompiler.ts](src/compiler/dsl/DslCompiler.ts):AST 到 SceneIR 的编排入口
+- [SceneStore.ts](src/app/SceneStore.ts):当前会话的 AST/显隐/动画起点等状态
+- [CompileController.ts](src/app/CompileController.ts):解析与重新编译的调度
+- [RenderController.ts](src/app/RenderController.ts):场景/相机/异步采样编排
+- [DslApp.ts](src/app/DslApp.ts):装配层 + rAF 主循环 + 参数刷新入口
 - [Plotter.ts](src/render/core/Plotter.ts):对象 id 到渲染器的路由门面
 - [MathComputeEngine.ts](src/math/compute/MathComputeEngine.ts):数值计算门面
 
@@ -167,12 +175,12 @@ new DslApp().start()
 
 `run()` 做的事情是:
 
-1. 清空诊断信息,增加一个运行序号,防止旧任务回写结果.
-2. 异步调用 `parseMiko(editor.value)`,由 Rust pest 解析成 AST.
-3. 创建 WASM 矩阵运算后端,配置动画播放器.
-4. 保存当前 `currentAst`.
-5. 调用 `compileScene(ast, {}, matrixOps)` 生成 SceneIR.
-6. 用 SceneIR 更新参数面板/绘图/分析/积分和对象列表.
+1. DslApp 清空诊断、取消待刷新的参数帧,然后交给 CompileController.
+2. CompileController 增加运行序号并异步调用 `parseMiko(editor.value)`
+   (Rust pest 解析成 AST);返回后若序号过期或已销毁则直接丢弃.
+3. 提交 AST 与 WASM 矩阵后端到 SceneStore.
+4. 调用 `compileScene(ast, {}, matrixOps)` 生成 SceneIR.
+5. 用 SceneIR 更新参数面板,并交给 RenderController 触发绘制/异步采样.
 
 一次完整运行只解析一次源码.之后拖参数滑块不会重新解析源码,而是复用同一个 `currentAst`.
 
@@ -184,7 +192,7 @@ new DslApp().start()
 滑块 input
    → requestAnimationFrame 合并多个变化
    → compileScene(currentAst, paramPanelController.getValues())
-   → _applyScene(scene, changedParams)
+   → renderController.applyScene(scene, changedParams)
    → 只重绘依赖了这些参数的对象
 ```
 
@@ -205,29 +213,44 @@ new DslApp().start()
 
 这些链路都使用 `LatestRequestExecutor`:同一时间最多一个请求真正在跑,高频拖动滑块时,旧请求会被标记为 `superseded`,只保留最新请求.这是防止 Worker 积压的关键.
 
-## 五/UI 通信的两套风格
+## 五/UI 通信:两种方式各有明确边界
 
-这也是造成"架构感不统一"的来源:
+- **业务数据(参数/对象列表/诊断/积分结果)**:DslApp 与 RenderController
+  直接注入回调,不走 EventBus;调用链在编译/应用代码里就能看清.
+- **视图控件(相机/坐标轴/网格/点样式)**:控件 emit `EventBus` 事件,
+  RenderController 统一订阅并落到 SceneManager/CameraManager/Plotter.
 
-- **参数/对象列表/诊断信息**:DslApp 直接传回调给控制器,例如 `ParamPanelController`/`ObjectListController`.
-- **相机控制**:通过 `EventBus` 发事件,DslApp 订阅后调用 `CameraManager`.
+`service/events.ts` 只保留有真实 emit 点的视图事件键,不再允许
+"先声明后接线"的 dead event keys.
 
-也就是说,`EventBus` 并不是全局统一通信层.它目前只实际承载相机事件;`coefficient:changed`/`selection:changed` 虽然在类型里声明了,但当前没有 emit,属于半遗留状态.
+另外,曲线/曲面/向量场的 Worker 采样失败现在统一经
+`render/core/samplingErrors.ts` 上报,RenderController 转成诊断区错误;
+没有"曲线悄悄走主线程兜底、曲面直接消失"的不一致路径.
 
 ## 六/为什么你会觉得拿不准
 
-几个当前架构上确实容易让人困惑的点:
+几个当前架构上仍然需要留意的点:
 
-1. **DslApp 过胖**  
-   它同时负责生命周期/源码状态/可见性状态/动画状态/编译调度/UI 回调,概念很多但都挤在一个类里.
+1. **装配层仍然只有一个**  
+   DslApp 已经不再持有编译/渲染细节,但页面装配、参数刷新合并、rAF
+   主循环仍在它身上;这是有意收敛的编排层,不是领域逻辑.
 
 2. **同步和异步交错**  
-   `run()` 是异步解析;`compileScene()` 是同步编译;`_applyScene()` 内部又会触发异步 Worker 采样.所以从代码顺序看,场景数据已经准备好了,但几何体其实稍后才回来.
+   `run()` 是异步解析;`compileScene()` 是同步编译;`applyScene()` 内部
+   又会触发异步 Worker 采样.所以从代码顺序看,场景数据已经准备好了,
+   但几何体其实稍后才回来.阅读时应把"编译结果"和"采样结果"分成两段时间线.
 
 3. **缓存层比较多**  
-   至少有 `staticSceneCache`/`rendererMap`/`LatestRequestExecutor`/`taskSequences` 四层缓存/去重.它们分别解决不同问题,但一眼扫过去确实显得复杂.
+   至少有 `staticSceneCache`/`rendererMap`/`LatestRequestExecutor`/
+   `taskSequences` 四层缓存/去重,分别解决"声明级建模""GPU 对象复用"
+   "高频刷新丢旧任务""过期积分结果丢弃"的问题,均带 `@cache` 注释.
 
-4. **有少量疑似遗留代码**  
-   例如 `DslApp.objectTransforms` 字段被反复赋值,但当前没有地方真正读取;`SurfaceMeshWasm.ts` 目前看起来也没有被运行路径使用;事件类型里也有未接线的 `coefficient:changed` / `selection:changed`.这些会进一步模糊主线.
+4. **刻意保留的未使用代码都有注释**  
+   `SceneStore.objectTransforms` 快照、`IntegralWasm` 的 right/mid 黎曼、
+   MATLAB 兼容入口、SceneTransform 高层封装等均为预留能力,文件头或
+   声明处注明了保留原因;没有注释的未使用代码按死代码处理.
 
-如果后面还想继续重构,比较自然的下一步是:把 `DslApp` 拆成 `SceneStore`/`CompileController`/`RenderController`,并统一 UI 通信方式,同时清理未使用的 `objectTransforms` 和事件字段.这样主链路会更接近上面的那张图,而不是所有逻辑都堆在一个壳子里.
+5. **求交仍是 demo 阶段**  
+   `IntersectionMath.ts` 是 TS 演示实现,数值计算在编译期同步执行;规划
+   是移植到 `math_rs` 的 intersection 内核并走 Worker(见该文件头说明),
+   移植完成前保留现有文件用于对照验证.

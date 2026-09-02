@@ -8,7 +8,6 @@ import type {
     SceneObject,
 } from '../../compiler/ir/types';
 import { NUMERIC_CONFIG } from '../../config/numericConfig';
-import { evaluateScalar } from '../../compiler/dsl/expression';
 import {
     lebesgue1d,
     lebesgue2d,
@@ -33,19 +32,16 @@ export type CurveSampleRequest = {
 
 export class MathComputeEngine {
     async sampleCurve(request: CurveSampleRequest): Promise<Float32Array> {
-        try {
-            // 曲线采样与曲面/向量场保持一致,交给 Worker 执行,
-            // 避免高 segments 或大量曲线时阻塞主线程.
-            return await curveComputeClient.request({
-                expr: request.expr,
-                coeffNames: request.coefficients.map((coefficient) => coefficient.name),
-                coeffValues: request.coefficients.map((coefficient) => coefficient.value),
-                range: request.range,
-                segments: request.segments,
-            });
-        } catch {
-            return this._sampleCurveFallback(request);
-        }
+        // 曲线采样与曲面/向量场保持一致:交给 Worker 执行,避免高 segments
+        // 或大量曲线时阻塞主线程.失败直接上抛,由渲染层统一上报诊断,
+        // 不再做主线程静默兜底(否则 Worker 故障会被悄悄掩盖).
+        return curveComputeClient.request({
+            expr: request.expr,
+            coeffNames: request.coefficients.map((coefficient) => coefficient.name),
+            coeffValues: request.coefficients.map((coefficient) => coefficient.value),
+            range: request.range,
+            segments: request.segments,
+        });
     }
 
     async integrate(task: IntegralTask, source: IntegralSource): Promise<IntegralResult> {
@@ -102,25 +98,5 @@ export class MathComputeEngine {
             result[coefficient.name] = coefficient.value;
         }
         return result;
-    }
-
-    private _sampleCurveFallback(request: CurveSampleRequest): Float32Array {
-        const [xMin, xMax] = request.range;
-        const scope: Record<string, number> = {};
-        for (const coefficient of request.coefficients) {
-            scope[coefficient.name] = coefficient.value;
-        }
-
-        const values: number[] = [];
-        const step = (xMax - xMin) / request.segments;
-        for (let i = 0; i <= request.segments; i += 1) {
-            const x = xMin + i * step;
-            scope.x = x;
-            const y = evaluateScalar(request.expr, scope);
-            if (typeof y === 'number' && Number.isFinite(y)) {
-                values.push(x, y, 0);
-            }
-        }
-        return new Float32Array(values);
     }
 }

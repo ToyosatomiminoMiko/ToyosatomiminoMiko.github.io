@@ -1,3 +1,11 @@
+/**
+ * 矩阵/变换模块包含两层:
+ * - MatrixOps/createMatrixOps/jsMatrixOps:当前编译与渲染热路径实际使用;
+ * - SceneTransform/asTransform/matrix4/compose/apply:高层语义封装,
+ *   目前只有 SceneTransform.test.ts 覆盖,暂无运行时调用点.
+ *   保留它们是为了未来 DSL matrix/transform 语义诊断与导出;若长期无
+ *   使用者,应删除而不是让两层 API 并存.
+ */
 import type { MatrixTensorValue, VectorTensorValue } from './types';
 
 export type TransformSource =

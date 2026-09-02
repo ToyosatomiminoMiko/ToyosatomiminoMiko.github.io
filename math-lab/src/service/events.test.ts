@@ -6,7 +6,7 @@ import type { MathLabEvents } from './events';
  *
  * 新问题/局限:
  * - `expectTypeOf` 是编译期断言,不会检测哪些事件在运行时真正被 emit.
- *   因此删除 `mathobj:*` 或新增事件时,仍必须手工同步这里的期望.
+ *   因此删除或新增事件键时,仍必须手工同步这里的期望,并保证键有真实 emit 点.
  */
 describe('MathLabEvents', () => {
     it('keeps camera event payloads strongly typed', () => {

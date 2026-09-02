@@ -1,14 +1,15 @@
 import type { CamMode, ViewHome } from '../render/types';
 
 /**
- * 跨层事件映射.
+ * EventBus 的事件映射.
  *
- * 新问题/待办:
- * - `service` 现在依赖 `compiler/ir` 和 `render`,不再是纯粹无依赖的基础层;
- *   若后续要保持 service 可复用,可把相机事件类型下沉到 `render/events.ts`,
- *   这里只保留 EventBus 本身.
- * - 已删除当前没有任何 emit 的 `mathobj:*` 事件;未来若要恢复对象生命周期事件,
- *   必须先接入实际 emit 点,避免再次留下 dead event keys.
+ * EventBus 的适用范围明确为"视图控件事件"(相机/坐标轴/网格/点样式):
+ * 这些控件在 UI 面板里自行 emit,RenderController 统一订阅.
+ *
+ * 业务数据(参数/对象列表/诊断/积分结果)由 DslApp/RenderController 直接
+ * 回调注入,不走 EventBus;避免两条通信链路在事件类型里互相纠缠.
+ *
+ * 注意:新增事件键之前必须先有真实 emit 点,不允许留下 dead event keys.
  */
 export interface MathLabEvents {
     'camera:changed': { camMode: CamMode };
@@ -25,6 +26,4 @@ export interface MathLabEvents {
         minorWidth: number;
     };
     'point:changed': { radius: number; visible: boolean };
-    'coefficient:changed': { id: number };
-    'selection:changed': { id: number | null; kind: string | null };
 }

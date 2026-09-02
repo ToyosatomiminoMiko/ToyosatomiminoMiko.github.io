@@ -117,14 +117,6 @@ export class SceneManager {
         return this.renderer;
     }
 
-    addToScene(object: THREE.Object3D): void {
-        this.scene.add(object);
-    }
-
-    removeFromScene(object: THREE.Object3D): void {
-        this.scene.remove(object);
-    }
-
     /** 设置坐标轴线宽(像素) */
     setAxisLineWidth(width: number): void {
         const clamped = Math.max(1, width);

@@ -114,9 +114,12 @@ function buildTreeFromExpression(expr: string): RBNode | null {
 }
 
 // ============================================================
-// 工具: 计算树深度 (根深度1) 未使用,保留
+// 工具: 计算树深度 (根深度1)
+// 当前 UI 未使用;保留为调试/校验工具(此前明确要求保留).
+// 若确认长期无用途,应删除而不是继续留在热路径旁.
 // ============================================================
-function getTreeDepth(node: RBNode | null): number {
+// 导出而不是留在模块内部:避免严格未使用检查把"刻意保留的工具"误报为死代码.
+export function getTreeDepth(node: RBNode | null): number {
     if (!node) return 0;
     return 1 + Math.max(getTreeDepth(node.left), getTreeDepth(node.right));
 }

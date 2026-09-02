@@ -42,7 +42,11 @@ export class SurfaceRenderer implements IRenderer {
         }
 
         if (!this.mesh) {
-            this.mesh = new SurfaceMesh(this.segments, this.segments);
+            this.mesh = new SurfaceMesh(
+                this.segments,
+                this.segments,
+                this.surface.name,
+            );
             this.group.add(this.mesh.group);
         }
         // SurfaceMesh 只接受字符串表达式,因此这里直接传递归一化后的表达式字符串.

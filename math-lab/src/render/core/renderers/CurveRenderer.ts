@@ -11,6 +11,7 @@ import {
     LatestRequestExecutor,
     type RequestClient,
 } from '../../../math/compute/workers/LatestRequestExecutor';
+import { reportSamplingFailure } from '../samplingErrors';
 
 /**
  * @cache
@@ -109,6 +110,11 @@ export class CurveRenderer implements IRenderer {
             })
             .catch((error: Error) => {
                 if (this.disposed || error.message === 'superseded') return;
+                reportSamplingFailure({
+                    kind: 'curve',
+                    name: this.curve.name,
+                    message: error.message,
+                });
                 this.group.visible = false;
             });
     }

@@ -131,6 +131,9 @@ export function riemann1dLeft(
     return callWasm('riemann1d_left', expr, coeffs, { a, b, n });
 }
 
+// 预留数值方法:右侧/中点黎曼的 Rust 实现已经存在,但 DSL 的 method
+// 映射当前只使用左黎曼(riemann1dLeft).保留导出以便未来在 DSL/UI 增加
+// right/mid 选项时直接暴露;若确认不再需要,应连同 Rust 导出一起删除.
 export function riemann1dRight(
     expr: string,
     coeffs: Record<string, number>,
@@ -141,6 +144,7 @@ export function riemann1dRight(
     return callWasm('riemann1d_right', expr, coeffs, { a, b, n });
 }
 
+// 预留数值方法:同 riemann1dRight,当前无 DSL 入口,仅有测试/直接调用可触达.
 export function riemann1dMid(
     expr: string,
     coeffs: Record<string, number>,

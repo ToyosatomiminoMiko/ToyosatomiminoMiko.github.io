@@ -6,7 +6,6 @@
   "type": "module",
   "dependencies": {
     "bootstrap": "^5.3.8",
-    "katex": "^0.18.1",
     "three": "^0.185.1",
     "vue": "^3.5.40"
   },
@@ -27,10 +26,10 @@
     "build:app": "npm run typecheck && vite build",
     "build": "npm run clean && npm run build:wasm && npm run build:app",
     "lint:rs": "cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings",
-    "check": "npm run build:wasm && npm run typecheck && npm test && npm run lint:rs",
+    "check": "npm run build:wasm && npm run typecheck:strict && npm test && npm run lint:rs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "censorship": "npx tsc --noEmit --noUnusedLocals --noUnusedParameters"
+    "typecheck:strict": "tsc --noEmit --noUnusedLocals --noUnusedParameters"
   }
 }

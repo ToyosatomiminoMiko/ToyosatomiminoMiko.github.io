@@ -292,22 +292,15 @@ pub fn lebesgue1d_from_values(
         return Ok(0.0);
     }
 
-    // 扫描连续满足条件的区间,累计区间总长度.
+    // 一维测度采用与 2D 相同的"左端点代表格子"约定:
+    // 每个满足条件的左端点样本贡献一段 h,右端点样本不单独贡献.
+    // 旧实现按"连续满足的区间"每段只计一个 h,会把常数函数积分低估 n 倍.
     let scan_measure = |predicate: &dyn Fn(f64) -> bool| -> f64 {
         let mut total = 0.0;
-        let mut in_interval = false;
-
-        for &y in values {
-            let meets = y.is_finite() && predicate(y);
-            if meets && !in_interval {
-                in_interval = true;
-            } else if !meets && in_interval {
+        for &y in &values[..n] {
+            if y.is_finite() && predicate(y) {
                 total += h;
-                in_interval = false;
             }
-        }
-        if in_interval {
-            total += h;
         }
         total
     };
@@ -416,5 +409,25 @@ mod tests {
     fn lebesgue_rejects_zero_layers() {
         let values = vec![0.0, 1.0, 2.0];
         assert!(lebesgue1d_from_values(&values, 0.0, 2.0, 0).is_err());
+    }
+
+    #[test]
+    fn lebesgue1d_of_constant_one_equals_interval_length() {
+        // 回归:旧实现每个连续满足区间只计一个 h,常数函数被低估约 n 倍.
+        let values = vec![1.0; 641];
+        let value = lebesgue1d_from_values(&values, 0.0, 1.0, 16).unwrap();
+
+        assert!((value - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn lebesgue1d_of_linear_function_approximates_half() {
+        // f(x)=x 在 [0,1] 上,测度 {x: f(x) > t} 应约为 1-t;
+        // 用左端点格子法近似,常数项允许端点采样带来的小误差.
+        let n = 800usize;
+        let values: Vec<f64> = (0..=n).map(|i| i as f64 / n as f64).collect();
+        let value = lebesgue1d_from_values(&values, 0.0, 1.0, 64).unwrap();
+
+        assert!((value - 0.5).abs() < 1e-2);
     }
 }

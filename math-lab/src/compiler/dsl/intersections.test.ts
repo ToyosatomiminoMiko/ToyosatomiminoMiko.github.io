@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { compileScene } from './DslCompiler';
 import { jsMatrixOps } from '../../math/tensor/SceneTransform';
 import type { AstProgram, ObjectStatement } from '../ast/types';
-import type { Vec3 } from '../ir/types';
 
 vi.mock('../../wasm/math_rs/math_rs', () => {
     function buildScope(names: string[], values: ArrayLike<number>): Record<string, number> {
@@ -144,10 +143,6 @@ function surface(name: string, expr: string, range = '[-2, 2, -2, 2]'): ObjectSt
 
 function program(...statements: AstProgram['statements']): AstProgram {
     return { statements };
-}
-
-function closeTo(value: number, expected: number, tolerance = 0.03): boolean {
-    return Math.abs(value - expected) <= tolerance;
 }
 
 describe('compileIntersections', () => {

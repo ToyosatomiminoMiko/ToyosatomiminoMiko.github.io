@@ -5,6 +5,7 @@ import {
     surfaceComputeClient,
 } from '../../math/compute/workers/SurfaceComputeClient';
 import { LatestRequestExecutor } from '../../math/compute/workers/LatestRequestExecutor';
+import { reportSamplingFailure } from '../core/samplingErrors';
 import type {
     SurfaceWorkerRequest,
     SurfaceWorkerResponse,
@@ -50,10 +51,12 @@ export class SurfaceMesh {
     /**
      * @param cols - x 方向网格分段数
      * @param rows - y 方向网格分段数
+     * @param name - 所属曲面对象名,用于采样失败诊断
      */
     constructor(
         cols: number = RENDER_CONFIG.surfaceMesh.defaultSegments,
         rows: number = RENDER_CONFIG.surfaceMesh.defaultSegments,
+        private readonly name = '曲面',
     ) {
         this.cols = cols;
         this.rows = rows;
@@ -148,7 +151,14 @@ export class SurfaceMesh {
         this.executor
             .request(request)
             .then((result) => this._applyResult(result))
-            .catch(() => undefined);
+            .catch((error: Error) => {
+                if (this._disposed || error.message === 'superseded') return;
+                reportSamplingFailure({
+                    kind: 'surface',
+                    name: this.name,
+                    message: error.message,
+                });
+            });
     }
 
     /**
@@ -197,5 +207,3 @@ export class SurfaceMesh {
         this.wireframeMat.dispose();
     }
 }
-
-export default SurfaceMesh;

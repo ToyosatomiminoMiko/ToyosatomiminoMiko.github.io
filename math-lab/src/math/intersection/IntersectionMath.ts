@@ -6,6 +6,11 @@
  * - 曲面/体积作为二维参数化面片,另一侧提供隐式场,在面片网格上做等值线追踪.
  *
  * 所有坐标都是世界坐标(已计入对象静态 transform).
+ *
+ * 状态说明(demo):求交是新功能,当前处于 TS 演示阶段,数值计算在编译期
+ * 同步执行(见 compiler/dsl/intersections.ts).计划把数值内核移植到
+ * math_rs 的 intersection_core 并由 Worker 调度;移植完成并验证与
+ * 本文件结果一致后,本文件才允许删除.
  */
 import type {
     BoxObject,

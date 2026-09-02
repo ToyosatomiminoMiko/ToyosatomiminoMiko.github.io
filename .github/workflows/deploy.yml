@@ -39,20 +39,10 @@ jobs:
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Check Rust lint
-        run: npm run lint:rs
-
-      - name: Build WASM
-        run: npm run build:wasm
-
-      - name: Run tests
-        run: npm test
-
-      - name: Build
-        run: npm run build:app
+      # 生产构建唯一入口:安装锁定依赖 -> Rust lint -> 前端/Rust 测试 ->
+      # WASM 构建 -> TypeScript 检查 -> Vite 构建,分阶段日志由脚本输出.
+      - name: Install, lint, test and build
+        run: bash ./build.sh
 
       - name: Setup Pages
         uses: actions/configure-pages@v6

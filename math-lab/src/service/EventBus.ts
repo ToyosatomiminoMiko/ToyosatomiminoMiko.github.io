@@ -1,11 +1,12 @@
 /**
  * 泛型事件总线 — 跨层通信的桥梁
- * Core 层和 UI 层通过 EventBus 通信,互不直接引用
+ * 视图控件层(相机/坐标轴/网格/点样式)通过 EventBus 与 RenderController
+ * 通信,互相不直接引用.
  *
  * 使用方式:
  *   const bus = new EventBus<MathLabEvents>();
- *   bus.on('expr:added', ({ expr }) => { ... });
- *   bus.emit('expr:added', { expr });              // 第二个参数类型受约束
+ *   bus.on('camera:view', ({ view }) => { ... });
+ *   bus.emit('camera:view', { view: 'top' });      // 第二个参数类型受约束
  */
 export class EventBus<Events extends Record<string, any>> {
     /**
@@ -21,7 +22,11 @@ export class EventBus<Events extends Record<string, any>> {
     }
 
     /**
-     * 订阅事件
+     * 订阅事件.
+     *
+     * 返回的取消订阅函数供一次性监听或组件销毁时调用;当前注册表同时
+     * 随 EventBus 实例整体存活,由 clear() 统一清空.
+     *
      * @returns 取消订阅函数
      */
     /**
@@ -70,8 +75,10 @@ export class EventBus<Events extends Record<string, any>> {
             cbs.forEach(cb => {
                 try {
                     cb(data);
-                } catch {
-                    // 事件回调错误不再写日志,避免恢复输出链路.
+                } catch (error) {
+                    // 单个监听器抛错不能中断其他监听器;打 console 日志,
+                    // 便于定位视图控件与 RenderController 之间的接线问题.
+                    console.error('[EventBus] listener error:', event, error);
                 }
             });
         }

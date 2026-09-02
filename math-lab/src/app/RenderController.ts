@@ -27,6 +27,7 @@ import { AxisLabelController } from '../render/controls/AxisLabelController';
 import type { SceneIR, SceneObject } from '../compiler/ir/types';
 import type { MathLabEvents } from '../types';
 import { EventBus } from '../service/EventBus';
+import { onSamplingFailure } from '../render/core/samplingErrors';
 import { SceneStore } from './SceneStore';
 import { DiagnosticsController } from '../ui/DiagnosticsController';
 import { ObjectListController } from '../ui/ObjectListController';
@@ -44,6 +45,8 @@ export class RenderController {
     private readonly intersectionRenderer: IntersectionRenderer;
     private readonly integralRenderer: DslIntegralRenderer;
     private readonly computeEngine: MathComputeEngine;
+    /** 采样失败上报的退订函数,dispose 时必须调用. */
+    private readonly stopSamplingFailureListener: () => void;
 
     private controls: OrbitControls | null = null;
     private cameraToggle: CameraToggle | null = null;
@@ -79,6 +82,17 @@ export class RenderController {
         this.analysisRenderer = new AnalysisRenderer();
         this.intersectionRenderer = new IntersectionRenderer();
         this.animationPlayer = new AnimationPlayer(this.store.matrixOps);
+        this.stopSamplingFailureListener = onSamplingFailure((failure) => {
+            const kindLabels = {
+                curve: '曲线',
+                surface: '曲面',
+                vector_field: '向量场',
+            } as const;
+            this.diagnosticsController.add(
+                'error',
+                `${kindLabels[failure.kind]} ${failure.name} 采样失败: ${failure.message}`,
+            );
+        });
         this.sceneManager.getScene().add(this.analysisRenderer.group);
         this.sceneManager.getScene().add(this.intersectionRenderer.group);
     }
@@ -248,6 +262,7 @@ export class RenderController {
     }
 
     dispose(): void {
+        this.stopSamplingFailureListener();
         this.controls?.dispose();
         this.cameraToggle?.dispose();
         this.viewCubeController?.dispose();
