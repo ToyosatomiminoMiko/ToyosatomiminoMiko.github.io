@@ -9,7 +9,7 @@ import type { MathLabEvents } from './events';
  *   因此删除或新增事件键时,仍必须手工同步这里的期望,并保证键有真实 emit 点.
  */
 describe('MathLabEvents', () => {
-    it('keeps camera event payloads strongly typed', () => {
+    it('keeps camera/view event payloads strongly typed', () => {
         expectTypeOf<MathLabEvents['camera:changed']>().toEqualTypeOf<{
             camMode: 'perspective' | 'orthographic';
         }>();
@@ -18,6 +18,9 @@ describe('MathLabEvents', () => {
         }>();
         expectTypeOf<MathLabEvents['camera:rotationLock']>().toEqualTypeOf<{
             locked: boolean;
+        }>();
+        expectTypeOf<MathLabEvents['axis:upChanged']>().toEqualTypeOf<{
+            axis: 'x' | 'y' | 'z';
         }>();
     });
 });

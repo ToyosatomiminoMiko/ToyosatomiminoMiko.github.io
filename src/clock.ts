@@ -6,9 +6,9 @@ LED Clock
 import { fmt_time } from './utils';
 
 // 定义数字段类型:每个数字由3列组成,每列为5位二进制数
-type DigitSegments = Uint8Array; // 原三元组类型注释保留,实际使用 Uint8Array
+type DigitSegments = Uint8Array;
 
-const pixel_color = '#0ff'; // 像素颜色
+const pixel_color = '#00ffff'; // 像素颜色
 
 // 7段码数字定义 (高5px,宽3px)
 const digitSegments: DigitSegments = new Uint8Array([

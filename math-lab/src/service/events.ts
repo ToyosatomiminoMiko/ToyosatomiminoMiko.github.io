@@ -1,4 +1,5 @@
 import type { CamMode, ViewHome } from '../render/types';
+import type { UpAxis } from '../config/renderConfig';
 
 /**
  * EventBus 的事件映射.
@@ -15,6 +16,7 @@ export interface MathLabEvents {
     'camera:changed': { camMode: CamMode };
     'camera:view': { view: ViewHome };
     'camera:rotationLock': { locked: boolean };
+    'axis:upChanged': { axis: UpAxis };
     'axis:lineWidthChanged': { width: number };
     'axis:labelVisibility': { x: boolean; y: boolean; z: boolean };
     'grid:changed': {

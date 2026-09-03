@@ -3,6 +3,10 @@
  *
  * 这里只放静态默认值,不包含几何体实例或 Three.js 对象.
  */
+
+/** 坐标轴向上:正方向朝上的轴,兼容不同学科/工具习惯. */
+export type UpAxis = 'x' | 'y' | 'z';
+
 export const RENDER_CONFIG = {
     integralVisualizer: {
         barGap: 0.05,
@@ -55,8 +59,12 @@ export const RENDER_CONFIG = {
     // 坐标轴XYZ设置
     scene: {
         background: 0x111122,
-        axesLength: 8,
-        axisLabelLength: 8.5,
+        // 哪个轴的正方向朝上,默认 Z(数学/工程习惯);Y 是 Three.js 等图形工具习惯
+        upAxis: 'z' as UpAxis,
+        // 坐标轴范围
+        axesLength: 10,
+        // 坐标轴标签位置
+        axisLabelLength: 11,
         // Line2 坐标轴线宽(像素),可在右侧"视图"面板调整
         axisLineWidth: 3,
         // 网格:大刻度线粗、小刻度线细,均用 Line2 系列绘制

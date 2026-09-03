@@ -1,5 +1,5 @@
 /**
- * RenderController —— 3D 视口/相机/绘图与异步计算的渲染编排器.
+ * RenderController -- 3D 视口/相机/绘图与异步计算的渲染编排器.
  *
  * DslApp 只负责把编译结果交给这里,不再直接管理 Three.js 场景/renderer/
  * camera/Plotter/动画和积分可视化.RenderController 对外暴露:
@@ -24,6 +24,7 @@ import { PointStyleController } from '../render/controls/PointStyleController';
 import { AxisLineWidthController } from '../render/controls/AxisLineWidthController';
 import { GridTicksController } from '../render/controls/GridTicksController';
 import { AxisLabelController } from '../render/controls/AxisLabelController';
+import { AxisUpController } from '../render/controls/AxisUpController';
 import type { SceneIR, SceneObject } from '../compiler/ir/types';
 import type { MathLabEvents } from '../types';
 import { EventBus } from '../service/EventBus';
@@ -57,6 +58,7 @@ export class RenderController {
     private axisLineWidthController: AxisLineWidthController | null = null;
     private gridTicksController: GridTicksController | null = null;
     private axisLabelController: AxisLabelController | null = null;
+    private axisUpController: AxisUpController | null = null;
 
     /**
      * @cache
@@ -99,17 +101,7 @@ export class RenderController {
     }
 
     setupControls(): void {
-        const renderer = this.sceneManager.getRenderer();
-        const controls = new OrbitControls(
-            this.cameraManager.getCamera(),
-            renderer.domElement,
-        );
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.08;
-        controls.target.set(0, 0, 0);
-        controls.update();
-        this.cameraManager.setControls(controls);
-        this.controls = controls;
+        this._createControls();
     }
 
     /** 把相机相关 UI 控件挂到 EventBus,保持 DslApp 不直接处理相机细节. */
@@ -129,6 +121,19 @@ export class RenderController {
         );
 
         // 先注册监听,再创建控制器,确保控制器启动时同步的初始状态不会丢失
+        // OrbitControls 在构造时读取相机 up 向量,真的切换"向上轴"后才需要重建
+        eventBus.on('axis:upChanged', ({ axis }) => {
+            if (this.cameraManager.setUpAxis(axis)) {
+                this._createControls();
+                if (this.rotationLockController) {
+                    this.cameraManager.setRotationLock(
+                        this.rotationLockController.locked,
+                    );
+                }
+            }
+        });
+        this.axisUpController = new AxisUpController(eventBus);
+
         eventBus.on('point:changed', ({ radius, visible }) => {
             this.plotter.setPointStyle({ radius, visible });
         });
@@ -154,6 +159,24 @@ export class RenderController {
             this.sceneManager.setGridLineWidths(majorWidth, minorWidth);
         });
         this.gridTicksController = new GridTicksController(eventBus);
+    }
+
+    private _createControls(): void {
+        // 旧 controls 释放后当前相机已由 CameraManager 重新取景
+        this.cameraManager.detachControls();
+        this.controls = null;
+
+        const renderer = this.sceneManager.getRenderer();
+        const controls = new OrbitControls(
+            this.cameraManager.getCamera(),
+            renderer.domElement,
+        );
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.08;
+        controls.target.set(0, 0, 0);
+        controls.update();
+        this.cameraManager.setControls(controls);
+        this.controls = controls;
     }
 
     /** 每帧执行一次,由 DslApp 的 requestAnimationFrame 循环调用. */
@@ -268,7 +291,8 @@ export class RenderController {
 
     dispose(): void {
         this.stopSamplingFailureListener();
-        this.controls?.dispose();
+        this.cameraManager.detachControls();
+        this.controls = null;
         this.cameraToggle?.dispose();
         this.viewCubeController?.dispose();
         this.rotationLockController?.dispose();
@@ -276,6 +300,7 @@ export class RenderController {
         this.axisLineWidthController?.dispose();
         this.gridTicksController?.dispose();
         this.axisLabelController?.dispose();
+        this.axisUpController?.dispose();
         this.cameraManager.dispose();
         this.integralRenderer.dispose();
         this.analysisRenderer.dispose();

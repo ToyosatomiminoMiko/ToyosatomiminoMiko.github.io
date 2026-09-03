@@ -161,6 +161,16 @@
     color: #8e9fc7;
 }
 
+/* 向上轴三选一按钮组(X/Y/Z) */
+.axis-up-mode {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    flex: 1;
+    max-width: 150px;
+    margin-left: auto;
+}
+
 /* 大小/缩放模式切换按钮 */
 .point-mode {
     display: grid;
@@ -168,7 +178,8 @@
     gap: 6px;
 }
 
-.point-mode button {
+.point-mode button,
+.axis-up-mode button {
     padding: 5px 0;
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 8px;
@@ -178,7 +189,8 @@
     cursor: pointer;
 }
 
-.point-mode button.active {
+.point-mode button.active,
+.axis-up-mode button.active {
     background: rgba(70, 130, 255, 0.25);
     border-color: rgba(70, 130, 255, 0.45);
     color: #aac8ff;
