@@ -22,32 +22,28 @@ param_ui = { "in" ~ "[" ~ number ~ "," ~ number ~ "," ~ number ~ "]" }
 tensor_kind = { "scalar" | "vector" | "matrix" | "transform" }
 tensor_stmt = { tensor_kind ~ ident ~ "=" ~ expr ~ ";" }
 
-animation_stmt = { "animation" ~ ident ~ "=" ~ expr ~ animation_end }
-animation_end = { options ~ ";"? | ";" }
+animation_stmt = { "animation" ~ ident ~ "=" ~ expr ~ stmt_end }
 
 object_kind = { "curve" | "surface" | "vector_field" | "point" | "vector" | "sphere" | "box" | "cylinder" | "cone" | "frustum" }
-object_stmt = { object_kind ~ ident ~ "=" ~ expr ~ object_end }
-object_end = { options ~ ";"? | ";" }
+object_stmt = { object_kind ~ ident ~ "=" ~ expr ~ stmt_end }
 options = { "{" ~ option* ~ "}" }
 option = { ident ~ "=" ~ value ~ ";" }
 value = @{ (!(";" | "}") ~ ANY)+ }
+stmt_end = { options ~ ";"? | ";" }
 
 analysis_op = { "gradient" | "divergence" | "curl" | "jacobian" | "laplacian" }
 op_call = { ident ~ "(" ~ op_arg ~ ")" ~ at? }
 op_arg = @{ (!")" ~ ANY)+ }
 at = { "at" ~ "[" ~ at_arg ~ ("," ~ at_arg)+ ~ "]" }
 at_arg = @{ (!( "," | "]") ~ ANY)+ }
-analysis_stmt = { analysis_op ~ ident ~ "=" ~ op_call ~ analysis_end }
-analysis_end = { options ~ ";"? | ";" }
+analysis_stmt = { analysis_op ~ ident ~ "=" ~ op_call ~ stmt_end }
 
-integral_stmt = { "integral" ~ ident ~ "=" ~ integral_call ~ integral_end }
+integral_stmt = { "integral" ~ ident ~ "=" ~ integral_call ~ stmt_end }
 integral_call = { "integral" ~ "(" ~ ident ~ ")" }
-integral_end = { options ~ ";"? | ";" }
 
 intersection_kind = { "intersection" | "intersect" }
 intersection_call = { intersection_kind ~ "(" ~ ident ~ "," ~ ident ~ ")" }
-intersection_stmt = { intersection_kind ~ ident ~ "=" ~ intersection_call ~ intersection_end }
-intersection_end = { options ~ ";"? | ";" }
+intersection_stmt = { intersection_kind ~ ident ~ "=" ~ intersection_call ~ stmt_end }
 
 statement = _{ param_stmt | tensor_stmt | animation_stmt | object_stmt | analysis_stmt | integral_stmt | intersection_stmt }
 program = { SOI ~ statement* ~ EOI }

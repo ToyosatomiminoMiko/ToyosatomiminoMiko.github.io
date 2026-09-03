@@ -2,7 +2,7 @@
  * 矩阵运算后端接口.
  *
  * 生产代码只通过 `MatrixOps` 调用外部注入的后端;WASM 后端见
- * `compiler/parser/index.ts` 的 `createWasmMatrixOps`.纯 JS 参考实现只保留在
+ * `compiler/matrixOps.ts` 的 `createWasmMatrixOps`.纯 JS 参考实现只保留在
  * `math/tensor/testMatrixOps.ts`,供单元测试使用,避免 JS/Rust 两套矩阵公式
  * 同时成为运行真相.
  */

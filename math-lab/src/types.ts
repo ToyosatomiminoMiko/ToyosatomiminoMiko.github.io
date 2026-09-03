@@ -18,8 +18,6 @@ export type {
     AnalysisResult,
     IntegralTask,
     SceneIR,
-    Integral1DFn,
-    Integral2DFn,
     Range1D,
 } from './compiler/ir/types';
 

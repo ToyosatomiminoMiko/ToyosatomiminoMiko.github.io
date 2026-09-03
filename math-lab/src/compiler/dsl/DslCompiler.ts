@@ -5,7 +5,7 @@ import type {
     SceneObject,
 } from '../ir/types';
 import type { MatrixOps } from '../../math/tensor/SceneTransform';
-import { materializeObject, type ObjectBlueprint } from './objects';
+import { materializeObject } from './objects';
 import { applyParamOverrides } from './params';
 import { compileIntegralTask } from './integrals';
 import { compileAnalyses } from './analyses';
@@ -56,11 +56,10 @@ export function compileScene(
     applyParamOverrides(params, paramOverrides);
 
     const objectByName = new Map<string, SceneObject>();
-    const blueprintByName = new Map<string, ObjectBlueprint>();
-    for (let i = 0; i < staticScene.objectBlueprints.length; i += 1) {
-        const blueprint = staticScene.objectBlueprints[i];
-        objectByName.set(blueprint.name, objects[i]);
-        blueprintByName.set(blueprint.name, blueprint);
+    for (const object of objects) {
+        if (object.name !== undefined) {
+            objectByName.set(object.name, object);
+        }
     }
 
     const integrals: IntegralTask[] = [];
@@ -93,9 +92,8 @@ export function compileScene(
         objectAnimations,
         analyses: compileAnalyses(
             ast,
-            blueprintByName,
+            objectByName,
             params,
-            paramOverrides,
             hiddenAnalysisNames,
         ),
         integrals,

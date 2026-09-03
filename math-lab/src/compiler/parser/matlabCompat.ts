@@ -5,7 +5,11 @@
  * 归一化 MATLAB 写法后复用同一解析器,作为未来 MATLAB 输入入口保留,
  * 并有 matlabCompat.test.ts 覆盖.若确认不再需要 MATLAB 兼容,应删除.
  */
-import { splitTopLevel } from '../text';
+import {
+    findMatchingDelimiter,
+    splitTopLevel,
+    splitTopLevelWhitespace,
+} from '../text';
 
 type MatlabAlias = 'surf' | 'plot' | 'quiver3' | 'divergence' | 'curl' | 'gradient';
 
@@ -28,61 +32,6 @@ function nextAnonymousName(normalizer: MatlabNormalizer, prefix: string): string
     const next = (normalizer.anonymousCounters.get(prefix) ?? 0) + 1;
     normalizer.anonymousCounters.set(prefix, next);
     return `_matlab_${prefix}_${next}`;
-}
-
-function findMatchingBracket(source: string, openIndex: number): number {
-    let depth = 0;
-    for (let i = openIndex; i < source.length; i += 1) {
-        const ch = source[i];
-        if (ch === '[') depth += 1;
-        else if (ch === ']') {
-            depth -= 1;
-            if (depth === 0) return i;
-        }
-    }
-    return -1;
-}
-
-function findMatchingParen(source: string, openIndex: number): number {
-    let depth = 0;
-    for (let i = openIndex; i < source.length; i += 1) {
-        const ch = source[i];
-        if (ch === '(') depth += 1;
-        else if (ch === ')') {
-            depth -= 1;
-            if (depth === 0) return i;
-        }
-    }
-    return -1;
-}
-
-function splitTopLevelWhitespace(source: string): string[] {
-    const parts: string[] = [];
-    let tokenStart = 0;
-    let inToken = false;
-    let parenDepth = 0;
-    let bracketDepth = 0;
-
-    for (let i = 0; i < source.length; i += 1) {
-        const ch = source[i];
-        if (ch === '(') parenDepth += 1;
-        else if (ch === ')') parenDepth -= 1;
-        else if (ch === '[') bracketDepth += 1;
-        else if (ch === ']') bracketDepth -= 1;
-
-        if (/\s/.test(ch) && parenDepth === 0 && bracketDepth === 0) {
-            if (inToken) {
-                parts.push(source.slice(tokenStart, i));
-                inToken = false;
-            }
-        } else if (!inToken) {
-            tokenStart = i;
-            inToken = true;
-        }
-    }
-
-    if (inToken) parts.push(source.slice(tokenStart));
-    return parts;
 }
 
 function normalizeMatlabAtom(atom: string): string {
@@ -121,7 +70,7 @@ export function normalizeMatlabMatrixLiterals(source: string): string {
 
     while (i < source.length) {
         if (source[i] === '[') {
-            const end = findMatchingBracket(source, i);
+            const end = findMatchingDelimiter(source, i);
             if (end === -1) {
                 result += source.slice(i);
                 break;
@@ -200,7 +149,7 @@ export function normalizeMatlabCalls(
 
     while ((match = pattern.exec(source)) !== null) {
         const openParen = pattern.lastIndex - 1;
-        const closeParen = findMatchingParen(source, openParen);
+        const closeParen = findMatchingDelimiter(source, openParen);
         if (closeParen === -1) continue;
 
         const assignedName = match[1] ? match[1].replace(/\s*=\s*$/, '').trim() : '';

@@ -1,5 +1,5 @@
 /**
- * CompileController —— 源码到 SceneIR 的编译编排器.
+ * CompileController -- 源码到 SceneIR 的编译编排器.
  *
  * DslApp 不再直接处理 AST/runSequence 和显隐状态,而是通过这个控制器
  * 完成三件事:
@@ -10,7 +10,8 @@
  * 真正的编译细节仍由 compiler/dsl 下的 DslCompiler 和静态场景缓存负责.
  */
 import { compileScene } from '../compiler/dsl/DslCompiler';
-import { createWasmMatrixOps, parseMiko } from '../compiler/parser';
+import { parseMiko } from '../compiler/parser';
+import { createWasmMatrixOps } from '../compiler/matrixOps';
 import type { SceneIR } from '../compiler/ir/types';
 import { SceneStore } from './SceneStore';
 

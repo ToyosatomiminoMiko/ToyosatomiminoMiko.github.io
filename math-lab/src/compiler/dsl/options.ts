@@ -1,11 +1,8 @@
 /**
  * 选项与列表解析辅助函数.
- * 从 DslCompiler 拆出,负责 DSL 选项/数字列表和顶层分隔解析.
+ * 从 DslCompiler 拆出,负责 DSL 选项/数字列表解析.
  */
 import type { OptionPair } from '../ast/types';
-import { splitTopLevel } from '../text';
-
-export { splitTopLevel };
 
 const SHOW_KINDS = new Set(['point', 'normal', 'tangent_plane']);
 
@@ -74,8 +71,8 @@ export function parsePositiveInteger(
     raw: string | undefined,
     context: string,
 ): number | undefined {
-    if (raw === undefined) return undefined;
-    const value = Number(raw);
+    const value = optionalNumber(raw, context);
+    if (value === undefined) return undefined;
     if (!Number.isInteger(value) || value <= 0) {
         throw new Error(`${context} 必须是正整数,当前为 ${raw}`);
     }

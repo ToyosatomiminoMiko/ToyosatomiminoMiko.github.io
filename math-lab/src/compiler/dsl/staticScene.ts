@@ -6,10 +6,13 @@ import type { AstProgram } from '../ast/types';
 import type { AnimationClip, ParamDeclaration } from '../ir/types';
 import type { MatrixOps } from '../../math/tensor/SceneTransform';
 import { cloneMat4, type Mat4 } from '../../math/tensor/rowMajorMatrix';
-import { NUMERIC_CONFIG } from '../../config/numericConfig';
-import { buildObjectBlueprint, type ObjectBlueprint } from './objects';
+import {
+    blueprintHasCoefficients,
+    buildObjectBlueprint,
+    type ObjectBlueprint,
+} from './objects';
 import { assertKnownOptions, findOption, toFiniteNumber } from './options';
-import { collectParams } from './params';
+import { collectParams, createDefaultParam } from './params';
 import {
     evaluateMatrix,
     parseSingleTransformExpression,
@@ -207,25 +210,10 @@ function buildStaticScene(ast: AstProgram, matrixOps: MatrixOps): StaticScene {
     }
 
     for (const blueprint of objectBlueprints) {
-        if (
-            blueprint.kind !== 'curve'
-            && blueprint.kind !== 'surface'
-            && blueprint.kind !== 'vector_field'
-            && blueprint.kind !== 'sphere'
-            && blueprint.kind !== 'box'
-            && blueprint.kind !== 'conic'
-        ) {
-            continue;
-        }
+        if (!blueprintHasCoefficients(blueprint)) continue;
         for (const name of blueprint.coefficientNames) {
             if (!params.has(name)) {
-                params.set(name, {
-                    name,
-                    value: NUMERIC_CONFIG.param.defaultValue,
-                    min: NUMERIC_CONFIG.param.defaultMin,
-                    max: NUMERIC_CONFIG.param.defaultMax,
-                    step: NUMERIC_CONFIG.param.defaultStep,
-                });
+                params.set(name, createDefaultParam(name));
             }
         }
     }

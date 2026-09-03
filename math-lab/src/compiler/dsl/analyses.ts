@@ -2,11 +2,16 @@
  * 微分分析编译.
  * 负责 gradient/divergence/curl 的符号求导与 WASM 数值求值编排.
  */
-import type { AstProgram } from '../ast/types';
+import type {
+    AnalysisCallName,
+    AnalysisOpKind,
+    AstProgram,
+} from '../ast/types';
 import type {
     AnalysisResult,
     Coefficient,
     ParamDeclaration,
+    SceneObject,
 } from '../ir/types';
 import { NUMERIC_CONFIG } from '../../config/numericConfig';
 import {
@@ -14,16 +19,22 @@ import {
     evaluate_divergence_point as wasmEvaluateDivergencePoint,
     evaluate_gradient_point as wasmEvaluateGradientPoint,
 } from '../../wasm/math_rs/math_rs';
-import {
-    materializeCoefficients,
-    type ObjectBlueprint,
-} from './objects';
 import { assertKnownOptions, parseShowOption } from './options';
+import { buildParamScope } from './params';
 import {
     cachedDerivativeExpression,
-    cachedRustExpression,
     evaluateNumber,
+    normalizeExpression,
 } from './expression';
+
+/** 每个算子的规范函数名,解析出的 `call` 必须与之一致. */
+const ANALYSIS_CALL_NAMES: Record<AnalysisOpKind, AnalysisCallName> = {
+    gradient: 'grad',
+    divergence: 'div',
+    curl: 'curl',
+    jacobian: 'jacobian',
+    laplacian: 'laplacian',
+};
 
 function coefficientArgs(source: { coefficients: Coefficient[] }): [string[], Float64Array] {
     return [
@@ -42,9 +53,8 @@ function normalizeVector(vector: [number, number, number]): [number, number, num
 
 export function compileAnalyses(
     ast: AstProgram,
-    blueprintByName: Map<string, ObjectBlueprint>,
+    objectByName: Map<string, SceneObject>,
     params: Map<string, ParamDeclaration>,
-    overrides: Record<string, number>,
     hiddenNames: ReadonlySet<string> = new Set(),
 ): AnalysisResult[] {
     const results: AnalysisResult[] = [];
@@ -52,17 +62,24 @@ export function compileAnalyses(
     for (const statement of ast.statements) {
         if (statement.type !== 'analysis') continue;
 
-        const blueprint = blueprintByName.get(statement.source.trim());
-        if (!blueprint) {
+        const object = objectByName.get(statement.source.trim());
+        if (!object) {
             throw new Error(`分析 ${statement.name} 引用了不存在的对象 ${statement.source}`);
+        }
+
+        // 分析声明目前只接受 show;其他字段应作为编译错误暴露.
+        assertKnownOptions(statement.options, ['show'], `分析 ${statement.name}`);
+
+        const expectedCall = ANALYSIS_CALL_NAMES[statement.op];
+        if (statement.call !== expectedCall) {
+            throw new Error(
+                `分析 ${statement.name} 的函数名 ${statement.call} 与算子 ${statement.op} 不匹配,应为 ${expectedCall}`,
+            );
         }
 
         if (statement.op === 'jacobian' || statement.op === 'laplacian') {
             throw new Error(`分析算子 ${statement.op} 暂未实现`);
         }
-
-        // 分析声明目前只接受 show;其他字段应作为编译错误暴露.
-        assertKnownOptions(statement.options, ['show'], `分析 ${statement.name}`);
 
         if (hiddenNames.has(statement.name)) {
             results.push({
@@ -77,25 +94,24 @@ export function compileAnalyses(
             continue;
         }
 
-        if (blueprint.kind !== 'curve' && blueprint.kind !== 'surface' && blueprint.kind !== 'vector_field') {
-            throw new Error(`分析 ${statement.name} 不能应用于 ${blueprint.kind} 类型对象`);
+        if (
+            object.kind !== 'curve'
+            && object.kind !== 'surface'
+            && object.kind !== 'vector_field'
+        ) {
+            throw new Error(`分析 ${statement.name} 不能应用于 ${object.kind} 类型对象`);
         }
 
-        const coefficients = materializeCoefficients(
-            blueprint.coefficientNames,
-            params,
-            overrides,
-        );
-        const atScope: Record<string, number> = {};
-        for (const [name, param] of params) atScope[name] = param.value;
+        const coefficients = object.coefficients;
+        const atScope = buildParamScope(params, {});
         for (const coefficient of coefficients) {
             atScope[coefficient.name] = coefficient.value;
         }
 
         const rawAt = statement.at ?? [];
         const requiredAtCount =
-            statement.op === 'gradient' && blueprint.kind === 'surface' ? 2
-                : (statement.op === 'divergence' || statement.op === 'curl') && blueprint.kind === 'vector_field' ? 3
+            statement.op === 'gradient' && object.kind === 'surface' ? 2
+                : (statement.op === 'divergence' || statement.op === 'curl') && object.kind === 'vector_field' ? 3
                     : 1;
         if (rawAt.length < requiredAtCount) {
             throw new Error(`分析 ${statement.name} 的 at 至少需要 ${requiredAtCount} 个坐标`);
@@ -116,13 +132,13 @@ export function compileAnalyses(
         ];
         const show = parseShowOption(statement.options);
 
-        if (statement.op === 'gradient' && (blueprint.kind === 'curve' || blueprint.kind === 'surface')) {
-            const isCurve = blueprint.kind === 'curve';
-            const [coeffNames, coeffValues] = coefficientArgs({ coefficients });
+        if (statement.op === 'gradient' && (object.kind === 'curve' || object.kind === 'surface')) {
+            const isCurve = object.kind === 'curve';
+            const [coeffNames, coeffValues] = coefficientArgs(object);
             const result = wasmEvaluateGradientPoint(
-                cachedRustExpression(blueprint.expr),
-                cachedDerivativeExpression(blueprint.expr, 'x'),
-                isCurve ? '0' : cachedDerivativeExpression(blueprint.expr, 'y'),
+                normalizeExpression(object.expr),
+                cachedDerivativeExpression(object.expr, 'x'),
+                isCurve ? '0' : cachedDerivativeExpression(object.expr, 'y'),
                 coeffNames,
                 coeffValues,
                 at[0],
@@ -141,14 +157,15 @@ export function compileAnalyses(
             continue;
         }
 
-        if ((statement.op === 'divergence' || statement.op === 'curl') && blueprint.kind === 'vector_field') {
-            const [coeffNames, coeffValues] = coefficientArgs({ coefficients });
+        if ((statement.op === 'divergence' || statement.op === 'curl') && object.kind === 'vector_field') {
+            const [coeffNames, coeffValues] = coefficientArgs(object);
+            const [pExpr, qExpr, rExpr] = object.components;
 
             if (statement.op === 'divergence') {
                 const scalar = wasmEvaluateDivergencePoint(
-                    cachedDerivativeExpression(blueprint.pExpr, 'x'),
-                    cachedDerivativeExpression(blueprint.qExpr, 'y'),
-                    cachedDerivativeExpression(blueprint.rExpr, 'z'),
+                    cachedDerivativeExpression(pExpr, 'x'),
+                    cachedDerivativeExpression(qExpr, 'y'),
+                    cachedDerivativeExpression(rExpr, 'z'),
                     coeffNames,
                     coeffValues,
                     at[0],
@@ -166,12 +183,12 @@ export function compileAnalyses(
                 });
             } else {
                 const result = wasmEvaluateCurlPoint(
-                    cachedDerivativeExpression(blueprint.rExpr, 'y'),
-                    cachedDerivativeExpression(blueprint.qExpr, 'z'),
-                    cachedDerivativeExpression(blueprint.pExpr, 'z'),
-                    cachedDerivativeExpression(blueprint.rExpr, 'x'),
-                    cachedDerivativeExpression(blueprint.qExpr, 'x'),
-                    cachedDerivativeExpression(blueprint.pExpr, 'y'),
+                    cachedDerivativeExpression(rExpr, 'y'),
+                    cachedDerivativeExpression(qExpr, 'z'),
+                    cachedDerivativeExpression(pExpr, 'z'),
+                    cachedDerivativeExpression(rExpr, 'x'),
+                    cachedDerivativeExpression(qExpr, 'x'),
+                    cachedDerivativeExpression(pExpr, 'y'),
                     coeffNames,
                     coeffValues,
                     at[0],
@@ -193,7 +210,7 @@ export function compileAnalyses(
         }
 
         throw new Error(
-            `分析算子 ${statement.op} 不能应用于 ${blueprint.kind} 类型对象`,
+            `分析算子 ${statement.op} 不能应用于 ${object.kind} 类型对象`,
         );
     }
 

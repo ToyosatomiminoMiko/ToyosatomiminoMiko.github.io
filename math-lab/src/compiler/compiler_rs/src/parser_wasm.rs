@@ -129,7 +129,7 @@ fn animation_to_stmt(pair: &Pair<'_, Rule>) -> Value {
         match child.as_rule() {
             Rule::ident => name = child.as_str().to_string(),
             Rule::expr => expr = child.as_str().trim().to_string(),
-            Rule::animation_end => options = options_from_end(&child),
+            Rule::stmt_end => options = options_from_end(&child),
             _ => {}
         }
     }
@@ -154,7 +154,7 @@ fn object_to_stmt(pair: &Pair<'_, Rule>) -> Value {
             Rule::object_kind => kind = child.as_str().to_string(),
             Rule::ident => name = child.as_str().to_string(),
             Rule::expr => expr = child.as_str().trim().to_string(),
-            Rule::object_end => options = options_from_end(&child),
+            Rule::stmt_end => options = options_from_end(&child),
             _ => {}
         }
     }
@@ -198,7 +198,7 @@ fn analysis_to_stmt(pair: &Pair<'_, Rule>) -> Value {
                     }
                 }
             }
-            Rule::analysis_end => options = options_from_end(&child),
+            Rule::stmt_end => options = options_from_end(&child),
             _ => {}
         }
     }
@@ -234,7 +234,7 @@ fn integral_to_stmt(pair: &Pair<'_, Rule>) -> Value {
                     source = source_ident.as_str().to_string();
                 }
             }
-            Rule::integral_end => options = options_from_end(&child),
+            Rule::stmt_end => options = options_from_end(&child),
             _ => {}
         }
     }
@@ -268,7 +268,7 @@ fn intersection_to_stmt(pair: &Pair<'_, Rule>) -> Value {
                     b = second.as_str().to_string();
                 }
             }
-            Rule::intersection_end => options = options_from_end(&child),
+            Rule::stmt_end => options = options_from_end(&child),
             _ => {}
         }
     }

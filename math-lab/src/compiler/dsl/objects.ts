@@ -20,7 +20,6 @@ import type {
     VectorFieldObject,
     VectorObject,
 } from '../ir/types';
-import { extractCoefficients } from '../../math/objects/coefficientUtils';
 import {
     assertKnownOptions,
     findOption,
@@ -30,9 +29,10 @@ import {
     parseNumberList,
     stripQuotes,
 } from './options';
-import { buildParamScope } from './params';
+import { buildParamScope, createDefaultParam } from './params';
 import {
     evaluateRequiredNumber,
+    extractSymbolNames,
     normalizeExpression,
     parseArrayStrings,
     type ExpressionArray,
@@ -150,6 +150,18 @@ export type ObjectBlueprint =
     | SphereBlueprint
     | BoxBlueprint
     | ConicBlueprint;
+
+export type CoefficientBlueprint = Exclude<
+    ObjectBlueprint,
+    PointBlueprint | VectorBlueprint
+>;
+
+/** 该 blueprint 是否携带自由参数列表(point/vector 没有). */
+export function blueprintHasCoefficients(
+    blueprint: ObjectBlueprint,
+): blueprint is CoefficientBlueprint {
+    return 'coefficientNames' in blueprint;
+}
 
 const CURVE_OPTION_NAMES = ['color', 'range', 'segments', 'transform', 'animation'] as const;
 const SURFACE_OPTION_NAMES = ['color', 'range', 'segments', 'transform', 'animation'] as const;
@@ -293,26 +305,26 @@ function extractCoefficientNames(
 ): string[] {
     const names = new Set<string>();
     for (const expression of expressions) {
-        for (const coefficient of extractCoefficients(expression, variables)) {
-            names.add(coefficient.name);
+        for (const name of extractSymbolNames(expression, variables)) {
+            names.add(name);
         }
     }
     return [...names];
 }
 
-export function materializeCoefficients(
+function materializeCoefficients(
     names: string[],
     params: Map<string, ParamDeclaration>,
     overrides: Record<string, number>,
 ): Coefficient[] {
     return names.map((name) => {
-        const declared = params.get(name);
+        const declared = params.get(name) ?? createDefaultParam(name);
         return {
             name,
-            value: overrides[name] ?? declared?.value ?? NUMERIC_CONFIG.param.defaultValue,
-            min: declared?.min ?? NUMERIC_CONFIG.param.defaultMin,
-            max: declared?.max ?? NUMERIC_CONFIG.param.defaultMax,
-            step: declared?.step ?? NUMERIC_CONFIG.param.defaultStep,
+            value: overrides[name] ?? declared.value,
+            min: declared.min,
+            max: declared.max,
+            step: declared.step,
         };
     });
 }

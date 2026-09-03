@@ -21,17 +21,26 @@ function throwExpressionError(raw: string, error: unknown): never {
     throw new Error(`表达式无法处理: ${raw} (${message})`);
 }
 
-/** 把常见数学表达式归一化为 evalexpr/Rust 数值后端可执行的形式. */
+/**
+ * 把常见数学表达式归一化为 evalexpr/Rust 数值后端可执行的形式.
+ *
+ * 归一化结果按原表达式缓存;对象建模、分析、参数求值都走这里,
+ * 避免同一个表达式在编译管线里被重复归一化.
+ */
 export function normalizeExpression(raw: string): string {
+    const cached = rustExpressionCache.get(raw);
+    if (cached !== undefined) return cached;
     try {
-        return wasmNormalizeExpression(raw);
+        const normalized = wasmNormalizeExpression(raw);
+        rustExpressionCache.set(raw, normalized);
+        return normalized;
     } catch (error) {
         throwExpressionError(raw, error);
     }
 }
 
-/** 把 DSL 表达式转成 UI 展示用的 LaTeX 字符串. */
-export function latexExpression(raw: string): string {
+/** 把 DSL 表达式转成 UI 展示用的 LaTeX 字符串(内部实现,调用方走缓存入口). */
+function latexExpression(raw: string): string {
     try {
         return wasmLatexExpression(raw);
     } catch (error) {
@@ -60,36 +69,6 @@ function evaluateRustScalar(
     }
 }
 
-export function evaluateScalar(
-    expr: string,
-    scope: Record<string, number> = {},
-): number | null {
-    return evaluateRustScalar(expr, scope);
-}
-
-/**
- * 带坐标参数的标量求值.
- *
- * `scope` 只允许放自由系数,不能包含 x/y/z——Rust 求值后端会用
- * 传入的坐标参数覆盖同名的 scope 键.曲线/曲面采样点逐点求值应走这里.
- */
-export function evaluateScalarAt(
-    expr: string,
-    scope: Record<string, number> = {},
-    x = Number.NaN,
-    y = Number.NaN,
-    z = Number.NaN,
-): number | null {
-    const names = Object.keys(scope);
-    const values = new Float64Array(names.map((name) => scope[name]));
-    try {
-        const value = wasmEvaluateScalar(expr, names, values, x, y, z);
-        return typeof value === 'number' && Number.isFinite(value) ? value : null;
-    } catch {
-        return null;
-    }
-}
-
 export function evaluateNumber(
     raw: string,
     scope?: Record<string, number>,
@@ -109,7 +88,7 @@ export function evaluateRequiredNumber(
     return value;
 }
 
-export function symbolicDerivative(expr: string, variable: string): string {
+function symbolicDerivative(expr: string, variable: string): string {
     try {
         return wasmSymbolicDerivative(expr, variable);
     } catch (error) {
@@ -145,10 +124,8 @@ export function evaluateMatrixExpr(raw: string): number[] {
 }
 
 /**
- * @cache
- * 缓存目的:避免对同一字符串反复调用 Rust/WASM normalize_expression.
- * 键/失效策略:原表达式字符串 -> 归一化表达式;无失效机制,表达式集合通常有限.
- * 生命周期:模块级,跟随页面存活.
+ * 归一化表达式缓存:原表达式字符串 -> 归一化结果.
+ * 键集通常有限,不做失效策略;模块级生命周期,跟随页面存活.
  */
 const rustExpressionCache = new Map<string, string>();
 
@@ -167,19 +144,6 @@ const latexExpressionCache = new Map<string, string>();
  * 生命周期:模块级,跟随页面存活.
  */
 const derivativeExpressionCache = new Map<string, Map<string, string>>();
-
-/**
- * @cache-access
- * 返回归一化后的 Rust 表达式,命中缓存时直接返回.
- */
-export function cachedRustExpression(expr: string): string {
-    let cached = rustExpressionCache.get(expr);
-    if (!cached) {
-        cached = normalizeExpression(expr);
-        rustExpressionCache.set(expr, cached);
-    }
-    return cached;
-}
 
 /**
  * @cache-access
@@ -211,9 +175,4 @@ export function cachedDerivativeExpression(expr: string, variable: string): stri
         byVariable.set(variable, cached);
     }
     return cached;
-}
-
-/** 兼容旧的函数名;新代码应直接使用 normalizeExpression. */
-export function toRustExpression(raw: string): string {
-    return normalizeExpression(raw);
 }

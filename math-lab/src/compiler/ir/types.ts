@@ -1,5 +1,5 @@
 /**
- * 场景 IR —— 语言层与渲染层之间的唯一稳定数据边界.
+ * 场景 IR -- 语言层与渲染层之间的唯一稳定数据边界.
  *
  * 这里只允许出现"纯数据":
  * - 不引用外部数学库的 AST 类型
@@ -10,15 +10,6 @@
  * 表达式统一用字符串保存,渲染器需要求值时再由各自的执行后端处理.
  */
 
-/** 曲线 / 曲面 / 向量场里的自由参数. */
-export interface Coefficient {
-    name: string;
-    value: number;
-    min: number;
-    max: number;
-    step: number;
-}
-
 /** `param` 声明生成的参数面板项. */
 export interface ParamDeclaration {
     name: string;
@@ -27,6 +18,14 @@ export interface ParamDeclaration {
     max: number;
     step: number;
 }
+
+/**
+ * 对象上出现的自由参数.
+ *
+ * 与 `ParamDeclaration` 形状一致,物化时从声明/隐式默认值复制而来;
+ * 用同一形状避免两侧默认值口径漂移.
+ */
+export type Coefficient = ParamDeclaration;
 
 /** 曲线对象:y = f(x),渲染在 z=0 平面. */
 export interface CurveObject {
@@ -190,7 +189,12 @@ export type SceneObject =
     | BoxObject
     | ConicSolidObject;
 
-/** 微分分析结果(纯数值结果). */
+/**
+ * 微分分析结果(纯数值结果).
+ *
+ * 这里只保留已实现算子;AST 侧的 `AnalysisOpKind` 还会带
+ * `jacobian`/`laplacian`,用于在编译期给出"暂未实现"诊断.
+ */
 export type AnalysisOp = 'gradient' | 'divergence' | 'curl';
 export type AnalysisShow = 'point' | 'normal' | 'tangent_plane';
 
@@ -236,7 +240,7 @@ export interface IntegralTask {
 /**
  * 求交任务(编译产物).
  *
- * 编译器只负责描述“要算哪两个对象、用什么分辨率”,真正的数值计算由
+ * 编译器只负责描述"要算哪两个对象、用什么分辨率",真正的数值计算由
  * Worker + Rust `intersection_core` 异步完成;结果缓存与渲染由
  * IntersectionRenderer 按任务名管理.
  */
@@ -291,12 +295,11 @@ export interface SceneIR {
      */
     integralFormulas: Record<string, string | null>;
     /**
-     * 对象 id -> 4x4 行主序变换矩阵.
+     * 对象 id -> 行主序 4x4 矩阵,布局见 `math/tensor/rowMajorMatrix.ts`.
      *
      * 使用 Record 而不是 Map,是为了让 IR 保持可序列化,
      * 便于未来跨线程 / 跨进程 / 桌面端消费.
      */
-    /** 对象 id -> 行主序 4x4 矩阵,布局见 `math/tensor/rowMajorMatrix.ts`. */
     objectTransforms: Record<number, number[][]>;
     /**
      * 场景中所有 animation 声明.
@@ -320,10 +323,4 @@ export interface SceneIR {
 // 因为它们描述的是编译后的积分计算输入/输出形状.
 // ================================================================
 
-export type Integral1DFn = (x: number) => number;
-export type Integral2DFn = (x: number, y: number) => number;
 export type Range1D = [number, number];
-
-// 预留说明:Integral1DFn/Integral2DFn 面向"函数式积分接口",当前 DSL 积分
-// 走 IntegralTask + Worker 数值采样,不使用这两个类型;仅在需要提供可注入
-// 的数学函数接口时再消费它们,否则应删除.

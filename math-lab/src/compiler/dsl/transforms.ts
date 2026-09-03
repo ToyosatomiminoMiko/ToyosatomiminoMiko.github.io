@@ -11,7 +11,7 @@ import {
     type Mat4,
 } from '../../math/tensor/rowMajorMatrix';
 import { evaluateMatrixExpr, evaluateNumber } from './expression';
-import { splitTopLevel } from './options';
+import { splitTopLevel } from '../text';
 
 export function evaluateMatrix(raw: string): Mat4 | null {
     try {
@@ -19,6 +19,12 @@ export function evaluateMatrix(raw: string): Mat4 | null {
     } catch {
         return null;
     }
+}
+
+/** 解析 `as_transform(M)` 形式并返回引用的名称;其他写法返回 null. */
+function asTransformReference(expression: string): string | null {
+    const match = /^as_transform\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)$/.exec(expression);
+    return match?.[1] ?? null;
 }
 
 function parseTransformFunction(part: string, ops: MatrixOps): Mat4 | null {
@@ -47,9 +53,9 @@ export function parseTransformExpression(
     ops: MatrixOps,
 ): Mat4 | null {
     const expression = raw.trim();
-    const asTransformMatch = /^as_transform\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)$/.exec(expression);
-    if (asTransformMatch) {
-        const matrix = matrices.get(asTransformMatch[1]);
+    const asTransformName = asTransformReference(expression);
+    if (asTransformName !== null) {
+        const matrix = matrices.get(asTransformName);
         return matrix ? cloneMat4(matrix) : null;
     }
 
@@ -82,9 +88,9 @@ export function parseSingleTransformExpression(
 ): Mat4 | null {
     const expression = raw.trim();
 
-    const asTransformMatch = /^as_transform\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)$/.exec(expression);
-    if (asTransformMatch) {
-        const matrix = matrices.get(asTransformMatch[1]);
+    const asTransformName = asTransformReference(expression);
+    if (asTransformName !== null) {
+        const matrix = matrices.get(asTransformName);
         return matrix ? cloneMat4(matrix) : null;
     }
 
@@ -110,11 +116,11 @@ export function resolveObjectTransform(
     if (!raw) return null;
     const value = raw.trim();
 
-    const asTransformMatch = /^as_transform\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)$/.exec(value);
-    if (asTransformMatch) {
-        const matrix = matrices.get(asTransformMatch[1]);
+    const asTransformName = asTransformReference(value);
+    if (asTransformName !== null) {
+        const matrix = matrices.get(asTransformName);
         if (matrix) return cloneMat4(matrix);
-        throw new Error(`对象 transform 引用了不存在的矩阵 ${asTransformMatch[1]}`);
+        throw new Error(`对象 transform 引用了不存在的矩阵 ${asTransformName}`);
     }
 
     const transform = transforms.get(value);

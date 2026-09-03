@@ -9,7 +9,7 @@ import {
     evaluate_scalar,
 } from '../../wasm/math_rs/math_rs';
 import type { AstProgram } from '../ast/types';
-import { toRustExpression } from './expression';
+import { normalizeExpression } from './expression';
 
 vi.mock('../../wasm/math_rs/math_rs', () => ({
     evaluate_gradient_point: vi.fn(() => ({ f0: 0, fx: 0, fy: 0 })),
@@ -175,7 +175,7 @@ function compileScene(
 }
 
 it('normalizes log() to the Rust ln() symbol', () => {
-    expect(toRustExpression('log(x)')).toBe('ln(x)');
+    expect(normalizeExpression('log(x)')).toBe('ln(x)');
 });
 
 describe('compileScene', () => {
@@ -612,6 +612,28 @@ describe('compileScene', () => {
         };
 
         expect(() => compileScene(badAst)).toThrow('暂未实现');
+    });
+
+    it('rejects analysis function names that contradict the declared operator', () => {
+        const badAst: AstProgram = {
+            statements: [
+                ast.statements[2],
+                {
+                    type: 'analysis',
+                    op: 'gradient',
+                    name: 'g',
+                    call: 'curl',
+                    source: 'c',
+                    at: ['1'],
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        expect(() => compileScene(badAst)).toThrow(
+            '函数名 curl 与算子 gradient 不匹配,应为 grad',
+        );
     });
 
     it('compiles a transform chain with pi and function calls', () => {
