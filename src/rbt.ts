@@ -2,7 +2,6 @@
 2026.05.01.00:00:00
 红黑树工具
 */
-import { createApp, ref, onMounted } from 'vue';
 
 // ============================================================
 // 红黑树节点定义 (支持任意数值/字符串)
@@ -125,7 +124,7 @@ export function getTreeDepth(node: RBNode | null): number {
 }
 
 // ============================================================
-// 画布绘制器 —— 采用【区间递归分配法】彻底避免节点重叠/交叉
+// 画布绘制器 -- 采用【区间递归分配法】彻底避免节点重叠/交叉
 // ============================================================
 class TreeDrawer {
     ctx: CanvasRenderingContext2D;
@@ -303,96 +302,76 @@ class TreeDrawer {
 }
 
 // ============================================================
-// Vue 应用模块
+// 原生 TS 挂载模块
 // ============================================================
+// 深度为4的满二叉树示例
+const TREE_EXAMPLE =
+    "15B(7R(3B(1R(0B,2B),5R(4B,6B)),11B(9R(8B,10B),13R(12B,14B))),23R(19B(17R(16B,18B),21R(20B,22B)),27B(25R(24B,26B),29R(28B,30B))))";
+
 export function mountRBT(): void {
-    const App = {
-        setup() {
-            const inputExpression = ref<string>('');
-            const errorMessage = ref<string>('');
-            const canvasRef = ref<HTMLCanvasElement | null>(null);
-            let currentRoot: RBNode | null = null;
-            let drawer: TreeDrawer | null = null;
+    const input = document.getElementById('treeInput');
+    const errorEl = document.getElementById('treeError');
+    const canvas = document.getElementById('rbCanvas');
+    if (
+        !input || !errorEl || !canvas ||
+        !(input instanceof HTMLTextAreaElement) ||
+        !(canvas instanceof HTMLCanvasElement)
+    ) {
+        console.warn('[RBT] 找不到 #treeInput / #treeError / #rbCanvas');
+        return;
+    }
 
-            const renderTree = (): void => {
-                if (!canvasRef.value) return;
-                const canvas = canvasRef.value;
-                const ctx = canvas.getContext('2d');
-                if (!ctx) return;
-                const width = canvas.width;
-                const height = canvas.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-                if (!drawer || drawer.canvasWidth !== width || drawer.canvasHeight !== height) {
-                    drawer = new TreeDrawer(ctx, width, height);
-                } else {
-                    drawer.ctx = ctx;
-                    drawer.canvasWidth = width;
-                    drawer.canvasHeight = height;
-                }
+    let drawer: TreeDrawer | null = null;
 
-                const expr = inputExpression.value.trim();
-                if (expr === '') {
-                    errorMessage.value = '';
-                    currentRoot = null;
-                    drawer.render(null);
-                    return;
-                }
-
-                try {
-                    const rootNode = buildTreeFromExpression(expr);
-                    currentRoot = rootNode;
-                    errorMessage.value = '';
-                    drawer.render(currentRoot);
-                } catch (err) {
-                    const msg = (err as Error).message;
-                    errorMessage.value = msg;
-                    if (drawer) {
-                        drawer.clearCanvas();
-                        drawer.ctx.font = "13px monospace";
-                        drawer.ctx.fillStyle = "#e11d48";
-                        drawer.ctx.textAlign = "center";
-                        drawer.ctx.fillText(`❌ 解析错误: ${msg.slice(0, 88)}`, drawer.canvasWidth / 2, drawer.canvasHeight / 2);
-                    }
-                }
-            };
-
-            const handleInput = (): void => {
-                renderTree();
-            };
-
-            // 深度为4的满二叉树示例
-            const Example =
-                "15B(7R(3B(1R(0B,2B),5R(4B,6B)),11B(9R(8B,10B),13R(12B,14B))),23R(19B(17R(16B,18B),21R(20B,22B)),27B(25R(24B,26B),29R(28B,30B))))";
-
-            onMounted(() => {
-                const canvas = canvasRef.value;
-                if (canvas) {
-                    inputExpression.value = Example;
-                    renderTree();
-                }
-            });
-
-            return {
-                inputExpression,
-                errorMessage,
-                canvasRef,
-                handleInput,
-            };
-        },
-        template: `
-<div>
-    <textarea 
-        id="treeInput" 
-        v-model="inputExpression" 
-        @input="handleInput"
-        spellcheck="false"
-        placeholder="例: 10B(5R(1B,8R),15R(12B,20B))  或深度4满树示例自动加载"
-    />
-    <div v-if="errorMessage" class="error-msg">⚠️ {{ errorMessage }}</div>
-    <canvas ref="canvasRef" id="rbCanvas" width="1200" height="640"></canvas>
-</div>`
+    const ensureDrawer = (): TreeDrawer => {
+        if (!drawer || drawer.canvasWidth !== canvas.width || drawer.canvasHeight !== canvas.height) {
+            drawer = new TreeDrawer(ctx, canvas.width, canvas.height);
+        } else {
+            drawer.ctx = ctx;
+        }
+        return drawer;
     };
 
-    const app = createApp(App);
-    app.mount('#rbt-container');
+    const renderTree = (): void => {
+        const activeDrawer = ensureDrawer();
+        const expr = input.value.trim();
+
+        const setError = (msg: string): void => {
+            errorEl.textContent = msg ? `⚠️ ${msg}` : '';
+            errorEl.hidden = msg === '';
+        };
+
+        if (expr === '') {
+            setError('');
+            activeDrawer.render(null);
+            return;
+        }
+
+        try {
+            const rootNode = buildTreeFromExpression(expr);
+            setError('');
+            activeDrawer.render(rootNode);
+        } catch (err) {
+            const msg = (err as Error).message;
+            setError(msg);
+            activeDrawer.clearCanvas();
+            activeDrawer.ctx.font = '13px monospace';
+            activeDrawer.ctx.fillStyle = '#e11d48';
+            activeDrawer.ctx.textAlign = 'center';
+            activeDrawer.ctx.fillText(
+                `❌ 解析错误: ${msg.slice(0, 88)}`,
+                activeDrawer.canvasWidth / 2,
+                activeDrawer.canvasHeight / 2
+            );
+        }
+    };
+
+    input.addEventListener('input', renderTree);
+
+    // 打开页面时自动加载示例
+    input.value = TREE_EXAMPLE;
+    renderTree();
 }

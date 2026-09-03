@@ -43,7 +43,7 @@ ToyosatomiminoMiko
                     <div class="card-header">
                         <!-- LED 时钟 -->
                         <div id="app_led_clock">
-                            <canvas id="time_canvas" ref="ledCanvas" height="8" width="65"></canvas>
+                            <canvas id="time_canvas" height="8" width="65"></canvas>
                         </div>
                     </div>
                     <div class="card-body card-deck">
@@ -105,7 +105,15 @@ ToyosatomiminoMiko
                         <span>💡 支持简写叶子节点 (例如 "5R" 等价于 "5R(nil,nil)")</span><br>
                         <span>🔴 R 红色 &nbsp;|&nbsp; ⚫ B 黒色</span><br>
                     </div>
-                    <div id="rbt-container" class="card-body"></div>
+                    <div id="rbt-container" class="card-body">
+                        <textarea
+                            id="treeInput"
+                            spellcheck="false"
+                            placeholder="例: 10B(5R(1B,8R),15R(12B,20B))  或深度4满树示例自动加载"
+                        ></textarea>
+                        <div id="treeError" class="error-msg" hidden></div>
+                        <canvas id="rbCanvas" width="1200" height="640"></canvas>
+                    </div>
                 </div>
             </div>
             <!-- PAGES:依赖后端数据接口,当前无后端,结构与模板保留待接入 -->

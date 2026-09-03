@@ -14,7 +14,6 @@ export default defineConfig({
     resolve: {
         alias: {
             '@': resolve(import.meta.dirname, 'src'),
-            'vue': 'vue/dist/vue.esm-bundler.js', // 给 Vite/Rollup 用的编译版
         },
     },
     optimizeDeps: {

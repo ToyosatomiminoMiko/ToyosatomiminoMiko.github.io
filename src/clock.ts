@@ -3,7 +3,6 @@
 APP: #app_led_clock
 LED Clock
 */
-import { createApp, ref, onMounted, onUnmounted } from 'vue';
 import { fmt_time } from './utils';
 
 // 定义数字段类型:每个数字由3列组成,每列为5位二进制数
@@ -69,69 +68,46 @@ function drawDot(ctx: CanvasRenderingContext2D, x: number): void {
 }
 
 export function mountClock(): void {
-    const app = createApp({
-        setup() {
-            const ledCanvas = ref<HTMLCanvasElement | null>(null);
-            const formattedTime = ref<string>('');
-            let timerId: number | null = null;
+    const canvas = document.getElementById('time_canvas');
+    if (!canvas || !(canvas instanceof HTMLCanvasElement)) {
+        console.warn('[LED Clock] 找不到 canvas 元素: #time_canvas');
+        return;
+    }
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return; // 安全处理
 
-            function drawDisplay(): void {
-                if (!ledCanvas.value) return;
-                const canvas = ledCanvas.value;
-                const ctx = canvas.getContext('2d');
-                if (!ctx) return; // 安全处理
+    const drawDisplay = (): void => {
+        // 清除画布
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // 设置背景
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                // 清除画布
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                // 设置背景
-                ctx.fillStyle = '#000';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // 获取当前时间
+        const formattedTime = fmt_time(new Date());
 
-                // 获取当前时间
-                const now = new Date();
-                formattedTime.value = fmt_time(now);
-
-                // 绘制
-                let x = 0;
-                for (const ch of formattedTime.value) {
-                    if (ch === '.') {
-                        drawDot(ctx, x);
-                        x += 2;
-                    } else if (ch === ':') {
-                        drawColon(ctx, x);
-                        x += 2;
-                    } else {
-                        // 数字
-                        const digit = parseInt(ch, 10);
-                        if (!isNaN(digit)) {
-                            drawDigit(ctx, digit, x);
-                        }
-                        x += 4;
-                    }
+        // 绘制
+        let x = 0;
+        for (const ch of formattedTime) {
+            if (ch === '.') {
+                drawDot(ctx, x);
+                x += 2;
+            } else if (ch === ':') {
+                drawColon(ctx, x);
+                x += 2;
+            } else {
+                // 数字
+                const digit = parseInt(ch, 10);
+                if (!isNaN(digit)) {
+                    drawDigit(ctx, digit, x);
                 }
+                x += 4;
             }
-
-            onMounted(() => {
-                // 立即绘制一次,避免空白
-                drawDisplay();
-                // 每秒更新一次
-                timerId = window.setInterval(() => {
-                    drawDisplay();
-                }, 1000);
-            });
-
-            onUnmounted(() => {
-                // 清理定时器,防止内存泄漏
-                if (timerId !== null) {
-                    clearInterval(timerId);
-                    timerId = null;
-                }
-            });
-
-            return {
-                ledCanvas
-            };
         }
-    });
-    app.mount('#app_led_clock');
+    };
+
+    // 立即绘制一次,避免空白
+    drawDisplay();
+    // 每秒更新一次
+    window.setInterval(drawDisplay, 1000);
 }
