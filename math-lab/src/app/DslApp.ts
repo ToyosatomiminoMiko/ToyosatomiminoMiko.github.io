@@ -130,7 +130,7 @@ export class DslApp {
     async run(): Promise<void> {
         /*
          * 全局主入口
-         * 入口流程（一次运行只编译一次场景）:
+         * 入口流程(一次运行只编译一次场景):
          *
          *   editor.value
          *       │

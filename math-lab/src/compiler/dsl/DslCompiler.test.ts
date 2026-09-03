@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { compileScene } from './DslCompiler';
+import { compileScene as compileSceneWithOps } from './DslCompiler';
+import type { CompileSceneOptions } from './DslCompiler';
+import { jsMatrixOps } from '../../math/tensor/testMatrixOps';
 import {
     evaluate_curl_point,
     evaluate_divergence_point,
@@ -25,6 +27,7 @@ vi.mock('../../wasm/math_rs/math_rs', () => ({
                 return expr;
         }
     }),
+    latex_expression: vi.fn((expr: string) => expr),
     symbolic_derivative: vi.fn((expr: string, variable: string) => {
         switch (expr) {
             case 'sin(x * a)':
@@ -163,6 +166,14 @@ const ast: AstProgram = {
     ],
 };
 
+function compileScene(
+    programAst: AstProgram,
+    paramOverrides: Record<string, number> = {},
+    options: CompileSceneOptions = {},
+) {
+    return compileSceneWithOps(programAst, paramOverrides, jsMatrixOps, options);
+}
+
 it('normalizes log() to the Rust ln() symbol', () => {
     expect(toRustExpression('log(x)')).toBe('ln(x)');
 });
@@ -202,6 +213,10 @@ describe('compileScene', () => {
         expect(scene.integrals).toHaveLength(1);
         expect(scene.integrals[0].method).toBe('riemann:left');
         expect(scene.integrals[0].sourceKind).toBe('curve');
+        expect(scene.objectFormulas[1]).toBe('y=sin(x * a)');
+        expect(scene.objectFormulas[2]).toBe('z=sin(x) * cos(y)');
+        expect(scene.objectFormulas[3]).toContain('\\mathbf{F}');
+        expect(scene.integralFormulas.I).toContain('\\int');
     });
 
     it('normalizes bare riemann to left and accepts right/mid variants', () => {
@@ -358,7 +373,6 @@ describe('compileScene', () => {
                     type: 'param',
                     name: 'a',
                     value: 'not-a-number',
-                    ui: null,
                     span: { start: 0, end: 0 },
                 },
                 ast.statements[2],
@@ -838,7 +852,6 @@ describe('compileScene', () => {
                     type: 'param',
                     name: 'a',
                     value: '2',
-                    ui: null,
                     span: { start: 0, end: 0 },
                 },
                 {
@@ -943,6 +956,8 @@ describe('compileScene', () => {
         const scene = compileScene(volumeAst);
 
         expect(scene.objects).toHaveLength(5);
+        expect(scene.objectFormulas[1]).toBeNull();
+        expect(scene.objectFormulas[2]).toBeNull();
         expect(scene.objects[0]).toMatchObject({
             kind: 'sphere',
             position: { x: 0, y: 1, z: 0 },

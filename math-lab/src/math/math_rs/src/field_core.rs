@@ -41,7 +41,7 @@ pub fn evaluate_scalar(
 /// ∇f = (∂f/∂x, ∂f/∂y)
 ///
 /// # 参数
-/// * `surface_expr` - 标量场 `f` 的表达式（用于求 `f0 = f(x,y)`）
+/// * `surface_expr` - 标量场 `f` 的表达式(用于求 `f0 = f(x,y)`)
 /// * `fx_expr`    - ∂f/∂x 的表达式
 /// * `fy_expr`    - ∂f/∂y 的表达式
 /// * `coeff_names` - 系数变量名列表

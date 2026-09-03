@@ -6,7 +6,6 @@ import type {
     SceneIR,
     SceneObject,
 } from '../compiler/ir/types';
-import { integralLatex, sceneObjectLatex } from '../compiler/dsl/latex';
 import { createFormulaElement } from './FormulaView';
 
 type ToggleEntityHandler = (id: number) => void;
@@ -202,9 +201,13 @@ export class ObjectListController {
     ) {}
 
     renderScene(scene: SceneIR): void {
-        this._renderEntities(scene.objects);
+        this._renderEntities(scene.objects, scene.objectFormulas);
         this._renderAnalyses(scene.analyses);
-        this._renderIntegrals(scene.integrals, scene.objects);
+        this._renderIntegrals(
+            scene.integrals,
+            scene.objects,
+            scene.integralFormulas,
+        );
         this._renderIntersections(scene.intersections);
     }
 
@@ -288,7 +291,10 @@ export class ObjectListController {
         this.clear();
     }
 
-    private _renderEntities(objects: SceneObject[]): void {
+    private _renderEntities(
+        objects: SceneObject[],
+        objectFormulas: Record<number, string | null>,
+    ): void {
         const fragment = document.createDocumentFragment();
 
         for (const object of objects) {
@@ -311,7 +317,7 @@ export class ObjectListController {
 
             const main = createElement('div', 'object-main');
             const name = createElement('strong', 'object-name', object.name ?? `#${object.id}`);
-            const formula = sceneObjectLatex(object);
+            const formula = objectFormulas[object.id] ?? null;
             const expression = formula
                 ? createFormulaElement(formula, 'object-expr')
                 : createElement(
@@ -369,6 +375,7 @@ export class ObjectListController {
     private _renderIntegrals(
         tasks: IntegralTask[],
         objects: SceneObject[],
+        integralFormulas: Record<string, string | null>,
     ): void {
         const nextNames = new Set(tasks.map((task) => task.name));
 
@@ -389,7 +396,8 @@ export class ObjectListController {
                 this.integralRows.delete(task.name);
             }
 
-            const row = this._createIntegralRow(task, objects);
+            const formula = integralFormulas[task.name] ?? null;
+            const row = this._createIntegralRow(task, objects, formula);
             this.integralList.append(row);
             this.integralRows.set(task.name, {
                 row,
@@ -402,6 +410,7 @@ export class ObjectListController {
     private _createIntegralRow(
         task: IntegralTask,
         objects: SceneObject[],
+        formula: string | null,
     ): HTMLElement {
         const row = createElement('article', 'object-row evaluation-row');
         row.classList.toggle('is-hidden', !task.enabled);
@@ -420,7 +429,6 @@ export class ObjectListController {
         );
         const main = createElement('div', 'object-main');
         const name = createElement('strong', 'object-name', task.name);
-        const formula = integralLatex(task, objects);
         const meta = formula
             ? createFormulaElement(
                 `${formula}\\quad\\text{${INTEGRAL_METHOD_LABELS[task.method]}}`,

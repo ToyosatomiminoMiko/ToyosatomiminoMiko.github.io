@@ -146,7 +146,7 @@ DslCompiler.compileScene()
    └─ compileIntersections()    // intersection 任务(数值交给 Worker)
    │
    ▼
-SceneIR（纯数据,不含 three.js/DOM）
+SceneIR(纯数据,不含 three.js/DOM)
    │
    ├─ Plotter -> 各种 Renderer -> THREE 场景
    ├─ AnalysisRenderer -> 分析可视化

@@ -95,8 +95,12 @@ export class CompileController {
         if (!ast) {
             throw new Error('CompileController 没有可用的 AST,请先调用 run()');
         }
+        const matrixOps = this.store.matrixOps;
+        if (!matrixOps) {
+            throw new Error('矩阵运算后端尚未初始化,请先调用 run()');
+        }
 
-        return compileScene(ast, paramOverrides, this.store.matrixOps, {
+        return compileScene(ast, paramOverrides, matrixOps, {
             hiddenAnalysisNames: this.store.hiddenAnalysisNames,
             hiddenIntegralNames: this.store.hiddenIntegralNames,
             hiddenIntersectionNames: this.store.hiddenIntersectionNames,

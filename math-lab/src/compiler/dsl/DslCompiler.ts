@@ -4,15 +4,13 @@ import type {
     SceneIR,
     SceneObject,
 } from '../ir/types';
-import {
-    jsMatrixOps,
-    type MatrixOps,
-} from '../../math/tensor/SceneTransform';
+import type { MatrixOps } from '../../math/tensor/SceneTransform';
 import { materializeObject, type ObjectBlueprint } from './objects';
 import { applyParamOverrides } from './params';
 import { compileIntegralTask } from './integrals';
 import { compileAnalyses } from './analyses';
 import { compileIntersections } from './intersections';
+import { integralLatex, sceneObjectLatex } from './latex';
 import {
     cloneAnimations,
     cloneObjectAnimations,
@@ -43,7 +41,7 @@ export interface CompileSceneOptions {
 export function compileScene(
     ast: AstProgram,
     paramOverrides: Record<string, number> = {},
-    matrixOps: MatrixOps = jsMatrixOps,
+    matrixOps: MatrixOps,
     options: CompileSceneOptions = {},
 ): SceneIR {
     const staticScene = getOrBuildStaticScene(ast, matrixOps);
@@ -76,9 +74,20 @@ export function compileScene(
     const objectTransforms = cloneObjectTransforms(staticScene.objectTransforms);
     const objectAnimations = cloneObjectAnimations(staticScene.objectAnimations);
 
+    const objectFormulas: Record<number, string | null> = {};
+    for (const object of objects) {
+        objectFormulas[object.id] = sceneObjectLatex(object);
+    }
+
+    const integralFormulas: Record<string, string | null> = {};
+    for (const task of integrals) {
+        integralFormulas[task.name] = integralLatex(task, objects);
+    }
+
     return {
         params: [...params.values()],
         objects,
+        objectFormulas,
         objectTransforms,
         animations: cloneAnimations(staticScene.animations),
         objectAnimations,
@@ -90,6 +99,7 @@ export function compileScene(
             hiddenAnalysisNames,
         ),
         integrals,
+        integralFormulas,
         intersections: compileIntersections(
             ast,
             objectByName,

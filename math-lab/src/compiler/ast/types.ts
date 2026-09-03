@@ -1,3 +1,9 @@
+/**
+ * DSL 解析结果的唯一 TypeScript schema.
+ *
+ * Rust `compiler_rs` 解析器直接按这份形状输出 JSON,不再维护镜像类型;
+ * 修改 DSL 语句结构时以本文件为基准,并同步更新 `compiler_rs/src/miko.pest`.
+ */
 import type { DiffOpKind } from '../../math/diffops/types';
 
 export interface SourceSpan {
@@ -14,7 +20,8 @@ export interface ParamStatement {
     type: 'param';
     name: string;
     value: string;
-    ui: { min: string; max: string; step: string } | null;
+    /** 没有 `in [min, max, step]` 时 Rust 解析器会省略该字段. */
+    ui?: { min: string; max: string; step: string };
     span: SourceSpan;
 }
 
@@ -63,7 +70,8 @@ export interface AnalysisStatement {
     name: string;
     call: string;
     source: string;
-    at: string[] | null;
+    /** 没有 `at [...]` 时 Rust 解析器会省略该字段. */
+    at?: string[];
     options: OptionPair[];
     span: SourceSpan;
 }

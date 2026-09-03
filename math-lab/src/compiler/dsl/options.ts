@@ -3,6 +3,9 @@
  * 从 DslCompiler 拆出,负责 DSL 选项/数字列表和顶层分隔解析.
  */
 import type { OptionPair } from '../ast/types';
+import { splitTopLevel } from '../text';
+
+export { splitTopLevel };
 
 const SHOW_KINDS = new Set(['point', 'normal', 'tangent_plane']);
 
@@ -182,26 +185,4 @@ export function parseShowOption(
     }
 
     return items as Array<'point' | 'normal' | 'tangent_plane'>;
-}
-
-export function splitTopLevel(source: string, separator: string): string[] {
-    const parts: string[] = [];
-    let start = 0;
-    let parenDepth = 0;
-    let bracketDepth = 0;
-
-    for (let i = 0; i < source.length; i += 1) {
-        const ch = source[i];
-        if (ch === '(') parenDepth += 1;
-        else if (ch === ')') parenDepth -= 1;
-        else if (ch === '[') bracketDepth += 1;
-        else if (ch === ']') bracketDepth -= 1;
-        else if (ch === separator && parenDepth === 0 && bracketDepth === 0) {
-            parts.push(source.slice(start, i));
-            start = i + 1;
-        }
-    }
-
-    parts.push(source.slice(start));
-    return parts;
 }

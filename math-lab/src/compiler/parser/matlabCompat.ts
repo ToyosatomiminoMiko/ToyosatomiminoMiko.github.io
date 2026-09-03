@@ -5,6 +5,8 @@
  * 归一化 MATLAB 写法后复用同一解析器,作为未来 MATLAB 输入入口保留,
  * 并有 matlabCompat.test.ts 覆盖.若确认不再需要 MATLAB 兼容,应删除.
  */
+import { splitTopLevel } from '../text';
+
 type MatlabAlias = 'surf' | 'plot' | 'quiver3' | 'divergence' | 'curl' | 'gradient';
 
 type MatlabNormalizer = {
@@ -52,28 +54,6 @@ function findMatchingParen(source: string, openIndex: number): number {
         }
     }
     return -1;
-}
-
-function splitTopLevel(source: string, separator: string): string[] {
-    const parts: string[] = [];
-    let start = 0;
-    let parenDepth = 0;
-    let bracketDepth = 0;
-
-    for (let i = 0; i < source.length; i += 1) {
-        const ch = source[i];
-        if (ch === '(') parenDepth += 1;
-        else if (ch === ')') parenDepth -= 1;
-        else if (ch === '[') bracketDepth += 1;
-        else if (ch === ']') bracketDepth -= 1;
-        else if (ch === separator && parenDepth === 0 && bracketDepth === 0) {
-            parts.push(source.slice(start, i));
-            start = i + 1;
-        }
-    }
-
-    parts.push(source.slice(start));
-    return parts;
 }
 
 function splitTopLevelWhitespace(source: string): string[] {

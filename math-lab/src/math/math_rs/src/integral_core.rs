@@ -34,7 +34,7 @@ fn require_finite_values(values: &[f64]) -> Result<(), String> {
     Ok(())
 }
 
-/// 按值域分层计算勒贝格积分（正部/负部通用）.
+/// 按值域分层计算勒贝格积分(正部/负部通用).
 pub(crate) fn lebesgue_layer_sum(
     layers: usize,
     y_range: f64,
@@ -260,7 +260,7 @@ pub fn riemann2d_left_from_values(
 }
 
 // ================================================================
-// 勒贝格积分（基于值数组,扫描在 Rust 内完成,零 FFI 回调）
+// 勒贝格积分(基于值数组,扫描在 Rust 内完成,零 FFI 回调)
 // ================================================================
 
 pub fn lebesgue1d_from_values(
@@ -357,7 +357,7 @@ pub fn lebesgue2d_from_values(
         return Ok(0.0);
     }
 
-    // 以左下角点代表整个格子（与 1D 左端点法一致）.
+    // 以左下角点代表整个格子(与 1D 左端点法一致).
     let measure_fn = |predicate: &dyn Fn(f64) -> bool| -> f64 {
         let mut measure = 0.0;
         for j in 0..grid_size {

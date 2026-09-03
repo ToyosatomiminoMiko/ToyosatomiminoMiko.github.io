@@ -20,7 +20,7 @@
     background: rgba(20, 24, 40, 0.96);
 }
 
-/* 标题栏按钮（运行/收起）使用统一的轻量边框样式 */
+/* 标题栏按钮(运行/收起)使用统一的轻量边框样式 */
 .panel-header button {
     margin-left: auto;
     background: transparent;

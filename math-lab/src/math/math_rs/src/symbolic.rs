@@ -1,16 +1,18 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::f64::consts::{E, PI};
+
+use crate::builtins;
 
 // ============================================================
 // 轻量符号表达式引擎.
 //
 // 目标不是复刻完整的外部数学库,而是把项目中实际依赖的符号能力
-// （解析/别名归一化/符号求导/自由变量提取/数组解析/常量矩阵求值）
+// (解析/别名归一化/符号求导/自由变量提取/数组解析/常量矩阵求值)
 // 迁到 Rust/WASM,使 TS 编译层和数值层不再依赖外部 JS 数学库.
 // ============================================================
 
 #[derive(Debug, Clone, PartialEq)]
-enum Expr {
+pub(crate) enum Expr {
     Num(f64),
     Sym(String),
     Unary(UnaryOp, Box<Expr>),
@@ -19,13 +21,18 @@ enum Expr {
     List(Vec<Expr>),
 }
 
+/// 供数值求值使用的已编译表达式.
+///
+/// 类型保持 crate 内部可见:外部仍通过表达式字符串与 WASM 入口交互.
+pub(crate) type RuntimeExpr = Expr;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum UnaryOp {
+pub(crate) enum UnaryOp {
     Neg,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum BinOp {
+pub(crate) enum BinOp {
     Add,
     Sub,
     Mul,
@@ -522,24 +529,7 @@ fn rewrite_aliases_inner(expr: &mut Expr) -> Result<(), String> {
 }
 
 fn is_supported_function(name: &str) -> bool {
-    matches!(
-        name,
-        "sin"
-            | "cos"
-            | "tan"
-            | "asin"
-            | "acos"
-            | "atan"
-            | "sinh"
-            | "cosh"
-            | "tanh"
-            | "exp"
-            | "ln"
-            | "log10"
-            | "log2"
-            | "sqrt"
-            | "abs"
-    )
+    builtins::is_supported_function(name)
 }
 
 fn validate_supported(expr: &Expr) -> Result<(), String> {
@@ -568,6 +558,92 @@ fn validate_supported(expr: &Expr) -> Result<(), String> {
         }
         Expr::Num(_) | Expr::Sym(_) => Ok(()),
     }
+}
+
+// ============================================================
+// 运行时求值
+//
+// 解析/归一化/校验与符号引擎共用同一棵 Expr 树;这里只增加
+// "给定变量求数值" 的递归解释器,替代 evalexpr 的第二次解析.
+// ============================================================
+
+pub(crate) fn compile_runtime_expr(source: &str) -> Result<RuntimeExpr, String> {
+    let parsed = parse_expr(source)?;
+    let rewritten = rewrite_aliases(&parsed)?;
+    validate_supported(&rewritten)?;
+    Ok(rewritten)
+}
+
+fn finite_value(value: f64) -> Option<f64> {
+    if value.is_finite() {
+        Some(value)
+    } else {
+        None
+    }
+}
+
+fn evaluate_expr_inner(
+    expr: &Expr,
+    variables: &HashMap<String, f64>,
+) -> Result<Option<f64>, String> {
+    match expr {
+        Expr::Num(value) => Ok(finite_value(*value)),
+        Expr::Sym(name) => {
+            let value = match name.as_str() {
+                "pi" | "PI" => PI,
+                "e" | "E" => E,
+                "Infinity" => f64::INFINITY,
+                "NaN" => f64::NAN,
+                _ => variables
+                    .get(name)
+                    .copied()
+                    .ok_or_else(|| format!("变量 '{}' 未定义", name))?,
+            };
+            Ok(finite_value(value))
+        }
+        Expr::Unary(UnaryOp::Neg, operand) => {
+            Ok(evaluate_expr_inner(operand, variables)?.map(|value| -value))
+        }
+        Expr::Binary(op, left, right) => {
+            let left = evaluate_expr_inner(left, variables)?;
+            let right = evaluate_expr_inner(right, variables)?;
+            match (left, right) {
+                (Some(left), Some(right)) => {
+                    let value = match op {
+                        BinOp::Add => left + right,
+                        BinOp::Sub => left - right,
+                        BinOp::Mul => left * right,
+                        BinOp::Div => left / right,
+                        BinOp::Pow => left.powf(right),
+                    };
+                    Ok(finite_value(value))
+                }
+                _ => Ok(None),
+            }
+        }
+        Expr::Call(name, args) => {
+            let mut values = Vec::with_capacity(args.len());
+            for arg in args {
+                let Some(value) = evaluate_expr_inner(arg, variables)? else {
+                    return Ok(None);
+                };
+                values.push(value);
+            }
+            if args.len() != 1 {
+                return Err(format!("函数 {name} 只接受 1 个参数"));
+            }
+            let value = builtins::apply_unary(name, values[0])?;
+            Ok(finite_value(value))
+        }
+        Expr::List(_) => Err("不能直接对数组表达式求值".to_string()),
+    }
+}
+
+pub(crate) fn evaluate_runtime_expr(
+    expr: &RuntimeExpr,
+    variables: &HashMap<String, f64>,
+) -> Result<Option<f64>, String> {
+    evaluate_expr_inner(expr, variables)
 }
 
 // ============================================================
@@ -605,64 +681,10 @@ fn format_number(value: f64) -> String {
     }
 }
 
-impl Expr {
-    fn to_string_with_prec(&self, parent_prec: u8) -> String {
-        match self {
-            Expr::Num(value) => format_number(*value),
-            Expr::Sym(name) => name.clone(),
-            Expr::List(items) => {
-                let body = items
-                    .iter()
-                    .map(Expr::to_string)
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                format!("[{body}]")
-            }
-            Expr::Unary(UnaryOp::Neg, operand) => {
-                let body = operand.to_string_with_prec(0);
-                let text = if is_atomic(operand) || matches!(operand.as_ref(), Expr::Call(_, _)) {
-                    format!("-{body}")
-                } else {
-                    format!("-({body})")
-                };
-                if 60 < parent_prec {
-                    format!("({text})")
-                } else {
-                    text
-                }
-            }
-            Expr::Call(name, args) => {
-                let body = args
-                    .iter()
-                    .map(Expr::to_string)
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                format!("{name}({body})")
-            }
-            Expr::Binary(op, left, right) => {
-                let prec = op.prec();
-                let left_prec = expr_prec(left);
-                let right_prec = expr_prec(right);
-                let left_needs = left_prec < prec;
-                let right_needs = right_prec < prec
-                    || (right_prec == prec && matches!(op, BinOp::Sub | BinOp::Div | BinOp::Pow));
-                let left = parenthesize(&left.to_string_with_prec(prec), left_needs);
-                let right = parenthesize(&right.to_string_with_prec(prec), right_needs);
-                let text = format!("{left} {} {right}", op.text());
-                if prec < parent_prec {
-                    format!("({text})")
-                } else {
-                    text
-                }
-            }
-        }
-    }
-}
-
-impl std::fmt::Display for Expr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.to_string_with_prec(0))
-    }
+#[derive(Clone, Copy)]
+enum PrintMode {
+    Text,
+    Latex,
 }
 
 fn expr_prec(expr: &Expr) -> u8 {
@@ -670,6 +692,126 @@ fn expr_prec(expr: &Expr) -> u8 {
         Expr::Num(_) | Expr::Sym(_) | Expr::Call(_, _) | Expr::List(_) => 100,
         Expr::Unary(_, _) => 60,
         Expr::Binary(op, _, _) => op.prec(),
+    }
+}
+
+fn binary_child(expr: &Expr, mode: PrintMode, op: BinOp, is_right: bool) -> String {
+    let child_prec = expr_prec(expr);
+    let needs_parentheses = child_prec < op.prec()
+        || (is_right
+            && child_prec == op.prec()
+            && matches!(op, BinOp::Sub | BinOp::Div | BinOp::Pow));
+    parenthesize(&format_expr(expr, mode, 0), needs_parentheses)
+}
+
+/// 唯一树打印入口.
+///
+/// 文本模式生成归一化后可执行的字符串;LaTeX 模式生成 UI 排版字符串.
+/// 优先级与加括号规则在这里只写一份,两种模式只保留叶子/运算符渲染差异.
+fn format_expr(expr: &Expr, mode: PrintMode, parent_prec: u8) -> String {
+    match expr {
+        Expr::Num(value) => match mode {
+            PrintMode::Text => format_number(*value),
+            PrintMode::Latex => latex_number(*value),
+        },
+        Expr::Sym(name) => match mode {
+            PrintMode::Text => name.clone(),
+            PrintMode::Latex => latex_symbol(name),
+        },
+        Expr::List(items) => {
+            let separator = match mode {
+                PrintMode::Text => ", ",
+                PrintMode::Latex => ",\\ ",
+            };
+            let body = items
+                .iter()
+                .map(|item| format_expr(item, mode, 0))
+                .collect::<Vec<_>>()
+                .join(separator);
+            format!("[{body}]")
+        }
+        Expr::Unary(UnaryOp::Neg, operand) => {
+            let body = format_expr(operand, mode, 0);
+            let text = match mode {
+                PrintMode::Text => {
+                    if is_atomic(operand) || matches!(operand.as_ref(), Expr::Call(_, _)) {
+                        format!("-{body}")
+                    } else {
+                        format!("-({body})")
+                    }
+                }
+                PrintMode::Latex => {
+                    let needs_parentheses = matches!(
+                        operand.as_ref(),
+                        Expr::Binary(op, _, _) if matches!(op, BinOp::Add | BinOp::Sub)
+                    );
+                    if needs_parentheses {
+                        format!("-({body})")
+                    } else {
+                        format!("-{body}")
+                    }
+                }
+            };
+            parenthesize(&text, 60 < parent_prec)
+        }
+        Expr::Call(name, args) => {
+            let separator = match mode {
+                PrintMode::Text => ", ",
+                PrintMode::Latex => ",\\ ",
+            };
+            let arg_texts: Vec<String> = args.iter().map(|arg| format_expr(arg, mode, 0)).collect();
+            let body = arg_texts.join(separator);
+            match mode {
+                PrintMode::Text => format!("{name}({body})"),
+                PrintMode::Latex => latex_call(name, args, &arg_texts),
+            }
+        }
+        Expr::Binary(op, left, right) => {
+            let prec = op.prec();
+            let text = match op {
+                BinOp::Add | BinOp::Sub => format!(
+                    "{} {} {}",
+                    binary_child(left, mode, *op, false),
+                    op.text(),
+                    binary_child(right, mode, *op, true),
+                ),
+                BinOp::Mul | BinOp::Div | BinOp::Pow => match mode {
+                    PrintMode::Text => format!(
+                        "{} {} {}",
+                        binary_child(left, mode, *op, false),
+                        op.text(),
+                        binary_child(right, mode, *op, true),
+                    ),
+                    PrintMode::Latex => match op {
+                        BinOp::Mul => latex_product(expr),
+                        BinOp::Div => format!(
+                            "\\frac{{{}}}{{{}}}",
+                            format_expr(left, PrintMode::Latex, 0),
+                            format_expr(right, PrintMode::Latex, 0),
+                        ),
+                        BinOp::Pow => format!(
+                            "{}^{{{}}}",
+                            latex_pow_base(left),
+                            format_expr(right, PrintMode::Latex, 0),
+                        ),
+                        _ => unreachable!(),
+                    },
+                },
+            };
+            parenthesize(&text, prec < parent_prec)
+        }
+    }
+}
+
+impl Expr {
+    fn to_string_with_prec(&self, parent_prec: u8) -> String {
+        format_expr(self, PrintMode::Text, parent_prec)
+    }
+}
+
+impl std::fmt::Display for Expr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.to_string_with_prec(0))
     }
 }
 
@@ -752,35 +894,8 @@ fn latex_symbol(name: &str) -> String {
     format!("\\mathit{{{name}}}")
 }
 
-fn latex_paren(inner: &str, needed: bool) -> String {
-    if needed {
-        format!("({inner})")
-    } else {
-        inner.to_string()
-    }
-}
-
-fn latex_function_name(name: &str) -> Option<&'static str> {
-    Some(match name {
-        "sin" => "\\sin",
-        "cos" => "\\cos",
-        "tan" => "\\tan",
-        "asin" => "\\arcsin",
-        "acos" => "\\arccos",
-        "atan" => "\\arctan",
-        "sinh" => "\\sinh",
-        "cosh" => "\\cosh",
-        "tanh" => "\\tanh",
-        "ln" | "log" => "\\ln",
-        _ => return None,
-    })
-}
-
-fn latex_join_args(args: &[Expr]) -> String {
-    args.iter()
-        .map(|arg| to_latex(arg, 0))
-        .collect::<Vec<_>>()
-        .join(",\\ ")
+fn latex_join_args(arg_texts: &[String]) -> String {
+    arg_texts.join(",\\ ")
 }
 
 /// 幂运算底数:只有原子/函数调用可以直接跟随上标,其余需要括号.
@@ -788,50 +903,39 @@ fn latex_pow_base(expr: &Expr) -> String {
     let text = to_latex(expr, 0);
     match expr {
         Expr::Num(_) | Expr::Sym(_) | Expr::Call(_, _) | Expr::List(_) => text,
-        _ => latex_paren(&text, true),
+        _ => parenthesize(&text, true),
     }
 }
 
-fn latex_call(name: &str, args: &[Expr]) -> String {
+fn latex_call(name: &str, args: &[Expr], arg_texts: &[String]) -> String {
     match name {
         "pow" if args.len() == 2 => {
-            format!("{}^{{{}}}", latex_pow_base(&args[0]), to_latex(&args[1], 0))
+            format!("{}^{{{}}}", latex_pow_base(&args[0]), arg_texts[1])
         }
-        "exp" if args.len() == 1 => {
-            format!("e^{{{}}}", to_latex(&args[0], 0))
-        }
-        "sqrt" if args.len() == 1 => {
-            format!("\\sqrt{{{}}}", to_latex(&args[0], 0))
-        }
-        "abs" if args.len() == 1 => {
-            format!("\\left|{}\\right|", to_latex(&args[0], 0))
-        }
-        "deg" if args.len() == 1 => {
-            format!("{}^{{\\circ}}", latex_pow_base(&args[0]))
-        }
-        "log10" if args.len() == 1 => {
-            format!("\\log_{{10}}\\left({}\\right)", to_latex(&args[0], 0))
-        }
-        "log2" if args.len() == 1 => {
-            format!("\\log_{{2}}\\left({}\\right)", to_latex(&args[0], 0))
-        }
-        _ => {
-            if let Some(function) = latex_function_name(name) {
-                format!("{function}\\left({}\\right)", latex_join_args(args))
-            } else {
-                format!(
-                    "\\operatorname{{{name}}}\\left({}\\right)",
-                    latex_join_args(args)
-                )
+        "deg" if args.len() == 1 => format!("{}^{{\\circ}}", latex_pow_base(&args[0])),
+        "log" if args.len() == 1 => format!("\\ln\\left({}\\right)", arg_texts[0]),
+        _ => match builtins::latex_style(name) {
+            Some(builtins::LatexStyle::Named(function)) => {
+                format!("{function}\\left({}\\right)", latex_join_args(arg_texts))
             }
-        }
+            Some(builtins::LatexStyle::Exp) => format!("e^{{{}}}", arg_texts[0]),
+            Some(builtins::LatexStyle::Sqrt) => format!("\\sqrt{{{}}}", arg_texts[0]),
+            Some(builtins::LatexStyle::Abs) => format!("\\left|{}\\right|", arg_texts[0]),
+            Some(builtins::LatexStyle::LogBase(base)) => {
+                format!("\\log_{{{base}}}\\left({}\\right)", arg_texts[0])
+            }
+            None => format!(
+                "\\operatorname{{{name}}}\\left({}\\right)",
+                latex_join_args(arg_texts)
+            ),
+        },
     }
 }
 
 fn latex_product_factor(expr: &Expr) -> String {
     match expr {
-        Expr::Binary(BinOp::Add | BinOp::Sub, _, _) => latex_paren(&to_latex(expr, 0), true),
-        Expr::Unary(UnaryOp::Neg, _) => latex_paren(&to_latex(expr, 0), true),
+        Expr::Binary(BinOp::Add | BinOp::Sub, _, _) => parenthesize(&to_latex(expr, 0), true),
+        Expr::Unary(UnaryOp::Neg, _) => parenthesize(&to_latex(expr, 0), true),
         _ => to_latex(expr, 0),
     }
 }
@@ -880,52 +984,7 @@ fn latex_product(expr: &Expr) -> String {
 }
 
 fn to_latex(expr: &Expr, parent_prec: u8) -> String {
-    match expr {
-        Expr::Num(value) => latex_number(*value),
-        Expr::Sym(name) => latex_symbol(name),
-        Expr::List(items) => {
-            let body = items
-                .iter()
-                .map(|item| to_latex(item, 0))
-                .collect::<Vec<_>>()
-                .join(",\\ ");
-            format!("[{body}]")
-        }
-        Expr::Unary(UnaryOp::Neg, operand) => {
-            let body = to_latex(operand, 0);
-            let needs_parentheses = matches!(
-                operand.as_ref(),
-                Expr::Binary(op, _, _) if matches!(op, BinOp::Add | BinOp::Sub)
-            );
-            let text = if needs_parentheses {
-                format!("-{}", latex_paren(&body, true))
-            } else {
-                format!("-{body}")
-            };
-            latex_paren(&text, 60 < parent_prec)
-        }
-        Expr::Call(name, args) => latex_call(name, args),
-        Expr::Binary(BinOp::Add, left, right) => {
-            let text = format!("{} + {}", to_latex(left, 20), to_latex(right, 21));
-            latex_paren(&text, 20 < parent_prec)
-        }
-        Expr::Binary(BinOp::Sub, left, right) => {
-            let text = format!("{} - {}", to_latex(left, 20), to_latex(right, 21));
-            latex_paren(&text, 20 < parent_prec)
-        }
-        Expr::Binary(BinOp::Mul, _, _) => {
-            let text = latex_product(expr);
-            latex_paren(&text, 40 < parent_prec)
-        }
-        Expr::Binary(BinOp::Div, left, right) => {
-            let text = format!("\\frac{{{}}}{{{}}}", to_latex(left, 0), to_latex(right, 0));
-            latex_paren(&text, 40 < parent_prec)
-        }
-        Expr::Binary(BinOp::Pow, left, right) => {
-            let text = format!("{}^{{{}}}", latex_pow_base(left), to_latex(right, 0));
-            latex_paren(&text, 70 < parent_prec)
-        }
-    }
+    format_expr(expr, PrintMode::Latex, parent_prec)
 }
 
 pub fn latex_expression(expr: &str) -> Result<String, String> {
@@ -934,7 +993,7 @@ pub fn latex_expression(expr: &str) -> Result<String, String> {
 }
 
 // ============================================================
-// 常量求值（用于 matrix 表达式）
+// 常量求值(用于 matrix 表达式)
 // ============================================================
 
 fn evaluate_constant(expr: &Expr) -> Result<f64, String> {
@@ -960,24 +1019,11 @@ fn evaluate_constant(expr: &Expr) -> Result<f64, String> {
                 .iter()
                 .map(evaluate_constant)
                 .collect::<Result<Vec<_>, _>>()?;
-            match (name.as_str(), values.as_slice()) {
-                ("sin", [x]) => Ok(x.sin()),
-                ("cos", [x]) => Ok(x.cos()),
-                ("tan", [x]) => Ok(x.tan()),
-                ("asin", [x]) => Ok(x.asin()),
-                ("acos", [x]) => Ok(x.acos()),
-                ("atan", [x]) => Ok(x.atan()),
-                ("sinh", [x]) => Ok(x.sinh()),
-                ("cosh", [x]) => Ok(x.cosh()),
-                ("tanh", [x]) => Ok(x.tanh()),
-                ("exp", [x]) => Ok(x.exp()),
-                ("ln", [x]) => Ok(x.ln()),
-                ("log10", [x]) => Ok(x.log10()),
-                ("log2", [x]) => Ok(x.log2()),
-                ("sqrt", [x]) => Ok(x.sqrt()),
-                ("abs", [x]) => Ok(x.abs()),
-                _ => Err(format!("矩阵条目包含不支持的函数 {name}")),
+            if values.len() != 1 {
+                return Err(format!("矩阵条目包含不支持的函数 {name}"));
             }
+            builtins::apply_unary(name, values[0])
+                .map_err(|_| format!("矩阵条目包含不支持的函数 {name}"))
         }
         Expr::List(_) => Err("矩阵条目中不能包含嵌套数组".to_string()),
     }
@@ -1357,120 +1403,9 @@ fn derivative_call(name: &str, args: &[Expr], variable: &str) -> Result<Expr, St
         .ok_or_else(|| format!("函数 {name} 至少需要一个参数"))?;
     let darg = derivative_inner(arg, variable)?;
 
-    let func = match name {
-        "sin" => Expr::Call("cos".to_string(), vec![arg.clone()]),
-        "cos" => Expr::Unary(
-            UnaryOp::Neg,
-            Box::new(Expr::Call("sin".to_string(), vec![arg.clone()])),
-        ),
-        "tan" => Expr::Binary(
-            BinOp::Div,
-            Box::new(Expr::Num(1.0)),
-            Box::new(Expr::Binary(
-                BinOp::Pow,
-                Box::new(Expr::Call("cos".to_string(), vec![arg.clone()])),
-                Box::new(Expr::Num(2.0)),
-            )),
-        ),
-        "asin" => Expr::Binary(
-            BinOp::Div,
-            Box::new(Expr::Num(1.0)),
-            Box::new(Expr::Call(
-                "sqrt".to_string(),
-                vec![Expr::Binary(
-                    BinOp::Sub,
-                    Box::new(Expr::Num(1.0)),
-                    Box::new(Expr::Binary(
-                        BinOp::Pow,
-                        Box::new(arg.clone()),
-                        Box::new(Expr::Num(2.0)),
-                    )),
-                )],
-            )),
-        ),
-        "acos" => Expr::Unary(
-            UnaryOp::Neg,
-            Box::new(Expr::Binary(
-                BinOp::Div,
-                Box::new(Expr::Num(1.0)),
-                Box::new(Expr::Call(
-                    "sqrt".to_string(),
-                    vec![Expr::Binary(
-                        BinOp::Sub,
-                        Box::new(Expr::Num(1.0)),
-                        Box::new(Expr::Binary(
-                            BinOp::Pow,
-                            Box::new(arg.clone()),
-                            Box::new(Expr::Num(2.0)),
-                        )),
-                    )],
-                )),
-            )),
-        ),
-        "atan" => Expr::Binary(
-            BinOp::Div,
-            Box::new(Expr::Num(1.0)),
-            Box::new(Expr::Binary(
-                BinOp::Add,
-                Box::new(Expr::Binary(
-                    BinOp::Pow,
-                    Box::new(arg.clone()),
-                    Box::new(Expr::Num(2.0)),
-                )),
-                Box::new(Expr::Num(1.0)),
-            )),
-        ),
-        "sinh" => Expr::Call("cosh".to_string(), vec![arg.clone()]),
-        "cosh" => Expr::Call("sinh".to_string(), vec![arg.clone()]),
-        "tanh" => Expr::Binary(
-            BinOp::Div,
-            Box::new(Expr::Num(1.0)),
-            Box::new(Expr::Binary(
-                BinOp::Pow,
-                Box::new(Expr::Call("cosh".to_string(), vec![arg.clone()])),
-                Box::new(Expr::Num(2.0)),
-            )),
-        ),
-        "exp" => Expr::Call("exp".to_string(), vec![arg.clone()]),
-        "ln" => Expr::Binary(BinOp::Div, Box::new(Expr::Num(1.0)), Box::new(arg.clone())),
-        "log10" => Expr::Binary(
-            BinOp::Div,
-            Box::new(Expr::Num(1.0)),
-            Box::new(Expr::Binary(
-                BinOp::Mul,
-                Box::new(arg.clone()),
-                Box::new(Expr::Call("ln".to_string(), vec![Expr::Num(10.0)])),
-            )),
-        ),
-        "log2" => Expr::Binary(
-            BinOp::Div,
-            Box::new(Expr::Num(1.0)),
-            Box::new(Expr::Binary(
-                BinOp::Mul,
-                Box::new(arg.clone()),
-                Box::new(Expr::Call("ln".to_string(), vec![Expr::Num(2.0)])),
-            )),
-        ),
-        "sqrt" => Expr::Binary(
-            BinOp::Div,
-            Box::new(Expr::Num(1.0)),
-            Box::new(Expr::Binary(
-                BinOp::Mul,
-                Box::new(Expr::Num(2.0)),
-                Box::new(Expr::Call("sqrt".to_string(), vec![arg.clone()])),
-            )),
-        ),
-        "abs" => Expr::Binary(
-            BinOp::Mul,
-            Box::new(Expr::Call("abs".to_string(), vec![arg.clone()])),
-            Box::new(Expr::Binary(
-                BinOp::Div,
-                Box::new(Expr::Num(1.0)),
-                Box::new(arg.clone()),
-            )),
-        ),
-        _ => return Err(format!("表达式暂不支持函数 {name} 的符号求导")),
-    };
+    let derivative = builtins::derivative_unary(name)
+        .ok_or_else(|| format!("表达式暂不支持函数 {name} 的符号求导"))?;
+    let func = derivative(arg);
 
     Ok(Expr::Binary(BinOp::Mul, Box::new(darg), Box::new(func)))
 }
@@ -1480,40 +1415,26 @@ fn derivative_call(name: &str, args: &[Expr], variable: &str) -> Result<Expr, St
 // ============================================================
 
 fn builtin_symbol(name: &str) -> bool {
-    matches!(
-        name,
-        "sin"
-            | "cos"
-            | "tan"
-            | "asin"
-            | "acos"
-            | "atan"
-            | "sinh"
-            | "cosh"
-            | "tanh"
-            | "exp"
-            | "log"
-            | "ln"
-            | "log10"
-            | "log2"
-            | "sqrt"
-            | "abs"
-            | "pow"
-            | "sec"
-            | "csc"
-            | "cot"
-            | "deg"
-            | "pi"
-            | "PI"
-            | "e"
-            | "E"
-            | "i"
-            | "Infinity"
-            | "NaN"
-            | "true"
-            | "false"
-            | "null"
-    )
+    builtins::is_supported_function(name)
+        || matches!(
+            name,
+            "log"
+                | "pow"
+                | "sec"
+                | "csc"
+                | "cot"
+                | "deg"
+                | "pi"
+                | "PI"
+                | "e"
+                | "E"
+                | "i"
+                | "Infinity"
+                | "NaN"
+                | "true"
+                | "false"
+                | "null"
+        )
 }
 
 fn collect_symbols(expr: &Expr, out: &mut Vec<String>) {
@@ -1671,6 +1592,14 @@ mod tests {
     }
 
     #[test]
+    fn shared_printer_keeps_necessary_parentheses_once() {
+        assert_eq!(normalize_expression("2 * (a + b)").unwrap(), "2 * (a + b)");
+        assert_eq!(normalize_expression("a - (b - c)").unwrap(), "a - (b - c)");
+        assert_eq!(normalize_expression("(a + b) / c").unwrap(), "(a + b) / c");
+        assert_eq!(normalize_expression("x ^ (y ^ z)").unwrap(), "x ^ (y ^ z)");
+    }
+
+    #[test]
     fn differentiates_common_expressions() {
         assert_eq!(symbolic_derivative("x^2", "x").unwrap(), "2 * x");
         assert_eq!(
@@ -1705,6 +1634,7 @@ mod tests {
             "\\sin\\left(x\\,a\\right)\\,\\cos\\left(x\\,b\\right)"
         );
         assert_eq!(latex_expression("2x").unwrap(), "2\\,x");
+        assert_eq!(latex_expression("2 * (a + b)").unwrap(), "2\\,(a + b)");
         assert_eq!(latex_expression("pow(x, 2)").unwrap(), "x^{2}");
         assert_eq!(latex_expression("-(a + b)").unwrap(), "-(a + b)");
         assert_eq!(

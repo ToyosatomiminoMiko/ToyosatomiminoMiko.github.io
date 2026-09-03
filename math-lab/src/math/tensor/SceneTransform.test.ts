@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { createMatrixOps } from './SceneTransform';
 import {
-    apply,
-    compose,
-    createMatrixOps,
     identity4,
+    jsMatrixOps,
     multiply4x4,
     rotate4,
     scale4,
     translate4,
-} from './SceneTransform';
+} from './testMatrixOps';
 
 describe('SceneTransform', () => {
     it('keeps translation in the fourth column of a row-major matrix', () => {
@@ -21,23 +20,22 @@ describe('SceneTransform', () => {
     });
 
     it('applies a translation to a point as a homogeneous vector', () => {
-        const transform = { kind: 'transform' as const, matrix: translate4([1, -2, 3]) };
-        const point = { kind: 'vector' as const, values: [4, 5, 6] };
-
-        expect(apply(transform, point).values).toEqual([5, 3, 9]);
+        expect(jsMatrixOps.apply(translate4([1, -2, 3]), [4, 5, 6]))
+            .toEqual([5, 3, 9]);
     });
 
-    it('composes transforms with the documented a * b order', () => {
-        const translate = { kind: 'transform' as const, matrix: translate4([1, 0, 0]) };
-        const scale = { kind: 'transform' as const, matrix: scale4([2, 2, 2]) };
-        const combined = compose(scale, translate);
-
-        expect(apply(combined, { kind: 'vector' as const, values: [1, 1, 1] }).values)
+    it('multiplies matrices in the documented a * b order', () => {
+        const translatedThenScaled = multiply4x4(
+            scale4([2, 2, 2]),
+            translate4([1, 0, 0]),
+        );
+        expect(jsMatrixOps.apply(translatedThenScaled, [1, 1, 1]))
             .toEqual([4, 2, 2]);
     });
 
     it('multiplies 4x4 matrices in row-major order', () => {
-        expect(multiply4x4(identity4(), translate4([1, 2, 3]))).toEqual(translate4([1, 2, 3]));
+        expect(multiply4x4(identity4(), translate4([1, 2, 3])))
+            .toEqual(translate4([1, 2, 3]));
     });
 
     it('returns a 4x4 rotation matrix', () => {

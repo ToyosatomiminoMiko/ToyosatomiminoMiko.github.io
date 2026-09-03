@@ -7,4 +7,4 @@ dist/
 .vscode
 /prompt
 **/docs
-**.miko
+math-lab/example/01.txt

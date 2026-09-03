@@ -14,12 +14,15 @@
  */
 import type { AstProgram } from '../compiler/ast/types';
 import type { SceneIR, SceneObject } from '../compiler/ir/types';
-import { createMatrixOps, type MatrixOps } from '../math/tensor/SceneTransform';
+import type { MatrixOps } from '../math/tensor/SceneTransform';
 
 export class SceneStore {
     private _currentAst: AstProgram | null = null;
     private _lastRunSource = '';
-    private _matrixOps: MatrixOps = createMatrixOps();
+    /**
+     * 首次 run() 成功前没有可用的 WASM 后端;渲染层在该时间点前不会使用矩阵.
+     */
+    private _matrixOps: MatrixOps | null = null;
     private _compiledObjects: SceneObject[] = [];
 
     /**
@@ -46,7 +49,7 @@ export class SceneStore {
         return this._currentAst;
     }
 
-    get matrixOps(): MatrixOps {
+    get matrixOps(): MatrixOps | null {
         return this._matrixOps;
     }
 

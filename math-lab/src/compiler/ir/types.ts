@@ -278,6 +278,19 @@ export interface SceneIR {
     params: ParamDeclaration[];
     objects: SceneObject[];
     /**
+     * 对象列表展示公式:object id -> LaTeX 字符串.
+     *
+     * 体积对象等无法从数值化几何参数给出可靠方程时值为 null,UI 回退到
+     * 纯文本摘要.该字段由编译阶段统一生成,避免每次渲染重复调用 LaTeX 引擎.
+     */
+    objectFormulas: Record<number, string | null>;
+    /**
+     * 积分任务展示公式:任务名 -> LaTeX 字符串.
+     *
+     * 找不到被积对象时值为 null,UI 回退到文字摘要.
+     */
+    integralFormulas: Record<string, string | null>;
+    /**
      * 对象 id -> 4x4 行主序变换矩阵.
      *
      * 使用 Record 而不是 Map,是为了让 IR 保持可序列化,

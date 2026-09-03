@@ -1,95 +1,22 @@
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
-use serde::Serialize;
+use serde_json::{json, Value};
 
 #[derive(Parser)]
 #[grammar = "miko.pest"]
 pub struct MikoParser;
 
-#[derive(Serialize)]
-struct SourceSpan {
-    start: usize,
-    end: usize,
-}
+// AST 的 TypeScript 形状以 `compiler/ast/types.ts` 为唯一 schema;
+// 这里不再维护一套 Rust 镜像类型,而是直接构造 JSON,避免改 DSL 时
+// 需要在 Rust enum 和 TS interface 两处同步.
 
-#[derive(Serialize)]
-struct OptionPair {
-    name: String,
-    value: String,
-}
-
-#[derive(Serialize)]
-struct ParamUi {
-    min: String,
-    max: String,
-    step: String,
-}
-
-#[derive(Serialize)]
-#[serde(tag = "type", rename_all = "lowercase")]
-enum AstStatement {
-    Param {
-        name: String,
-        value: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        ui: Option<ParamUi>,
-        span: SourceSpan,
-    },
-    Tensor {
-        kind: String,
-        name: String,
-        expr: String,
-        span: SourceSpan,
-    },
-    Animation {
-        name: String,
-        expr: String,
-        options: Vec<OptionPair>,
-        span: SourceSpan,
-    },
-    Object {
-        kind: String,
-        name: String,
-        expr: String,
-        options: Vec<OptionPair>,
-        span: SourceSpan,
-    },
-    Analysis {
-        op: String,
-        name: String,
-        call: String,
-        source: String,
-        at: Option<Vec<String>>,
-        options: Vec<OptionPair>,
-        span: SourceSpan,
-    },
-    Integral {
-        name: String,
-        source: String,
-        options: Vec<OptionPair>,
-        span: SourceSpan,
-    },
-    Intersection {
-        name: String,
-        a: String,
-        b: String,
-        options: Vec<OptionPair>,
-        span: SourceSpan,
-    },
-}
-
-#[derive(Serialize)]
-struct AstProgram {
-    statements: Vec<AstStatement>,
-}
-
-fn span_of(pair: &Pair<'_, Rule>) -> SourceSpan {
+fn span_of(pair: &Pair<'_, Rule>) -> Value {
     let span = pair.as_span();
-    SourceSpan {
-        start: span.start(),
-        end: span.end(),
-    }
+    json!({
+        "start": span.start(),
+        "end": span.end(),
+    })
 }
 
 fn pair_ident(pair: &Pair<'_, Rule>) -> String {
@@ -100,7 +27,7 @@ fn pair_ident(pair: &Pair<'_, Rule>) -> String {
         .unwrap_or_default()
 }
 
-fn option_pairs(pair: &Pair<'_, Rule>) -> Vec<OptionPair> {
+fn option_pairs(pair: &Pair<'_, Rule>) -> Vec<Value> {
     pair.clone()
         .into_inner()
         .filter(|child| child.as_rule() == Rule::option)
@@ -114,12 +41,24 @@ fn option_pairs(pair: &Pair<'_, Rule>) -> Vec<OptionPair> {
                     _ => {}
                 }
             }
-            OptionPair { name, value }
+            json!({
+                "name": name,
+                "value": value,
+            })
         })
         .collect()
 }
 
-fn param_ui(pair: &Pair<'_, Rule>) -> Option<ParamUi> {
+/// 从 `*_end` 子节点中提取统一的 `{ option = value; ... }` 列表.
+fn options_from_end(end: &Pair<'_, Rule>) -> Vec<Value> {
+    end.clone()
+        .into_inner()
+        .find(|child| child.as_rule() == Rule::options)
+        .map(|options| option_pairs(&options))
+        .unwrap_or_default()
+}
+
+fn param_ui(pair: &Pair<'_, Rule>) -> Option<Value> {
     pair.clone()
         .into_inner()
         .find(|child| child.as_rule() == Rule::param_ui)
@@ -129,15 +68,15 @@ fn param_ui(pair: &Pair<'_, Rule>) -> Option<ParamUi> {
                 .filter(|child| child.as_rule() == Rule::number)
                 .map(|child| child.as_str().to_string())
                 .collect();
-            ParamUi {
-                min: nums.first().cloned().unwrap_or_default(),
-                max: nums.get(1).cloned().unwrap_or_default(),
-                step: nums.get(2).cloned().unwrap_or_default(),
-            }
+            json!({
+                "min": nums.first().cloned().unwrap_or_default(),
+                "max": nums.get(1).cloned().unwrap_or_default(),
+                "step": nums.get(2).cloned().unwrap_or_default(),
+            })
         })
 }
 
-fn param_to_stmt(pair: &Pair<'_, Rule>) -> AstStatement {
+fn param_to_stmt(pair: &Pair<'_, Rule>) -> Value {
     let name = pair_ident(pair);
     let value = pair
         .clone()
@@ -146,15 +85,19 @@ fn param_to_stmt(pair: &Pair<'_, Rule>) -> AstStatement {
         .map(|child| child.as_str().trim().to_string())
         .unwrap_or_default();
 
-    AstStatement::Param {
-        name,
-        value,
-        ui: param_ui(pair),
-        span: span_of(pair),
+    let mut statement = json!({
+        "type": "param",
+        "name": name,
+        "value": value,
+        "span": span_of(pair),
+    });
+    if let Some(ui) = param_ui(pair) {
+        statement["ui"] = ui;
     }
+    statement
 }
 
-fn tensor_to_stmt(pair: &Pair<'_, Rule>) -> AstStatement {
+fn tensor_to_stmt(pair: &Pair<'_, Rule>) -> Value {
     let mut kind = String::new();
     let mut name = String::new();
     let mut expr = String::new();
@@ -168,80 +111,71 @@ fn tensor_to_stmt(pair: &Pair<'_, Rule>) -> AstStatement {
         }
     }
 
-    AstStatement::Tensor {
-        kind,
-        name,
-        expr,
-        span: span_of(pair),
-    }
+    json!({
+        "type": "tensor",
+        "kind": kind,
+        "name": name,
+        "expr": expr,
+        "span": span_of(pair),
+    })
 }
 
-fn animation_to_stmt(pair: &Pair<'_, Rule>) -> AstStatement {
+fn animation_to_stmt(pair: &Pair<'_, Rule>) -> Value {
     let mut name = String::new();
     let mut expr = String::new();
-    let mut options: Vec<OptionPair> = Vec::new();
+    let mut options: Vec<Value> = Vec::new();
 
     for child in pair.clone().into_inner() {
         match child.as_rule() {
             Rule::ident => name = child.as_str().to_string(),
             Rule::expr => expr = child.as_str().trim().to_string(),
-            Rule::animation_end => {
-                if let Some(inner_options) =
-                    child.into_inner().find(|p| p.as_rule() == Rule::options)
-                {
-                    options = option_pairs(&inner_options);
-                }
-            }
+            Rule::animation_end => options = options_from_end(&child),
             _ => {}
         }
     }
 
-    AstStatement::Animation {
-        name,
-        expr,
-        options,
-        span: span_of(pair),
-    }
+    json!({
+        "type": "animation",
+        "name": name,
+        "expr": expr,
+        "options": options,
+        "span": span_of(pair),
+    })
 }
 
-fn object_to_stmt(pair: &Pair<'_, Rule>) -> AstStatement {
+fn object_to_stmt(pair: &Pair<'_, Rule>) -> Value {
     let mut kind = String::new();
     let mut name = String::new();
     let mut expr = String::new();
-    let mut options: Vec<OptionPair> = Vec::new();
+    let mut options: Vec<Value> = Vec::new();
 
     for child in pair.clone().into_inner() {
         match child.as_rule() {
             Rule::object_kind => kind = child.as_str().to_string(),
             Rule::ident => name = child.as_str().to_string(),
             Rule::expr => expr = child.as_str().trim().to_string(),
-            Rule::object_end => {
-                if let Some(inner_options) =
-                    child.into_inner().find(|p| p.as_rule() == Rule::options)
-                {
-                    options = option_pairs(&inner_options);
-                }
-            }
+            Rule::object_end => options = options_from_end(&child),
             _ => {}
         }
     }
 
-    AstStatement::Object {
-        kind,
-        name,
-        expr,
-        options,
-        span: span_of(pair),
-    }
+    json!({
+        "type": "object",
+        "kind": kind,
+        "name": name,
+        "expr": expr,
+        "options": options,
+        "span": span_of(pair),
+    })
 }
 
-fn analysis_to_stmt(pair: &Pair<'_, Rule>) -> AstStatement {
+fn analysis_to_stmt(pair: &Pair<'_, Rule>) -> Value {
     let mut op = String::new();
     let mut name = String::new();
     let mut call = String::new();
     let mut source = String::new();
     let mut at: Option<Vec<String>> = None;
-    let mut options: Vec<OptionPair> = Vec::new();
+    let mut options: Vec<Value> = Vec::new();
 
     for child in pair.clone().into_inner() {
         match child.as_rule() {
@@ -264,32 +198,30 @@ fn analysis_to_stmt(pair: &Pair<'_, Rule>) -> AstStatement {
                     }
                 }
             }
-            Rule::analysis_end => {
-                if let Some(inner_options) =
-                    child.into_inner().find(|p| p.as_rule() == Rule::options)
-                {
-                    options = option_pairs(&inner_options);
-                }
-            }
+            Rule::analysis_end => options = options_from_end(&child),
             _ => {}
         }
     }
 
-    AstStatement::Analysis {
-        op,
-        name,
-        call,
-        source,
-        at,
-        options,
-        span: span_of(pair),
+    let mut statement = json!({
+        "type": "analysis",
+        "op": op,
+        "name": name,
+        "call": call,
+        "source": source,
+        "options": options,
+        "span": span_of(pair),
+    });
+    if let Some(at) = at {
+        statement["at"] = json!(at);
     }
+    statement
 }
 
-fn integral_to_stmt(pair: &Pair<'_, Rule>) -> AstStatement {
+fn integral_to_stmt(pair: &Pair<'_, Rule>) -> Value {
     let mut name = String::new();
     let mut source = String::new();
-    let mut options: Vec<OptionPair> = Vec::new();
+    let mut options: Vec<Value> = Vec::new();
 
     for child in pair.clone().into_inner() {
         match child.as_rule() {
@@ -302,30 +234,25 @@ fn integral_to_stmt(pair: &Pair<'_, Rule>) -> AstStatement {
                     source = source_ident.as_str().to_string();
                 }
             }
-            Rule::integral_end => {
-                if let Some(inner_options) =
-                    child.into_inner().find(|p| p.as_rule() == Rule::options)
-                {
-                    options = option_pairs(&inner_options);
-                }
-            }
+            Rule::integral_end => options = options_from_end(&child),
             _ => {}
         }
     }
 
-    AstStatement::Integral {
-        name,
-        source,
-        options,
-        span: span_of(pair),
-    }
+    json!({
+        "type": "integral",
+        "name": name,
+        "source": source,
+        "options": options,
+        "span": span_of(pair),
+    })
 }
 
-fn intersection_to_stmt(pair: &Pair<'_, Rule>) -> AstStatement {
+fn intersection_to_stmt(pair: &Pair<'_, Rule>) -> Value {
     let mut name = String::new();
     let mut a = String::new();
     let mut b = String::new();
-    let mut options: Vec<OptionPair> = Vec::new();
+    let mut options: Vec<Value> = Vec::new();
 
     for child in pair.clone().into_inner() {
         match child.as_rule() {
@@ -341,27 +268,22 @@ fn intersection_to_stmt(pair: &Pair<'_, Rule>) -> AstStatement {
                     b = second.as_str().to_string();
                 }
             }
-            Rule::intersection_end => {
-                if let Some(inner_options) =
-                    child.into_inner().find(|p| p.as_rule() == Rule::options)
-                {
-                    options = option_pairs(&inner_options);
-                }
-            }
+            Rule::intersection_end => options = options_from_end(&child),
             _ => {}
         }
     }
 
-    AstStatement::Intersection {
-        name,
-        a,
-        b,
-        options,
-        span: span_of(pair),
-    }
+    json!({
+        "type": "intersection",
+        "name": name,
+        "a": a,
+        "b": b,
+        "options": options,
+        "span": span_of(pair),
+    })
 }
 
-fn statement_to_ast(pair: Pair<'_, Rule>) -> Result<AstStatement, String> {
+fn statement_to_ast(pair: Pair<'_, Rule>) -> Result<Value, String> {
     match pair.as_rule() {
         Rule::param_stmt => Ok(param_to_stmt(&pair)),
         Rule::tensor_stmt => Ok(tensor_to_stmt(&pair)),
@@ -376,16 +298,17 @@ fn statement_to_ast(pair: Pair<'_, Rule>) -> Result<AstStatement, String> {
 
 /// 解析 `.miko` 源码,返回 JSON 格式的 AST.
 pub fn parse_to_json(source: &str) -> Result<String, String> {
-    let mut pairs = MikoParser::parse(Rule::program, source).map_err(|err| err.to_string())?;
-    let program = pairs.next().ok_or_else(|| "空的解析结果".to_string())?;
+    let mut pairs: pest::iterators::Pairs<'_, Rule> =
+        MikoParser::parse(Rule::program, source).map_err(|err| err.to_string())?;
+    let program: Pair<'_, Rule> = pairs.next().ok_or_else(|| "空的解析结果".to_string())?;
 
-    let statements = program
+    let statements: Vec<Value> = program
         .into_inner()
         .filter(|child| child.as_rule() != Rule::EOI)
         .map(statement_to_ast)
         .collect::<Result<Vec<_>, _>>()?;
 
-    serde_json::to_string(&AstProgram { statements }).map_err(|err| err.to_string())
+    serde_json::to_string(&json!({ "statements": statements })).map_err(|err| err.to_string())
 }
 
 #[cfg(test)]

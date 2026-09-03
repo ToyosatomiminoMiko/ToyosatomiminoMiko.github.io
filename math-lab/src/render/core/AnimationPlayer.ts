@@ -4,10 +4,7 @@ import {
     cloneMat4,
     type Mat4,
 } from '../../math/tensor/rowMajorMatrix';
-import {
-    jsMatrixOps,
-    type MatrixOps,
-} from '../../math/tensor/SceneTransform';
+import type { MatrixOps } from '../../math/tensor/SceneTransform';
 
 interface ObjectAnimationTimeline {
     base: Mat4 | null;
@@ -65,7 +62,7 @@ function interpolateMat4(start: Mat4, end: Mat4, t: number): Mat4 {
  * 右乘一次;这对应 DSL 中多个 animation 串成复杂动画的语义.
  */
 export class AnimationPlayer {
-    private matrixOps: MatrixOps;
+    private matrixOps: MatrixOps | null;
 
     /**
      * @cache
@@ -75,11 +72,11 @@ export class AnimationPlayer {
      */
     private timelines = new Map<number, ObjectAnimationTimeline>();
 
-    constructor(matrixOps: MatrixOps = jsMatrixOps) {
+    constructor(matrixOps: MatrixOps | null = null) {
         this.matrixOps = matrixOps;
     }
 
-    configure(matrixOps: MatrixOps): void {
+    configure(matrixOps: MatrixOps | null): void {
         this.matrixOps = matrixOps;
     }
 
@@ -130,12 +127,17 @@ export class AnimationPlayer {
         const timeline = this.timelines.get(id);
         if (!timeline) return null;
 
-        let cumulative = timeline.base
-            ? cloneMat4(timeline.base)
-            : this.matrixOps.identity();
+        let cumulative = timeline.base ? cloneMat4(timeline.base) : null;
 
         if (timeline.clips.length === 0) {
             return cumulative;
+        }
+
+        if (!cumulative) {
+            cumulative = this.matrixOps?.identity() ?? null;
+        }
+        if (!cumulative || !this.matrixOps) {
+            return null;
         }
 
         let cursor = 0;

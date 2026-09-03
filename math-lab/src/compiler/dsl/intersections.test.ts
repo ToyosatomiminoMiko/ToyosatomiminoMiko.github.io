@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { compileScene } from './DslCompiler';
-import { jsMatrixOps } from '../../math/tensor/SceneTransform';
+import { compileScene as compileSceneWithOps } from './DslCompiler';
+import type { CompileSceneOptions } from './DslCompiler';
+import { jsMatrixOps } from '../../math/tensor/testMatrixOps';
 import type { AstProgram, ObjectStatement } from '../ast/types';
 import { buildIntersectionInput } from '../../math/intersection/IntersectionMath';
 
@@ -36,6 +37,7 @@ vi.mock('../../wasm/math_rs/math_rs', () => {
             z: number,
         ) => evaluate(expr, names, values, x, y, z)),
         normalize_expression: vi.fn((expr: string) => expr),
+        latex_expression: vi.fn((expr: string) => expr),
         symbolic_derivative: vi.fn(() => '0'),
         symbolic_variables: vi.fn(() => []),
         parse_array_strings: vi.fn((expr: string) => {
@@ -109,6 +111,14 @@ function program(...statements: AstProgram['statements']): AstProgram {
     return { statements };
 }
 
+function compileScene(
+    programAst: AstProgram,
+    paramOverrides: Record<string, number> = {},
+    options: CompileSceneOptions = {},
+) {
+    return compileSceneWithOps(programAst, paramOverrides, jsMatrixOps, options);
+}
+
 describe('compileIntersections', () => {
     it('emits a task with source ids and default segments', () => {
         const scene = compileScene(program(
@@ -138,7 +148,7 @@ describe('compileIntersections', () => {
     });
 
     it('keeps hidden tasks in the list without scheduling computation', () => {
-        const scene = compileScene(
+        const scene = compileSceneWithOps(
             program(
                 curve('a', 'x'),
                 curve('b', '-x + 2'),

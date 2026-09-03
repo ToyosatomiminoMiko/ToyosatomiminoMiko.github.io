@@ -11,5 +11,5 @@ pub const SURFACE_LIGHTNESS_RANGE: f64 = 0.3;
 pub const DEGENERATE_Z_MIN: f64 = 0.0;
 pub const DEGENERATE_Z_MAX: f64 = 1.0;
 
-/// 平坦曲面（range == 0）的颜色位置.
+/// 平坦曲面(range == 0)的颜色位置.
 pub const FLAT_COLOR_T: f64 = 0.5;
