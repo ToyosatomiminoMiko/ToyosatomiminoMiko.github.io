@@ -5,6 +5,7 @@ import type {
     SceneObject,
 } from '../ir/types';
 import type { MatrixOps } from '../../math/tensor/SceneTransform';
+import { withStatementSpan } from '../errors';
 import { materializeObject } from './objects';
 import { applyParamOverrides } from './params';
 import { compileIntegralTask } from './integrals';
@@ -65,9 +66,12 @@ export function compileScene(
     const integrals: IntegralTask[] = [];
     for (const statement of ast.statements) {
         if (statement.type !== 'integral') continue;
-        const task = compileIntegralTask(statement, objectByName);
-        task.enabled = !hiddenIntegralNames.has(statement.name);
-        integrals.push(task);
+        // 语句级错误定位:积分任务编译失败时携带本语句 span.
+        withStatementSpan(statement.span, () => {
+            const task = compileIntegralTask(statement, objectByName);
+            task.enabled = !hiddenIntegralNames.has(statement.name);
+            integrals.push(task);
+        });
     }
 
     const objectTransforms = cloneObjectTransforms(staticScene.objectTransforms);

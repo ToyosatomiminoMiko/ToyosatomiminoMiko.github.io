@@ -4,6 +4,14 @@
  * Rust `compiler_rs` 解析器直接按这份形状输出 JSON,不再维护镜像类型;
  * 修改 DSL 语句结构时以本文件为基准,并同步更新 `compiler_rs/src/miko.pest`.
  */
+/**
+ * 语句在源码中的字节区间,由 Rust pest 解析器免费产出并填入 JSON.
+ *
+ * 生产消费者:`compiler/errors.ts` 用它把语句级编译错误换算成
+ * "第几行第几列"(应用层 CompileController 拼进错误文案).语句级编译
+ * 循环用 `withStatementSpan` 包裹后,抛出的错误即携带该字段.
+ * 测试手工构造 AST 时填 `{ start: 0, end: 0 }` 即可,断言只看错误文案.
+ */
 export interface SourceSpan {
     start: number;
     end: number;

@@ -1,5 +1,5 @@
 /**
- * SceneStore —— math-lab 应用层的场景状态仓库.
+ * SceneStore -- math-lab 应用层的场景状态仓库.
  *
  * 这里只保存与"当前这次编译/渲染会话"直接相关的状态:
  * - 最近一次成功解析的 AST
@@ -47,6 +47,11 @@ export class SceneStore {
 
     get ast(): AstProgram | null {
         return this._currentAst;
+    }
+
+    /** 最近一次成功解析的源码;CompileController 用它把编译错误的 span 换算成行列. */
+    get source(): string {
+        return this._lastRunSource;
     }
 
     get matrixOps(): MatrixOps | null {

@@ -26,10 +26,9 @@
     "build:app": "npm run typecheck && vite build",
     "build": "npm run clean && npm run build:wasm && npm run build:app",
     "lint:rs": "cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings",
-    "check": "npm run build:wasm && npm run typecheck:strict && npm test && npm run lint:rs",
+    "check": "npm run build:wasm && npm run typecheck && npm test && npm run lint:rs",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "typecheck:strict": "tsc --noEmit --noUnusedLocals --noUnusedParameters"
+    "typecheck": "tsc --noEmit --noUnusedLocals --noUnusedParameters"
   }
 }

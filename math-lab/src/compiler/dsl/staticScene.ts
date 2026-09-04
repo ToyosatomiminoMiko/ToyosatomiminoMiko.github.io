@@ -6,6 +6,7 @@ import type { AstProgram } from '../ast/types';
 import type { AnimationClip, ParamDeclaration } from '../ir/types';
 import type { MatrixOps } from '../../math/tensor/SceneTransform';
 import { cloneMat4, type Mat4 } from '../../math/tensor/rowMajorMatrix';
+import { withStatementSpan } from '../errors';
 import {
     blueprintHasCoefficients,
     buildObjectBlueprint,
@@ -122,61 +123,70 @@ function buildStaticScene(ast: AstProgram, matrixOps: MatrixOps): StaticScene {
     const objectTransforms = new Map<number, Mat4>();
 
     for (const statement of ast.statements) {
-        if (statement.type === 'tensor' && statement.kind === 'matrix') {
-            const matrix = evaluateMatrix(statement.expr);
-            if (matrix) matrices.set(statement.name, matrix);
-            else throw new Error(`矩阵 ${statement.name} 无法求值`);
-        } else if (statement.type === 'tensor' && statement.kind === 'scalar') {
-            throw new Error(`标量声明 ${statement.name} 暂未实现`);
-        } else if (statement.type === 'tensor' && statement.kind === 'vector') {
-            throw new Error(`向量声明 ${statement.name} 暂未实现`);
-        }
+        if (statement.type !== 'tensor') continue;
+        // 语句级错误定位:tensor 声明校验失败时携带本语句 span.
+        withStatementSpan(statement.span, () => {
+            if (statement.kind === 'matrix') {
+                const matrix = evaluateMatrix(statement.expr);
+                if (matrix) matrices.set(statement.name, matrix);
+                else throw new Error(`矩阵 ${statement.name} 无法求值`);
+            } else if (statement.kind === 'scalar') {
+                throw new Error(`标量声明 ${statement.name} 暂未实现`);
+            } else if (statement.kind === 'vector') {
+                throw new Error(`向量声明 ${statement.name} 暂未实现`);
+            }
+            // transform 语句在下一轮单独处理.
+        });
     }
 
     for (const statement of ast.statements) {
-        if (statement.type === 'tensor' && statement.kind === 'transform') {
+        if (statement.type !== 'tensor' || statement.kind !== 'transform') continue;
+        withStatementSpan(statement.span, () => {
             const transform = parseTransformExpression(statement.expr, matrices, matrixOps);
             if (transform) transforms.set(statement.name, transform);
             else throw new Error(`变换 ${statement.name} 无法求值`);
-        }
+        });
     }
 
     for (const statement of ast.statements) {
         if (statement.type !== 'animation') continue;
-        if (animations.has(statement.name)) {
-            throw new Error(`动画 ${statement.name} 重复声明`);
-        }
+        withStatementSpan(statement.span, () => {
+            if (animations.has(statement.name)) {
+                throw new Error(`动画 ${statement.name} 重复声明`);
+            }
 
-        assertKnownOptions(statement.options, ['duration'], `动画 ${statement.name}`);
-        const matrix = parseSingleTransformExpression(
-            statement.expr,
-            matrices,
-            transforms,
-            matrixOps,
-        );
-        if (!matrix) {
-            throw new Error(`动画 ${statement.name} 只能包含一个矩阵变换`);
-        }
+            assertKnownOptions(statement.options, ['duration'], `动画 ${statement.name}`);
+            const matrix = parseSingleTransformExpression(
+                statement.expr,
+                matrices,
+                transforms,
+                matrixOps,
+            );
+            if (!matrix) {
+                throw new Error(`动画 ${statement.name} 只能包含一个矩阵变换`);
+            }
 
-        const duration = toFiniteNumber(
-            findOption(statement.options, 'duration') ?? '',
-            `动画 ${statement.name} 的 duration`,
-        );
-        if (duration <= 0) {
-            throw new Error(`动画 ${statement.name} 的 duration 必须大于 0`);
-        }
+            const duration = toFiniteNumber(
+                findOption(statement.options, 'duration') ?? '',
+                `动画 ${statement.name} 的 duration`,
+            );
+            if (duration <= 0) {
+                throw new Error(`动画 ${statement.name} 的 duration 必须大于 0`);
+            }
 
-        animations.set(statement.name, {
-            name: statement.name,
-            duration,
-            matrix,
+            animations.set(statement.name, {
+                name: statement.name,
+                duration,
+                matrix,
+            });
         });
     }
 
     let nextId = 1;
     const objectNames = new Set<string>();
     for (const statement of ast.statements) {
-        if (statement.type === 'object') {
+        if (statement.type !== 'object') continue;
+        withStatementSpan(statement.span, () => {
             const blueprint = buildObjectBlueprint(statement, nextId);
             if (blueprint) {
                 if (objectNames.has(blueprint.name)) {
@@ -206,7 +216,7 @@ function buildStaticScene(ast: AstProgram, matrixOps: MatrixOps): StaticScene {
                 }
                 nextId += 1;
             }
-        }
+        });
     }
 
     for (const blueprint of objectBlueprints) {

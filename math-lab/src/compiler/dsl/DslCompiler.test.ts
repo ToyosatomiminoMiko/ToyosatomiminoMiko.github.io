@@ -10,6 +10,7 @@ import {
 } from '../../wasm/math_rs/math_rs';
 import type { AstProgram } from '../ast/types';
 import { normalizeExpression } from './expression';
+import { CompileError, formatLocatedError } from '../errors';
 
 vi.mock('../../wasm/math_rs/math_rs', () => ({
     evaluate_gradient_point: vi.fn(() => ({ f0: 0, fx: 0, fy: 0 })),
@@ -1013,5 +1014,48 @@ describe('compileScene', () => {
         if (frustum.kind === 'conic') {
             expect(frustum.sideAngle).toBeCloseTo(Math.atan(1 / 3));
         }
+    });
+});
+
+describe('语句级错误定位', () => {
+    it('compileScene 抛出的语句错误携带真实 span,可换算成源码行列', () => {
+        const source = 'curve c = sin(x);\ngradient g = grad(nope) at [0];';
+        const ast: AstProgram = {
+            statements: [
+                {
+                    type: 'object',
+                    kind: 'curve',
+                    name: 'c',
+                    expr: 'sin(x)',
+                    options: [],
+                    span: { start: 0, end: 17 },
+                },
+                {
+                    type: 'analysis',
+                    op: 'gradient',
+                    name: 'g',
+                    call: 'grad',
+                    source: 'nope',
+                    at: ['0'],
+                    options: [],
+                    span: { start: 18, end: 46 },
+                },
+            ],
+        };
+
+        let caught: unknown;
+        try {
+            compileSceneWithOps(ast, {}, jsMatrixOps);
+        } catch (error) {
+            caught = error;
+        }
+        expect(caught).toBeInstanceOf(CompileError);
+        expect(
+            formatLocatedError(
+                (caught as CompileError).message,
+                (caught as CompileError).span,
+                source,
+            ),
+        ).toBe('第 2 行第 1 列: 分析 g 引用了不存在的对象 nope');
     });
 });

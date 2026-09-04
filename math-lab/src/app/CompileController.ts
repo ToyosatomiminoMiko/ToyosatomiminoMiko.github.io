@@ -13,6 +13,7 @@ import { compileScene } from '../compiler/dsl/DslCompiler';
 import { parseMiko } from '../compiler/parser';
 import { createWasmMatrixOps } from '../compiler/matrixOps';
 import type { SceneIR } from '../compiler/ir/types';
+import { CompileError, formatLocatedError } from '../compiler/errors';
 import { SceneStore } from './SceneStore';
 
 export class CompileController {
@@ -101,10 +102,26 @@ export class CompileController {
             throw new Error('矩阵运算后端尚未初始化,请先调用 run()');
         }
 
-        return compileScene(ast, paramOverrides, matrixOps, {
-            hiddenAnalysisNames: this.store.hiddenAnalysisNames,
-            hiddenIntegralNames: this.store.hiddenIntegralNames,
-            hiddenIntersectionNames: this.store.hiddenIntersectionNames,
-        });
+        try {
+            return compileScene(ast, paramOverrides, matrixOps, {
+                hiddenAnalysisNames: this.store.hiddenAnalysisNames,
+                hiddenIntegralNames: this.store.hiddenIntegralNames,
+                hiddenIntersectionNames: this.store.hiddenIntersectionNames,
+            });
+        } catch (error) {
+            throw this.locate(error);
+        }
+    }
+
+    /**
+     * 语句级编译错误(CompileError)由各 dsl 模块按语句 span 抛出;这里用
+     * store 里的原始源码把 span 换算成"第几行第几列"拼进文案,实现错误定位.
+     * 解析错误(Rust pest 文案自带行列)与运行期错误与具体语句无关,原样抛出.
+     */
+    private locate(error: unknown): Error {
+        if (!(error instanceof CompileError)) {
+            return error instanceof Error ? error : new Error(String(error));
+        }
+        return new Error(formatLocatedError(error.message, error.span, this.store.source));
     }
 }

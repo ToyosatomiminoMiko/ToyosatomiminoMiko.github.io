@@ -30,7 +30,7 @@ Math-lab 的当前入口是 `index.html`,它加载 `src/main.ts`,再由
 - `sphere` / `box` / `cylinder` / `cone` / `frustum`:透明体积图形;
   `cylinder`/`cone`/`frustum` 统一映射为同一个 `conic` IR 类型
 - `intersection`:求交.曲线参与的求交得到离散交点,曲面/体积参与的求交得到空间交线;
-  支持 曲线∩曲线、曲线∩曲面、曲线∩体积、曲面∩曲面、曲面∩体积、体积∩体积
+  支持 曲线∩曲线,曲线∩曲面,曲线∩体积,曲面∩曲面,曲面∩体积,体积∩体积
 
 相机状态不进入 DSL:透视/正交与旋转锁定由右侧 UI 开关控制,
 `camera:view` 按钮只负责预设视角.
@@ -48,12 +48,12 @@ intersection 名称 = intersection(对象A, 对象B) {
 
 求交结果自动按组合区分:
 
-- 曲线参与的求交(`intersection(c1, s1)`、`intersection(c1, c2)`、
+- 曲线参与的求交(`intersection(c1, s1)`,`intersection(c1, c2)`,
   `intersection(c1, S)`)渲染为交点;
-- 曲面/体积参与的求交(`intersection(s1, s2)`、`intersection(s1, S)`、
+- 曲面/体积参与的求交(`intersection(s1, s2)`,`intersection(s1, S)`,
   `intersection(S, B)`)渲染为三维交线.
 
-体积对象包括球体、方块和旋转体(圆柱/圆锥/圆台).旋转体的交线包含
+体积对象包括球体,方块和旋转体(圆柱/圆锥/圆台).旋转体的交线包含
 侧面与上下底面,和它的数学体积定义一致.求交坐标会计入对象的静态
 `transform`,但暂不支持带动画的对象,也不支持 `point` / `vector` /
 `vector_field` 参与求交.
@@ -79,7 +79,7 @@ XYZ 坐标轴使用 Three.js Line2 绘制,线宽以像素为单位,
 在视口中朝上,默认 Z(数学/工程习惯);习惯 Y 向上(图形工具)的
 用户可自行切换,ViewCube 的上/前/右预设视角会随该设置调整.
 
-网格与坐标轴刻度同样使用 Line2 系列绘制:大刻度线粗而亮、
+网格与坐标轴刻度同样使用 Line2 系列绘制:大刻度线粗而亮,
 小刻度线细而暗;右侧"视图"面板可分别开关网格/刻度,
 并调整大/小刻度线宽.刻度数字与 XYZ 轴标签共用同一字体与
 缩放设置,随刻度开关一起显隐;"坐标轴"面板的 X/Y/Z 标签开关
@@ -116,7 +116,7 @@ npm run build
 4. `vite build`
 
 生产/CI 统一入口是根目录的 `bash ./build.sh`:依次执行
-`npm ci`、Rust lint、清理旧产物与 WASM 构建、前端/Rust 测试、
+`npm ci`,Rust lint,清理旧产物与 WASM 构建,前端/Rust 测试,
 前端类型检查与打包,每个阶段都有日志输出;GitHub Actions 只调用这一个
 脚本,不再重复编排各步骤.
 
@@ -183,7 +183,7 @@ new DslApp().start()
 
 `run()` 做的事情是:
 
-1. DslApp 清空诊断、取消待刷新的参数帧,然后交给 CompileController.
+1. DslApp 清空诊断,取消待刷新的参数帧,然后交给 CompileController.
 2. CompileController 增加运行序号并异步调用 `parseMiko(editor.value)`
    (Rust pest 解析成 AST);返回后若序号过期或已销毁则直接丢弃.
 3. 提交 AST 与 WASM 矩阵后端到 SceneStore.
@@ -222,9 +222,9 @@ new DslApp().start()
 
 这些链路都使用 `LatestRequestExecutor`:同一时间最多一个请求真正在跑,高频拖动滑块时,旧请求会被标记为 `superseded`,只保留最新请求.这是防止 Worker 积压的关键.
 
-求交编译只产出 `IntersectionTask`(引用对象、颜色、segments),数值内核在
+求交编译只产出 `IntersectionTask`(引用对象,颜色,segments),数值内核在
 `math_rs::intersection_core`;IntersectionRenderer 用任务输入指纹做增量缓存,
-参数无关的刷新不重算、只有隐藏求交本身才移除,结果回来后只重建对应任务的
+参数无关的刷新不重算,只有隐藏求交本身才移除,结果回来后只重建对应任务的
 geometry.求交结果按独立求值对象处理:隐藏某个参与面并不会隐藏交线.
 
 ## 五/UI 通信:两种方式各有明确边界
@@ -239,14 +239,14 @@ geometry.求交结果按独立求值对象处理:隐藏某个参与面并不会�
 
 另外,曲线/曲面/向量场的 Worker 采样失败现在统一经
 `render/core/samplingErrors.ts` 上报,RenderController 转成诊断区错误;
-没有"曲线悄悄走主线程兜底、曲面直接消失"的不一致路径.
+没有"曲线悄悄走主线程兜底,曲面直接消失"的不一致路径.
 
 ## 六/为什么你会觉得拿不准
 
 几个当前架构上仍然需要留意的点:
 
 1. **装配层仍然只有一个**  
-   DslApp 已经不再持有编译/渲染细节,但页面装配、参数刷新合并、rAF
+   DslApp 已经不再持有编译/渲染细节,但页面装配,参数刷新合并,rAF
    主循环仍在它身上;这是有意收敛的编排层,不是领域逻辑.
 
 2. **同步和异步交错**  
@@ -260,12 +260,13 @@ geometry.求交结果按独立求值对象处理:隐藏某个参与面并不会�
    "高频刷新丢旧任务""过期积分结果丢弃"的问题,均带 `@cache` 注释.
 
 4. **刻意保留的未使用代码都有注释**  
-   `SceneStore.objectTransforms` 快照、`IntegralWasm` 的 right/mid 黎曼、
-   MATLAB 兼容入口、SceneTransform 高层封装等均为预留能力,文件头或
-   声明处注明了保留原因;没有注释的未使用代码按死代码处理.
+   `SceneStore.objectTransforms` 快照,`src/types.ts` 类型汇总出口等
+   均为预留能力,声明处注明了保留原因;没有注释的未使用代码按死代码
+   处理.曾预留的 MATLAB 兼容层(`parseMatlab`/`matlabCompat.ts`)经确认
+   不需要,已整体删除,`.miko` 即唯一输入语法.
 
 5. **求交已经走 Rust/Worker**
-   数值内核在 `math_rs::intersection_core`(表达式只编译一次、上下文复用),
+   数值内核在 `math_rs::intersection_core`(表达式只编译一次,上下文复用),
    编译期只产 `IntersectionTask`,计算由 `IntersectionWorker` 异步执行;
    旧 `IntersectionMath.ts` 已收敛为矩阵求逆与描述符转换的适配层,不再保留
    逐点 WASM FFI 的 TS 演示实现.

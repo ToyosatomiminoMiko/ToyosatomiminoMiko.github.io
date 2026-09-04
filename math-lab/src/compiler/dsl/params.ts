@@ -5,6 +5,7 @@
 import type { AstProgram } from '../ast/types';
 import type { ParamDeclaration } from '../ir/types';
 import { NUMERIC_CONFIG } from '../../config/numericConfig';
+import { withStatementSpan } from '../errors';
 import { toFiniteNumber } from './options';
 
 /** 按全局数值配置构造未声明参数项. */
@@ -24,36 +25,40 @@ export function collectParams(ast: AstProgram): Map<string, ParamDeclaration> {
 
     for (const statement of ast.statements) {
         if (statement.type !== 'param') continue;
-        if (seen.has(statement.name)) {
-            throw new Error(`参数 ${statement.name} 重复声明`);
-        }
-        seen.add(statement.name);
+        // 语句级错误定位:该语句内部抛出的错误携带声明 span,
+        // 应用层据此换算成源码行列(见 compiler/errors.ts).
+        withStatementSpan(statement.span, () => {
+            if (seen.has(statement.name)) {
+                throw new Error(`参数 ${statement.name} 重复声明`);
+            }
+            seen.add(statement.name);
 
-        const value = toFiniteNumber(statement.value, `参数 ${statement.name} 的 value`);
-        const declaration = createDefaultParam(statement.name);
-        declaration.value = value;
-        if (statement.ui) {
-            declaration.min = toFiniteNumber(statement.ui.min, `参数 ${statement.name} 的 min`);
-            declaration.max = toFiniteNumber(statement.ui.max, `参数 ${statement.name} 的 max`);
-            declaration.step = toFiniteNumber(statement.ui.step, `参数 ${statement.name} 的 step`);
-        }
+            const value = toFiniteNumber(statement.value, `参数 ${statement.name} 的 value`);
+            const declaration = createDefaultParam(statement.name);
+            declaration.value = value;
+            if (statement.ui) {
+                declaration.min = toFiniteNumber(statement.ui.min, `参数 ${statement.name} 的 min`);
+                declaration.max = toFiniteNumber(statement.ui.max, `参数 ${statement.name} 的 max`);
+                declaration.step = toFiniteNumber(statement.ui.step, `参数 ${statement.name} 的 step`);
+            }
 
-        // 参数 UI 的范围是后续滑块的契约;不在这里校验,
-        // 后续会生成反直觉甚至无法使用的滑块.
-        if (declaration.min >= declaration.max) {
-            throw new Error(`参数 ${statement.name} 需要满足 min < max`);
-        }
-        if (declaration.step <= 0) {
-            throw new Error(`参数 ${statement.name} 的 step 必须大于 0`);
-        }
-        if (declaration.value < declaration.min || declaration.value > declaration.max) {
-            throw new Error(
-                `参数 ${statement.name} 的初始值 ${declaration.value} `
-                + `不在 [${declaration.min}, ${declaration.max}] 内`,
-            );
-        }
+            // 参数 UI 的范围是后续滑块的契约;不在这里校验,
+            // 后续会生成反直觉甚至无法使用的滑块.
+            if (declaration.min >= declaration.max) {
+                throw new Error(`参数 ${statement.name} 需要满足 min < max`);
+            }
+            if (declaration.step <= 0) {
+                throw new Error(`参数 ${statement.name} 的 step 必须大于 0`);
+            }
+            if (declaration.value < declaration.min || declaration.value > declaration.max) {
+                throw new Error(
+                    `参数 ${statement.name} 的初始值 ${declaration.value} `
+                    + `不在 [${declaration.min}, ${declaration.max}] 内`,
+                );
+            }
 
-        params.set(statement.name, declaration);
+            params.set(statement.name, declaration);
+        });
     }
     return params;
 }
