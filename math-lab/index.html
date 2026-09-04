@@ -23,7 +23,9 @@
                 <button data-panel-toggle="#left-panel">收起</button>
             </header>
             <section id="editor-panel">
-                <textarea id="dsl-editor" spellcheck="false">
+                <div id="dsl-editor-box">
+                    <div id="dsl-editor-gutter" aria-hidden="true"><pre id="dsl-editor-lines"></pre></div>
+                    <textarea id="dsl-editor" spellcheck="false">
 point P = [0, 0, 0];
 
 // 临时示例,后续统一加入文档
@@ -136,7 +138,9 @@ frustum F = [0, 0, -1] {
     top = 1;
 };
 
-transform T2 = translate([2, 1, 0]) * rotate([0, 0, pi / 4]) * scale([1.5, 1, 1]);
+transform T2 = translate([2, 1, 0]) 
+    * rotate([0, 0, pi / 4]) 
+    * scale([1.5, 1, 1]);
 
 // 求交示例:曲面与曲面
 surface s2 = j {
@@ -151,6 +155,7 @@ intersection X = intersection(s1, s2) {
 };
 
 </textarea>
+                </div>
             </section>
             <div class="resize-handle resize-handle-right" data-resize-panel="left-panel"></div>
         </aside>

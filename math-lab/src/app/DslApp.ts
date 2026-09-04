@@ -1,5 +1,5 @@
 /**
- * DslApp —— OpenSCAD 式 DSL Shell 的装配层.
+ * DslApp -- OpenSCAD 式 DSL Shell 的装配层.
  *
  * 职责被刻意收敛为:
  * - 找到并保存 DOM 入口
@@ -20,6 +20,7 @@ import { CompileController } from './CompileController';
 import { RenderController } from './RenderController';
 import { ParamPanelController } from '../ui/ParamPanelController';
 import { DiagnosticsController } from '../ui/DiagnosticsController';
+import { EditorLineNumbers } from '../ui/EditorLineNumbers';
 import { ObjectListController } from '../ui/ObjectListController';
 import { PanelController } from '../ui/PanelController';
 
@@ -34,6 +35,7 @@ export class DslApp {
 
     private readonly editor: HTMLTextAreaElement;
     private readonly runButton: HTMLButtonElement;
+    private readonly lineNumbers: EditorLineNumbers;
     private panelController: PanelController | null = null;
 
     private animationFrameId: number | null = null;
@@ -69,6 +71,7 @@ export class DslApp {
 
         this.editor = document.getElementById('dsl-editor') as HTMLTextAreaElement;
         this.runButton = document.getElementById('run-btn') as HTMLButtonElement;
+        this.lineNumbers = new EditorLineNumbers(this.editor);
 
         this.compileController = new CompileController(this.store);
         this.diagnosticsController = new DiagnosticsController(diagnostics);
@@ -120,6 +123,7 @@ export class DslApp {
         document.removeEventListener('keydown', this.onKeyDown);
 
         this.panelController?.dispose();
+        this.lineNumbers.dispose();
         this.renderController.dispose();
         this.compileController.dispose();
         this.paramPanelController.dispose();

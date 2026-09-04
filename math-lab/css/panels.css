@@ -59,19 +59,74 @@
     padding: 8px;
 }
 
-/* DSL 源码输入框:使用等宽字体,禁止缩放 */
-#dsl-editor {
+/* --------------------------------------------------------------------------
+ * 行号栏布局:gutter + textarea 拼排.
+ *
+ * 对齐的两条铁律(与 src/ui/EditorLineNumbers.ts 配套):
+ * 1. textarea 关闭软换行(white-space: pre),"源码行 == 视觉行",
+ *    行号只需按 \n 计数即可逐行对应;
+ * 2. gutter 与 textarea 使用完全相同的字体/字号/行高,并且起始位置一致
+ *    (外框 border 1px + textarea padding-top 10px = gutter padding-top 11px),
+ *    这样纵向滚动时只需把 gutter 内容按 -scrollTop 平移.
+ * -------------------------------------------------------------------------- */
+
+/* 外框:统一承担圆角/边框/底色,textarea 内部滚动不越界 */
+#dsl-editor-box {
+    display: flex;
+    box-sizing: border-box;
     width: 100%;
     height: 100%;
-    resize: none;
+    min-height: 0;
+    overflow: hidden;
     background: #0d1120;
-    color: #dbe4ff;
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 8px;
-    padding: 10px;
+}
+
+/* 行号槽:固定宽度,内容超出时裁剪,靠 translate 跟随滚动 */
+#dsl-editor-gutter {
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    /* 宽度不适多调整 */
+    width: 32px;
+    padding: 11px 0 11px 8px; /* 顶部 11px = 外框 border 1px + 编辑区 padding 10px */
+    overflow: hidden;
+    background: #0a0e1c;
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    color: #55618c;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* 行号本体:与 textarea 同一字族/字号/行高;transform 由 TS 同步 */
+#dsl-editor-lines {
+    margin: 0;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 13px;
     line-height: 1.5;
+    white-space: pre;
+    text-align: right;
+    padding-right: 6px;
+    will-change: transform;
+}
+
+/* DSL 源码输入框:使用等宽字体,禁止缩放,不软换行 */
+#dsl-editor {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    resize: none;
+    background: transparent;
+    color: #dbe4ff;
+    border: 0;
+    outline: none;
+    padding: 10px 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre;
+    overflow-wrap: normal;
+    tab-size: 4;
 }
 
 /* ==========================================================================
