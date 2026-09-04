@@ -11,7 +11,6 @@ pub fn generate_full_indices(cols: u32, rows: u32) -> Vec<u32> {
 #[wasm_bindgen(getter_with_clone)]
 pub struct SurfaceSampleResult {
     pub positions: Vec<f32>,
-    pub colors: Vec<f32>,
     pub valid_indices: Vec<u32>,
     pub normals: Vec<f32>,
     pub z_min: f64,
@@ -46,7 +45,6 @@ pub fn sample_and_process_surface(
 
     Ok(SurfaceSampleResult {
         positions: result.positions,
-        colors: result.colors,
         valid_indices: result.valid_indices,
         normals: result.normals,
         z_min: result.z_min,

@@ -2,7 +2,7 @@ import init, { sample_and_process_surface } from '../../../wasm/render_rs/render
 import { createWasmWorker } from './wasmWorkerRuntime';
 
 // ================================================================
-// surfaceWorker — 曲面采样 Worker
+// surfaceWorker - 曲面采样 Worker
 //
 // 架构流程:
 //   DOM slider input
@@ -15,6 +15,9 @@ import { createWasmWorker } from './wasmWorkerRuntime';
 //     -> Transferable 数组
 //     -> SurfaceMesh.applyResult()
 //     -> Three.js BufferGeometry
+//
+// 注意:顶点配色(HSL 伪彩色)已从 CPU 侧移除,改由渲染侧的顶点
+// 着色器依据 position.z 与 zMin/zMax 实时计算,因此这里不再传递 colors.
 // ================================================================
 
 export type SurfaceWorkerRequest = {
@@ -34,7 +37,6 @@ export type SurfaceWorkerRequest = {
 export type SurfaceWorkerResponse = {
     id: number;
     positions: Float32Array;
-    colors: Float32Array;
     normals: Float32Array;
     validIndices: Uint32Array;
     zMin: number;
@@ -69,7 +71,6 @@ createWasmWorker<SurfaceWorkerRequest, SurfaceWorkerResponse>(
 
         // 先取出所有副本,再释放 WASM 端对象
         const positions = result.positions;
-        const colors = result.colors;
         const normals = result.normals;
         const validIndices = result.valid_indices;
         const zMin = result.z_min;
@@ -79,7 +80,6 @@ createWasmWorker<SurfaceWorkerRequest, SurfaceWorkerResponse>(
         const response: SurfaceWorkerResponse = {
             id: req.id,
             positions,
-            colors,
             normals,
             validIndices,
             zMin,
@@ -89,7 +89,6 @@ createWasmWorker<SurfaceWorkerRequest, SurfaceWorkerResponse>(
         // 用 Transferable 传回主线程,避免结构化克隆再复制一遍大数组
         post(response, [
             positions.buffer,
-            colors.buffer,
             normals.buffer,
             validIndices.buffer,
         ]);

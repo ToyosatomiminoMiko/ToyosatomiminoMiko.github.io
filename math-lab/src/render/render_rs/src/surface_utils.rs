@@ -1,7 +1,4 @@
-use crate::config::{
-    DEGENERATE_Z_MAX, DEGENERATE_Z_MIN, FLAT_COLOR_T, SURFACE_HUE_START, SURFACE_LIGHTNESS_BASE,
-    SURFACE_LIGHTNESS_RANGE, SURFACE_SATURATION,
-};
+use crate::config::{DEGENERATE_Z_MAX, DEGENERATE_Z_MIN};
 
 /*
 剔除所有包含 NaN z 值的三角形
@@ -55,65 +52,23 @@ pub fn generate_full_indices(cols: usize, rows: usize) -> Vec<u32> {
     indices
 }
 // ================================================================
-// HSL -> RGB 辅助函数 (标准算法, 对齐 Three.js Color.setHSL)
-// ================================================================
-
-// h, s, l 均在 [0, 1] 范围, 返回 (r, g, b) 各分量 ∈ [0, 1]
-fn hsl_to_rgb(h: f64, s: f64, l: f64) -> (f64, f64, f64) {
-    if s == 0.0 {
-        return (l, l, l);
-    }
-    let q = if l < 0.5 {
-        l * (1.0 + s)
-    } else {
-        l + s - l * s
-    };
-    let p = 2.0 * l - q;
-    let r = hue_to_rgb(p, q, h + 1.0 / 3.0);
-    let g = hue_to_rgb(p, q, h);
-    let b = hue_to_rgb(p, q, h - 1.0 / 3.0);
-    (r, g, b)
-}
-
-fn hue_to_rgb(p: f64, q: f64, t: f64) -> f64 {
-    let mut t = t;
-    if t < 0.0 {
-        t += 1.0;
-    }
-    if t > 1.0 {
-        t -= 1.0;
-    }
-    if t < 1.0 / 6.0 {
-        return p + (q - p) * 6.0 * t;
-    }
-    if t < 1.0 / 2.0 {
-        return q;
-    }
-    if t < 2.0 / 3.0 {
-        return p + (q - p) * (2.0 / 3.0 - t) * 6.0;
-    }
-    p
-}
-
-// ================================================================
 // 统一后处理结果结构体
 // ================================================================
 pub struct SurfaceSampleResult {
     pub positions: Vec<f32>,
-    pub colors: Vec<f32>,
     pub valid_indices: Vec<u32>,
     pub normals: Vec<f32>,
     pub z_min: f64,
     pub z_max: f64,
 }
 // ================================================================
-// 采样/颜色映射/索引过滤和法线计算
+// 采样/索引过滤和法线计算
 // ================================================================
 
 /// 曲面网格采样.
 ///
 /// 返回 `(positions, z_vals, z_min, z_max)`.该函数只负责数值采样,
-/// 不再掺杂颜色映射/索引过滤或法线计算.
+/// 不再掺杂索引过滤或法线计算.
 #[allow(clippy::too_many_arguments)]
 fn sample_surface_values(
     expr: &str,
@@ -168,38 +123,10 @@ fn sample_surface_values(
     Ok((positions, z_vals, z_min, z_max))
 }
 
-/// 根据 z 值极值生成顶点颜色.
-fn map_surface_colors(z_vals: &[f64], z_min: f64, z_max: f64) -> Vec<f32> {
-    let range = z_max - z_min;
-    let mut colors = Vec::with_capacity(z_vals.len() * 3);
-
-    for &z in z_vals {
-        if z.is_finite() {
-            let t = if range > 0.0 {
-                (z - z_min) / range
-            } else {
-                FLAT_COLOR_T
-            };
-            let hue = SURFACE_HUE_START - t * SURFACE_HUE_START;
-            let (r, g, b) = hsl_to_rgb(
-                hue,
-                SURFACE_SATURATION,
-                SURFACE_LIGHTNESS_BASE + t * SURFACE_LIGHTNESS_RANGE,
-            );
-            colors.push(r as f32);
-            colors.push(g as f32);
-            colors.push(b as f32);
-        } else {
-            colors.push(0.0);
-            colors.push(0.0);
-            colors.push(0.0);
-        }
-    }
-
-    colors
-}
-
 /// 统一编排采样与后处理,保持对 WASM/Worker 的旧入口签名不变.
+///
+/// 注意:顶点配色(HSL 伪彩色)已移出 CPU 路径,改由渲染侧顶点着色器
+/// 依据 `position.z` 与 `(z_min, z_max)` 实时计算,因此这里不再产出 colors.
 #[allow(clippy::too_many_arguments)]
 pub fn sample_and_process_surface(
     expr: &str,
@@ -223,7 +150,6 @@ pub fn sample_and_process_surface(
         cols,
         rows,
     )?;
-    let colors = map_surface_colors(&z_vals, z_min, z_max);
 
     let full_indices = generate_full_indices(cols as usize, rows as usize);
     let valid_indices = filter_nan_triangles(&full_indices, &z_vals);
@@ -231,7 +157,6 @@ pub fn sample_and_process_surface(
 
     Ok(SurfaceSampleResult {
         positions,
-        colors,
         valid_indices,
         normals,
         z_min,

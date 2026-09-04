@@ -7,6 +7,10 @@ import {
 } from '../../math/compute/workers/SurfaceComputeClient';
 import { LatestRequestExecutor } from '../../math/compute/workers/LatestRequestExecutor';
 import { reportSamplingFailure } from '../core/samplingErrors';
+import {
+    installSurfaceVertexColor,
+    type SurfaceColorRangeHandle,
+} from './surfaceColorMap';
 import type {
     SurfaceWorkerRequest,
     SurfaceWorkerResponse,
@@ -25,6 +29,10 @@ import type {
 //     -> Three.js BufferGeometry
 //
 // 几何体只创建一次;高频更新只改 attribute 数据
+//
+// 配色:不再生成 color attribute / 不再用 vertexColors 通道.
+// 伪彩色由顶点着色器按 position.z 与 z_min/z_max 实时计算
+// (见 surfaceColorMap.ts),每次采样结果只更新 uZRange uniform.
 // ============================================================
 export class SurfaceMesh {
     cols: number;
@@ -35,6 +43,8 @@ export class SurfaceMesh {
     mesh: THREE.Mesh;
     wireframe: THREE.Mesh;
     group: THREE.Group;
+    /** z 极值 uniform 句柄,每次采样结果落地后更新 */
+    private readonly colorRange: SurfaceColorRangeHandle;
     /** dispose 后不再接受任何异步结果 */
     private _disposed = false;
 
@@ -62,17 +72,15 @@ export class SurfaceMesh {
         this.cols = cols;
         this.rows = rows;
 
-        // 预分配 BufferGeometry
+        // 预分配 BufferGeometry(position + normal;颜色不再预分配,
+        // 由顶点着色器按 z 实时计算)
         const vertexCount = (cols + 1) * (rows + 1);
         const posArray = new Float32Array(vertexCount * 3);
-        const colorArray = new Float32Array(vertexCount * 3);
         const normalArray = new Float32Array(vertexCount * 3);
 
         this.geometry = new THREE.BufferGeometry();
         this.geometry.setAttribute(
             'position', new THREE.BufferAttribute(posArray, 3));
-        this.geometry.setAttribute(
-            'color', new THREE.BufferAttribute(colorArray, 3));
         this.geometry.setAttribute(
             'normal', new THREE.BufferAttribute(normalArray, 3));
 
@@ -83,9 +91,10 @@ export class SurfaceMesh {
         // 有效索引替换,属于一次完全没有收益的大块分配.
         this.geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(0), 1));
 
-        // 材质:Phong + 顶点颜色 + 双面渲染
+        // 材质:Phong + 双面渲染.
+        // 顶点配色不再走 vertexColors 通道,而是由 installSurfaceVertexColor
+        // 注入的顶点着色器按 position.z 实时计算(等价于 diffuse 乘以顶点色).
         this.material = new THREE.MeshPhongMaterial({
-            vertexColors: true,
             side: THREE.DoubleSide,
             transparent: true,
             opacity: RENDER_CONFIG.surfaceMesh.materialOpacity,
@@ -93,6 +102,7 @@ export class SurfaceMesh {
             specular: new THREE.Color(RENDER_CONFIG.surfaceMesh.specular),
             depthWrite: true, // 曲面主体保持深度写入
         });
+        this.colorRange = installSurfaceVertexColor(this.material);
 
         // 独立线框 mesh,单独控制透明度与深度写入
         this.wireframeMat = new THREE.MeshBasicMaterial({
@@ -172,10 +182,9 @@ export class SurfaceMesh {
         posAttr.array.set(result.positions);
         posAttr.needsUpdate = true;
 
-        // colors 写入
-        const colAttr = this.geometry.attributes.color;
-        colAttr.array.set(result.colors);
-        colAttr.needsUpdate = true;
+        // 颜色不再写入 attribute:由顶点着色器依据 position.z 实时计算,
+        // 这里只把本次采样的 z 极值更新进 uniform
+        this.colorRange.setRange(result.zMin, result.zMax);
 
         // normals 写入:法线已经在 Worker 里的 Rust/WASM 侧算好,
         // 主线程不再调用 computeVertexNormals()
