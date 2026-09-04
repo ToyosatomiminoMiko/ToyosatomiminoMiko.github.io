@@ -32,9 +32,17 @@ export class SceneStore {
      * 更新策略:每次 RenderController 提交 SceneIR 时整体替换.
      * 生命周期:跟随 SceneStore 实例,应用销毁时由 GC 回收.
      *
-     * 注意:当前渲染热路径已经直接使用 AnimationPlayer 的时间线矩阵,
-     * 因此这个字段暂时没有被读取;它是为新功能保留的状态快照,不参与
-     * 现有每帧渲染,避免误以为它还有实时副作用.
+     * 审查结论(202609):本字段刻意保留为"只写暂不读"的预留快照,不是
+     * 缺陷,无需"接上"或删除.
+     * - 写入点:setScene(),与 SceneIR.objectTransforms 是同一引用,非拷贝,
+     *   无额外内存开销.
+     * - 读取面:仅下方 getter;全仓暂没有任何调用方.渲染热路径直接使用
+     *   AnimationPlayer 的时间线矩阵,不经由此处,因此它不参与每帧渲染,
+     *   也没有实时副作用.
+     * - 用途:保留"最近一次会话的对象变换末态",供未来的对象级诊断/
+     *   导出/状态恢复直接取用,不必重新从 SceneIR 接线.
+     * 若将来确认该能力不会做,删除三处即可:本字段,objectTransforms
+     * getter,setScene() 里的赋值.
      */
     private _objectTransforms: Record<number, number[][]> = {};
 
@@ -62,6 +70,7 @@ export class SceneStore {
         return this._compiledObjects;
     }
 
+    /** 只写暂不读的预留快照,当前无调用方;结论见字段 _objectTransforms 注释. */
     get objectTransforms(): Readonly<Record<number, number[][]>> {
         return this._objectTransforms;
     }
