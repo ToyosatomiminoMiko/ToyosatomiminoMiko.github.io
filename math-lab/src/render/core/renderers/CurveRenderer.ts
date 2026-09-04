@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { NUMERIC_CONFIG } from '../../../config/numericConfig';
 import type { IRenderer } from './IRenderer';
 import type { CurveObject } from '../../../compiler/ir/types';
+import { splitCoefficients } from '../../../math/coefficientUtils';
 import { MathComputeEngine } from '../../../math/compute/MathComputeEngine';
 import {
     LatestRequestExecutor,
@@ -77,12 +78,13 @@ export class CurveRenderer implements IRenderer {
     draw(): void {
         const posAttr = this._ensureLine();
         const target = posAttr.array as Float32Array;
+        const { names, values } = splitCoefficients(this.curve.coefficients);
 
         void this.executor
             .request({
                 expr: this.curve.expr,
-                coeffNames: this.curve.coefficients.map((coefficient) => coefficient.name),
-                coeffValues: this.curve.coefficients.map((coefficient) => coefficient.value),
+                coeffNames: names,
+                coeffValues: values,
                 range: this.xRange,
                 segments: this.steps,
             })

@@ -453,74 +453,15 @@ fn rewrite_aliases_inner(expr: &mut Expr) -> Result<(), String> {
             for arg in args.iter_mut() {
                 rewrite_aliases_inner(arg)?;
             }
-            match name.as_str() {
-                "log" => {
-                    if args.len() != 1 {
-                        return Err("Rust 数值后端只支持单参数的自然对数 log(x)".to_string());
-                    }
-                    *expr = Expr::Call("ln".to_string(), args.clone());
-                }
-                "pow" => {
-                    if args.len() != 2 {
-                        return Err("Rust 数值后端只支持双参数的 pow(a, b)".to_string());
-                    }
-                    *expr = Expr::Binary(
-                        BinOp::Pow,
-                        Box::new(args[0].clone()),
-                        Box::new(args[1].clone()),
-                    );
-                }
-                "sec" => {
-                    if args.len() != 1 {
-                        return Err("sec 只接受一个参数".to_string());
-                    }
-                    *expr = Expr::Binary(
-                        BinOp::Div,
-                        Box::new(Expr::Num(1.0)),
-                        Box::new(Expr::Call("cos".to_string(), args.clone())),
-                    );
-                }
-                "csc" => {
-                    if args.len() != 1 {
-                        return Err("csc 只接受一个参数".to_string());
-                    }
-                    *expr = Expr::Binary(
-                        BinOp::Div,
-                        Box::new(Expr::Num(1.0)),
-                        Box::new(Expr::Call("sin".to_string(), args.clone())),
-                    );
-                }
-                "cot" => {
-                    if args.len() != 1 {
-                        return Err("cot 只接受一个参数".to_string());
-                    }
-                    *expr = Expr::Binary(
-                        BinOp::Div,
-                        Box::new(Expr::Call("cos".to_string(), args.clone())),
-                        Box::new(Expr::Call("sin".to_string(), args.clone())),
-                    );
-                }
-                "deg" => {
-                    // 角度统一用弧度计算;DSL 里的角度写法通过 deg(180)
-                    // 转换成 180 * pi / 180,避免再引入一套角度单位分支.
-                    if args.len() != 1 {
-                        return Err("deg 只接受一个参数".to_string());
-                    }
-                    *expr = Expr::Binary(
-                        BinOp::Mul,
-                        Box::new(args[0].clone()),
-                        Box::new(Expr::Num(PI / 180.0)),
-                    );
-                }
-                _ => {}
+            if let Some(expanded) = builtins::alias_expansion(name, args) {
+                *expr = expanded?;
             }
             Ok(())
         }
         Expr::Sym(name) => {
-            match name.as_str() {
-                "pi" | "PI" => *expr = Expr::Num(PI),
-                "e" | "E" => *expr = Expr::Num(E),
-                _ => {}
+            // 常量折叠名单收口在 builtins;只折叠 pi/PI/e/E(与旧行为一致).
+            if let Some(value) = builtins::foldable_constant_value(name) {
+                *expr = Expr::Num(value);
             }
             Ok(())
         }
@@ -589,12 +530,10 @@ fn evaluate_expr_inner(
     match expr {
         Expr::Num(value) => Ok(finite_value(*value)),
         Expr::Sym(name) => {
-            let value = match name.as_str() {
-                "pi" | "PI" => PI,
-                "e" | "E" => E,
-                "Infinity" => f64::INFINITY,
-                "NaN" => f64::NAN,
-                _ => variables
+            // 数值常量名单收口在 builtins;其余名字按变量解析.
+            let value = match builtins::constant_value(name) {
+                Some(value) => value,
+                None => variables
                     .get(name)
                     .copied()
                     .ok_or_else(|| format!("变量 '{}' 未定义", name))?,
@@ -820,7 +759,7 @@ impl std::fmt::Display for Expr {
 //
 // 注意:这里不复用 `rewrite_aliases` + `to_string` 的数值归一化路径,
 // 因为那条路径会把 `pi` / `e` / `deg(180)` 展开成小数.LaTeX 打印器
-// 直接从同一棵 Expr 树生成排版字符串,保留符号形式,并处理函数名、
+// 直接从同一棵 Expr 树生成排版字符串,保留符号形式,并处理函数名,
 // 隐式乘法与分数的 LaTeX 记法.
 // ============================================================
 
@@ -875,11 +814,8 @@ fn latex_greek(name: &str) -> Option<&'static str> {
 }
 
 fn latex_symbol(name: &str) -> String {
-    match name {
-        "pi" | "PI" => return "\\pi".to_string(),
-        "e" | "E" => return "e".to_string(),
-        "Infinity" => return "\\infty".to_string(),
-        _ => {}
+    if let Some(rendered) = builtins::constant_latex(name) {
+        return rendered.to_string();
     }
 
     if let Some((head, tail)) = name.split_once('_') {
@@ -908,12 +844,16 @@ fn latex_pow_base(expr: &Expr) -> String {
 }
 
 fn latex_call(name: &str, args: &[Expr], arg_texts: &[String]) -> String {
-    match name {
-        "pow" if args.len() == 2 => {
+    match builtins::alias_latex_kind(name) {
+        Some(builtins::AliasLatexKind::SuperscriptPower) if args.len() == 2 => {
             format!("{}^{{{}}}", latex_pow_base(&args[0]), arg_texts[1])
         }
-        "deg" if args.len() == 1 => format!("{}^{{\\circ}}", latex_pow_base(&args[0])),
-        "log" if args.len() == 1 => format!("\\ln\\left({}\\right)", arg_texts[0]),
+        Some(builtins::AliasLatexKind::Degree) if args.len() == 1 => {
+            format!("{}^{{\\circ}}", latex_pow_base(&args[0]))
+        }
+        Some(builtins::AliasLatexKind::NaturalLog) if args.len() == 1 => {
+            format!("\\ln\\left({}\\right)", arg_texts[0])
+        }
         _ => match builtins::latex_style(name) {
             Some(builtins::LatexStyle::Named(function)) => {
                 format!("{function}\\left({}\\right)", latex_join_args(arg_texts))
@@ -1416,25 +1356,8 @@ fn derivative_call(name: &str, args: &[Expr], variable: &str) -> Result<Expr, St
 
 fn builtin_symbol(name: &str) -> bool {
     builtins::is_supported_function(name)
-        || matches!(
-            name,
-            "log"
-                | "pow"
-                | "sec"
-                | "csc"
-                | "cot"
-                | "deg"
-                | "pi"
-                | "PI"
-                | "e"
-                | "E"
-                | "i"
-                | "Infinity"
-                | "NaN"
-                | "true"
-                | "false"
-                | "null"
-        )
+        || builtins::is_alias_name(name)
+        || builtins::is_known_constant(name)
 }
 
 fn collect_symbols(expr: &Expr, out: &mut Vec<String>) {

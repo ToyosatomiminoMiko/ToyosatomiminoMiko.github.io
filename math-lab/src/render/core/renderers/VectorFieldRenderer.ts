@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { IRenderer } from './IRenderer';
 import type { VectorFieldObject } from '../../../compiler/ir/types';
+import { splitCoefficients } from '../../../math/coefficientUtils';
 import { VectorFieldMesh } from '../../visualization/VectorFieldMesh';
 import { vectorFieldComputeClient } from '../../../math/compute/workers/VectorFieldComputeClient';
 import type { VectorFieldWorkerRequest } from '../../../math/compute/workers/vectorFieldWorker';
@@ -64,6 +65,7 @@ export class VectorFieldRenderer implements IRenderer {
             }
         }
         const positions = this._positions as Float32Array;
+        const { names, values } = splitCoefficients(coefficients);
 
         // 表达式求值在 Worker 中完成,主线程只负责发请求和更新 mesh.
         this.executor
@@ -71,8 +73,8 @@ export class VectorFieldRenderer implements IRenderer {
                 pExpr: components[0],
                 qExpr: components[1],
                 rExpr: components[2],
-                coeffNames: coefficients.map((coefficient) => coefficient.name),
-                coeffValues: coefficients.map((coefficient) => coefficient.value),
+                coeffNames: names,
+                coeffValues: values,
                 range,
                 gridSize,
             })

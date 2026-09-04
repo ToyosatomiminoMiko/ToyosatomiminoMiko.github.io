@@ -35,6 +35,49 @@ pub fn sample_curve(
     Ok(points)
 }
 
+/// 行优先遍历二维网格并逐点求值(外层 y,内层 x).
+///
+/// `include_end` 为 `true` 时包含右/上边界,共 `(nx + 1) * (ny + 1)` 个点;
+/// 为 `false` 时只取前 `nx * ny` 个格点(黎曼左端点等"恰好 n×m 个采样点"
+/// 的形态).两种形态共用同一条遍历/求值循环,避免同一段"外 y 内 x +
+/// 非有限填 NaN"逻辑被复制多份.
+#[allow(clippy::too_many_arguments)]
+fn sample_surface_grid(
+    expr: &str,
+    coeff_names: &[String],
+    coeff_values: &[f64],
+    xa: f64,
+    xb: f64,
+    ya: f64,
+    yb: f64,
+    nx: usize,
+    ny: usize,
+    include_end: bool,
+    range_error: &str,
+    count_error: &str,
+) -> Result<Vec<f64>, String> {
+    if xa >= xb || ya >= yb {
+        return Err(range_error.to_string());
+    }
+    if nx == 0 || ny == 0 {
+        return Err(count_error.to_string());
+    }
+
+    let mut evaluator: CompiledEvaluator = CompiledEvaluator::new(expr, coeff_names, coeff_values)?;
+
+    let cols = if include_end { nx + 1 } else { nx };
+    let rows = if include_end { ny + 1 } else { ny };
+    let mut values: Vec<f64> = Vec::with_capacity(cols * rows);
+    for j in 0..rows {
+        let y = ya + (yb - ya) * (j as f64 / ny as f64);
+        for i in 0..cols {
+            let x = xa + (xb - xa) * (i as f64 / nx as f64);
+            values.push(evaluator.eval_2d(x, y)?.unwrap_or(f64::NAN));
+        }
+    }
+    Ok(values)
+}
+
 /// 在二维网格上采样曲面 z = f(x, y).
 ///
 /// 返回行优先数组 `[f(x0,y0), f(x1,y0), ..., f(xn,ym)]`,长度为
@@ -53,24 +96,20 @@ pub fn sample_surface_values(
     nx: usize,
     ny: usize,
 ) -> Result<Vec<f64>, String> {
-    if xa >= xb || ya >= yb {
-        return Err("曲面采样需要有效的二维区间".to_string());
-    }
-    if nx == 0 || ny == 0 {
-        return Err("曲面采样需要 nx/ny 均大于 0".to_string());
-    }
-
-    let mut evaluator: CompiledEvaluator = CompiledEvaluator::new(expr, coeff_names, coeff_values)?;
-
-    let mut values: Vec<f64> = Vec::with_capacity((nx + 1) * (ny + 1));
-    for j in 0..=ny {
-        let y = ya + (yb - ya) * (j as f64 / ny as f64);
-        for i in 0..=nx {
-            let x = xa + (xb - xa) * (i as f64 / nx as f64);
-            values.push(evaluator.eval_2d(x, y)?.unwrap_or(f64::NAN));
-        }
-    }
-    Ok(values)
+    sample_surface_grid(
+        expr,
+        coeff_names,
+        coeff_values,
+        xa,
+        xb,
+        ya,
+        yb,
+        nx,
+        ny,
+        true,
+        "曲面采样需要有效的二维区间",
+        "曲面采样需要 nx/ny 均大于 0",
+    )
 }
 
 /// 在三维网格上采样向量场 F(x, y, z) = [P, Q, R].
@@ -202,26 +241,22 @@ pub fn sample_function_2d(
     m: usize,
     sample_shape: &str,
 ) -> Result<Vec<f64>, String> {
-    if xa >= xb || ya >= yb {
-        return Err("积分采样需要有效的二维区间".to_string());
-    }
-    if n == 0 || m == 0 {
-        return Err("积分采样需要 n 和 m 均大于 0".to_string());
-    }
-
     if sample_shape == "corner" {
-        let hx = (xb - xa) / n as f64;
-        let hy = (yb - ya) / m as f64;
-        let mut values = Vec::with_capacity(n * m);
-        let mut evaluator = CompiledEvaluator::new(expr, coeff_names, coeff_values)?;
-        for j in 0..m {
-            let y = ya + j as f64 * hy;
-            for i in 0..n {
-                let x = xa + i as f64 * hx;
-                values.push(evaluator.eval_2d(x, y)?.unwrap_or(f64::NAN));
-            }
-        }
-        return Ok(values);
+        // 黎曼左端点:恰好 n×m 个"格子左下角"采样点,与 grid 共享同一条遍历.
+        return sample_surface_grid(
+            expr,
+            coeff_names,
+            coeff_values,
+            xa,
+            xb,
+            ya,
+            yb,
+            n,
+            m,
+            false,
+            "积分采样需要有效的二维区间",
+            "积分采样需要 n 和 m 均大于 0",
+        );
     }
 
     sample_surface_values(expr, coeff_names, coeff_values, xa, xb, ya, yb, n, m)

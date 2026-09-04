@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Coefficient } from '../../compiler/ir/types';
+import { splitCoefficients } from '../../math/coefficientUtils';
 import { RENDER_CONFIG } from '../../config/renderConfig';
 import {
     surfaceComputeClient,
@@ -12,7 +13,7 @@ import type {
 } from '../../math/compute/workers/surfaceWorker';
 
 // ============================================================
-// SurfaceMesh — 可复用的 3D 曲面网格封装
+// SurfaceMesh - 可复用的 3D 曲面网格封装
 //
 // 架构流程:
 //   SurfaceRenderer.draw()
@@ -134,12 +135,11 @@ export class SurfaceMesh {
     ): void {
         if (this._disposed) return;
 
-        const coeffNames = coefficients.map(c => c.name);
-        const coeffValues = coefficients.map(c => c.value);
+        const { names, values } = splitCoefficients(coefficients);
         const request: Omit<SurfaceWorkerRequest, 'id'> = {
             expr,
-            coeffNames,
-            coeffValues,
+            coeffNames: names,
+            coeffValues: values,
             xMin,
             xMax,
             yMin,

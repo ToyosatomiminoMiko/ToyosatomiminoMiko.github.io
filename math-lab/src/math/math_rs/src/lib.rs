@@ -42,14 +42,16 @@ enum IntegralMethod1D {
 }
 
 impl IntegralMethod1D {
+    /// 与 IR `IntegralMethod`(compiler/ir/types)保持同一套语义名;
+    /// 维度由 Worker 请求里的 `dim` 决定,这里不再需要带维度的别名串.
     fn parse(method: &str) -> Result<Self, String> {
         match method {
-            "trapz1d" => Ok(Self::Trapz),
-            "simpson1d" => Ok(Self::Simpson),
-            "riemann1d_left" => Ok(Self::RiemannLeft),
-            "riemann1d_right" => Ok(Self::RiemannRight),
-            "riemann1d_mid" => Ok(Self::RiemannMid),
-            "lebesgue1d" => Ok(Self::Lebesgue),
+            "trapezoid" => Ok(Self::Trapz),
+            "simpson" => Ok(Self::Simpson),
+            "riemann:left" => Ok(Self::RiemannLeft),
+            "riemann:right" => Ok(Self::RiemannRight),
+            "riemann:mid" => Ok(Self::RiemannMid),
+            "lebesgue" => Ok(Self::Lebesgue),
             _ => Err("未知一维积分方法".to_string()),
         }
     }
@@ -71,12 +73,13 @@ enum IntegralMethod2D {
 }
 
 impl IntegralMethod2D {
+    /// 与 IR `IntegralMethod` 保持同一套语义名;二维只支持左端点黎曼.
     fn parse(method: &str) -> Result<Self, String> {
         match method {
-            "trapz2d" => Ok(Self::Trapz),
-            "simpson2d" => Ok(Self::Simpson),
-            "riemann2d_left" => Ok(Self::RiemannLeft),
-            "lebesgue2d" => Ok(Self::Lebesgue),
+            "trapezoid" => Ok(Self::Trapz),
+            "simpson" => Ok(Self::Simpson),
+            "riemann:left" => Ok(Self::RiemannLeft),
+            "lebesgue" => Ok(Self::Lebesgue),
             _ => Err("未知二维积分方法".to_string()),
         }
     }
@@ -143,33 +146,6 @@ pub fn sample_curve(
         .map_err(math_error)
 }
 
-#[wasm_bindgen]
-#[allow(clippy::too_many_arguments)]
-pub fn sample_surface_values(
-    expr: &str,
-    coeff_names: Vec<String>,
-    coeff_values: Vec<f64>,
-    x_min: f64,
-    x_max: f64,
-    y_min: f64,
-    y_max: f64,
-    nx: usize,
-    ny: usize,
-) -> Result<Vec<f64>, JsValue> {
-    sampling_core::sample_surface_values(
-        expr,
-        &coeff_names,
-        &coeff_values,
-        x_min,
-        x_max,
-        y_min,
-        y_max,
-        nx,
-        ny,
-    )
-    .map_err(math_error)
-}
-
 #[allow(clippy::too_many_arguments)]
 #[wasm_bindgen]
 pub fn sample_vector_field(
@@ -208,94 +184,8 @@ pub fn sample_vector_field(
 }
 
 // ================================================================
-// 基于值数组的积分
+// 表达式级积分
 // ================================================================
-
-#[wasm_bindgen]
-pub fn trapz1d_values(values: &[f64], a: f64, b: f64) -> Result<f64, JsValue> {
-    integral_core::trapz1d_from_values(values, a, b).map_err(|e| JsValue::from_str(&e))
-}
-
-#[wasm_bindgen]
-pub fn simpson1d_values(values: &[f64], a: f64, b: f64) -> Result<f64, JsValue> {
-    integral_core::simpson1d_from_values(values, a, b).map_err(|e| JsValue::from_str(&e))
-}
-
-#[wasm_bindgen]
-pub fn riemann1d_left_values(values: &[f64], a: f64, b: f64) -> Result<f64, JsValue> {
-    integral_core::riemann1d_left_from_values(values, a, b).map_err(|e| JsValue::from_str(&e))
-}
-
-#[wasm_bindgen]
-pub fn riemann1d_right_values(values: &[f64], a: f64, b: f64) -> Result<f64, JsValue> {
-    integral_core::riemann1d_right_from_values(values, a, b).map_err(|e| JsValue::from_str(&e))
-}
-
-#[wasm_bindgen]
-pub fn riemann1d_mid_values(values: &[f64], a: f64, b: f64) -> Result<f64, JsValue> {
-    integral_core::riemann1d_mid_from_values(values, a, b).map_err(|e| JsValue::from_str(&e))
-}
-
-#[wasm_bindgen]
-pub fn lebesgue1d_values(values: &[f64], a: f64, b: f64, layers: usize) -> Result<f64, JsValue> {
-    integral_core::lebesgue1d_from_values(values, a, b, layers).map_err(|e| JsValue::from_str(&e))
-}
-
-#[wasm_bindgen]
-pub fn trapz2d_values(
-    values: &[f64],
-    xa: f64,
-    xb: f64,
-    ya: f64,
-    yb: f64,
-    n: usize,
-    m: usize,
-) -> Result<f64, JsValue> {
-    integral_core::trapz2d_from_values(values, (xa, xb), (ya, yb), n, m)
-        .map_err(|e| JsValue::from_str(&e))
-}
-
-#[wasm_bindgen]
-pub fn simpson2d_values(
-    values: &[f64],
-    xa: f64,
-    xb: f64,
-    ya: f64,
-    yb: f64,
-    n: usize,
-    m: usize,
-) -> Result<f64, JsValue> {
-    integral_core::simpson2d_from_values(values, (xa, xb), (ya, yb), n, m)
-        .map_err(|e| JsValue::from_str(&e))
-}
-
-#[wasm_bindgen]
-pub fn riemann2d_left_values(
-    values: &[f64],
-    xa: f64,
-    xb: f64,
-    ya: f64,
-    yb: f64,
-    n: usize,
-    m: usize,
-) -> Result<f64, JsValue> {
-    integral_core::riemann2d_left_from_values(values, (xa, xb), (ya, yb), n, m)
-        .map_err(|e| JsValue::from_str(&e))
-}
-
-#[wasm_bindgen]
-pub fn lebesgue2d_values(
-    values: &[f64],
-    xa: f64,
-    xb: f64,
-    ya: f64,
-    yb: f64,
-    grid_size: usize,
-    layers: usize,
-) -> Result<f64, JsValue> {
-    integral_core::lebesgue2d_from_values(values, (xa, xb), (ya, yb), grid_size, layers)
-        .map_err(|e| JsValue::from_str(&e))
-}
 
 #[wasm_bindgen(getter_with_clone)]
 pub struct IntegralSampleResult {

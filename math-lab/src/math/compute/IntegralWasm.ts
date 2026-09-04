@@ -1,8 +1,18 @@
-import type { Range1D } from '../../compiler/ir/types';
+/**
+ * 积分计算的 Worker 门面.
+ *
+ * 入口只保留一个 `integrate(spec)`:
+ * - 方法名直接用 IR 语义名(`IntegralMethod`),与 Worker/Rust parse 同一套
+ *   词汇,不再有 trapz1d/trapz2d 这类带维度别名串在主线程各处拼写;
+ * - 一维/二维由 `range` 长度区分,`n`/`m`/`layers`/lebesgue 超采样等
+ *   参数在此处一次归一化,取代原先十个几乎一样的透传函数;
+ * - 调度(Worker 复用,latest-only,dispose)保持原样.
+ */
+import type { IntegralMethod } from '../../compiler/ir/types';
+import { NUMERIC_CONFIG } from '../../config/numericConfig';
 import { ComputeWorkerClient } from './workers/ComputeWorkerClient';
 import { LatestRequestExecutor } from './workers/LatestRequestExecutor';
 import type {
-    IntegralMethod,
     IntegralWorkerRequest,
     IntegralWorkerResponse,
 } from './workers/IntegralWorker';
@@ -15,6 +25,19 @@ export type IntegralResult = {
     sampleShape?: IntegralSampleShape;
     n?: number;
     m?: number;
+};
+
+/** 一次积分请求的完整描述. */
+export type IntegralSpec = {
+    method: IntegralMethod;
+    expr: string;
+    coeffs: Record<string, number>;
+    /** 一维为 `[a, b]`;二维为 `[xMin, xMax, yMin, yMax]`. */
+    range: [number, number] | [number, number, number, number];
+    /** 分段数;lebesgue 作为超采样前的基准采样数. */
+    segments: number;
+    /** lebesgue 专用层数;其他方法忽略. */
+    layers?: number;
 };
 
 // ---------- Worker 管理 ----------
@@ -45,14 +68,9 @@ const integralExecutor = new LatestRequestExecutor<IntegralWorkerRequest, Integr
  * @cache-access
  * 通过 latest-only executor 调用积分 Worker.
  */
-function callWasm(
-    method: IntegralMethod,
-    expr: string,
-    coeffs: Record<string, number>,
-    params: Record<string, number>,
-): Promise<IntegralResult> {
+export function integrate(spec: IntegralSpec): Promise<IntegralResult> {
     return integralExecutor
-        .request({ method, expr, coeffs, ...params })
+        .request(buildRequest(spec))
         .then((response) => ({
             value: response.value!,
             samples: response.samples,
@@ -60,6 +78,60 @@ function callWasm(
             n: response.n,
             m: response.m,
         }));
+}
+
+function buildRequest(spec: IntegralSpec): Omit<IntegralWorkerRequest, 'id'> {
+    const base = {
+        method: spec.method,
+        expr: spec.expr,
+        coeffs: spec.coeffs,
+    };
+    if (spec.range.length === 2) {
+        const [a, b] = spec.range;
+        if (spec.method === 'lebesgue') {
+            return {
+                ...base,
+                dim: '1d' as const,
+                a,
+                b,
+                layers: spec.layers ?? spec.segments,
+                sampleN:
+                    spec.segments * NUMERIC_CONFIG.integral.lebesgueOversample1D,
+            };
+        }
+        return {
+            ...base,
+            dim: '1d' as const,
+            a,
+            b,
+            n: spec.segments,
+        };
+    }
+
+    const [xa, xb, ya, yb] = spec.range as [number, number, number, number];
+    if (spec.method === 'lebesgue') {
+        return {
+            ...base,
+            dim: '2d' as const,
+            xa,
+            xb,
+            ya,
+            yb,
+            layers: spec.layers ?? spec.segments,
+            sampleN:
+                spec.segments * NUMERIC_CONFIG.integral.lebesgueOversample2D,
+        };
+    }
+    return {
+        ...base,
+        dim: '2d' as const,
+        xa,
+        xb,
+        ya,
+        yb,
+        n: spec.segments,
+        m: spec.segments,
+    };
 }
 
 /**
@@ -73,142 +145,4 @@ function callWasm(
 export function disposeIntegralWorker(): void {
     integralExecutor.dispose();
     integralClient.dispose();
-}
-
-// ---------- 公共 API ----------
-
-export function trapz1d(
-    expr: string,
-    coeffs: Record<string, number>,
-    a: number,
-    b: number,
-    n: number,
-): Promise<IntegralResult> {
-    return callWasm('trapz1d', expr, coeffs, { a, b, n });
-}
-
-export function simpson1d(
-    expr: string,
-    coeffs: Record<string, number>,
-    a: number,
-    b: number,
-    n: number,
-): Promise<IntegralResult> {
-    return callWasm('simpson1d', expr, coeffs, { a, b, n });
-}
-
-/** 左端点黎曼(`method = riemann:left`,仅一维曲线). */
-export function riemann1dLeft(
-    expr: string,
-    coeffs: Record<string, number>,
-    a: number,
-    b: number,
-    n: number,
-): Promise<IntegralResult> {
-    return callWasm('riemann1d_left', expr, coeffs, { a, b, n });
-}
-
-/** 右端点黎曼(`method = riemann:right`,仅一维曲线). */
-export function riemann1dRight(
-    expr: string,
-    coeffs: Record<string, number>,
-    a: number,
-    b: number,
-    n: number,
-): Promise<IntegralResult> {
-    return callWasm('riemann1d_right', expr, coeffs, { a, b, n });
-}
-
-/** 中点黎曼(`method = riemann:mid`,仅一维曲线). */
-export function riemann1dMid(
-    expr: string,
-    coeffs: Record<string, number>,
-    a: number,
-    b: number,
-    n: number,
-): Promise<IntegralResult> {
-    return callWasm('riemann1d_mid', expr, coeffs, { a, b, n });
-}
-
-export function lebesgue1d(
-    expr: string,
-    coeffs: Record<string, number>,
-    a: number,
-    b: number,
-    layers: number,
-    sampleN: number,
-): Promise<IntegralResult> {
-    return callWasm('lebesgue1d', expr, coeffs, { a, b, layers, sampleN });
-}
-
-export function trapz2d(
-    expr: string,
-    coeffs: Record<string, number>,
-    xRange: Range1D,
-    yRange: Range1D,
-    n: number,
-    m: number,
-): Promise<IntegralResult> {
-    return callWasm('trapz2d', expr, coeffs, {
-        xa: xRange[0],
-        xb: xRange[1],
-        ya: yRange[0],
-        yb: yRange[1],
-        n,
-        m,
-    });
-}
-
-export function simpson2d(
-    expr: string,
-    coeffs: Record<string, number>,
-    xRange: Range1D,
-    yRange: Range1D,
-    n: number,
-    m: number,
-): Promise<IntegralResult> {
-    return callWasm('simpson2d', expr, coeffs, {
-        xa: xRange[0],
-        xb: xRange[1],
-        ya: yRange[0],
-        yb: yRange[1],
-        n,
-        m,
-    });
-}
-
-export function riemann2dLeft(
-    expr: string,
-    coeffs: Record<string, number>,
-    xRange: Range1D,
-    yRange: Range1D,
-    n: number,
-    m: number,
-): Promise<IntegralResult> {
-    return callWasm('riemann2d_left', expr, coeffs, {
-        xa: xRange[0],
-        xb: xRange[1],
-        ya: yRange[0],
-        yb: yRange[1],
-        n,
-        m,
-    });
-}
-
-export function lebesgue2d(
-    expr: string,
-    coeffs: Record<string, number>,
-    xRange: Range1D,
-    yRange: Range1D,
-    layers: number,
-    sampleN: number,
-): Promise<IntegralResult> {
-    return callWasm('lebesgue2d', expr, coeffs, {
-        xa: xRange[0],
-        xb: xRange[1],
-        ya: yRange[0],
-        yb: yRange[1],
-        layers,
-        sampleN,
-    });
 }

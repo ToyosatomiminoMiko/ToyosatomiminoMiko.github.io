@@ -6,7 +6,7 @@
  * - SceneObject/静态 transform -> 可序列化描述符的转换;
  * - Worker 返回的扁平数组 -> `Vec3[]`/`Vec3[][]` 的解码.
  *
- * 数值算法、容差与 marching squares 的 Rust 单元测试是权威验证.
+ * 数值算法,容差与 marching squares 的 Rust 单元测试是权威验证.
  */
 import type {
     IntersectionOutput,
@@ -15,6 +15,7 @@ import type {
     Vec3,
 } from '../../compiler/ir/types';
 import { NUMERIC_CONFIG } from '../../config/numericConfig';
+import { splitCoefficients } from '../coefficientUtils';
 import {
     flattenOptionalMat4,
     invertMat4,
@@ -122,17 +123,15 @@ function describeSide(
         object.kind === 'curve' || object.kind === 'surface'
             ? object.coefficients
             : [];
+    const { names: coefficientNames, values: coefficientValues } =
+        splitCoefficients(coefficients);
     return {
         kind: object.kind as IntersectionComputeSide['kind'],
         expr: object.kind === 'curve' || object.kind === 'surface'
             ? object.expr
             : '',
-        coefficientNames: coefficients.map(
-            (coefficient) => coefficient.name,
-        ),
-        coefficientValues: coefficients.map(
-            (coefficient) => coefficient.value,
-        ),
+        coefficientNames,
+        coefficientValues,
         params,
         matrix: flattenOptionalMat4(matrix),
         inverse: flattenOptionalMat4(inverse),
@@ -150,7 +149,7 @@ function findObject(
  * 把编译产出的求交任务转成 Worker 输入.
  *
  * 求交结果是独立求值对象,源对象在渲染层是否隐藏不影响它:隐藏只是
- * “不画这个面”,源对象仍参与求交计算,否则单独隐藏一张面会连交线一起消失.
+ * "不画这个面",源对象仍参与求交计算,否则单独隐藏一张面会连交线一起消失.
  * 源对象的表达式/系数/几何参数/静态矩阵都进入输入,因此
  * `JSON.stringify(input)` 可以直接作为渲染层的缓存键.
  */

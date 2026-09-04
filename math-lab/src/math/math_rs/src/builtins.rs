@@ -1,9 +1,11 @@
+use std::f64::consts::{E, PI};
+
 use crate::symbolic::{BinOp, Expr, UnaryOp};
 
 /// 当前 DSL 数值求值支持的内置函数.
 ///
-/// 每个函数只在这里登记一次:求值、符号求导和 LaTeX 显示都从这一张表取.
-/// 多参数/别名函数(pow、sec、log 等)在表达式归一化阶段改写为基础函数.
+/// 每个函数只在这里登记一次:求值,符号求导和 LaTeX 显示都从这一张表取.
+/// 多参数/别名函数(pow,sec,log 等)在表达式归一化阶段改写为基础函数.
 type UnaryMathFunction = fn(f64) -> f64;
 type DerivativeFunction = fn(&Expr) -> Expr;
 
@@ -260,4 +262,230 @@ pub(crate) fn derivative_unary(name: &str) -> Option<DerivativeFunction> {
         .iter()
         .find(|builtin| builtin.name == name)
         .map(|builtin| builtin.derivative)
+}
+
+// ============================================================
+// 常量与别名注册表
+// ============================================================
+//
+// 基础一元函数在 `MATH_FUNCTIONS` 登记;这里把"常量符号"与"别名函数"
+// 的名单也收口成表,符号引擎的折叠/求值/LaTeX/变量提取不再各自内联
+// 一份 `pi`/`e`/`log`/`pow`/... 名单.
+
+/// 已知符号常量(数值常量以及 `i`/`true`/`false`/`null` 等保留字).
+struct ConstantBuiltin {
+    name: &'static str,
+    /// 数值求值时的取值;`None` 表示只作为保留字,不能参与数值求值.
+    value: Option<f64>,
+    /// LaTeX 展示;`None` 表示按普通符号渲染.
+    latex: Option<&'static str>,
+    /// 是否在表达式归一化阶段折叠为数值(`pi`/`PI`/`e`/`E`).
+    fold: bool,
+}
+
+const CONSTANTS: &[ConstantBuiltin] = &[
+    ConstantBuiltin {
+        name: "pi",
+        value: Some(PI),
+        latex: Some("\\pi"),
+        fold: true,
+    },
+    ConstantBuiltin {
+        name: "PI",
+        value: Some(PI),
+        latex: Some("\\pi"),
+        fold: true,
+    },
+    ConstantBuiltin {
+        name: "e",
+        value: Some(E),
+        latex: Some("e"),
+        fold: true,
+    },
+    ConstantBuiltin {
+        name: "E",
+        value: Some(E),
+        latex: Some("e"),
+        fold: true,
+    },
+    ConstantBuiltin {
+        name: "Infinity",
+        value: Some(f64::INFINITY),
+        latex: Some("\\infty"),
+        fold: false,
+    },
+    ConstantBuiltin {
+        name: "NaN",
+        value: Some(f64::NAN),
+        latex: None,
+        fold: false,
+    },
+    ConstantBuiltin {
+        name: "i",
+        value: None,
+        latex: None,
+        fold: false,
+    },
+    ConstantBuiltin {
+        name: "true",
+        value: None,
+        latex: None,
+        fold: false,
+    },
+    ConstantBuiltin {
+        name: "false",
+        value: None,
+        latex: None,
+        fold: false,
+    },
+    ConstantBuiltin {
+        name: "null",
+        value: None,
+        latex: None,
+        fold: false,
+    },
+];
+
+fn find_constant(name: &str) -> Option<&'static ConstantBuiltin> {
+    CONSTANTS.iter().find(|constant| constant.name == name)
+}
+
+pub(crate) fn is_known_constant(name: &str) -> bool {
+    find_constant(name).is_some()
+}
+
+/// 归一化阶段折叠为数值的常量(`pi`/`PI`/`e`/`E`).
+pub(crate) fn foldable_constant_value(name: &str) -> Option<f64> {
+    match find_constant(name) {
+        Some(constant) if constant.fold => constant.value,
+        _ => None,
+    }
+}
+
+/// 数值求值时已知的常量(`pi`/`PI`/`e`/`E`/`Infinity`/`NaN`);
+/// 纯保留字(`i`/`true`/`false`/`null`)返回 `None`,由调用方按变量处理.
+pub(crate) fn constant_value(name: &str) -> Option<f64> {
+    find_constant(name).and_then(|constant| constant.value)
+}
+
+/// 常量在 LaTeX 里的展示;不是展示型常量时返回 `None`.
+pub(crate) fn constant_latex(name: &str) -> Option<&'static str> {
+    find_constant(name).and_then(|constant| constant.latex)
+}
+
+/// 别名函数在 LaTeX 输出中的展示形态(此时 `Call` 节点仍带别名名字,
+/// 展示规则无法从展开后的基础函数派生,因此单独登记).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AliasLatexKind {
+    /// `pow(a, b)` → `a^{b}`.
+    SuperscriptPower,
+    /// `deg(x)` → `x^{\circ}`.
+    Degree,
+    /// `log(x)` → `\ln(x)`.
+    NaturalLog,
+}
+
+type AliasExpansion = fn(&[Expr]) -> Result<Expr, String>;
+
+struct AliasBuiltin {
+    name: &'static str,
+    expand: AliasExpansion,
+    latex: Option<AliasLatexKind>,
+}
+
+fn expand_log(args: &[Expr]) -> Result<Expr, String> {
+    if args.len() != 1 {
+        return Err("Rust 数值后端只支持单参数的自然对数 log(x)".to_string());
+    }
+    Ok(call("ln", args.to_vec()))
+}
+
+fn expand_pow(args: &[Expr]) -> Result<Expr, String> {
+    if args.len() != 2 {
+        return Err("Rust 数值后端只支持双参数的 pow(a, b)".to_string());
+    }
+    Ok(bin(BinOp::Pow, args[0].clone(), args[1].clone()))
+}
+
+fn expand_inverse(alias: &str, base: &str, args: &[Expr]) -> Result<Expr, String> {
+    if args.len() != 1 {
+        return Err(format!("{alias} 只接受一个参数"));
+    }
+    Ok(bin(BinOp::Div, num(1.0), call(base, args.to_vec())))
+}
+
+fn expand_sec(args: &[Expr]) -> Result<Expr, String> {
+    expand_inverse("sec", "cos", args)
+}
+
+fn expand_csc(args: &[Expr]) -> Result<Expr, String> {
+    expand_inverse("csc", "sin", args)
+}
+
+fn expand_cot(args: &[Expr]) -> Result<Expr, String> {
+    if args.len() != 1 {
+        return Err("cot 只接受一个参数".to_string());
+    }
+    Ok(bin(
+        BinOp::Div,
+        call("cos", args.to_vec()),
+        call("sin", args.to_vec()),
+    ))
+}
+
+fn expand_deg(args: &[Expr]) -> Result<Expr, String> {
+    if args.len() != 1 {
+        return Err("deg 只接受一个参数".to_string());
+    }
+    Ok(bin(BinOp::Mul, args[0].clone(), num(PI / 180.0)))
+}
+
+const ALIASES: &[AliasBuiltin] = &[
+    AliasBuiltin {
+        name: "log",
+        expand: expand_log,
+        latex: Some(AliasLatexKind::NaturalLog),
+    },
+    AliasBuiltin {
+        name: "pow",
+        expand: expand_pow,
+        latex: Some(AliasLatexKind::SuperscriptPower),
+    },
+    AliasBuiltin {
+        name: "sec",
+        expand: expand_sec,
+        latex: None,
+    },
+    AliasBuiltin {
+        name: "csc",
+        expand: expand_csc,
+        latex: None,
+    },
+    AliasBuiltin {
+        name: "cot",
+        expand: expand_cot,
+        latex: None,
+    },
+    AliasBuiltin {
+        name: "deg",
+        expand: expand_deg,
+        latex: Some(AliasLatexKind::Degree),
+    },
+];
+
+fn find_alias(name: &str) -> Option<&'static AliasBuiltin> {
+    ALIASES.iter().find(|alias| alias.name == name)
+}
+
+pub(crate) fn is_alias_name(name: &str) -> bool {
+    find_alias(name).is_some()
+}
+
+/// 展开别名;`None` 表示该名字不是别名,调用方保持原样.
+pub(crate) fn alias_expansion(name: &str, args: &[Expr]) -> Option<Result<Expr, String>> {
+    find_alias(name).map(|alias| (alias.expand)(args))
+}
+
+pub(crate) fn alias_latex_kind(name: &str) -> Option<AliasLatexKind> {
+    find_alias(name).and_then(|alias| alias.latex)
 }

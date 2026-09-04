@@ -85,6 +85,13 @@ integral I2 = integral(s1) {
     segments = 32;
     layers = 16;
 };
+// 曲面积分:梯形法
+integral I3 = integral(s1) {
+    method = trapezoid;
+    range = [-3, 3, -3, 3];
+    segments = 32;
+    layers = 16;
+};
 
 // 向量场
 vector_field VF = [y*a, x*b, a*j] {
