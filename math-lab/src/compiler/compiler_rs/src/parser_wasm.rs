@@ -2,6 +2,7 @@ use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
 use serde_json::{json, Value};
+// 本解析器将 `.miko` DSL 源码解析为抽象语法树(AST)
 
 #[derive(Parser)]
 #[grammar = "miko.pest"]
@@ -11,6 +12,7 @@ pub struct MikoParser;
 // 这里不再维护一套 Rust 镜像类型,而是直接构造 JSON,避免改 DSL 时
 // 需要在 Rust enum 和 TS interface 两处同步.
 
+/// 获取语法树节点的源码位置(起始和结束偏移),返回 JSON 对象
 fn span_of(pair: &Pair<'_, Rule>) -> Value {
     let span = pair.as_span();
     json!({
@@ -19,6 +21,9 @@ fn span_of(pair: &Pair<'_, Rule>) -> Value {
     })
 }
 
+/// 从节点中提取标识符(ident)的内容.
+/// 先获取该节点的内部子节点,然后查找规则为 `ident` 的子节点,
+/// 取其字符串值,若不存在则返回空字符串.
 fn pair_ident(pair: &Pair<'_, Rule>) -> String {
     pair.clone()
         .into_inner()
@@ -27,6 +32,8 @@ fn pair_ident(pair: &Pair<'_, Rule>) -> String {
         .unwrap_or_default()
 }
 
+/// 从 `option` 规则节点中提取所有选项(option)的 name-value 对.
+/// 每个 option 由 ident 和 value 组成,返回 JSON 数组.
 fn option_pairs(pair: &Pair<'_, Rule>) -> Vec<Value> {
     pair.clone()
         .into_inner()
@@ -50,6 +57,8 @@ fn option_pairs(pair: &Pair<'_, Rule>) -> Vec<Value> {
 }
 
 /// 从 `*_end` 子节点中提取统一的 `{ option = value; ... }` 列表.
+/// 调用 `option_pairs` 将其转换为 JSON 数组.
+/// 若没有 options,返回空数组.
 fn options_from_end(end: &Pair<'_, Rule>) -> Vec<Value> {
     end.clone()
         .into_inner()
@@ -58,6 +67,8 @@ fn options_from_end(end: &Pair<'_, Rule>) -> Vec<Value> {
         .unwrap_or_default()
 }
 
+/// 提取参数语句的可选 UI 约束(param_ui).
+/// 如果存在,则提取三个数字(min, max, step)并返回 JSON 对象.
 fn param_ui(pair: &Pair<'_, Rule>) -> Option<Value> {
     pair.clone()
         .into_inner()
@@ -76,6 +87,8 @@ fn param_ui(pair: &Pair<'_, Rule>) -> Option<Value> {
         })
 }
 
+/// 将参数语句(param_stmt)转换为 JSON AST 节点.
+/// 包含类型,名称,值,位置,以及可选的 UI 约束.
 fn param_to_stmt(pair: &Pair<'_, Rule>) -> Value {
     let name = pair_ident(pair);
     let value = pair
@@ -97,6 +110,8 @@ fn param_to_stmt(pair: &Pair<'_, Rule>) -> Value {
     statement
 }
 
+/// 将张量语句(tensor_stmt)转换为 JSON AST 节点.
+/// 包含 kind(如 buffer, texture 等),名称,表达式(expr)和位置.
 fn tensor_to_stmt(pair: &Pair<'_, Rule>) -> Value {
     let mut kind = String::new();
     let mut name = String::new();
@@ -120,6 +135,8 @@ fn tensor_to_stmt(pair: &Pair<'_, Rule>) -> Value {
     })
 }
 
+/// 将动画语句(animation_stmt)转换为 JSON AST 节点.
+/// 包含名称,表达式,选项列表和位置.
 fn animation_to_stmt(pair: &Pair<'_, Rule>) -> Value {
     let mut name = String::new();
     let mut expr = String::new();
@@ -143,6 +160,8 @@ fn animation_to_stmt(pair: &Pair<'_, Rule>) -> Value {
     })
 }
 
+/// 将对象语句(object_stmt)转换为 JSON AST 节点.
+/// 包含 kind(如 mesh, light 等),名称,表达式,选项列表和位置.
 fn object_to_stmt(pair: &Pair<'_, Rule>) -> Value {
     let mut kind = String::new();
     let mut name = String::new();
@@ -169,6 +188,9 @@ fn object_to_stmt(pair: &Pair<'_, Rule>) -> Value {
     })
 }
 
+/// 将分析语句(analysis_stmt)转换为 JSON AST 节点.
+/// 包含操作符(op),名称,调用(call),源(source),
+/// 可选的 at 参数,选项列表和位置.
 fn analysis_to_stmt(pair: &Pair<'_, Rule>) -> Value {
     let mut op = String::new();
     let mut name = String::new();
@@ -218,6 +240,8 @@ fn analysis_to_stmt(pair: &Pair<'_, Rule>) -> Value {
     statement
 }
 
+/// 将积分语句(integral_stmt)转换为 JSON AST 节点.
+/// 包含名称,源(source),选项列表和位置.
 fn integral_to_stmt(pair: &Pair<'_, Rule>) -> Value {
     let mut name = String::new();
     let mut source = String::new();
@@ -248,6 +272,8 @@ fn integral_to_stmt(pair: &Pair<'_, Rule>) -> Value {
     })
 }
 
+/// 将交集语句(intersection_stmt)转换为 JSON AST 节点.
+/// 包含名称,两个操作数 a 和 b,选项列表和位置.
 fn intersection_to_stmt(pair: &Pair<'_, Rule>) -> Value {
     let mut name = String::new();
     let mut a = String::new();
@@ -283,6 +309,8 @@ fn intersection_to_stmt(pair: &Pair<'_, Rule>) -> Value {
     })
 }
 
+/// 根据语法规则将单个语句节点(Pair)转换为对应的 AST JSON 节点.
+/// 若规则未知,则返回错误信息.
 fn statement_to_ast(pair: Pair<'_, Rule>) -> Result<Value, String> {
     match pair.as_rule() {
         Rule::param_stmt => Ok(param_to_stmt(&pair)),
@@ -296,18 +324,24 @@ fn statement_to_ast(pair: Pair<'_, Rule>) -> Result<Value, String> {
     }
 }
 
-/// 解析 `.miko` 源码,返回 JSON 格式的 AST.
+/// -------------
+/// 总入口
+/// -------------
+/// 接收 `.miko` 源码字符串,返回 JSON 格式的 AST 字符串
+/// 内部先调用 pest 解析器得到程序根节点,再遍历子节点(语句)逐一转换,
+/// 最后将所有语句打包成 `{ "statements": [...] }` 并序列化为 JSON.
 pub fn parse_to_json(source: &str) -> Result<String, String> {
     let mut pairs: pest::iterators::Pairs<'_, Rule> =
         MikoParser::parse(Rule::program, source).map_err(|err| err.to_string())?;
+    // 取出唯一一个程序节点
     let program: Pair<'_, Rule> = pairs.next().ok_or_else(|| "空的解析结果".to_string())?;
-
+    // 遍历程序节点的内部子节点,过滤掉 EOI(结束符),对每个语句节点调用 statement_to_ast
     let statements: Vec<Value> = program
         .into_inner()
         .filter(|child| child.as_rule() != Rule::EOI)
         .map(statement_to_ast)
         .collect::<Result<Vec<_>, _>>()?;
-
+    // 构建最终 JSON 并序列化
     serde_json::to_string(&json!({ "statements": statements })).map_err(|err| err.to_string())
 }
 
