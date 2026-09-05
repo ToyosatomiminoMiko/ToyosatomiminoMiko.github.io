@@ -174,6 +174,39 @@ export interface ConicSolidObject {
 }
 
 /**
+ * 面积图形(区域实体,仅 V1 "x 型带状").
+ *
+ * V1 语义:D = { a ≤ x ≤ b, min(c1,c2)(x) ≤ y ≤ max(c1,c2)(x) },绘制在
+ * z=0 平面;`range` 是 x 区间(缺省取两边界曲线 x-range 交集).
+ * 区域不持有曲线几何拷贝,只按名/引用边界曲线,滑块变化时随既有 dirty 链路
+ * 一并重画.
+ *
+ * 后续规划(roadmap,实现时保持本注释同步):
+ * - y 型区域(左右边界为曲线);
+ * - 极坐标 r-θ 区域;
+ * - 三条以上曲线边界围成区域;
+ * - 区域参与求交(与 curve/surface/solid 的交);
+ * - region 作为曲面底域(曲顶柱体,直接由本区域上二重积分的可视化近似).
+ */
+export interface RegionObject {
+    kind: 'region';
+    id: number;
+    name: string;
+    /** 边界曲线对象名(必须引用已声明的 `curve`). */
+    curveAName: string;
+    curveBName: string;
+    /** x 区间 [a, b];编译期解析为两曲线 x-range 交集或显式 range. */
+    range: [number, number];
+    /** 两边界曲线系数并集(+range 内参数);滑块变化时区域与其积分自动重算. */
+    coefficients: Coefficient[];
+    color: string;
+    opacity: number;
+    /** 边界/填充采样,受预算上限约束. */
+    segments: number;
+    enabled: boolean;
+}
+
+/**
  * 场景中所有数学对象的联合类型.
  *
  * 注意:`point` / `vector` 是保留对象类型,后续会补 DSL 语法;
@@ -187,7 +220,8 @@ export type SceneObject =
     | VectorObject
     | SphereObject
     | BoxObject
-    | ConicSolidObject;
+    | ConicSolidObject
+    | RegionObject;
 
 /**
  * 微分分析结果(纯数值结果).
@@ -214,9 +248,12 @@ export type RiemannSide = 'left' | 'right' | 'mid';
 
 /**
  * DSL 中的 method 作为整串进入 IR:
- * - 一维黎曼区分端点:`riemann:left` / `riemann:right` / `riemann:mid`;
- * - DSL 里写裸 `riemann` 时编译期归一化为 `riemann:left`(兼容旧写法);
- * - 二维曲面黎曼目前只有左端点实现.
+ * - 黎曼区分端点:`riemann:left` / `riemann:right` / `riemann:mid`;
+ * - DSL 里写裸 `riemann` 时编译期归一化为 `riemann:left`(兼容旧写法).
+ *
+ * 方法 × 域矩阵(见 prompt/feature.md §方法矩阵)放宽后,right/mid 对所有
+ * 域(1D 曲线 / 2D 矩形 / 2D 区域 / 3D 实体)统一取"格点采样端 = 方法端",
+ * 数值与可视化同源.
  */
 export type IntegralMethod =
     | 'trapezoid'
@@ -224,12 +261,51 @@ export type IntegralMethod =
     | `riemann:${RiemannSide}`
     | 'lebesgue';
 
+/**
+ * 积分域的显式维度与种类.
+ *
+ * 早期实现用 `range` 长度(2/4)推断一维/二维,region/solid 域会失配,
+ * 因此 IR 改为显式 `dim` + `domainKind`,不再从 range 长度反推:
+ * - interval(1D):曲线域,积分区间 [a, b];
+ * - rectangle(2D):曲面矩形域,[xa, xb, ya, yb];
+ * - region(2D):面积图形带域,仅 x 区间 [a, b](y 上下界由边界曲线给出);
+ * - solid(3D):体积实体域(sphere/box/conic),无 range 字段.
+ */
+export type IntegralDomainKind = 'interval' | 'rectangle' | 'region' | 'solid';
+
 export interface IntegralTask {
     name: string;
     objectId: number;
-    sourceKind: 'curve' | 'surface';
+    /** 被积分源对象种类;与 `dim`/`domainKind` 一起构成显式语义. */
+    sourceKind: 'curve' | 'surface' | 'region' | 'sphere' | 'box' | 'conic';
+    /** 显式维度,不再由 range 长度推断. */
+    dim: 1 | 2 | 3;
+    /** 显式域种类. */
+    domainKind: IntegralDomainKind;
     method: IntegralMethod;
-    range: [number, number] | [number, number, number, number];
+    /**
+     * 被积函数表达式(归一化后字符串).
+     *
+     * - curve/surface 源 = 对象自带表达式(与旧行为一致);
+     * - region/solid 源 = 选项 `integrand`,缺省 `"1"`(即求区域面积/体积);
+     * - 变量一律为世界坐标(x,y,z 与场景坐标轴一致).
+     */
+    integrand: string;
+    /**
+     * 被积表达式里引用的自由参数(缺省 integrand=1 时为空数组).
+     *
+     * 它们与域对象自身的 coefficients 一起决定参数刷新的 dirty 判定:
+     * 拖动滑块时只要命中其中任一参数,积分任务就重算.
+     */
+    integrandCoefficients: Coefficient[];
+    /**
+     * 积分区间:
+     * - interval: [a, b];
+     * - rectangle: [xa, xb, ya, yb];
+     * - region: [a, b](x 区间,缺省取区域自身的 x 区间);
+     * - solid: 缺省缺省(域 = 渲染出的世界实体,外接盒由 Rust 核推导).
+     */
+    range?: [number, number] | [number, number, number, number];
     segments: number;
     layers: number;
     show: boolean;
@@ -240,7 +316,7 @@ export interface IntegralTask {
 /**
  * 求交任务(编译产物).
  *
- * 编译器只负责描述"要算哪两个对象、用什么分辨率",真正的数值计算由
+ * 编译器只负责描述"要算哪两个对象,用什么分辨率",真正的数值计算由
  * Worker + Rust `intersection_core` 异步完成;结果缓存与渲染由
  * IntersectionRenderer 按任务名管理.
  */

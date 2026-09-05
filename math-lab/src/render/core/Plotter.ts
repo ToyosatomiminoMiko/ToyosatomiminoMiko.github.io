@@ -6,12 +6,14 @@ import { PointRenderer, type PointStyle } from './renderers/PointRenderer';
 import { VectorRenderer } from './renderers/VectorRenderer';
 import { VectorFieldRenderer } from './renderers/VectorFieldRenderer';
 import { SolidRenderer } from './renderers/SolidRenderer';
+import { RegionRenderer } from './renderers/RegionRenderer';
 import { RENDER_CONFIG } from '../../config/renderConfig';
 import type {
     BoxObject,
     ConicSolidObject,
     CurveObject,
     PointObject,
+    RegionObject,
     SceneObject,
     SphereObject,
     SurfaceObject,
@@ -157,8 +159,13 @@ export class Plotter {
      * @param redraw false 时只同步 renderer 内部的 SceneObject 引用,
      * 不重新触发数值采样/GPU 重建.这个能力供 DslApp 在参数只影响部分对象时
      * 使用,避免每次拖动滑块都重算所有 curve/surface/vector_field.
+     * @param objectsByName 场景对象按名索引;region 域按名取边界曲线使用.
      */
-    updateObject(obj: SceneObject, redraw = true): void {
+    updateObject(
+        obj: SceneObject,
+        redraw = true,
+        objectsByName: Map<string, SceneObject> = new Map(),
+    ): void {
         switch (obj.kind) {
             case 'curve':
                 if (redraw) this.drawCurve(obj);
@@ -186,7 +193,37 @@ export class Plotter {
                 if (redraw) this.drawSolid(obj);
                 else this._updateRef(obj);
                 break;
+            case 'region':
+                if (redraw) this._drawRegion(obj, objectsByName);
+                else this._updateRef(obj, objectsByName);
+                break;
         }
+    }
+
+    /**
+     * 绘制区域实体:填充带 + 两条边界曲线(曲线对象按名从场景对象中解析,
+     * 保证每次参数刷新都能取到最新的曲线数据).
+     */
+    private _drawRegion(
+        region: RegionObject,
+        objectsByName: Map<string, SceneObject>,
+    ): void {
+        const curveA = objectsByName.get(region.curveAName);
+        const curveB = objectsByName.get(region.curveBName);
+        if (!curveA || !curveB || curveA.kind !== 'curve' || curveB.kind !== 'curve') {
+            return;
+        }
+        let renderer = this.rendererMap.get(region.id);
+        if (!(renderer instanceof RegionRenderer)) {
+            renderer?.dispose();
+            if (renderer) this.plotContainer.remove(renderer.group);
+            renderer = new RegionRenderer(region, curveA, curveB);
+            this.plotContainer.add(renderer.group);
+            this.rendererMap.set(region.id, renderer);
+        } else {
+            renderer.updateRef(region, [curveA, curveB]);
+        }
+        this._draw(renderer, region);
     }
 
     /**
@@ -237,10 +274,21 @@ export class Plotter {
      * @cache-access
      * 只同步 renderer 引用和可见性,不触发数值采样与 GPU 重建.
      */
-    private _updateRef(obj: SceneObject): void {
+    private _updateRef(
+        obj: SceneObject,
+        objectsByName: Map<string, SceneObject> = new Map(),
+    ): void {
         const renderer = this.rendererMap.get(obj.id);
         if (!renderer) return;
-        renderer.updateRef?.(obj);
+        if (obj.kind === 'region' && renderer instanceof RegionRenderer) {
+            const curveA = objectsByName.get(obj.curveAName);
+            const curveB = objectsByName.get(obj.curveBName);
+            if (curveA && curveB && curveA.kind === 'curve' && curveB.kind === 'curve') {
+                renderer.updateRef(obj, [curveA, curveB]);
+            }
+        } else {
+            renderer.updateRef?.(obj);
+        }
         renderer.setVisible(obj.enabled);
     }
 }

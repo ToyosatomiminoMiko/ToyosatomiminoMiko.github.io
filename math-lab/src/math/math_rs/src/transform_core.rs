@@ -94,6 +94,19 @@ pub fn apply_to_point(matrix: Mat4, x: f64, y: f64, z: f64) -> [f64; 3] {
     [out[0], out[1], out[2]]
 }
 
+/// 仿射变换的体积缩放因子 |det M|(体积积分/切片法使用).
+///
+/// 行主序 4x4 的线性块位于 m[0..3]/m[4..7]/m[8..11];无矩阵(恒等)时返回 1.
+/// 旋转/平移的 det 为 ±1,缩放 (sx,sy,sz) 的 det 为 sx·sy·sz.
+pub fn affine_volume_scale(matrix: Option<Mat4>) -> f64 {
+    let Some(m) = matrix else {
+        return 1.0;
+    };
+    let det = m[0] * (m[5] * m[10] - m[6] * m[9]) - m[1] * (m[4] * m[10] - m[6] * m[8])
+        + m[2] * (m[4] * m[9] - m[5] * m[8]);
+    det.abs()
+}
+
 pub fn from_flat(values: Vec<f64>) -> Result<Mat4, String> {
     if values.len() != 16 {
         return Err(format!("4x4 矩阵需要 16 个元素,实际为 {}", values.len()));
@@ -125,5 +138,18 @@ mod tests {
         let length = (point[0] * point[0] + point[1] * point[1] + point[2] * point[2]).sqrt();
 
         assert!((length - (1.0f64 + 4.0 + 9.0).sqrt()).abs() < 1e-10);
+    }
+
+    #[test]
+    fn affine_volume_scale_matches_expected_determinants() {
+        assert!((affine_volume_scale(None) - 1.0).abs() < 1e-12);
+        assert!((affine_volume_scale(Some(translate4(1.0, 2.0, 3.0))) - 1.0).abs() < 1e-12);
+        assert!(
+            (affine_volume_scale(Some(rotate4(0.4, -0.3, 1.1))) - 1.0).abs() < 1e-12,
+            "旋转矩阵体积缩放应为 1"
+        );
+        assert!((affine_volume_scale(Some(scale4(2.0, 1.5, 0.5))) - 1.5).abs() < 1e-12);
+        // 负缩放(镜像)的 |det| 仍取正.
+        assert!((affine_volume_scale(Some(scale4(-1.0, 2.0, 3.0))) - 6.0).abs() < 1e-12);
     }
 }

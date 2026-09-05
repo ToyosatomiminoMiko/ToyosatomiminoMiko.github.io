@@ -232,6 +232,12 @@ export class RenderController {
         }
 
         const dirtyObjectIds = new Set<number>();
+        const objectsByName = new Map<string, SceneObject>();
+        for (const object of scene.objects) {
+            if (object.name !== undefined) {
+                objectsByName.set(object.name, object);
+            }
+        }
         for (const object of scene.objects) {
             if (!object.enabled) {
                 this.plotter.setVisible(object.id, false);
@@ -242,11 +248,11 @@ export class RenderController {
                 || this._objectDependsOnParams(object, changedParams);
             if (shouldRedraw) {
                 dirtyObjectIds.add(object.id);
-                this.plotter.updateObject(object, true);
+                this.plotter.updateObject(object, true, objectsByName);
                 this._applyObjectTransform(object.id);
             } else {
                 // 引用仍需同步,否则后续其他参数变化时,renderer 手里还拿着旧数据.
-                this.plotter.updateObject(object, false);
+                this.plotter.updateObject(object, false, objectsByName);
             }
         }
 
@@ -255,6 +261,7 @@ export class RenderController {
             scene,
             changedParams ? dirtyObjectIds : null,
             !changedParams,
+            changedParams,
         );
     }
 
@@ -279,8 +286,14 @@ export class RenderController {
         object.enabled = nextVisible;
         this.store.setEntityHidden(object.id, !nextVisible);
 
+        const objectsByName = new Map<string, SceneObject>();
+        for (const candidate of this.store.compiledObjects) {
+            if (candidate.name !== undefined) {
+                objectsByName.set(candidate.name, candidate);
+            }
+        }
         if (nextVisible) {
-            this.plotter.updateObject(object, true);
+            this.plotter.updateObject(object, true, objectsByName);
             this._applyObjectTransform(object.id);
         } else {
             this.plotter.setVisible(object.id, false);
@@ -342,6 +355,7 @@ export class RenderController {
         scene: SceneIR,
         dirtyObjectIds: ReadonlySet<number> | null,
         forceIntersections: boolean,
+        changedParams: ReadonlySet<string> | undefined = undefined,
     ): void {
         this.diagnosticsController.clear();
         this.objectListController.renderScene(scene);
@@ -352,8 +366,10 @@ export class RenderController {
         this.integralRenderer.sync(
             scene.integrals,
             scene.objects,
+            scene.objectTransforms,
             (level, message) => this.diagnosticsController.add(level, message),
             dirtyObjectIds,
+            changedParams ?? null,
             (name, value) =>
                 this.objectListController.setIntegralResult(name, value),
             (name, message) =>

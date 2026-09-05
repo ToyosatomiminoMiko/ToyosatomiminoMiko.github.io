@@ -41,6 +41,8 @@ export type SurfaceWorkerResponse = {
     validIndices: Uint32Array;
     zMin: number;
     zMax: number;
+    /** Rust/WASM 采样+后处理整段耗时(ms).仅用于性能观测,不参与渲染逻辑. */
+    computeMs: number;
     error?: string;
 };
 
@@ -52,9 +54,25 @@ export type SurfaceWorkerResponse = {
  */
 const wasmReady = init();
 
+/**
+ * 性能观测开关:在控制台执行 `sessionStorage.setItem('surfaceTiming','1')`
+ * 后,每次采样请求会把整段 Rust/WASM 耗时打到 worker console.
+ * 默认关闭,零额外输出(仅多两次 performance.now,可忽略).
+ */
+function surfaceTimingEnabled(): boolean {
+    try {
+        return sessionStorage.getItem('surfaceTiming') === '1';
+    } catch {
+        return false;
+    }
+}
+
 createWasmWorker<SurfaceWorkerRequest, SurfaceWorkerResponse>(
     wasmReady,
     (req, post) => {
+        const profile = surfaceTimingEnabled();
+        const t0 = profile ? performance.now() : 0;
+
         // Worker 收到的普通数组先转成 WASM 期望的 Float64Array
         const coeffValues = new Float64Array(req.coeffValues);
         const result = sample_and_process_surface(
@@ -68,6 +86,13 @@ createWasmWorker<SurfaceWorkerRequest, SurfaceWorkerResponse>(
             req.cols,
             req.rows,
         );
+
+        const computeMs = profile ? performance.now() - t0 : 0;
+        if (profile) {
+            console.info(
+                `[surfaceTiming] ${req.cols}x${req.rows} "${req.expr}" = ${computeMs.toFixed(2)} ms`,
+            );
+        }
 
         // 先取出所有副本,再释放 WASM 端对象
         const positions = result.positions;
@@ -84,6 +109,7 @@ createWasmWorker<SurfaceWorkerRequest, SurfaceWorkerResponse>(
             validIndices,
             zMin,
             zMax,
+            computeMs,
         };
 
         // 用 Transferable 传回主线程,避免结构化克隆再复制一遍大数组

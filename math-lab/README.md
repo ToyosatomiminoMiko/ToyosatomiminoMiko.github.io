@@ -19,14 +19,24 @@ Math-lab 的当前入口是 `index.html`,它加载 `src/main.ts`,再由
 
 - `param`:参数面板与实时刷新
 - `curve` / `surface` / `vector_field` / `point` / `vector`:基础几何对象
+- `region`:面积图形(两条曲线围成的 x 型带状区域,绘制在 z=0 平面),可
+  作为二重积分的积分域;边界曲线只允许不带静态变换/动画的纯函数曲线
 - `matrix` / `transform`:对象场景变换
 - `animation`:单矩阵动画片段,可通过对象 `animation = [...]` 绑定并顺序播放
 - `gradient` / `divergence` / `curl`:点分析
 - `gradient` 的 `show = [point, normal, tangent_plane]`:已支持
-- `integral`:一维/二维数值积分和黎曼/勒贝格可视化,方法为
+- `integral`:数值积分 + 黎曼/梯形/辛普森/勒贝格可视化,方法为
   `trapezoid`/`simpson`/`lebesgue`,以及黎曼系列 `riemann:left`/
   `riemann:right`/`riemann:mid`;裸写 `riemann` 等价于 `riemann:left`.
-  黎曼端点方法只对一维曲线开放,二维曲面黎曼目前只有左端点实现.
+  被积函数缺省是源对象表达式(curve 的 y=f(x),surface 的 z=f(x,y));
+  region/solid 源可用选项 `integrand` 指定任意被积函数(缺省 `"1"`,
+  即求区域面积/体积),变量一律为世界坐标 x/y/z
+- 积分域:1D `curve` 区间,2D `surface` 矩形,2D `region` 面积图形,
+  3D 体积实体(`sphere`/`box`/`cylinder`/`cone`/`frustum`);IR 用显式
+  `dim`/`domainKind` 描述域,不再用 range 长度推断维度
+- 2D 黎曼端点方法(right/mid)已在二维曲面矩形域放开,采样端 = 方法端,
+  数值与可视化同源;region 域二重积分(累次 B1 / 网格指示 B2),体积域
+  三重积分(世界网格 C1 / 轴向切片 C2),解析式对拍见 math_rs 单元测试
 - `sphere` / `box` / `cylinder` / `cone` / `frustum`:透明体积图形;
   `cylinder`/`cone`/`frustum` 统一映射为同一个 `conic` IR 类型
 - `intersection`:求交.曲线参与的求交得到离散交点,曲面/体积参与的求交得到空间交线;
@@ -96,7 +106,10 @@ XZ/XY/YZ 三个坐标平面,各有独立开关,同一行排列.
 
 - `jacobian`/`laplacian`:解析器接受,编译器会抛出"暂未实现"
 - `scalar`/`vector` 张量声明:编译器会抛出"暂未实现"
-- 积分源必须引用已存在的 `curve` 或 `surface`
+- 积分源必须引用已存在的 `curve`/`surface`/`region` 或体积对象;
+  体积域 `integral(S)` 不接受 `range` 选项(域 = 渲染出的世界实体)
+- `region` 边界曲线带静态 `transform` 或 `animation`:编译期报错
+- `region` 区域本体 V1 不支持变换/动画,不接受未知选项
 
 ## 构建
 
@@ -217,7 +230,7 @@ new DslApp().start()
 | 曲线采样 | `CurveRenderer` | `curveWorker` | `math_rs.sample_curve` | 顶点数组 |
 | 曲面采样 | `SurfaceRenderer` -> `SurfaceMesh` | `surfaceWorker` | `render_rs.sample_and_process_surface` | 位置/颜色/法线/索引 |
 | 向量场采样 | `VectorFieldRenderer` | `vectorFieldWorker` | `math_rs.sample_vector_field` | 向量数组 |
-| 数值积分 | `DslIntegralRenderer` -> `MathComputeEngine` | `IntegralWorker` | `math_rs.integrate1d/2d` | 积分值/样本 |
+| 数值积分 | `DslIntegralRenderer` -> `MathComputeEngine` | `IntegralWorker` | `math_rs.integrate1d/2d`,带域 `integrate_region`(2D 区域)/`integrate_solid`(3D 实体) | 积分值/样本 |
 | 求交 | `IntersectionRenderer` | `IntersectionWorker` | `math_rs.intersect_pair` | 交点/交线折线 |
 
 这些链路都使用 `LatestRequestExecutor`:同一时间最多一个请求真正在跑,高频拖动滑块时,旧请求会被标记为 `superseded`,只保留最新请求.这是防止 Worker 积压的关键.

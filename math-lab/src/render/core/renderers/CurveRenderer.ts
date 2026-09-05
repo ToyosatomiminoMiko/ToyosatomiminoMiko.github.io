@@ -7,21 +7,12 @@ import { NUMERIC_CONFIG } from '../../../config/numericConfig';
 import type { IRenderer } from './IRenderer';
 import type { CurveObject } from '../../../compiler/ir/types';
 import { splitCoefficients } from '../../../math/coefficientUtils';
-import { MathComputeEngine } from '../../../math/compute/MathComputeEngine';
+import { sharedCurveSamplingEngine as curveComputeEngine } from '../../../math/compute/MathComputeEngine';
 import {
     LatestRequestExecutor,
     type RequestClient,
 } from '../../../math/compute/workers/LatestRequestExecutor';
 import { reportSamplingFailure } from '../samplingErrors';
-
-/**
- * @cache
- * 缓存目的:所有 CurveRenderer 共享同一个 MathComputeEngine,避免重复持有
- *           worker client 状态.
- * 键/失效策略:模块级单例;不手动失效.
- * 生命周期:模块级,随页面存活,worker 由应用级 dispose 统一释放.
- */
-const curveComputeEngine = new MathComputeEngine();
 
 type CurveRendererRequest = {
     id: number;

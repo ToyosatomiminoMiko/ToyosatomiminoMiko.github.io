@@ -24,7 +24,7 @@ tensor_stmt = { tensor_kind ~ ident ~ "=" ~ expr ~ ";" }
 
 animation_stmt = { "animation" ~ ident ~ "=" ~ expr ~ stmt_end }
 
-object_kind = { "curve" | "surface" | "vector_field" | "point" | "vector" | "sphere" | "box" | "cylinder" | "cone" | "frustum" }
+object_kind = { "curve" | "surface" | "vector_field" | "point" | "vector" | "sphere" | "box" | "cylinder" | "cone" | "frustum" | "region" }
 object_stmt = { object_kind ~ ident ~ "=" ~ expr ~ stmt_end }
 options = { "{" ~ option* ~ "}" }
 option = { ident ~ "=" ~ value ~ ";" }

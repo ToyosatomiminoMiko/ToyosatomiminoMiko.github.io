@@ -112,6 +112,45 @@ pub fn sample_surface_values(
     )
 }
 
+/// 采样"每个网格单元的采样端"上的函数值(黎曼端点法的 2D 推广).
+///
+/// 返回 n×m 行优先数组(外层 y,内层 x);`fx/fy` 是采样端在单元内的
+/// 位置(单元边长 = 1):左端 (0,0),右端 (1,1),中点 (0.5,0.5).
+/// 非有限值写为 NaN.
+#[allow(clippy::too_many_arguments)]
+fn sample_cell_ends(
+    expr: &str,
+    coeff_names: &[String],
+    coeff_values: &[f64],
+    xa: f64,
+    xb: f64,
+    ya: f64,
+    yb: f64,
+    nx: usize,
+    ny: usize,
+    fx: f64,
+    fy: f64,
+) -> Result<Vec<f64>, String> {
+    if xa >= xb || ya >= yb {
+        return Err("积分采样需要有效的二维区间".to_string());
+    }
+    if nx == 0 || ny == 0 {
+        return Err("积分采样需要 n 和 m 均大于 0".to_string());
+    }
+    let mut evaluator: CompiledEvaluator = CompiledEvaluator::new(expr, coeff_names, coeff_values)?;
+    let hx = (xb - xa) / nx as f64;
+    let hy = (yb - ya) / ny as f64;
+    let mut values = Vec::with_capacity(nx * ny);
+    for j in 0..ny {
+        let y = ya + (j as f64 + fy) * hy;
+        for i in 0..nx {
+            let x = xa + (i as f64 + fx) * hx;
+            values.push(evaluator.eval_2d(x, y)?.unwrap_or(f64::NAN));
+        }
+    }
+    Ok(values)
+}
+
 /// 在三维网格上采样向量场 F(x, y, z) = [P, Q, R].
 ///
 /// 返回扁平数组 `[vx, vy, vz, vx, vy, vz, ...]`,长度为 `nx * ny * nz * 3`.
@@ -241,9 +280,32 @@ pub fn sample_function_2d(
     m: usize,
     sample_shape: &str,
 ) -> Result<Vec<f64>, String> {
-    if sample_shape == "corner" {
-        // 黎曼左端点:恰好 n×m 个"格子左下角"采样点,与 grid 共享同一条遍历.
-        return sample_surface_grid(
+    if sample_shape == "corner" || sample_shape == "corner-right" || sample_shape == "mid2" {
+        // 黎曼端点法:每个网格单元取"采样端 = 方法端"的单个采样点.
+        // corner 复用 sample_surface_grid 的左端点形态,right/mid 走
+        // sample_cell_ends(右端/中点),三者在数值与可视化上同源.
+        if sample_shape == "corner" {
+            return sample_surface_grid(
+                expr,
+                coeff_names,
+                coeff_values,
+                xa,
+                xb,
+                ya,
+                yb,
+                n,
+                m,
+                false,
+                "积分采样需要有效的二维区间",
+                "积分采样需要 n 和 m 均大于 0",
+            );
+        }
+        let (fx, fy) = if sample_shape == "corner-right" {
+            (1.0, 1.0)
+        } else {
+            (0.5, 0.5)
+        };
+        return sample_cell_ends(
             expr,
             coeff_names,
             coeff_values,
@@ -253,9 +315,8 @@ pub fn sample_function_2d(
             yb,
             n,
             m,
-            false,
-            "积分采样需要有效的二维区间",
-            "积分采样需要 n 和 m 均大于 0",
+            fx,
+            fy,
         );
     }
 

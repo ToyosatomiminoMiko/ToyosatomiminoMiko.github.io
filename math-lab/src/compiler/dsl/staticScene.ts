@@ -2,7 +2,7 @@
  * 静态场景构建与缓存.
  * 负责 params/matrix/transform 和对象 blueprint 的声明级建模.
  */
-import type { AstProgram } from '../ast/types';
+import type { AstProgram, ObjectStatement } from '../ast/types';
 import type { AnimationClip, ParamDeclaration } from '../ir/types';
 import type { MatrixOps } from '../../math/tensor/SceneTransform';
 import { cloneMat4, type Mat4 } from '../../math/tensor/rowMajorMatrix';
@@ -28,6 +28,22 @@ export type StaticScene = {
     animations: Map<string, AnimationClip>;
     objectAnimations: Map<number, string[]>;
 };
+
+/**
+ * 场景对象声明按名索引.
+ *
+ * region 按名引用两条边界 curve,允许引用声明在区域之后的对象,
+ * 因此必须先建这份 名字 -> ObjectStatement 的索引(编译期与运行时
+ * DslCompiler 的 region 校验共用,避免各写一遍遍历).
+ */
+export function objectStatementsByName(ast: AstProgram): Map<string, ObjectStatement> {
+    const map = new Map<string, ObjectStatement>();
+    for (const statement of ast.statements) {
+        if (statement.type !== 'object' || statement.name === undefined) continue;
+        map.set(statement.name, statement);
+    }
+    return map;
+}
 
 /**
  * 静态场景缓存必须和 matrixOps 绑定.
@@ -184,10 +200,17 @@ function buildStaticScene(ast: AstProgram, matrixOps: MatrixOps): StaticScene {
 
     let nextId = 1;
     const objectNames = new Set<string>();
+    // region 声明按名引用两条边界 curve(允许引用声明在区域之后的对象),
+    // 索引构建复用 objectStatementsByName.
+    const statementsByName = objectStatementsByName(ast);
     for (const statement of ast.statements) {
         if (statement.type !== 'object') continue;
         withStatementSpan(statement.span, () => {
-            const blueprint = buildObjectBlueprint(statement, nextId);
+            const blueprint = buildObjectBlueprint(
+                statement,
+                nextId,
+                statementsByName,
+            );
             if (blueprint) {
                 if (objectNames.has(blueprint.name)) {
                     throw new Error(`对象 ${blueprint.name} 重复声明`);

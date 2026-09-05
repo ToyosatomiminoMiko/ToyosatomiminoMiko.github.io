@@ -24,7 +24,9 @@
             </header>
             <section id="editor-panel">
                 <div id="dsl-editor-box">
-                    <div id="dsl-editor-gutter" aria-hidden="true"><pre id="dsl-editor-lines"></pre></div>
+                    <div id="dsl-editor-gutter" aria-hidden="true">
+                        <pre id="dsl-editor-lines"></pre>
+                    </div>
                     <textarea id="dsl-editor" spellcheck="false">
 point P = [0, 0, 0];
 
@@ -54,10 +56,17 @@ matrix M = [
     [0, 0, 0, 1],
 ];
 
+
 curve c1 = sin(x * a) * cos(x * b) {
     color = "#6dd5ff";
     range = [-8, 8];
     segments = 256;
+}
+
+curve c2 = 1 {
+    color = "#ffffff";
+    range = [-8, 8];
+    segments = 1;
 }
 
 // 曲线积分
@@ -121,6 +130,27 @@ sphere S = [0, 1, 0] {
     color = "#6dd5ff";
     opacity = 0.55;
     animation = [spin, orbit];
+};
+
+// 区域:由两条曲线围成的 z=0 平面图形(面积图形),可被积分引用为域 D
+region R = region(c1, c2) {
+    range    = [-4, 4];     // x 区间;缺省取两曲线 x-range 交集
+    color    = "#6bffb8";
+    opacity  = 0.35;
+};
+
+// 二重积分:∬_D integrand dA;缺省 integrand=1 即求区域面积
+integral I = integral(R) {
+    method    = simpson;
+    integrand = x*x + y*y;  // 缺省 "1"
+    segments  = 64;
+};
+
+// 实体积分:三重积分:∭_V integrand dV;缺省 integrand=1 即求体积
+integral W = integral(S) {
+    method    = simpson;
+    integrand = x*y + z*z;  // 缺省 "1";x,y,z 为世界坐标
+    segments  = 48;
 };
 
 box B = [1, 2, 3] {

@@ -2,8 +2,9 @@
  * SceneIR -> LaTeX 公式的纯函数层.
  *
  * 只消费 IR 里的纯数据,不碰 DOM/Three.js;每个对象返回一段可直接交给
- * KaTeX 的字符串。表达式本体由 Rust/WASM 的 `latex_expression` 生成,
- * 这里只负责补上对象语义(curve 是 y=…,surface 是 z=…,积分是 ∫…).
+ * KaTeX 的字符串.表达式本体由 Rust/WASM 的 `latex_expression` 生成,
+ * 这里只负责补上对象语义(curve 是 y=…,surface 是 z=…,region 是不等式带,
+ * 积分是 ∫/∬/∭…).
  */
 import type { IntegralTask, SceneObject } from '../ir/types';
 import { cachedLatexExpression } from './expression';
@@ -16,13 +17,19 @@ function latexNumber(value: number): string {
 /**
  * 实体对象表达式行对应的 LaTeX.
  *
- * 目前只对真正“携带表达式”的对象生成公式:
+ * 目前只对真正"携带表达式/可展示"的对象生成公式:
  * - curve / surface:标量函数;
  * - vector_field / point / vector:数组/向量;
+ * - region:两条边界曲线围成的 x 型带状不等式 + x 区间;
  * - 体积对象(sphere/box/conic)在 IR 中只有数值化后的几何参数,
  *   继续使用 ObjectListController 里的纯文本摘要,避免给出误导性方程.
+ *
+ * region 需要按名解析边界曲线,因此额外接收 `objectsByName` 解析器.
  */
-export function sceneObjectLatex(object: SceneObject): string | null {
+export function sceneObjectLatex(
+    object: SceneObject,
+    objectsByName: Map<string, SceneObject> = new Map(),
+): string | null {
     try {
         switch (object.kind) {
             case 'curve':
@@ -40,6 +47,23 @@ export function sceneObjectLatex(object: SceneObject): string | null {
                 // point/vector 的 expr 是 `[x, y, z]` / `[[起点], [方向]]`,
                 // Rust 打印器会把嵌套数组也转成 LaTeX,保留原始符号参数.
                 return cachedLatexExpression(object.expr);
+            case 'region': {
+                const curveA = objectsByName.get(object.curveAName);
+                const curveB = objectsByName.get(object.curveBName);
+                if (!curveA || !curveB || curveA.kind !== 'curve' || curveB.kind !== 'curve') {
+                    return null;
+                }
+                const [a, b] = object.range;
+                const fA = cachedLatexExpression(curveA.expr);
+                const fB = cachedLatexExpression(curveB.expr);
+                // min/max 语义在数值侧统一取;公式展示两条边界曲线的次序.
+                return [
+                    fA,
+                    `\\le y\\le`,
+                    fB,
+                    `,\\quad ${latexNumber(a)}\\le x\\le ${latexNumber(b)}`,
+                ].join(' ');
+            }
             case 'sphere':
             case 'box':
             case 'conic':
@@ -54,7 +78,9 @@ export function sceneObjectLatex(object: SceneObject): string | null {
 /**
  * 积分任务对应的积分式(不含方法名,方法名由 UI 拼在公式后面).
  *
- * 只返回 LaTeX 正文;找不到被积对象时返回 null,由 UI 回退到文字摘要.
+ * 只返回 LaTeX 正文;找不到被积对象/域种类异常时返回 null,由 UI 回退到
+ * 文字摘要.域维度与形状由 task 的显式 `dim`/`domainKind` 决定,不再靠
+ * range 长度猜测.
  */
 export function integralLatex(
     task: IntegralTask,
@@ -63,17 +89,18 @@ export function integralLatex(
     try {
         const source = objects.find((object) => object.id === task.objectId);
         if (!source) return null;
+        const integrand = cachedLatexExpression(task.integrand);
 
-        if (source.kind === 'curve' && task.range.length === 2) {
+        if (task.domainKind === 'interval' && task.range) {
             const [a, b] = task.range as [number, number];
             return [
                 `\\int_{${latexNumber(a)}}^{${latexNumber(b)}}`,
-                cachedLatexExpression(source.expr),
+                integrand,
                 '\\mathrm{d}x',
             ].join(' ');
         }
 
-        if (source.kind === 'surface' && task.range.length === 4) {
+        if (task.domainKind === 'rectangle' && task.range) {
             const [xa, xb, ya, yb] = task.range as [
                 number,
                 number,
@@ -83,8 +110,26 @@ export function integralLatex(
             return [
                 `\\int_{${latexNumber(xa)}}^{${latexNumber(xb)}}`,
                 `\\int_{${latexNumber(ya)}}^{${latexNumber(yb)}}`,
-                cachedLatexExpression(source.expr),
+                integrand,
                 '\\mathrm{d}y\\,\\mathrm{d}x',
+            ].join(' ');
+        }
+
+        if (task.domainKind === 'region') {
+            const domain = source.name ?? `D`;
+            return [
+                `\\iint_{${domain}}`,
+                integrand,
+                '\\,\\mathrm{d}A',
+            ].join(' ');
+        }
+
+        if (task.domainKind === 'solid') {
+            const domain = source.name ?? `V`;
+            return [
+                `\\iiint_{${domain}}`,
+                integrand,
+                '\\,\\mathrm{d}V',
             ].join(' ');
         }
 

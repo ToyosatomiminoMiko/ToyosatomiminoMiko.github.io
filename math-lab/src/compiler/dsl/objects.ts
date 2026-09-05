@@ -3,6 +3,11 @@
  *
  * 表达式在进入 blueprint 前统一经 Rust 符号引擎归一化,因此后续
  * 采样/积分/分析和渲染都直接消费 Rust/evalexpr 可执行的字符串.
+ *
+ * region(面积图形)实体:V1 只支持 x 型带状区域,不持有曲线几何拷贝,只按
+ * 名引用两条边界 `curve`;后续规划(y 型 / 极坐标 r-θ / 多曲线边界 /
+ * region 参与求交 / region 作为曲面底域)见 `compiler/ir/types.ts` 的
+ * `RegionObject` 注释与 `prompt/feature.md`.
  */
 import { NUMERIC_CONFIG } from '../../config/numericConfig';
 import { RENDER_CONFIG } from '../../config/renderConfig';
@@ -14,6 +19,7 @@ import type {
     CurveObject,
     ParamDeclaration,
     PointObject,
+    RegionObject,
     SceneObject,
     SphereObject,
     SurfaceObject,
@@ -141,6 +147,26 @@ export type ConicBlueprint = {
     opacity: number;
 };
 
+export type RegionBlueprint = {
+    name: string;
+    id: number;
+    kind: 'region';
+    /** 原始 DSL 表达式 `region(c1, c2)`(仅诊断保留,不做数学归一化). */
+    expr: string;
+    /** 两条边界曲线对象名(必须先声明为 curve). */
+    curveAName: string;
+    curveBName: string;
+    /**
+     * x 区间;来自显式 range 或两曲线 x-range 交集.
+     * 解析在 blueprint 阶段完成,物化时直接落 IR.
+     */
+    range: [number, number];
+    coefficientNames: string[];
+    color: string;
+    opacity: number;
+    segments: number;
+};
+
 export type ObjectBlueprint =
     | CurveBlueprint
     | SurfaceBlueprint
@@ -149,7 +175,8 @@ export type ObjectBlueprint =
     | VectorBlueprint
     | SphereBlueprint
     | BoxBlueprint
-    | ConicBlueprint;
+    | ConicBlueprint
+    | RegionBlueprint;
 
 export type CoefficientBlueprint = Exclude<
     ObjectBlueprint,
@@ -181,6 +208,11 @@ const CONIC_OPTION_NAMES = [
     'transform',
     'animation',
 ] as const;
+// region V1:只有外观/采样选项;transform/animation 由未知选项校验直接拒绝,
+// 后续规划(极坐标/y 型/多边界等)见文件头与 RegionObject 注释.
+const REGION_OPTION_NAMES = ['range', 'color', 'opacity', 'segments'] as const;
+
+const REGION_REFERENCE_PATTERN = /^region\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)$/;
 
 function arrayItems(value: ExpressionArray): ExpressionArray[] | null {
     return Array.isArray(value) ? value : null;
@@ -220,6 +252,55 @@ function parsePointComponents(raw: string, context: string): [string, string, st
         throw new Error(`${context} 需要 [x, y, z] 形式`);
     }
     return toExpressionTuple(items);
+}
+
+/** 解析 `region(c1, c2)` 形式的对象表达式,取回两条边界曲线名. */
+function parseRegionReference(
+    raw: string,
+    context: string,
+): { a: string; b: string } {
+    const match = raw.trim().match(REGION_REFERENCE_PATTERN);
+    if (!match) {
+        throw new Error(`${context} 需要 region(曲线A, 曲线B) 形式`);
+    }
+    return { a: match[1], b: match[2] };
+}
+
+/** 解析一条 `[min, max]` 形式的 x 区间(range 选项),统一校验与报错. */
+function parseXRange2(raw: string, context: string): [number, number] {
+    const values = parseNumberList(raw, `${context} 的 range`);
+    if (values.length !== 2) {
+        throw new Error(`${context} 的 range 需要 2 个数值`);
+    }
+    if (values[0] >= values[1]) {
+        throw new Error(`${context} 的 range 需要 min < max`);
+    }
+    return [values[0], values[1]];
+}
+
+/** 从 curve 声明语句读 x 区间;缺省取曲线默认 range. */
+function curveRangeFromStatement(statement: ObjectStatement): [number, number] {
+    const raw = findOption(statement.options, 'range');
+    if (raw === undefined) {
+        return [...NUMERIC_CONFIG.curve.defaultRange] as [number, number];
+    }
+    return parseXRange2(raw, `曲线 ${statement.name}`);
+}
+
+/** 两条边界曲线 x 区间交集;为空时报错(区域无定义带). */
+function intersectCurveRanges(
+    aRange: [number, number],
+    bRange: [number, number],
+    context: string,
+): [number, number] {
+    const lo = Math.max(aRange[0], bRange[0]);
+    const hi = Math.min(aRange[1], bRange[1]);
+    if (!Number.isFinite(lo) || !Number.isFinite(hi) || lo >= hi) {
+        throw new Error(
+            `${context} 的两条边界曲线 x 区间没有交集,区域为空`,
+        );
+    }
+    return [lo, hi];
 }
 
 function parseVectorObject(
@@ -332,6 +413,7 @@ function materializeCoefficients(
 export function buildObjectBlueprint(
     statement: ObjectStatement,
     id: number,
+    statementsByName: ReadonlyMap<string, ObjectStatement> = new Map(),
 ): ObjectBlueprint | null {
     const color = stripQuotes(
         findOption(statement.options, 'color')
@@ -343,17 +425,9 @@ export function buildObjectBlueprint(
             assertKnownOptions(statement.options, CURVE_OPTION_NAMES, `曲线 ${statement.name}`);
             const expr = normalizeExpression(statement.expr);
             const rawRange = findOption(statement.options, 'range');
-            let range: [number, number] | undefined;
-            if (rawRange) {
-                const rangeValues = parseNumberList(rawRange, `曲线 ${statement.name} 的 range`);
-                if (rangeValues.length !== 2) {
-                    throw new Error(`曲线 ${statement.name} 的 range 需要 2 个数值`);
-                }
-                if (rangeValues[0] >= rangeValues[1]) {
-                    throw new Error(`曲线 ${statement.name} 的 range 需要 min < max`);
-                }
-                range = [rangeValues[0], rangeValues[1]];
-            }
+            const range = rawRange
+                ? parseXRange2(rawRange, `曲线 ${statement.name}`)
+                : undefined;
             const segments = parseCappedPositiveInteger(
                 findOption(statement.options, 'segments'),
                 `曲线 ${statement.name} 的 segments`,
@@ -591,6 +665,61 @@ export function buildObjectBlueprint(
             };
         }
 
+        case 'region': {
+            assertKnownOptions(statement.options, REGION_OPTION_NAMES, `区域 ${statement.name}`);
+            const { a, b } = parseRegionReference(statement.expr, `区域 ${statement.name}`);
+            if (a === b) {
+                throw new Error(`区域 ${statement.name} 的两条边界曲线不能相同`);
+            }
+            const curveA = statementsByName.get(a);
+            const curveB = statementsByName.get(b);
+            if (!curveA) {
+                throw new Error(`区域 ${statement.name} 引用了不存在的曲线 ${a}`);
+            }
+            if (!curveB) {
+                throw new Error(`区域 ${statement.name} 引用了不存在的曲线 ${b}`);
+            }
+            if (curveA.kind !== 'curve' || curveB.kind !== 'curve') {
+                throw new Error(
+                    `区域 ${statement.name} 的边界必须是曲线(curve)对象`,
+                );
+            }
+            const rawRange = findOption(statement.options, 'range');
+            const range = rawRange
+                ? parseXRange2(rawRange, `区域 ${statement.name}`)
+                : intersectCurveRanges(
+                    curveRangeFromStatement(curveA),
+                    curveRangeFromStatement(curveB),
+                    `区域 ${statement.name}`,
+                );
+            const opacity = parseOpacity(
+                findOption(statement.options, 'opacity'),
+                `区域 ${statement.name} 的 opacity`,
+                RENDER_CONFIG_VOLUME_OPACITY,
+            );
+            const segments = parseCappedPositiveInteger(
+                findOption(statement.options, 'segments'),
+                `区域 ${statement.name} 的 segments`,
+                NUMERIC_CONFIG.limits.region.maxSegments,
+            ) ?? NUMERIC_CONFIG.region.defaultSegments;
+            return {
+                name: statement.name,
+                id,
+                kind: 'region',
+                expr: statement.expr.trim(),
+                curveAName: curveA.name,
+                curveBName: curveB.name,
+                range,
+                coefficientNames: extractCoefficientNames(
+                    [curveA.expr, curveB.expr],
+                    new Set(['x']),
+                ),
+                color,
+                opacity,
+                segments,
+            };
+        }
+
         default:
             return null;
     }
@@ -816,6 +945,22 @@ export function materializeObject(
                 segments: blueprint.segments,
                 enabled: true,
             } satisfies ConicSolidObject;
+        }
+
+        case 'region': {
+            return {
+                kind: 'region',
+                id: blueprint.id,
+                name: blueprint.name,
+                curveAName: blueprint.curveAName,
+                curveBName: blueprint.curveBName,
+                range: blueprint.range,
+                coefficients: materializeCoefficients(blueprint.coefficientNames, params, overrides),
+                color: blueprint.color,
+                opacity: blueprint.opacity,
+                segments: blueprint.segments,
+                enabled: true,
+            } satisfies RegionObject;
         }
     }
 }

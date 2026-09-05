@@ -266,6 +266,105 @@ struct FieldEval {
     kind: FieldKind,
 }
 
+/// 供体积积分(C1 世界网格 / lebesgue 层)使用的"点在实体内外"探针.
+///
+/// 复用隐式场(≤0 在体内)与逆矩阵语义;对 `sphere/box/conic` 开放,
+/// curve/surface 不能作为体域.
+pub(crate) struct SolidProbe {
+    field: FieldEval,
+}
+
+impl SolidProbe {
+    pub(crate) fn new(descriptor: &ObjectDescriptor) -> Result<Self, String> {
+        if !matches!(
+            descriptor.kind,
+            ObjectKind::Sphere | ObjectKind::Box | ObjectKind::Conic
+        ) {
+            return Err("体积积分只支持 sphere/box/conic 域".to_string());
+        }
+        Ok(Self {
+            field: FieldEval::new(descriptor)?,
+        })
+    }
+
+    /// 世界坐标点是否在实体内(边界计为体内).
+    pub(crate) fn inside(&mut self, world: V3) -> Result<bool, String> {
+        match self.field.eval(world)? {
+            Some(value) => Ok(value <= 0.0),
+            None => Ok(false),
+        }
+    }
+}
+
+/// 实体的世界外接 AABB:每轴为 [min, max].
+pub(crate) type WorldAabb = ([f64; 2], [f64; 2], [f64; 2]);
+
+/// 实体在世界坐标下的外接 AABB.
+///
+/// 做法:取"包含该实体局部形状的轴对齐盒"的 8 个角点,经静态矩阵变换到
+/// 世界后取 min/max.对球/盒精确;对圆台按底半径外接盒,可能轻微外扩,
+/// 但只影响采样候选格,不影响最终"点在体内"判定与积分值.
+pub(crate) fn solid_world_aabb(descriptor: &ObjectDescriptor) -> Result<WorldAabb, String> {
+    let (center, half) = match descriptor.kind {
+        ObjectKind::Sphere => (
+            [
+                descriptor.params[0],
+                descriptor.params[1],
+                descriptor.params[2],
+            ],
+            [
+                descriptor.params[3],
+                descriptor.params[3],
+                descriptor.params[3],
+            ],
+        ),
+        ObjectKind::Box => (
+            [
+                descriptor.params[0],
+                descriptor.params[1],
+                descriptor.params[2],
+            ],
+            [
+                descriptor.params[3] * 0.5,
+                descriptor.params[4] * 0.5,
+                descriptor.params[5] * 0.5,
+            ],
+        ),
+        ObjectKind::Conic => {
+            let radius = descriptor.params[3].max(descriptor.params[4]);
+            (
+                [
+                    descriptor.params[0],
+                    descriptor.params[1],
+                    descriptor.params[2],
+                ],
+                [radius, descriptor.params[5] * 0.5, radius],
+            )
+        }
+        _ => return Err("体积积分只支持 sphere/box/conic 域".to_string()),
+    };
+
+    let mut mins = [f64::INFINITY; 3];
+    let mut maxs = [f64::NEG_INFINITY; 3];
+    for &sx in &[-1.0, 1.0] {
+        for &sy in &[-1.0, 1.0] {
+            for &sz in &[-1.0, 1.0] {
+                let corner = [
+                    center[0] + sx * half[0],
+                    center[1] + sy * half[1],
+                    center[2] + sz * half[2],
+                ];
+                let world = to_world(descriptor.matrix, corner);
+                for axis in 0..3 {
+                    mins[axis] = mins[axis].min(world[axis]);
+                    maxs[axis] = maxs[axis].max(world[axis]);
+                }
+            }
+        }
+    }
+    Ok(([mins[0], maxs[0]], [mins[1], maxs[1]], [mins[2], maxs[2]]))
+}
+
 impl FieldEval {
     fn new(descriptor: &ObjectDescriptor) -> Result<Self, String> {
         let kind = match descriptor.kind {
@@ -625,7 +724,7 @@ fn build_box_patches(descriptor: &ObjectDescriptor) -> Result<Vec<PatchEval>, St
     if half.iter().any(|value| *value <= 0.0) {
         return Err("方块 size 每个分量都必须大于 0".to_string());
     }
-    // 每项: 方向、u 轴、v 轴、u 半长、v 半长、法向偏移.
+    // 每项: 方向,u 轴,v 轴,u 半长,v 半长,法向偏移.
     let faces = [
         (
             [1.0, 0.0, 0.0],
@@ -1438,7 +1537,7 @@ pub fn compute_pair(
     }
 }
 
-/// 让“曲面/体积组合”的计算结果不依赖 DSL 参数顺序.
+/// 让"曲面/体积组合"的计算结果不依赖 DSL 参数顺序.
 ///
 /// 规则:
 /// - 曲面 + 体积:体积表面是精确参数化,曲面用隐式场精确求值,因此体积做

@@ -4,11 +4,12 @@
  * 入口只保留一个 `integrate(spec)`:
  * - 方法名直接用 IR 语义名(`IntegralMethod`),与 Worker/Rust parse 同一套
  *   词汇,不再有 trapz1d/trapz2d 这类带维度别名串在主线程各处拼写;
- * - 一维/二维由 `range` 长度区分,`n`/`m`/`layers`/lebesgue 超采样等
- *   参数在此处一次归一化,取代原先十个几乎一样的透传函数;
+ * - 维度/域由 spec 的显式 `dim`/`domainKind` 给出,不再用 range 长度推断;
+ * - 被积函数统一为 `integrand`(region/solid 缺省 "1");数值与可视化
+ *   采样所需的外接范围由 Rust 核回传(xa/xb/ya/yb/za/zb);
  * - 调度(Worker 复用,latest-only,dispose)保持原样.
  */
-import type { IntegralMethod } from '../../compiler/ir/types';
+import type { IntegralDomainKind, IntegralMethod } from '../../compiler/ir/types';
 import { NUMERIC_CONFIG } from '../../config/numericConfig';
 import { ComputeWorkerClient } from './workers/ComputeWorkerClient';
 import { LatestRequestExecutor } from './workers/LatestRequestExecutor';
@@ -25,15 +26,50 @@ export type IntegralResult = {
     sampleShape?: IntegralSampleShape;
     n?: number;
     m?: number;
+    /** region 域:外接矩形 y 区间;solid 域:世界外接盒范围(由 Rust 回传). */
+    xa?: number;
+    xb?: number;
+    ya?: number;
+    yb?: number;
+    za?: number;
+    zb?: number;
+};
+
+/** region 域的一条边界曲线描述(与求交同一数据形状的轻量版). */
+export type IntegralBoundary = {
+    expr: string;
+    coeffs: Record<string, number>;
+};
+
+/** solid 域描述符:与求交 `IntersectionComputeSide` 一致(kind/params/matrix/inverse). */
+export type IntegralSolidDomain = {
+    kind: 'sphere' | 'box' | 'conic';
+    params: number[];
+    /** 扁平 16 元素行主序;无静态变换时空数组. */
+    matrix: number[];
+    inverse: number[];
 };
 
 /** 一次积分请求的完整描述. */
 export type IntegralSpec = {
     method: IntegralMethod;
-    expr: string;
-    coeffs: Record<string, number>;
-    /** 一维为 `[a, b]`;二维为 `[xMin, xMax, yMin, yMax]`. */
-    range: [number, number] | [number, number, number, number];
+    dim: 1 | 2 | 3;
+    domainKind: IntegralDomainKind;
+    /** 被积函数(归一化字符串);region/solid 缺省 "1",变量为世界坐标. */
+    integrand: string;
+    integrandCoeffs: Record<string, number>;
+    /**
+     * 显式区间:
+     * - interval: [a, b];
+     * - rectangle: [xa, xb, ya, yb];
+     * - region: [xa, xb](y 由边界曲线在采样站点的极值推出);
+     * - solid: 无.
+     */
+    range?: [number, number] | [number, number, number, number];
+    /** region 域:两条边界曲线(次序无关,核内取 min/max). */
+    region?: { boundaries: [IntegralBoundary, IntegralBoundary] };
+    /** solid 域:实体描述符. */
+    solid?: IntegralSolidDomain;
     /** 分段数;lebesgue 作为超采样前的基准采样数. */
     segments: number;
     /** lebesgue 专用层数;其他方法忽略. */
@@ -77,61 +113,85 @@ export function integrate(spec: IntegralSpec): Promise<IntegralResult> {
             sampleShape: response.sampleShape,
             n: response.n,
             m: response.m,
+            xa: response.xa,
+            xb: response.xb,
+            ya: response.ya,
+            yb: response.yb,
+            za: response.za,
+            zb: response.zb,
         }));
 }
 
 function buildRequest(spec: IntegralSpec): Omit<IntegralWorkerRequest, 'id'> {
     const base = {
         method: spec.method,
-        expr: spec.expr,
-        coeffs: spec.coeffs,
+        dim: spec.dim === 1 ? ('1d' as const) : spec.dim === 2 ? ('2d' as const) : ('3d' as const),
+        domainKind: spec.domainKind,
+        integrandExpr: spec.integrand,
+        integrandCoeffs: spec.integrandCoeffs,
     };
-    if (spec.range.length === 2) {
-        const [a, b] = spec.range;
+    const layers = spec.layers ?? spec.segments;
+
+    if (spec.domainKind === 'interval') {
+        const [a, b] = spec.range as [number, number];
         if (spec.method === 'lebesgue') {
             return {
                 ...base,
-                dim: '1d' as const,
                 a,
                 b,
-                layers: spec.layers ?? spec.segments,
+                layers,
                 sampleN:
                     spec.segments * NUMERIC_CONFIG.integral.lebesgueOversample1D,
             };
         }
-        return {
-            ...base,
-            dim: '1d' as const,
-            a,
-            b,
-            n: spec.segments,
-        };
+        return { ...base, a, b, n: spec.segments };
     }
 
-    const [xa, xb, ya, yb] = spec.range as [number, number, number, number];
+    if (spec.domainKind === 'rectangle') {
+        const [xa, xb, ya, yb] = spec.range as [number, number, number, number];
+        if (spec.method === 'lebesgue') {
+            return {
+                ...base,
+                xa,
+                xb,
+                ya,
+                yb,
+                layers,
+                sampleN:
+                    spec.segments * NUMERIC_CONFIG.integral.lebesgueOversample2D,
+            };
+        }
+        return { ...base, xa, xb, ya, yb, n: spec.segments, m: spec.segments };
+    }
+
+    if (spec.domainKind === 'region') {
+        const [xa, xb] = spec.range as [number, number];
+        const [boundaryA, boundaryB] = spec.region!.boundaries;
+        if (spec.method === 'lebesgue') {
+            return {
+                ...base,
+                xa,
+                xb,
+                boundaryA,
+                boundaryB,
+                layers,
+                sampleN:
+                    spec.segments * NUMERIC_CONFIG.integral.lebesgueOversample2D,
+            };
+        }
+        return { ...base, xa, xb, boundaryA, boundaryB, n: spec.segments, m: spec.segments };
+    }
+
+    // solid
     if (spec.method === 'lebesgue') {
         return {
             ...base,
-            dim: '2d' as const,
-            xa,
-            xb,
-            ya,
-            yb,
-            layers: spec.layers ?? spec.segments,
-            sampleN:
-                spec.segments * NUMERIC_CONFIG.integral.lebesgueOversample2D,
+            solid: spec.solid,
+            layers,
+            sampleN: spec.segments * NUMERIC_CONFIG.integral.lebesgueOversample3D,
         };
     }
-    return {
-        ...base,
-        dim: '2d' as const,
-        xa,
-        xb,
-        ya,
-        yb,
-        n: spec.segments,
-        m: spec.segments,
-    };
+    return { ...base, solid: spec.solid, n: spec.segments, m: spec.segments };
 }
 
 /**

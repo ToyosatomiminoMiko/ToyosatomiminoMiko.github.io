@@ -85,7 +85,8 @@ export type ObjectKind =
     | 'box'
     | 'cylinder'
     | 'cone'
-    | 'frustum';
+    | 'frustum'
+    | 'region';
 
 export interface ObjectStatement {
     type: 'object';

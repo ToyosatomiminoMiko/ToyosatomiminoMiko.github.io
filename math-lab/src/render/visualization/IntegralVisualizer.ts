@@ -53,7 +53,7 @@ type LayerCallback = (
 ) => BarDef[] | undefined;
 
 // ============================================================
-// IntegralVisualizer — 黎曼 / 梯形 / 辛普森 / 勒贝格积分可视化
+// IntegralVisualizer - 黎曼 / 梯形 / 辛普森 / 勒贝格积分可视化
 // ============================================================
 export class IntegralVisualizer {
     scene: THREE.Scene;
@@ -492,6 +492,93 @@ export class IntegralVisualizer {
         this.group.add(group);
         // id + 后缀
         this.cache.set(`${cacheKey}_lebesgue`, { type: '3d', objects: group });
+    }
+
+    // ============================================================
+    // 3D 实体域体元可视化
+    // ============================================================
+
+    /**
+     * @cache-access
+     * 创建 3D 实体(体积域)的内部体元可视化并写入缓存.
+     *
+     * 数值/采样网格为每轴 n 的立方体单元(行优先,外层 z,中层 y,内层 x);
+     * 带外/非有限为 NaN.绘制时按 `segments`(预算降采样后)在同一个世界
+     * AABB 上抽稀展示:单元中心落在体内的单元显示为半透明小立方体,
+     * 颜色随被积值明暗变化.f≡1 时整块同色,用于展示"体积被离散覆盖".
+     */
+    visualize3DSolid(
+        obj: SceneObject,
+        n: number,
+        samples: Float64Array,
+        xa: number,
+        xb: number,
+        ya: number,
+        yb: number,
+        za: number,
+        zb: number,
+        segments: number,
+        cacheKey: number | string = obj.id,
+    ): void {
+        if (n === 0 || segments === 0) return;
+
+        const baseColor = new THREE.Color(obj.color);
+        const hx = (xb - xa) / n;
+        const hy = (yb - ya) / n;
+        const hz = (zb - za) / n;
+
+        // 被积值范围(仅有限样本)用于明暗着色.
+        let zMin = Infinity;
+        let zMax = -Infinity;
+        for (let index = 0; index < samples.length; index++) {
+            const z = samples[index];
+            if (Number.isFinite(z)) {
+                if (z < zMin) zMin = z;
+                if (z > zMax) zMax = z;
+            }
+        }
+        if (!Number.isFinite(zMin) || !Number.isFinite(zMax)) return;
+        const span = Math.max(zMax - zMin, 1e-12);
+
+        const vx = (xb - xa) / segments;
+        const vy = (yb - ya) / segments;
+        const vz = (zb - za) / segments;
+        const bars: BarDef[] = [];
+
+        const sampleAt = (cx: number, cy: number, cz: number): number => {
+            const i = Math.max(0, Math.min(n - 1, Math.floor((cx - xa) / hx)));
+            const j = Math.max(0, Math.min(n - 1, Math.floor((cy - ya) / hy)));
+            const k = Math.max(0, Math.min(n - 1, Math.floor((cz - za) / hz)));
+            return samples[(k * n + j) * n + i] ?? NaN;
+        };
+
+        for (let k = 0; k < segments; k++) {
+            const cz = za + (k + 0.5) * vz;
+            for (let j = 0; j < segments; j++) {
+                const cy = ya + (j + 0.5) * vy;
+                for (let i = 0; i < segments; i++) {
+                    const cx = xa + (i + 0.5) * vx;
+                    const z = sampleAt(cx, cy, cz);
+                    if (!Number.isFinite(z) || Math.abs(z) < 1e-12) continue;
+
+                    const t = (z - zMin) / span;
+                    const c = baseColor.clone().lerp(new THREE.Color(0xffffff), t * 0.55);
+                    bars.push({
+                        pos: [cx, cy, cz],
+                        scale: [vx * (1 - BAR_GAP), vy * (1 - BAR_GAP), vz * (1 - BAR_GAP)],
+                        color: c,
+                    });
+                }
+            }
+        }
+
+        if (bars.length === 0) return;
+        const group = this._instancedMeshGroup(bars, {
+            opacity: OPACITY_RIEMANN - 0.15,
+            edgeOpacity: 0,
+        });
+        this.group.add(group);
+        this.cache.set(cacheKey, { type: '3d_solid', objects: group });
     }
 
     // ============================================================

@@ -93,7 +93,7 @@ function conicParams(
     ];
 }
 
-function describeSide(
+export function describeSide(
     object: SceneObject,
     matrix: Mat4 | null,
     inverse: Mat4 | null,

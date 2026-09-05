@@ -333,6 +333,15 @@ curve c1 = sin(x * a) {
     segments = 256;
     animation = [spin];
 }
+region R = region(c1, c1_2) {
+    color = "#6bffb8";
+    opacity = 0.35;
+    range = [-4, 4];
+    segments = 256;
+}
+curve c1_2 = x * a {
+    range = [-8, 8];
+}
 surface s1 = sin(x) * cos(y) {
     transform = T;
     range = [-6, 6, -6, 6];
@@ -407,6 +416,8 @@ intersect Y = intersect(s1, S);
         assert!(json.contains("\"kind\":\"cylinder\""));
         assert!(json.contains("\"kind\":\"cone\""));
         assert!(json.contains("\"kind\":\"frustum\""));
+        assert!(json.contains("\"kind\":\"region\""));
+        assert!(json.contains("region(c1, c1_2)"));
         assert!(json.contains("\"type\":\"analysis\""));
         assert!(json.contains("\"type\":\"integral\""));
         assert!(json.contains("riemann:right"));

@@ -250,17 +250,206 @@ describe('compileScene', () => {
         }
     });
 
-    it('rejects right/mid riemann on surfaces until a 2D Rust backend exists', () => {
-        const badAst: AstProgram = {
+    it('accepts right/mid riemann on surfaces (2D endpoint rule unlocked)', () => {
+        for (const rawMethod of ['riemann:right', 'riemann:mid']) {
+            const variantAst: AstProgram = {
+                statements: [
+                    ast.statements[3],
+                    {
+                        type: 'integral',
+                        name: 'I2D',
+                        source: 's',
+                        options: [
+                            { name: 'method', value: rawMethod },
+                            { name: 'range', value: '[-1, 1, -1, 1]' },
+                            { name: 'segments', value: '32' },
+                        ],
+                        span: { start: 0, end: 0 },
+                    },
+                ],
+            };
+
+            const scene = compileScene(variantAst);
+            expect(scene.integrals[0]).toMatchObject({
+                sourceKind: 'surface',
+                dim: 2,
+                domainKind: 'rectangle',
+                method: rawMethod,
+            });
+        }
+    });
+
+    it('compiles region statements with curve references, ranges and merged coefficients', () => {
+        const regionAst: AstProgram = {
             statements: [
-                ast.statements[3],
+                ast.statements[2], // curve c = sin(x*a), range [-8, 8]
+                {
+                    type: 'object',
+                    kind: 'curve',
+                    name: 'd',
+                    expr: 'x * k + j',
+                    options: [{ name: 'range', value: '[-2, 2]' }],
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'object',
+                    kind: 'region',
+                    name: 'R',
+                    expr: 'region(c, d)',
+                    options: [
+                        { name: 'color', value: '"#6bffb8"' },
+                        { name: 'opacity', value: '0.35' },
+                    ],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        const scene = compileScene(regionAst);
+        expect(scene.objects).toHaveLength(3);
+        const region = scene.objects[2];
+        expect(region.kind).toBe('region');
+        if (region.kind !== 'region') return;
+        expect(region).toMatchObject({
+            curveAName: 'c',
+            curveBName: 'd',
+            color: '#6bffb8',
+            opacity: 0.35,
+        });
+        // 缺省 range = 两曲线 x-range 交集:[-2, 2].
+        expect(region.range).toEqual([-2, 2]);
+        // 系数并集:曲线 c 有 a,曲线 d 有 k/j.
+        expect(region.coefficients.map((coefficient) => coefficient.name).sort())
+            .toEqual(['a', 'j', 'k']);
+        // 区域公式是不等式带.
+        expect(scene.objectFormulas[3]).toContain('\\le y\\le');
+    });
+
+    it('rejects region referencing a missing or non-curve boundary', () => {
+        const missingAst: AstProgram = {
+            statements: [
+                ast.statements[2],
+                {
+                    type: 'object',
+                    kind: 'region',
+                    name: 'R',
+                    expr: 'region(c, nope)',
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+        expect(() => compileScene(missingAst)).toThrow(
+            '区域 R 引用了不存在的曲线 nope',
+        );
+
+        const surfaceBoundaryAst: AstProgram = {
+            statements: [
+                ast.statements[2],
+                ast.statements[3], // surface s
+                {
+                    type: 'object',
+                    kind: 'region',
+                    name: 'R2',
+                    expr: 'region(c, s)',
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+        expect(() => compileScene(surfaceBoundaryAst)).toThrow(
+            '区域 R2 的边界必须是曲线(curve)对象',
+        );
+    });
+
+    it('compiles double integrals over a region with integrand defaulting to 1', () => {
+        const regionIntegralAst: AstProgram = {
+            statements: [
+                ast.statements[2], // curve c
+                {
+                    type: 'object',
+                    kind: 'curve',
+                    name: 'd',
+                    expr: '1 - x * x',
+                    options: [{ name: 'range', value: '[-1, 1]' }],
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'object',
+                    kind: 'region',
+                    name: 'R',
+                    expr: 'region(c, d)',
+                    options: [{ name: 'range', value: '[-1, 1]' }],
+                    span: { start: 0, end: 0 },
+                },
                 {
                     type: 'integral',
-                    name: 'I2D',
-                    source: 's',
+                    name: 'Area',
+                    source: 'R',
                     options: [
-                        { name: 'method', value: 'riemann:right' },
-                        { name: 'range', value: '[-1, 1, -1, 1]' },
+                        { name: 'method', value: 'simpson' },
+                        { name: 'segments', value: '64' },
+                    ],
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'integral',
+                    name: 'Moment',
+                    source: 'R',
+                    options: [
+                        { name: 'method', value: 'simpson' },
+                        { name: 'integrand', value: 'x * x + y * y' },
+                        { name: 'segments', value: '64' },
+                    ],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        const scene = compileScene(regionIntegralAst);
+        expect(scene.integrals).toHaveLength(2);
+        expect(scene.integrals[0]).toMatchObject({
+            sourceKind: 'region',
+            dim: 2,
+            domainKind: 'region',
+            method: 'simpson',
+            integrand: '1',
+            range: [-1, 1],
+        });
+        expect(scene.integrals[0].integrandCoefficients).toEqual([]);
+        expect(scene.integrals[1].integrand).toBe('x * x + y * y');
+        expect(scene.integralFormulas.Area).toContain('\\iint');
+        expect(scene.integralFormulas.Moment).toContain('x * x + y * y');
+    });
+
+    it('compiles triple integrals over solids with world-coordinate integrands', () => {
+        const solidIntegralAst: AstProgram = {
+            statements: [
+                {
+                    type: 'object',
+                    kind: 'sphere',
+                    name: 'S',
+                    expr: '[0, 0, 0]',
+                    options: [{ name: 'radius', value: '1' }],
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'integral',
+                    name: 'Vol',
+                    source: 'S',
+                    options: [
+                        { name: 'method', value: 'simpson' },
+                        { name: 'segments', value: '48' },
+                    ],
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'integral',
+                    name: 'M',
+                    source: 'S',
+                    options: [
+                        { name: 'method', value: 'riemann:mid' },
+                        { name: 'integrand', value: 'x * y + z * z' },
                         { name: 'segments', value: '32' },
                     ],
                     span: { start: 0, end: 0 },
@@ -268,8 +457,58 @@ describe('compileScene', () => {
             ],
         };
 
-        expect(() => compileScene(badAst)).toThrow(
-            '仅支持一维曲线积分',
+        const scene = compileScene(solidIntegralAst);
+        expect(scene.integrals).toHaveLength(2);
+        expect(scene.integrals[0]).toMatchObject({
+            sourceKind: 'sphere',
+            dim: 3,
+            domainKind: 'solid',
+            integrand: '1',
+        });
+        expect(scene.integrals[0].range).toBeUndefined();
+        expect(scene.integrals[1].integrand).toBe('x * y + z * z');
+        expect(scene.integralFormulas.Vol).toContain('\\iiint');
+        expect(scene.integralFormulas.M).toContain('\\iiint');
+    });
+
+    it('rejects unknown integral sources and solid range options', () => {
+        const badSourceAst: AstProgram = {
+            statements: [
+                ast.statements[4], // vector_field F
+                {
+                    type: 'integral',
+                    name: 'I',
+                    source: 'F',
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+        expect(() => compileScene(badSourceAst)).toThrow(
+            '只能应用于 curve/surface/region 或体积对象',
+        );
+
+        const solidRangeAst: AstProgram = {
+            statements: [
+                {
+                    type: 'object',
+                    kind: 'sphere',
+                    name: 'S',
+                    expr: '[0, 0, 0]',
+                    options: [{ name: 'radius', value: '1' }],
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'integral',
+                    name: 'I',
+                    source: 'S',
+                    options: [{ name: 'range', value: '[-1, 1]' }],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+        expect(() => compileScene(solidRangeAst)).toThrow(
+            'solid 域不接受 range',
         );
     });
 

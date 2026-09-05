@@ -20,6 +20,7 @@ const ENTITY_KIND_LABELS: Record<SceneObject['kind'], string> = {
     sphere: '球体',
     box: '方块',
     conic: '旋转体',
+    region: '区域',
 };
 
 const ANALYSIS_KIND_LABELS: Record<AnalysisResult['op'], string> = {
@@ -90,6 +91,8 @@ function sceneObjectExpression(object: SceneObject): string {
             return `中心=${formatVector([object.position.x, object.position.y, object.position.z])} · size=${formatVector(object.size)}`;
         case 'conic':
             return `中心=${formatVector([object.position.x, object.position.y, object.position.z])} · base=${formatNumber(object.baseRadius)} · top=${formatNumber(object.topRadius)} · h=${formatNumber(object.height)}`;
+        case 'region':
+            return `边界=${object.curveAName}, ${object.curveBName} · x∈[${formatNumber(object.range[0])}, ${formatNumber(object.range[1])}]`;
     }
 }
 
@@ -124,7 +127,11 @@ function integralTaskKey(task: IntegralTask): string {
         task.name,
         task.objectId,
         task.sourceKind,
+        task.dim,
+        task.domainKind,
         task.method,
+        task.integrand,
+        task.integrandCoefficients,
         task.range,
         task.segments,
         task.layers,
@@ -155,7 +162,11 @@ function integralSourceLabel(
         ? '曲线'
         : source?.kind === 'surface'
             ? '曲面'
-            : '对象';
+            : source?.kind === 'region'
+                ? '区域'
+                : source?.kind === 'sphere' || source?.kind === 'box' || source?.kind === 'conic'
+                    ? '体积'
+                    : '对象';
     const sourceName = source ? source.name : `#${task.objectId}`;
     return `${sourceLabel} ${sourceName} · ${INTEGRAL_METHOD_LABELS[task.method]}`;
 }
@@ -230,7 +241,9 @@ export class ObjectListController {
         const item = this.integralRows.get(name);
         if (!item) return;
 
-        item.result.textContent = `S = ${formatNumber(value)}`;
+        // 一维是面积/长度,二维是面积/二重积分,三维是体积/三重积分,
+        // 不带 S/V 前缀,由公式行给出语义.
+        item.result.textContent = `${formatNumber(value)}`;
         item.result.className = 'eval-result is-ready';
         item.row.classList.remove('has-error');
     }

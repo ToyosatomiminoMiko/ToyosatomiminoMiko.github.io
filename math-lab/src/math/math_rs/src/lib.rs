@@ -1,5 +1,6 @@
 pub mod builtins;
 pub mod config;
+pub mod domain_integral;
 pub mod eval_core;
 pub mod field_core;
 pub mod integral_core;
@@ -19,6 +20,8 @@ enum SampleShape {
     Grid,
     Mid,
     Corner,
+    CornerRight,
+    Mid2,
 }
 
 impl SampleShape {
@@ -27,6 +30,8 @@ impl SampleShape {
             SampleShape::Grid => "grid",
             SampleShape::Mid => "mid",
             SampleShape::Corner => "corner",
+            SampleShape::CornerRight => "corner-right",
+            SampleShape::Mid2 => "mid2",
         }
     }
 }
@@ -69,16 +74,21 @@ enum IntegralMethod2D {
     Trapz,
     Simpson,
     RiemannLeft,
+    RiemannRight,
+    RiemannMid,
     Lebesgue,
 }
 
 impl IntegralMethod2D {
-    /// 与 IR `IntegralMethod` 保持同一套语义名;二维只支持左端点黎曼.
+    /// 与 IR `IntegralMethod` 保持同一套语义名;二维矩形域从 2D 端点核放开
+    /// 后 left/right/mid 全部支持(采样端 = 方法端,数值与可视化同源).
     fn parse(method: &str) -> Result<Self, String> {
         match method {
             "trapezoid" => Ok(Self::Trapz),
             "simpson" => Ok(Self::Simpson),
             "riemann:left" => Ok(Self::RiemannLeft),
+            "riemann:right" => Ok(Self::RiemannRight),
+            "riemann:mid" => Ok(Self::RiemannMid),
             "lebesgue" => Ok(Self::Lebesgue),
             _ => Err("未知二维积分方法".to_string()),
         }
@@ -86,7 +96,9 @@ impl IntegralMethod2D {
 
     fn sample_shape(self) -> SampleShape {
         match self {
-            Self::RiemannLeft => SampleShape::Corner,
+            Self::RiemannLeft | Self::Lebesgue => SampleShape::Corner,
+            Self::RiemannRight => SampleShape::CornerRight,
+            Self::RiemannMid => SampleShape::Mid2,
             _ => SampleShape::Grid,
         }
     }
@@ -194,6 +206,13 @@ pub struct IntegralSampleResult {
     pub sample_shape: String,
     pub n: usize,
     pub m: usize,
+    /// 域积分(region 2D / solid 3D)回传的外接范围;其他域按需填 NaN.
+    pub xa: f64,
+    pub xb: f64,
+    pub ya: f64,
+    pub yb: f64,
+    pub za: f64,
+    pub zb: f64,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -245,6 +264,12 @@ pub fn integrate1d(
         sample_shape: sample_shape.as_str().to_string(),
         n,
         m: 0,
+        xa: a,
+        xb: b,
+        ya: f64::NAN,
+        yb: f64::NAN,
+        za: f64::NAN,
+        zb: f64::NAN,
     })
 }
 
@@ -292,6 +317,14 @@ pub fn integrate2d(
             integral_core::riemann2d_left_from_values(&samples, (xa, xb), (ya, yb), n, m)
                 .map_err(|e| JsValue::from_str(&e))?
         }
+        IntegralMethod2D::RiemannRight => {
+            integral_core::riemann2d_right_from_values(&samples, (xa, xb), (ya, yb), n, m)
+                .map_err(|e| JsValue::from_str(&e))?
+        }
+        IntegralMethod2D::RiemannMid => {
+            integral_core::riemann2d_mid_from_values(&samples, (xa, xb), (ya, yb), n, m)
+                .map_err(|e| JsValue::from_str(&e))?
+        }
         IntegralMethod2D::Lebesgue => {
             integral_core::lebesgue2d_from_values(&samples, (xa, xb), (ya, yb), n, layers)
                 .map_err(|e| JsValue::from_str(&e))?
@@ -304,6 +337,140 @@ pub fn integrate2d(
         sample_shape: sample_shape.as_str().to_string(),
         n,
         m,
+        xa,
+        xb,
+        ya,
+        yb,
+        za: f64::NAN,
+        zb: f64::NAN,
+    })
+}
+
+// ================================================================
+// 带域积分:region(2D 面积图形)/ solid(3D 实体)
+// ================================================================
+
+/// region(2D, x 型带状)域积分统一入口.
+///
+/// - 被积函数(世界坐标 x,y,`integrand`)与两条边界曲线各带独立系数表;
+/// - 曲线 y=f(x) 求值走一元后端(不会误把 y/z 当坐标变量);
+/// - 数值语义见 `domain_integral::integrate_region`.
+#[allow(clippy::too_many_arguments)]
+#[wasm_bindgen]
+pub fn integrate_region(
+    method: &str,
+    integrand_expr: &str,
+    integrand_names: Vec<String>,
+    integrand_values: Vec<f64>,
+    boundary_a_expr: &str,
+    boundary_a_names: Vec<String>,
+    boundary_a_values: Vec<f64>,
+    boundary_b_expr: &str,
+    boundary_b_names: Vec<String>,
+    boundary_b_values: Vec<f64>,
+    xa: f64,
+    xb: f64,
+    n: usize,
+    layers: usize,
+) -> Result<IntegralSampleResult, JsValue> {
+    let input = domain_integral::RegionInput {
+        integrand_expr,
+        integrand_names: &integrand_names,
+        integrand_values: &integrand_values,
+        boundary_exprs: [boundary_a_expr, boundary_b_expr],
+        boundary_names: [&boundary_a_names, &boundary_b_names],
+        boundary_values: [&boundary_a_values, &boundary_b_values],
+        xa,
+        xb,
+    };
+    let outcome =
+        domain_integral::integrate_region(method, &input, n, layers).map_err(math_error)?;
+    Ok(IntegralSampleResult {
+        value: outcome.value,
+        samples: outcome.samples,
+        sample_shape: "2d-cell".to_string(),
+        n: outcome.n,
+        m: outcome.n,
+        xa,
+        xb,
+        ya: outcome.y_min,
+        yb: outcome.y_max,
+        za: f64::NAN,
+        zb: f64::NAN,
+    })
+}
+
+/// solid(3D 实体:sphere/box/conic)域积分统一入口.
+///
+/// 域描述复用求交的 ObjectDescriptor 形状(kind+params+matrix+inverse),
+/// 使三重积分与"渲染出的世界实体"保持同一几何口径.
+#[allow(clippy::too_many_arguments)]
+#[wasm_bindgen]
+pub fn integrate_solid(
+    method: &str,
+    kind: &str,
+    params: Vec<f64>,
+    matrix_values: Vec<f64>,
+    inverse_values: Vec<f64>,
+    integrand_expr: &str,
+    integrand_names: Vec<String>,
+    integrand_values: Vec<f64>,
+    n: usize,
+    layers: usize,
+) -> Result<IntegralSampleResult, JsValue> {
+    // 实体没有表达式:expr 传空,系数为空.
+    let descriptor = intersection_core::parse_object_descriptor(
+        kind,
+        "",
+        Vec::new(),
+        Vec::new(),
+        params,
+        matrix_values,
+        inverse_values,
+    )
+    .map_err(math_error)?;
+
+    // f≡1 的 3D lebesgue 直接返回解析测度(体积),不建层几何,不做 O(n³) 网格.
+    if method == "lebesgue" && integrand_expr.trim() == "1" {
+        let measure = domain_integral::solid_exact_measure(&descriptor).map_err(math_error)?;
+        let aabb = intersection_core::solid_world_aabb(&descriptor).map_err(math_error)?;
+        return Ok(IntegralSampleResult {
+            value: measure,
+            samples: Vec::new(),
+            sample_shape: "3d-skip".to_string(),
+            n: 0,
+            m: 0,
+            xa: aabb.0[0],
+            xb: aabb.0[1],
+            ya: aabb.1[0],
+            yb: aabb.1[1],
+            za: aabb.2[0],
+            zb: aabb.2[1],
+        });
+    }
+
+    let outcome = domain_integral::integrate_solid(
+        method,
+        &descriptor,
+        integrand_expr,
+        &integrand_names,
+        &integrand_values,
+        n,
+        layers,
+    )
+    .map_err(math_error)?;
+    Ok(IntegralSampleResult {
+        value: outcome.value,
+        samples: outcome.samples,
+        sample_shape: "3d-cells".to_string(),
+        n: outcome.n,
+        m: outcome.n,
+        xa: outcome.x_min,
+        xb: outcome.x_max,
+        ya: outcome.y_min,
+        yb: outcome.y_max,
+        za: outcome.z_min,
+        zb: outcome.z_max,
     })
 }
 

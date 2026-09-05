@@ -1,10 +1,38 @@
 /**
  * 积分任务编译.
+ *
  * 把 DSL 中的 integral 声明转成渲染层可消费的 IntegralTask.
+ *
+ * 维度语义:IR `IntegralTask` 携带显式 `dim: 1|2|3` 与 `domainKind`
+ * (interval/rectangle/region/solid),不再用 range 长度推断维度;
+ * region/solid 域因此可以自然进入同一张 task 形状.
+ *
+ * 方法 × 域矩阵(与 prompt/feature.md §方法矩阵一致):
+ * | 域 | riemann:left | right/mid | trapezoid | simpson | lebesgue |
+ * | curve(1D) | ✅ | ✅ | ✅ | ✅ | ✅ |
+ * | surface 矩形(2D) | ✅ | ✅ | ✅ | ✅ | ✅ |
+ * | region 带(2D) | ✅(B2) | ✅(B2) | ✅(B1) | ✅(B1) | ✅(B2 层) |
+ * | solid 体(3D) | ✅(C1) | ✅(C1) | ✅(C2) | ✅(C2) | ✅(f≡1 直接测度;非平凡 f 按 C1 层) |
+ *
+ * 被积函数:
+ * - curve/surface 源 = 对象自带表达式(y=f(x) / z=f(x,y));
+ * - region/solid 源 = 选项 `integrand`,缺省 `"1"`(即区域面积/体积);
+ * - integrand 变量一律为世界坐标.
+ *
+ * 后续规划(roadmap):区域 y 型 / 极坐标 r-θ / 多曲线边界 / region 参与求交 /
+ * region 作为曲面底域等,见 `compiler/ir/types.ts` RegionObject 注释.
  */
 import type { IntegralStatement } from '../ast/types';
-import type { IntegralMethod, IntegralTask, SceneObject } from '../ir/types';
+import type {
+    Coefficient,
+    IntegralDomainKind,
+    IntegralMethod,
+    IntegralTask,
+    ParamDeclaration,
+    SceneObject,
+} from '../ir/types';
 import { NUMERIC_CONFIG } from '../../config/numericConfig';
+import { normalizeExpression, extractSymbolNames } from './expression';
 import {
     assertKnownOptions,
     findOption,
@@ -34,18 +62,89 @@ function normalizeIntegralMethod(raw: string): IntegralMethod {
     return raw as IntegralMethod;
 }
 
-const INTEGRAL_OPTION_NAMES = ['method', 'range', 'segments', 'layers', 'show'] as const;
+const INTEGRAL_OPTION_NAMES = [
+    'method',
+    'range',
+    'segments',
+    'layers',
+    'show',
+    'integrand',
+] as const;
 
+/** source kind -> (dim, domainKind) 显式映射. */
+const DOMAIN_KIND_BY_SOURCE: Record<
+    'curve' | 'surface' | 'region' | 'sphere' | 'box' | 'conic',
+    { dim: 1 | 2 | 3; domainKind: IntegralDomainKind }
+> = {
+    curve: { dim: 1, domainKind: 'interval' },
+    surface: { dim: 2, domainKind: 'rectangle' },
+    region: { dim: 2, domainKind: 'region' },
+    sphere: { dim: 3, domainKind: 'solid' },
+    box: { dim: 3, domainKind: 'solid' },
+    conic: { dim: 3, domainKind: 'solid' },
+};
+
+const SOLID_KINDS = new Set<SceneObject['kind']>(['sphere', 'box', 'conic']);
+
+/**
+ * 域对象的世界坐标变量集;region 在 z=0 平面,因此其 integrand 不允许 z.
+ */
+const WORLD_VARIABLES: Record<IntegralDomainKind, Set<string>> = {
+    interval: new Set(['x']),
+    rectangle: new Set(['x', 'y']),
+    region: new Set(['x', 'y']),
+    solid: new Set(['x', 'y', 'z']),
+};
+
+function materializeIntegrandCoefficients(
+    integrand: string,
+    domainKind: IntegralDomainKind,
+    params: Map<string, ParamDeclaration>,
+    overrides: Record<string, number>,
+    context: string,
+): Coefficient[] {
+    const excluded = WORLD_VARIABLES[domainKind];
+    const symbols = extractSymbolNames(integrand, excluded);
+    return symbols.map((name) => {
+        const declared = params.get(name);
+        if (!declared) {
+            throw new Error(
+                `${context} 的被积表达式引用了未声明的参数 ${name}`,
+            );
+        }
+        return {
+            name,
+            value: overrides[name] ?? declared.value,
+            min: declared.min,
+            max: declared.max,
+            step: declared.step,
+        };
+    });
+}
+
+/**
+ * 编译单条 integral 语句(供 compileScene 在语句 span 包裹内调用).
+ */
 export function compileIntegralTask(
     statement: IntegralStatement,
     objectByName: Map<string, SceneObject>,
+    params: Map<string, ParamDeclaration>,
+    paramOverrides: Record<string, number> = {},
 ): IntegralTask {
+    const name = statement.name;
     const source = objectByName.get(statement.source.trim());
     if (!source) {
-        throw new Error(`积分 ${statement.name} 引用了不存在的对象 ${statement.source}`);
+        throw new Error(`积分 ${name} 引用了不存在的对象 ${statement.source}`);
     }
-    if (source.kind !== 'curve' && source.kind !== 'surface') {
-        throw new Error(`积分 ${statement.name} 只能应用于 curve 或 surface`);
+    if (
+        source.kind !== 'curve'
+        && source.kind !== 'surface'
+        && source.kind !== 'region'
+        && !SOLID_KINDS.has(source.kind)
+    ) {
+        throw new Error(
+            `积分 ${name} 只能应用于 curve/surface/region 或体积对象`,
+        );
     }
 
     // DSL 必须严格失败:未知 option 或重复 option 是用户错误,
@@ -53,7 +152,7 @@ export function compileIntegralTask(
     assertKnownOptions(
         statement.options,
         INTEGRAL_OPTION_NAMES,
-        `积分 ${statement.name}`,
+        `积分 ${name}`,
     );
 
     const rawMethod = findOption(statement.options, 'method') ?? NUMERIC_CONFIG.integral.defaultMethod;
@@ -62,73 +161,117 @@ export function compileIntegralTask(
     }
     const method = normalizeIntegralMethod(rawMethod);
 
-    if (
-        source.kind === 'surface'
-        && (method === 'riemann:right' || method === 'riemann:mid')
-    ) {
-        throw new Error(
-            `积分 ${statement.name} 的 ${method} 仅支持一维曲线积分;`
-            + '二维黎曼目前只有左端点实现',
-        );
-    }
+    const { dim, domainKind } = DOMAIN_KIND_BY_SOURCE[
+        source.kind as keyof typeof DOMAIN_KIND_BY_SOURCE
+    ];
 
+    // ---- range:按域种类显式解析,不再用长度推断 ----
     const rawRange = findOption(statement.options, 'range');
-    let range: [number, number] | [number, number, number, number];
-    if (source.kind === 'curve') {
+    let range: [number, number] | [number, number, number, number] | undefined;
+
+    if (domainKind === 'interval') {
         const rangeValues = rawRange
-            ? parseNumberList(rawRange, `积分 ${statement.name} 的 range`)
+            ? parseNumberList(rawRange, `积分 ${name} 的 range`)
             : [...NUMERIC_CONFIG.integral.defaultRange1D];
         if (rangeValues.length !== 2) {
-            throw new Error(`积分 ${statement.name} 的 range 需要 2 个数值`);
+            throw new Error(`积分 ${name} 的 range 需要 2 个数值`);
         }
         if (rangeValues[0] >= rangeValues[1]) {
-            throw new Error(`积分 ${statement.name} 需要有效的一维区间 a < b`);
+            throw new Error(`积分 ${name} 需要有效的一维区间 a < b`);
         }
         range = [rangeValues[0], rangeValues[1]];
-    } else {
+    } else if (domainKind === 'rectangle') {
         const rangeValues = rawRange
-            ? parseNumberList(rawRange, `积分 ${statement.name} 的 range`)
+            ? parseNumberList(rawRange, `积分 ${name} 的 range`)
             : [...NUMERIC_CONFIG.integral.defaultRange2D];
         if (rangeValues.length !== 4) {
-            throw new Error(`积分 ${statement.name} 的 range 需要 4 个数值`);
+            throw new Error(`积分 ${name} 的 range 需要 4 个数值`);
         }
         if (rangeValues[0] >= rangeValues[1] || rangeValues[2] >= rangeValues[3]) {
-            throw new Error(`积分 ${statement.name} 需要有效的二维区间`);
+            throw new Error(`积分 ${name} 需要有效的二维区间`);
         }
         range = [rangeValues[0], rangeValues[1], rangeValues[2], rangeValues[3]];
+    } else if (domainKind === 'region') {
+        // region 源的 x 区间:显式 range 覆盖,否则沿用区域对象自身的 x 区间.
+        if (rawRange) {
+            const rangeValues = parseNumberList(rawRange, `积分 ${name} 的 range`);
+            if (rangeValues.length !== 2) {
+                throw new Error(`积分 ${name} 的 region range 需要 2 个数值`);
+            }
+            if (rangeValues[0] >= rangeValues[1]) {
+                throw new Error(`积分 ${name} 需要有效的 x 区间 a < b`);
+            }
+            range = [rangeValues[0], rangeValues[1]];
+        } else if (source.kind === 'region') {
+            range = source.range;
+        }
+    } else {
+        // solid 域 = 渲染出的世界实体,不接受 range.
+        if (rawRange) {
+            throw new Error(`积分 ${name} 的 solid 域不接受 range,域由体积对象本身决定`);
+        }
     }
 
-    // 一维与二维积分的资源风险完全不同.
-    // 二维积分按 n*m 采样,必须使用更小的独立上限;
-    // 一维积分则可以允许更大的 segments,只受线性缓冲限制.
-    const maxSegments = source.kind === 'curve'
+    // ---- 被积函数 ----
+    // curve/surface 的对象自带表达式即被积函数;region/solid 用 `integrand`,
+    // 缺省 "1".region 在 z=0 平面,y 上下界由边界曲线给出,被积函数是 g(x,y).
+    let integrand: string;
+    if (source.kind === 'curve' || source.kind === 'surface') {
+        integrand = source.expr;
+    } else {
+        const rawIntegrand = findOption(statement.options, 'integrand') ?? '1';
+        integrand = normalizeExpression(rawIntegrand);
+    }
+    // 被积表达式里出现的"非域对象"参数才计入 task 自身的系数:
+    // curve/surface 的被积函数 = 对象表达式,其参数已挂在对象 coefficients 上,
+    // 由既有"对象 dirty -> 积分重算"链路覆盖,不在这里重复收集.
+    const integrandCoefficients = (
+        source.kind === 'curve' || source.kind === 'surface'
+    )
+        ? []
+        : materializeIntegrandCoefficients(
+            integrand,
+            domainKind,
+            params,
+            paramOverrides,
+            `积分 ${name}`,
+        );
+
+    // 一/二/三维积分的资源风险完全不同,使用各自的独立上限.
+    const maxSegments = dim === 1
         ? NUMERIC_CONFIG.limits.integral.maxSegments1D
-        : NUMERIC_CONFIG.limits.integral.maxSegments2D;
+        : dim === 2
+            ? NUMERIC_CONFIG.limits.integral.maxSegments2D
+            : NUMERIC_CONFIG.limits.integral.maxSegments3D;
     const segments = parseCappedPositiveInteger(
         findOption(statement.options, 'segments'),
-        `积分 ${statement.name} 的 segments`,
+        `积分 ${name} 的 segments`,
         maxSegments,
     ) ?? NUMERIC_CONFIG.integral.defaultSegments;
     if (method === 'simpson' && segments % 2 !== 0) {
-        throw new Error(`积分 ${statement.name} 的辛普森法要求分段数必须为偶数,当前为 ${segments}`);
+        throw new Error(`积分 ${name} 的辛普森法要求分段数必须为偶数,当前为 ${segments}`);
     }
     const layers = parseCappedPositiveInteger(
         findOption(statement.options, 'layers'),
-        `积分 ${statement.name} 的 layers`,
+        `积分 ${name} 的 layers`,
         NUMERIC_CONFIG.limits.integral.maxLayers,
     ) ?? Math.min(NUMERIC_CONFIG.integral.defaultLayersCap, segments);
     const show = parseBooleanOption(
         statement.options,
         'show',
-        `积分 ${statement.name} 的 show`,
+        `积分 ${name} 的 show`,
         NUMERIC_CONFIG.integral.showDefault,
     );
 
     return {
-        name: statement.name,
+        name,
         objectId: source.id,
-        sourceKind: source.kind,
+        sourceKind: source.kind as IntegralTask['sourceKind'],
+        dim,
+        domainKind,
         method,
+        integrand,
+        integrandCoefficients,
         range,
         segments,
         layers,

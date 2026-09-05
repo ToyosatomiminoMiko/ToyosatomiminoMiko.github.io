@@ -95,6 +95,23 @@ export function clampIntegral2DVisualization(
 }
 
 /**
+ * 三维实体体元可视化的每轴分段数.
+ *
+ * 3D 体元 O(n³),每轴分段必须单独压到 24 段以下(25³ ≈ 1.6 万实例),
+ * 数值结果仍按 task.segments 在 Worker 中计算.
+ */
+export function clampIntegral3DVisualization(
+    requestedSegments: number,
+): ClampedResolution<{ segments: number }> {
+    const maxSegments = NUMERIC_CONFIG.limits.integral.maxVisualizationSegments3D;
+    const segments = Math.min(requestedSegments, maxSegments);
+    return {
+        segments,
+        decimated: segments < requestedSegments,
+    };
+}
+
+/**
  * 一维勒贝格可视化:同时限制采样点数和分层数.
  *
  * 可视化最坏情况是 layers * sampleN 个实例柱,因此不能只压其中一个.

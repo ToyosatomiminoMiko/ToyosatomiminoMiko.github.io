@@ -60,6 +60,35 @@ pub(crate) fn lebesgue_layer_sum(
     Ok(sum)
 }
 
+/// 勒贝格层积分的公共骨架:正部测度 + 负部测度.
+///
+/// 1D/2D/region/solid 的勒贝格实现差异只在"测度怎么数"(左端点格子,
+/// 区域带掩码,体元掩码),把"按值域分层 + 正/负部求和"收口到这里,
+/// 各实现只需提供 `positive(t)`(测度 {z > t})与 `negative(t)`
+/// (测度 {z < -t})两个测度函数.
+pub(crate) fn lebesgue_layered_measure(
+    layers: usize,
+    z_min: f64,
+    z_max: f64,
+    positive: &dyn Fn(f64) -> f64,
+    negative: &dyn Fn(f64) -> f64,
+) -> Result<f64, String> {
+    if layers == 0 {
+        return Err("勒贝格积分 layers 必须大于 0".to_string());
+    }
+    if !z_min.is_finite() || !z_max.is_finite() {
+        return Ok(0.0);
+    }
+    let mut sum = 0.0;
+    if z_max > LEBESGUE_ZERO_EPSILON {
+        sum += lebesgue_layer_sum(layers, z_max, &|t| positive(t), 1.0)?;
+    }
+    if z_min < -LEBESGUE_ZERO_EPSILON {
+        sum += lebesgue_layer_sum(layers, -z_min, &|t| negative(t), -1.0)?;
+    }
+    Ok(sum)
+}
+
 /// 辛普森法则的节点权重.
 pub(crate) fn simpson_weight(idx: usize, total: usize) -> f64 {
     if idx == 0 || idx == total {
@@ -231,21 +260,25 @@ pub fn simpson2d_from_values(
     Ok((hx * hy / 9.0) * sum)
 }
 
-pub fn riemann2d_left_from_values(
+/// 二维端点黎曼(左/右/中点)共享实现:输入是 n×m 个"单元采样端"值,
+/// 数值 = Σ 值 · hx · hy.左/右/中只差采样端的取法(采样在 sampling_core),
+/// 求和公式完全一致,因此这里收敛成一个带方法名的私有实现.
+fn riemann2d_endpoint_from_values(
     values: &[f64],
     x_range: (f64, f64),
     y_range: (f64, f64),
     n: usize,
     m: usize,
+    label: &str,
 ) -> Result<f64, String> {
     validate_2d_interval(x_range, y_range)?;
     if n == 0 || m == 0 {
-        return Err("二维左黎曼法要求 n 和 m 均大于 0".to_string());
+        return Err(format!("二维{label}黎曼法要求 n 和 m 均大于 0"));
     }
     let expected = n * m;
     if values.len() != expected {
         return Err(format!(
-            "二维左黎曼法输入长度错误: 期望 {expected},实际 {}",
+            "二维{label}黎曼法输入长度错误: 期望 {expected},实际 {}",
             values.len()
         ));
     }
@@ -257,6 +290,36 @@ pub fn riemann2d_left_from_values(
     let hy = (d - c) / m as f64;
     let sum: f64 = values.iter().sum();
     Ok(sum * hx * hy)
+}
+
+pub fn riemann2d_left_from_values(
+    values: &[f64],
+    x_range: (f64, f64),
+    y_range: (f64, f64),
+    n: usize,
+    m: usize,
+) -> Result<f64, String> {
+    riemann2d_endpoint_from_values(values, x_range, y_range, n, m, "左")
+}
+
+pub fn riemann2d_right_from_values(
+    values: &[f64],
+    x_range: (f64, f64),
+    y_range: (f64, f64),
+    n: usize,
+    m: usize,
+) -> Result<f64, String> {
+    riemann2d_endpoint_from_values(values, x_range, y_range, n, m, "右")
+}
+
+pub fn riemann2d_mid_from_values(
+    values: &[f64],
+    x_range: (f64, f64),
+    y_range: (f64, f64),
+    n: usize,
+    m: usize,
+) -> Result<f64, String> {
+    riemann2d_endpoint_from_values(values, x_range, y_range, n, m, "中点")
 }
 
 // ================================================================
@@ -305,14 +368,9 @@ pub fn lebesgue1d_from_values(
         total
     };
 
-    let mut sum = 0.0;
-    if y_max > LEBESGUE_ZERO_EPSILON {
-        sum += lebesgue_layer_sum(layers, y_max, &|t| scan_measure(&|y| y > t), 1.0)?;
-    }
-    if y_min < -LEBESGUE_ZERO_EPSILON {
-        sum += lebesgue_layer_sum(layers, -y_min, &|t| scan_measure(&|y| y < -t), -1.0)?;
-    }
-    Ok(sum)
+    lebesgue_layered_measure(layers, y_min, y_max, &|t| scan_measure(&|y| y > t), &|t| {
+        scan_measure(&|y| y < -t)
+    })
 }
 
 pub fn lebesgue2d_from_values(
@@ -371,14 +429,9 @@ pub fn lebesgue2d_from_values(
         measure
     };
 
-    let mut sum = 0.0;
-    if z_max > LEBESGUE_ZERO_EPSILON {
-        sum += lebesgue_layer_sum(layers, z_max, &|t| measure_fn(&|z| z > t), 1.0)?;
-    }
-    if z_min < -LEBESGUE_ZERO_EPSILON {
-        sum += lebesgue_layer_sum(layers, -z_min, &|t| measure_fn(&|z| z < -t), -1.0)?;
-    }
-    Ok(sum)
+    lebesgue_layered_measure(layers, z_min, z_max, &|t| measure_fn(&|z| z > t), &|t| {
+        measure_fn(&|z| z < -t)
+    })
 }
 
 #[cfg(test)]
@@ -396,7 +449,7 @@ mod tests {
     #[test]
     fn riemann_left_right_mid_use_matching_endpoints() {
         // f(x)=x 在 [0,1] 上按 n=4 均匀采样:
-        // 左端点 0.375、右端点 0.625、中点 0.5.
+        // 左端点 0.375,右端点 0.625,中点 0.5.
         let grid = vec![0.0, 0.25, 0.5, 0.75, 1.0];
         let mid = vec![0.125, 0.375, 0.625, 0.875];
 

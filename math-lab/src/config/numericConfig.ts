@@ -18,6 +18,10 @@ export const NUMERIC_CONFIG = {
         defaultRange: [-6, 6, -6, 6] as [number, number, number, number],
         defaultSegments: 64,
     },
+    region: {
+        defaultRange: [-4, 4] as [number, number],
+        defaultSegments: 256,
+    },
     vectorField: {
         defaultRange: [-4, 4, -4, 4, -4, 4] as [
             number,
@@ -48,6 +52,7 @@ export const NUMERIC_CONFIG = {
         defaultLayersCap: 32,
         lebesgueOversample1D: 20,
         lebesgueOversample2D: 4,
+        lebesgueOversample3D: 2,
         showDefault: true,
     },
     tolerance: {
@@ -63,6 +68,10 @@ export const NUMERIC_CONFIG = {
             // 512 段时:(512+1)^2 个顶点.
             // 若继续放到 1024,主线程索引与 WASM 结果双缓冲会同时膨胀,
             // 因此这里先压回一个更可预测的峰值.
+            maxSegments: 512,
+        },
+        region: {
+            // 区域填充/边界只按一维站点点数走,512 段足够平滑且是 O(n) 缓冲.
             maxSegments: 512,
         },
         vectorField: {
@@ -82,14 +91,20 @@ export const NUMERIC_CONFIG = {
         },
         integral: {
             // 数值计算与可视化预算分开.
-            // 一维积分可以允许更高分段,二维积分是 O(n^2) 采样,必须单独压低.
+            // 一维积分可以允许更高分段,二维积分是 O(n^2) 采样,三维是 O(n^3),
+            // 各维度必须使用独立的,随维度递减的上限.
             maxSegments1D: 8_192,
             maxSegments2D: 256,
+            // 三维数值采样 O(n^3):48 默认足够收敛,96 是内存/耗时硬上限
+            // (97^3 ≈ 91 万格点 × 每点一次隐式场判定).
+            maxSegments3D: 96,
             maxLayers: 128,
-            // 以下三个值只约束"可视化",不改变数值积分结果.
+            // 以下值只约束"可视化",不改变数值积分结果.
             // 数值结果仍按 task.segments 在 Worker 中计算,只是绘制时降采样.
             maxVisualizationSegments1D: 512,
             maxVisualizationSegments2D: 128,
+            // 3D 体元可视化 O(n^3),默认每轴 24 段(25^3 ≈ 1.6 万实例).
+            maxVisualizationSegments3D: 24,
             maxLebesgueVisualizationSamples1D: 4_096,
             maxLebesgueVisualizationResolution2D: 192,
             maxVisualizationLayers: 32,
