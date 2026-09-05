@@ -60,7 +60,7 @@ export function objectStatementsByName(ast: AstProgram): Map<string, ObjectState
 const staticSceneCache = new WeakMap<AstProgram, { matrixOps: MatrixOps; scene: StaticScene }>();
 
 /**
- * @cache-access
+ * @cache_access
  * 获取 AST 对应的静态场景;缓存未命中时构建并写入.
  */
 export function getOrBuildStaticScene(ast: AstProgram, matrixOps: MatrixOps): StaticScene {

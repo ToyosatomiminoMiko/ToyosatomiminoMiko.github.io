@@ -81,7 +81,7 @@ export class AnimationPlayer {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 用新的 SceneIR 重建动画时间线缓存.
      */
     setScene(
@@ -120,7 +120,7 @@ export class AnimationPlayer {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 根据当前时间线缓存计算对象矩阵.
      */
     getObjectMatrix(id: number, elapsedSeconds: number): Mat4 | null {

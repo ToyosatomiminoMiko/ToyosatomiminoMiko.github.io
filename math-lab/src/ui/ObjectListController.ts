@@ -237,7 +237,7 @@ export class ObjectListController {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 命中积分 DOM 行缓存并更新结果文本.
      */
     setIntegralResult(name: string, value: number): void {
@@ -252,7 +252,7 @@ export class ObjectListController {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 命中积分 DOM 行缓存并更新错误文本.
      */
     setIntegralError(name: string, message: string): void {
@@ -265,7 +265,7 @@ export class ObjectListController {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 命中求交 DOM 行缓存并更新结果摘要.
      */
     setIntersectionResult(name: string, output: IntersectionOutput): void {
@@ -278,7 +278,7 @@ export class ObjectListController {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 命中求交 DOM 行缓存并更新错误文本.
      */
     setIntersectionError(name: string, message: string): void {
@@ -291,7 +291,7 @@ export class ObjectListController {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 清空实体/分析/积分列表及其 DOM 行缓存.
      */
     clear(): void {
@@ -385,7 +385,7 @@ export class ObjectListController {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 根据任务 key 复用或替换积分 DOM 行缓存.
      */
     private _renderIntegrals(
@@ -466,7 +466,7 @@ export class ObjectListController {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 根据任务 key 复用或替换求交 DOM 行缓存.
      */
     private _renderIntersections(tasks: IntersectionTask[]): void {

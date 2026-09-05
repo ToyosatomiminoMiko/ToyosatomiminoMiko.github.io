@@ -22,7 +22,7 @@ export class ParamPanelController {
     ) {}
 
     /**
-     * @cache-access
+     * @cache_access
      * 用新参数声明整体重建当前值缓存和面板 DOM.
      */
     render(params: ParamDeclaration[]): void {
@@ -36,7 +36,7 @@ export class ParamPanelController {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 从当前值缓存生成编译覆盖对象.
      */
     getValues(): Record<string, number> {
@@ -44,7 +44,7 @@ export class ParamPanelController {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 清空参数面板和当前值缓存.
      */
     dispose(): void {

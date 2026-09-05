@@ -101,7 +101,7 @@ const integralExecutor = new LatestRequestExecutor<IntegralWorkerRequest, Integr
 );
 
 /**
- * @cache-access
+ * @cache_access
  * 通过 latest-only executor 调用积分 Worker.
  */
 export function integrate(spec: IntegralSpec): Promise<IntegralResult> {
@@ -199,7 +199,7 @@ function buildRequest(spec: IntegralSpec): Omit<IntegralWorkerRequest, 'id'> {
  * 先停掉 LatestRequestExecutor 的逻辑调度,再 terminate 共享 Worker.
  */
 /**
- * @cache-access
+ * @cache_access
  * 释放积分 latest-only 调度器和共享 Worker.
  */
 export function disposeIntegralWorker(): void {

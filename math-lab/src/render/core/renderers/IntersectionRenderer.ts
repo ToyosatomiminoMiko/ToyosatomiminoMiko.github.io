@@ -2,7 +2,7 @@
  * 求交结果渲染与计算编排.
  *
  * 编译器现在只产出 `IntersectionTask`,本类负责:
- * - 用“任务名 -> 输入指纹”做增量缓存:参数没变、源对象没变的任务不重算;
+ * - 用"任务名 -> 输入指纹"做增量缓存:参数没变,源对象没变的任务不重算;
  * - 求交结果是独立求值对象:隐藏源对象不隐藏交线,只有隐藏求交本身才移除;
  * - Worker 结果回来后只重建对应任务的 geometry,不整组 clear/recreate;
  * - 结果同步给对象列表回调.
@@ -47,7 +47,7 @@ export class IntersectionRenderer {
     private disposed = false;
 
     /**
-     * @cache-access
+     * @cache_access
      * 比较上一轮任务输入,只调度真正变化的任务.
      *
      * @param force 完整 Run 时传 true:即使指纹相同也重算一次;

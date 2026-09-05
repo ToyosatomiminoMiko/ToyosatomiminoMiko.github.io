@@ -40,7 +40,7 @@ const intersectionExecutor = new LatestRequestExecutor<IntersectionWorkerRequest
 );
 
 /**
- * @cache-access
+ * @cache_access
  * 提交一次求交计算.
  */
 export function requestIntersection(

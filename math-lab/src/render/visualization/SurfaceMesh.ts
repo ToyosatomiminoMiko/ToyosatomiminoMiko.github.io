@@ -134,7 +134,7 @@ export class SurfaceMesh {
      * @param yMin/yMax    y 采样范围
      */
     /**
-     * @cache-access
+     * @cache_access
      * 通过 latest-only executor 发起采样;几何体本身复用.
      */
     update(

@@ -31,7 +31,7 @@ export class ComputeWorkerClient<
     constructor(private readonly workerFactory: () => Worker) {}
 
     /**
-     * @cache-access
+     * @cache_access
      * 通过复用 Worker 发送请求,并登记到 pending 缓存.
      */
     request(request: Omit<TRequest, 'id'>): Promise<TResponse> {
@@ -43,7 +43,7 @@ export class ComputeWorkerClient<
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 终止 Worker 并拒绝所有 pending 请求.
      */
     dispose(): void {
@@ -58,7 +58,7 @@ export class ComputeWorkerClient<
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 返回当前 Worker;不存在时创建并缓存.
      */
     private _getWorker(): Worker {
@@ -83,7 +83,7 @@ export class ComputeWorkerClient<
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 根据响应 id 命中 pending 缓存并完成对应 Promise.
      */
     private _handleMessage(response: ComputeWorkerMessage<TResponse>): void {
@@ -111,8 +111,8 @@ export type ComputeWorkerApi<
  * 创建计算 Worker 客户端.
  *
  * 不同计算域(曲线/曲面/向量场/积分/求交)的差异只有 Worker 入口和响应
- * 字段映射，pending/错误传播/dispose 由 ComputeWorkerClient 统一处理；
- * 调用方不再需要各自写一个“几乎一样”的包装类.
+ * 字段映射,pending/错误传播/dispose 由 ComputeWorkerClient 统一处理;
+ * 调用方不再需要各自写一个"几乎一样"的包装类.
  */
 export function createComputeWorkerClient<
     TRequest extends { id: number },

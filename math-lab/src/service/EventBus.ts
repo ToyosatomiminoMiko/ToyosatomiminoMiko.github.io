@@ -1,5 +1,5 @@
 /**
- * 泛型事件总线 — 跨层通信的桥梁
+ * 泛型事件总线 - 跨层通信的桥梁
  * 视图控件层(相机/坐标轴/网格/点样式)通过 EventBus 与 RenderController
  * 通信,互相不直接引用.
  *
@@ -30,7 +30,7 @@ export class EventBus<Events extends Record<string, any>> {
      * @returns 取消订阅函数
      */
     /**
-     * @cache-access
+     * @cache_access
      * 向监听器注册表写入一个订阅.
      */
     on<K extends keyof Events>(

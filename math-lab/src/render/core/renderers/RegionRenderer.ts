@@ -138,7 +138,7 @@ export class RegionRenderer implements IRenderer {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 用最新采样重建填充面与两条边界线;只有部分站存在缺口时,
      * 以"x 对齐配对"方式跳过不成对的列.
      */

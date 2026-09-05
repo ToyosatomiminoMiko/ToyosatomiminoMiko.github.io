@@ -96,7 +96,7 @@ export class Plotter {
     // ============================================================
 
     /**
-     * @cache-access
+     * @cache_access
      * 从 rendererMap 移除并释放指定 renderer.
      */
     remove(id: number): void {
@@ -108,7 +108,7 @@ export class Plotter {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 命中 rendererMap 并同步可见性.
      */
     setVisible(id: number, visible: boolean): void {
@@ -153,7 +153,7 @@ export class Plotter {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 更新一个对象.
      *
      * @param redraw false 时只同步 renderer 内部的 SceneObject 引用,
@@ -227,7 +227,7 @@ export class Plotter {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 遍历并清空 rendererMap,再把 plotContainer 从场景移除.
      */
     dispose(): void {
@@ -248,7 +248,7 @@ export class Plotter {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 从 rendererMap 命中已有 renderer,未命中或类型变化时创建并写入缓存.
      */
     private _getOrCreate<T extends UpdatableRenderer, D extends SceneObject>(
@@ -271,7 +271,7 @@ export class Plotter {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 只同步 renderer 引用和可见性,不触发数值采样与 GPU 重建.
      */
     private _updateRef(

@@ -24,7 +24,7 @@ function throwExpressionError(raw: string, error: unknown): never {
 /**
  * 把常见数学表达式归一化为 evalexpr/Rust 数值后端可执行的形式.
  *
- * 归一化结果按原表达式缓存;对象建模、分析、参数求值都走这里,
+ * 归一化结果按原表达式缓存;对象建模,分析,参数求值都走这里,
  * 避免同一个表达式在编译管线里被重复归一化.
  */
 export function normalizeExpression(raw: string): string {
@@ -146,7 +146,7 @@ const latexExpressionCache = new Map<string, string>();
 const derivativeExpressionCache = new Map<string, Map<string, string>>();
 
 /**
- * @cache-access
+ * @cache_access
  * 返回表达式的 LaTeX 展示字符串,命中缓存时直接返回.
  */
 export function cachedLatexExpression(expr: string): string {
@@ -159,7 +159,7 @@ export function cachedLatexExpression(expr: string): string {
 }
 
 /**
- * @cache-access
+ * @cache_access
  * 返回表达式对指定变量的符号导数,命中缓存时直接返回.
  */
 export function cachedDerivativeExpression(expr: string, variable: string): string {

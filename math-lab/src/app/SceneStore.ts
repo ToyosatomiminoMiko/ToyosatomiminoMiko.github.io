@@ -25,27 +25,6 @@ export class SceneStore {
     private _matrixOps: MatrixOps | null = null;
     private _compiledObjects: SceneObject[] = [];
 
-    /**
-     * @cache
-     * 缓存目的:镜像最近一次 SceneIR.objectTransforms,方便未来做对象级
-     *          诊断/导出或状态恢复.
-     * 更新策略:每次 RenderController 提交 SceneIR 时整体替换.
-     * 生命周期:跟随 SceneStore 实例,应用销毁时由 GC 回收.
-     *
-     * 审查结论(202609):本字段刻意保留为"只写暂不读"的预留快照,不是
-     * 缺陷,无需"接上"或删除.
-     * - 写入点:setScene(),与 SceneIR.objectTransforms 是同一引用,非拷贝,
-     *   无额外内存开销.
-     * - 读取面:仅下方 getter;全仓暂没有任何调用方.渲染热路径直接使用
-     *   AnimationPlayer 的时间线矩阵,不经由此处,因此它不参与每帧渲染,
-     *   也没有实时副作用.
-     * - 用途:保留"最近一次会话的对象变换末态",供未来的对象级诊断/
-     *   导出/状态恢复直接取用,不必重新从 SceneIR 接线.
-     * 若将来确认该能力不会做,删除三处即可:本字段,objectTransforms
-     * getter,setScene() 里的赋值.
-     */
-    private _objectTransforms: Record<number, number[][]> = {};
-
     private _animationStartTime = 0;
 
     private readonly _hiddenEntityIds = new Set<number>();
@@ -70,11 +49,6 @@ export class SceneStore {
         return this._compiledObjects;
     }
 
-    /** 只写暂不读的预留快照,当前无调用方;结论见字段 _objectTransforms 注释. */
-    get objectTransforms(): Readonly<Record<number, number[][]>> {
-        return this._objectTransforms;
-    }
-
     get animationStartTime(): number {
         return this._animationStartTime;
     }
@@ -96,7 +70,7 @@ export class SceneStore {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 在一次源码解析成功后提交新的 AST 和矩阵后端.
      *
      * 只有当源码内容发生变化时才重置显隐状态.这样 Ctrl+Enter 重跑同一份
@@ -120,12 +94,11 @@ export class SceneStore {
     }
 
     /**
-     * @cache-access
-     * 保存最近一次编译出的对象快照和变换镜像.
+     * @cache_access
+     * 保存最近一次编译出的对象快照
      */
     setScene(scene: SceneIR): void {
         this._compiledObjects = scene.objects;
-        this._objectTransforms = scene.objectTransforms;
     }
 
     setAnimationStartTime(value: number): void {
@@ -139,7 +112,7 @@ export class SceneStore {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 从最近一次编译对象快照中查找实体.
      */
     findObject(id: number): SceneObject | undefined {
@@ -151,7 +124,7 @@ export class SceneStore {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 更新实体显隐缓存.
      */
     setEntityHidden(id: number, hidden: boolean): void {
@@ -163,7 +136,7 @@ export class SceneStore {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 更新分析对象显隐缓存.
      */
     toggleAnalysisHidden(name: string): void {
@@ -175,7 +148,7 @@ export class SceneStore {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 更新积分对象显隐缓存.
      */
     toggleIntegralHidden(name: string): void {
@@ -187,7 +160,7 @@ export class SceneStore {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 更新求交对象显隐缓存.
      */
     toggleIntersectionHidden(name: string): void {

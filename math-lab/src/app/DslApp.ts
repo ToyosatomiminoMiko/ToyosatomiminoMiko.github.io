@@ -184,7 +184,7 @@ export class DslApp {
     };
 
     /**
-     * @cache-access
+     * @cache_access
      * 把参数变化写入待刷新缓存,并在下一帧合并处理.
      */
     private _scheduleRefresh(name: string): void {
@@ -201,7 +201,7 @@ export class DslApp {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 取消并清空待刷新参数缓存.
      */
     private _cancelPendingRefresh(): void {

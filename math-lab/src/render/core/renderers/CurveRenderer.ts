@@ -127,7 +127,7 @@ export class CurveRenderer implements IRenderer {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 命中已有 line 缓冲;容量不足时重建并更新 capacitySteps.
      */
     private _ensureLine(): THREE.BufferAttribute {
@@ -156,7 +156,7 @@ export class CurveRenderer implements IRenderer {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 释放 line 并把容量缓存归零.
      */
     private _disposeLine(): void {

@@ -75,7 +75,7 @@ export class IntegralVisualizer {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 清空场景对象和缓存.
      */
     clearAll(): void {
@@ -88,7 +88,7 @@ export class IntegralVisualizer {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 删除指定任务的黎曼与勒贝格缓存.
      */
     clear(id: number | string): void {
@@ -110,7 +110,7 @@ export class IntegralVisualizer {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 清空缓存并把自己从场景移除.
      */
     dispose(): void {
@@ -123,7 +123,7 @@ export class IntegralVisualizer {
     // ============================================================
 
     /**
-     * @cache-access
+     * @cache_access
      * 创建或替换 2D 黎曼可视化并写入缓存.
      */
     visualize2DRiemann(
@@ -166,7 +166,7 @@ export class IntegralVisualizer {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 创建或替换 3D 黎曼可视化并写入缓存.
      */
     visualize3DRiemann(
@@ -218,7 +218,7 @@ export class IntegralVisualizer {
     // ============================================================
 
     /**
-     * @cache-access
+     * @cache_access
      * 创建一维梯形积分可视化并写入缓存.
      */
     visualize2DTrapezoid(
@@ -248,7 +248,7 @@ export class IntegralVisualizer {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 创建一维辛普森积分可视化并写入缓存.
      */
     visualize2DSimpson(
@@ -299,7 +299,7 @@ export class IntegralVisualizer {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 创建二维梯形积分可视化并写入缓存.
      */
     visualize3DTrapezoid(
@@ -325,7 +325,7 @@ export class IntegralVisualizer {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 创建二维辛普森积分可视化并写入缓存.
      */
     visualize3DSimpson(
@@ -355,7 +355,7 @@ export class IntegralVisualizer {
     // ============================================================
 
     /**
-     * @cache-access
+     * @cache_access
      * 创建 2D 勒贝格可视化并写入带后缀的缓存.
      */
     visualize2DLebesgue(
@@ -426,7 +426,7 @@ export class IntegralVisualizer {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 创建 3D 勒贝格积分可视化并写入带后缀的缓存.
      */
     visualize3DLebesgue(
@@ -499,7 +499,7 @@ export class IntegralVisualizer {
     // ============================================================
 
     /**
-     * @cache-access
+     * @cache_access
      * 创建 3D 实体(体积域)的内部体元可视化并写入缓存.
      *
      * 数值/采样网格为每轴 n 的立方体单元(行优先,外层 z,中层 y,内层 x);
@@ -586,7 +586,7 @@ export class IntegralVisualizer {
     // ============================================================
 
     /**
-     * @cache-access
+     * @cache_access
      * 生成一维面积棱柱并写入缓存.
      */
     private _areaPrismGroup(
@@ -680,7 +680,7 @@ export class IntegralVisualizer {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 生成二维梯形棱柱并写入缓存.
      */
     private _trapezoid2DAreaGroup(
@@ -763,7 +763,7 @@ export class IntegralVisualizer {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 生成二维积分曲面并写入缓存.
      */
     private _surfaceAreaGroup(

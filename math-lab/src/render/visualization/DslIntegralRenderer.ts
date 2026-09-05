@@ -72,7 +72,7 @@ export class DslIntegralRenderer {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 更新任务序号缓存,并只清理/重算受 dirty 对象或 dirty 参数影响的积分.
      */
     sync(
@@ -126,7 +126,7 @@ export class DslIntegralRenderer {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 清理任务序号缓存并释放可视化资源.
      */
     dispose(): void {

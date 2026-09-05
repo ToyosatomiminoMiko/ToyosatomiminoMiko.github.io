@@ -15,7 +15,7 @@ import initMath from '../wasm/math_rs/math_rs';
 let wasmReady: Promise<void> | null = null;
 
 /**
- * @cache-access
+ * @cache_access
  * 主线程共享的 WASM 初始化入口,保证 parser 和 compiler 不会重复初始化.
  */
 export function ensureWasmReady(): Promise<void> {

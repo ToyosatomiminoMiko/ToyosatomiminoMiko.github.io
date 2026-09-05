@@ -33,7 +33,7 @@ export class LatestRequestExecutor<
     constructor(private readonly client: RequestClient<TRequest, TResponse>) {}
 
     /**
-     * @cache-access
+     * @cache_access
      * 提交一个 latest-only 请求;执行中的旧请求会被后续请求取代.
      */
     request(request: Omit<TRequest, 'id'>): Promise<TResponse> {
@@ -50,7 +50,7 @@ export class LatestRequestExecutor<
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 清空待处理请求并停止调度;不负责销毁共享 worker client.
      */
     dispose(): void {

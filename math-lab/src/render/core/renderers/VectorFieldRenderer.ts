@@ -47,7 +47,7 @@ export class VectorFieldRenderer implements IRenderer {
     }
 
     /**
-     * @cache-access
+     * @cache_access
      * 命中或重建网格坐标缓存,并通过 latest-only executor 更新向量值.
      */
     draw(): void {
