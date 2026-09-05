@@ -1,9 +1,10 @@
-import { parse_miko as wasmParseMiko } from '../../wasm/compiler_rs/compiler_rs';
+import { parse_miko } from '../../wasm/compiler_rs/compiler_rs';
 import { ensureWasmReady } from '../../runtime/wasmRuntime';
 import type { AstProgram } from '../ast/types';
 
 /**
- * parser 包对外的唯一解析入口:先初始化 WASM,再调用 Rust pest 解析器.
+ * parser (compiler/compiler_rs/src/lib.rs) 包对外的唯一解析入口:
+ * 先初始化 WASM,再调用 Rust pest 解析器.
  *
  * 曾与 parseMiko 并存的 MATLAB 兼容层(parseMatlab + matlabCompat.ts,
  * 含 matlabCompat.test.ts)已整体删除;`.miko` 就是唯一输入语法,不再
@@ -15,5 +16,6 @@ import type { AstProgram } from '../ast/types';
 /** 调用 Rust pest 解析器,把 `.miko` 源码解析成 JSON AST. */
 export async function parseMiko(source: string): Promise<AstProgram> {
     await ensureWasmReady();
-    return JSON.parse(wasmParseMiko(source)) as AstProgram;
+    // pub fn parse_miko(source: &str) -> Result<String, JsValue>
+    return JSON.parse(parse_miko(source)) as AstProgram;
 }

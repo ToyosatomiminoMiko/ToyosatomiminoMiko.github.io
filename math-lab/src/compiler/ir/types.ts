@@ -254,12 +254,23 @@ export type RiemannSide = 'left' | 'right' | 'mid';
  * 方法 × 域矩阵(见 prompt/feature.md §方法矩阵)放宽后,right/mid 对所有
  * 域(1D 曲线 / 2D 矩形 / 2D 区域 / 3D 实体)统一取"格点采样端 = 方法端",
  * 数值与可视化同源.
+ *
+ * **名字清单的唯一来源**:方法语义名同时存在于 Rust 侧
+ * `math-lab/src/math/math_rs/src/integral_method.rs`
+ * (`IntegralMethod::parse`/`semantic_name`).两边以本数组 + 那份 parse 表
+ * 为准,加新方法时必须两处同步;中间层(IntegralWasm/Worker)只透传字符串,
+ * 不再各自维护第二份名单.
  */
-export type IntegralMethod =
-    | 'trapezoid'
-    | 'simpson'
-    | `riemann:${RiemannSide}`
-    | 'lebesgue';
+export const INTEGRAL_METHOD_NAMES = [
+    'trapezoid',
+    'simpson',
+    'riemann:left',
+    'riemann:right',
+    'riemann:mid',
+    'lebesgue',
+] as const;
+
+export type IntegralMethod = (typeof INTEGRAL_METHOD_NAMES)[number];
 
 /**
  * 积分域的显式维度与种类.

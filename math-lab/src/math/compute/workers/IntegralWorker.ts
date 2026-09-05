@@ -145,16 +145,17 @@ function compute(
     if (req.domainKind === 'interval') {
         const sampleN = isLebesgue ? req.sampleN! : req.n!;
         const layers = isLebesgue ? req.layers! : req.n!;
-        const result = integrate1d(
-            req.integrandExpr,
-            integrandNames,
-            integrandValues,
-            req.a!,
-            req.b!,
-            sampleN,
+        const payload = JSON.stringify({
+            expr: req.integrandExpr,
+            coeff_names: integrandNames,
+            coeff_values: [...integrandValues],
+            a: req.a!,
+            b: req.b!,
+            n: sampleN,
             layers,
-            req.method,
-        );
+            method: req.method,
+        });
+        const result = integrate1d(payload);
         return {
             value: result.value,
             samples: Float64Array.from(result.samples),
@@ -169,19 +170,20 @@ function compute(
         const n = isLebesgue ? req.sampleN! : req.n!;
         const m = isLebesgue ? req.sampleN! : (req.m ?? req.n!);
         const layers = isLebesgue ? req.layers! : req.n!;
-        const result = integrate2d(
-            req.integrandExpr,
-            integrandNames,
-            integrandValues,
-            req.xa!,
-            req.xb!,
-            req.ya!,
-            req.yb!,
+        const payload = JSON.stringify({
+            expr: req.integrandExpr,
+            coeff_names: integrandNames,
+            coeff_values: [...integrandValues],
+            xa: req.xa!,
+            xb: req.xb!,
+            ya: req.ya!,
+            yb: req.yb!,
             n,
             m,
             layers,
-            req.method,
-        );
+            method: req.method,
+        });
+        const result = integrate2d(payload);
         return {
             value: result.value,
             samples: Float64Array.from(result.samples),
@@ -204,22 +206,23 @@ function compute(
         const layers = isLebesgue ? req.layers! : req.n!;
         const a = recordToCoefficientArgs(req.boundaryA!.coeffs);
         const b = recordToCoefficientArgs(req.boundaryB!.coeffs);
-        const result = integrate_region(
-            req.method,
-            req.integrandExpr,
-            integrandNames,
-            integrandValues,
-            req.boundaryA!.expr,
-            a.names,
-            a.values,
-            req.boundaryB!.expr,
-            b.names,
-            b.values,
-            req.xa!,
-            req.xb!,
+        const payload = JSON.stringify({
+            method: req.method,
+            integrand_expr: req.integrandExpr,
+            integrand_names: integrandNames,
+            integrand_values: [...integrandValues],
+            boundary_a_expr: req.boundaryA!.expr,
+            boundary_a_names: a.names,
+            boundary_a_values: [...a.values],
+            boundary_b_expr: req.boundaryB!.expr,
+            boundary_b_names: b.names,
+            boundary_b_values: [...b.values],
+            xa: req.xa!,
+            xb: req.xb!,
             n,
             layers,
-        );
+        });
+        const result = integrate_region(payload);
         return {
             value: result.value,
             samples: Float64Array.from(result.samples),
@@ -237,18 +240,19 @@ function compute(
     const n = isLebesgue ? req.sampleN! : req.n!;
     const layers = isLebesgue ? req.layers! : req.n!;
     const solid = req.solid!;
-    const result = integrate_solid(
-        req.method,
-        solid.kind,
-        new Float64Array(solid.params),
-        new Float64Array(solid.matrix),
-        new Float64Array(solid.inverse),
-        req.integrandExpr,
-        integrandNames,
-        integrandValues,
+    const payload = JSON.stringify({
+        method: req.method,
+        kind: solid.kind,
+        params: [...solid.params],
+        matrix_values: [...solid.matrix],
+        inverse_values: [...solid.inverse],
+        integrand_expr: req.integrandExpr,
+        integrand_names: integrandNames,
+        integrand_values: [...integrandValues],
         n,
         layers,
-    );
+    });
+    const result = integrate_solid(payload);
     return {
         value: result.value,
         samples: Float64Array.from(result.samples),

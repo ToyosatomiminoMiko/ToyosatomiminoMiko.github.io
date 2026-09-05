@@ -31,50 +31,28 @@ export type IntersectionWorkerResponse = {
  */
 const wasmInit = init();
 
-function sideArgs(side: IntersectionComputeSide): [
-    string,
-    string,
-    string[],
-    Float64Array,
-    Float64Array,
-    Float64Array,
-    Float64Array,
-] {
-    return [
-        side.kind,
-        side.expr,
-        side.coefficientNames,
-        new Float64Array(side.coefficientValues),
-        new Float64Array(side.params),
-        new Float64Array(side.matrix),
-        new Float64Array(side.inverse),
-    ];
+/** 把一侧对象描述符展开成 Rust `IntersectPairPayload` 的 JSON 键(前缀区分两侧). */
+function sidePayload(prefix: 'a' | 'b', side: IntersectionComputeSide): Record<string, unknown> {
+    return {
+        [`kind_${prefix}`]: side.kind,
+        [`expr_${prefix}`]: side.expr,
+        [`coeff_names_${prefix}`]: side.coefficientNames,
+        [`coeff_values_${prefix}`]: [...side.coefficientValues],
+        [`params_${prefix}`]: [...side.params],
+        [`matrix_${prefix}`]: [...side.matrix],
+        [`inverse_${prefix}`]: [...side.inverse],
+    };
 }
 
 createWasmWorker<IntersectionWorkerRequest, IntersectionWorkerResponse>(
     wasmInit,
     (request, post) => {
-        const [kindA, exprA, namesA, valuesA, paramsA, matrixA, inverseA] =
-            sideArgs(request.a);
-        const [kindB, exprB, namesB, valuesB, paramsB, matrixB, inverseB] =
-            sideArgs(request.b);
-        const output = intersect_pair(
-            kindA,
-            exprA,
-            namesA,
-            valuesA,
-            paramsA,
-            matrixA,
-            inverseA,
-            kindB,
-            exprB,
-            namesB,
-            valuesB,
-            paramsB,
-            matrixB,
-            inverseB,
-            request.segments,
-        );
+        const payload = JSON.stringify({
+            ...sidePayload('a', request.a),
+            ...sidePayload('b', request.b),
+            segments: request.segments,
+        });
+        const output = intersect_pair(payload);
         const points = output.points;
         const curvePoints = output.curve_points;
         const curveOffsets = output.curve_offsets;

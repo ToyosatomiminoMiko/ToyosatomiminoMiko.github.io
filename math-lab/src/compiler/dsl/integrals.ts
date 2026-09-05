@@ -23,6 +23,9 @@
  * region 作为曲面底域等,见 `compiler/ir/types.ts` RegionObject 注释.
  */
 import type { IntegralStatement } from '../ast/types';
+import {
+    INTEGRAL_METHOD_NAMES,
+} from '../ir/types';
 import type {
     Coefficient,
     IntegralDomainKind,
@@ -46,15 +49,12 @@ import {
  *
  * 裸 `riemann` 是历史写法,编译期归一化为 `riemann:left`;
  * `riemann:left/right/mid` 与 `lebesgue`/`trapezoid`/`simpson` 同级.
+ * 名单取自 IR 的 `INTEGRAL_METHOD_NAMES`(唯一来源,见 ir/types.ts),
+ * 这里只额外接受旧写法 `riemann`, 作为别名存在.
  */
 const INTEGRAL_METHODS = new Set<string>([
-    'trapezoid',
-    'simpson',
+    ...INTEGRAL_METHOD_NAMES,
     'riemann',
-    'riemann:left',
-    'riemann:right',
-    'riemann:mid',
-    'lebesgue',
 ]);
 
 function normalizeIntegralMethod(raw: string): IntegralMethod {

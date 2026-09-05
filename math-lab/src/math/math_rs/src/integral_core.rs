@@ -5,24 +5,27 @@ const SIMPSON_WEIGHT_EDGE: f64 = 1.0;
 const SIMPSON_WEIGHT_ODD: f64 = 4.0;
 const SIMPSON_WEIGHT_EVEN: f64 = 2.0;
 
-fn validate_1d_interval(a: f64, b: f64) -> Result<(), String> {
+/// 一维区间校验(有限且 min < max)--积分核,积分采样,region 域共用,
+/// 错误文案只在这一次定义,避免各处手写 `xa >= xb -> Err(...)` 各不相同.
+pub(crate) fn validate_1d_interval(a: f64, b: f64) -> Result<(), String> {
     if !a.is_finite() || !b.is_finite() {
-        return Err("一维积分区间必须为有限数值".to_string());
+        return Err("积分/采样区间必须为有限数值".to_string());
     }
     if a >= b {
-        return Err("一维积分区间需要满足 a < b".to_string());
+        return Err("积分/采样区间需要满足 min < max".to_string());
     }
     Ok(())
 }
 
-fn validate_2d_interval(x_range: (f64, f64), y_range: (f64, f64)) -> Result<(), String> {
+/// 二维区间校验(有限且每轴 min < max),同上.
+pub(crate) fn validate_2d_interval(x_range: (f64, f64), y_range: (f64, f64)) -> Result<(), String> {
     let (a, b) = x_range;
     let (c, d) = y_range;
     if !a.is_finite() || !b.is_finite() || !c.is_finite() || !d.is_finite() {
-        return Err("二维积分区间必须为有限数值".to_string());
+        return Err("积分/采样二维区间必须为有限数值".to_string());
     }
     if a >= b || c >= d {
-        return Err("二维积分区间需要满足 min < max".to_string());
+        return Err("积分/采样二维区间需要满足每轴 min < max".to_string());
     }
     Ok(())
 }

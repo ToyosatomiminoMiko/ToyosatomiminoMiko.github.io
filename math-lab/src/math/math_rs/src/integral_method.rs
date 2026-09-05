@@ -6,8 +6,9 @@
 //! 二维 rectangle 的 lebesgue 就是这么坏的(采样侧与消费侧各说各话).
 //!
 //! 这里收口成一份共享枚举与一份共享"方法 -> 单元采样端"映射:
-//! - 方法名 parse 只有一份,与 IR `IntegralMethod`(compiler/ir/types.ts)
-//!   保持同一套语义名;
+//! - 方法名 parse 只有一份,与 TS 侧名单 `INTEGRAL_METHOD_NAMES`
+//!   (compiler/ir/types.ts)保持同一套语义名--Rust parse 表与 TS 名单是
+//!   唯二的事实来源,加方法必须两处同步;
 //! - `cell_end` 是方法在网格单元上的采样端语义(region/solid 网格,
 //!   2D 端点黎曼,lebesgue 左端点格子都用它);
 //! - `SampleShape` 是采样层实际需要的"整格 / 单元端"形态,跨模块用枚举

@@ -202,15 +202,17 @@ describe('compileScene', () => {
         expect(scene.analyses[0].vector[1]).toBeCloseTo(1 / Math.sqrt(5));
         expect(scene.analyses[0].vector[2]).toBe(0);
         expect(scene.analyses[0].show).toContain('tangent_plane');
-        expect(evaluate_gradient_point).toHaveBeenCalledWith(
-            'sin(x * a)',
-            'a * cos(x * a)',
-            '0',
-            ['a'],
-            expect.any(Float64Array),
-            2,
-            0,
-        );
+        const gradientPayload = JSON.parse(
+            String(vi.mocked(evaluate_gradient_point).mock.calls[vi.mocked(evaluate_gradient_point).mock.calls.length - 1][0]),
+        ) as Record<string, unknown>;
+        expect(gradientPayload).toMatchObject({
+            surface_expr: 'sin(x * a)',
+            fx_expr: 'a * cos(x * a)',
+            fy_expr: '0',
+            coeff_names: ['a'],
+            x: 2,
+            y: 0,
+        });
         expect(scene.integrals).toHaveLength(1);
         expect(scene.integrals[0].method).toBe('riemann:left');
         expect(scene.integrals[0].sourceKind).toBe('curve');
@@ -563,15 +565,17 @@ describe('compileScene', () => {
 
         const scene = compileScene(surfaceAst);
 
-        expect(evaluate_gradient_point).toHaveBeenCalledWith(
-            'sin(x) * cos(y)',
-            'cos(y) * cos(x)',
-            '-(sin(x) * sin(y))',
-            [],
-            expect.any(Float64Array),
-            2,
-            4,
-        );
+        const gradientPayload = JSON.parse(
+            String(vi.mocked(evaluate_gradient_point).mock.calls[vi.mocked(evaluate_gradient_point).mock.calls.length - 1][0]),
+        ) as Record<string, unknown>;
+        expect(gradientPayload).toMatchObject({
+            surface_expr: 'sin(x) * cos(y)',
+            fx_expr: 'cos(y) * cos(x)',
+            fy_expr: '-(sin(x) * sin(y))',
+            coeff_names: [],
+            x: 2,
+            y: 4,
+        });
         expect(scene.analyses[0].point).toEqual([2, 4, 5]);
         expect(scene.analyses[0].vector[0]).toBeCloseTo(-3 / Math.sqrt(26));
         expect(scene.analyses[0].vector[1]).toBeCloseTo(-4 / Math.sqrt(26));
@@ -809,29 +813,33 @@ describe('compileScene', () => {
         expect(scene.analyses[0].scalar).toBe(0);
         expect(scene.analyses[1].op).toBe('curl');
         expect(scene.analyses[1].vector).toEqual([0, 0, 0]);
-        expect(evaluate_divergence_point).toHaveBeenCalledWith(
-            '0',
-            '0',
-            '0',
-            [],
-            expect.any(Float64Array),
-            1,
-            2,
-            3,
-        );
-        expect(evaluate_curl_point).toHaveBeenCalledWith(
-            '0',
-            '0',
-            '0',
-            '0',
-            '-1',
-            '1',
-            [],
-            expect.any(Float64Array),
-            1,
-            2,
-            3,
-        );
+        const divergencePayload = JSON.parse(
+            String(vi.mocked(evaluate_divergence_point).mock.calls[vi.mocked(evaluate_divergence_point).mock.calls.length - 1][0]),
+        ) as Record<string, unknown>;
+        expect(divergencePayload).toMatchObject({
+            dpx_expr: '0',
+            dqy_expr: '0',
+            drz_expr: '0',
+            coeff_names: [],
+            x: 1,
+            y: 2,
+            z: 3,
+        });
+        const curlPayload = JSON.parse(
+            String(vi.mocked(evaluate_curl_point).mock.calls[vi.mocked(evaluate_curl_point).mock.calls.length - 1][0]),
+        ) as Record<string, unknown>;
+        expect(curlPayload).toMatchObject({
+            dr_dy_expr: '0',
+            dq_dz_expr: '0',
+            dp_dz_expr: '0',
+            dr_dx_expr: '0',
+            dq_dx_expr: '-1',
+            dp_dy_expr: '1',
+            coeff_names: [],
+            x: 1,
+            y: 2,
+            z: 3,
+        });
     });
 
     it('rejects unimplemented differential operators instead of ignoring them', () => {

@@ -1,5 +1,13 @@
 use crate::eval_core::CompiledEvaluator;
+use crate::integral_core::{validate_1d_interval, validate_2d_interval};
 use crate::integral_method::SampleShape;
+
+/// 均匀网格节点:`lo + (hi-lo)·(i/steps)`,i = 0..=steps(含两端).
+///
+/// 曲线/求交/求根的"世界坐标采样"都该走这里,别再各自手写同一句线性插值.
+pub(crate) fn uniform_nodes(lo: f64, hi: f64, steps: usize) -> impl Iterator<Item = f64> {
+    (0..=steps).map(move |i| lo + (hi - lo) * (i as f64 / steps as f64))
+}
 
 /// 采样一元函数 y = f(x).
 ///
@@ -13,9 +21,7 @@ pub fn sample_curve(
     x_max: f64,
     steps: usize,
 ) -> Result<Vec<f32>, String> {
-    if x_min >= x_max {
-        return Err("曲线采样需要有效的 x 区间 x_min < x_max".to_string());
-    }
+    validate_1d_interval(x_min, x_max)?;
     if steps == 0 {
         return Err("曲线采样需要 steps > 0".to_string());
     }
@@ -23,9 +29,7 @@ pub fn sample_curve(
     let mut evaluator: CompiledEvaluator = CompiledEvaluator::new(expr, coeff_names, coeff_values)?;
 
     let mut points: Vec<f32> = Vec::with_capacity((steps + 1) * 3);
-    for i in 0..=steps {
-        let x = x_min + (x_max - x_min) * (i as f64 / steps as f64);
-
+    for x in uniform_nodes(x_min, x_max, steps) {
         if let Some(y) = evaluator.eval_1d(x)? {
             points.push(x as f32);
             points.push(y as f32);
@@ -54,12 +58,9 @@ fn sample_surface_grid(
     nx: usize,
     ny: usize,
     include_end: bool,
-    range_error: &str,
     count_error: &str,
 ) -> Result<Vec<f64>, String> {
-    if xa >= xb || ya >= yb {
-        return Err(range_error.to_string());
-    }
+    validate_2d_interval((xa, xb), (ya, yb))?;
     if nx == 0 || ny == 0 {
         return Err(count_error.to_string());
     }
@@ -108,7 +109,6 @@ pub fn sample_surface_values(
         nx,
         ny,
         true,
-        "曲面采样需要有效的二维区间",
         "曲面采样需要 nx/ny 均大于 0",
     )
 }
@@ -132,9 +132,7 @@ fn sample_cell_ends(
     fx: f64,
     fy: f64,
 ) -> Result<Vec<f64>, String> {
-    if xa >= xb || ya >= yb {
-        return Err("积分采样需要有效的二维区间".to_string());
-    }
+    validate_2d_interval((xa, xb), (ya, yb))?;
     if nx == 0 || ny == 0 {
         return Err("积分采样需要 n 和 m 均大于 0".to_string());
     }
@@ -173,9 +171,9 @@ pub fn sample_vector_field(
     ny: usize,
     nz: usize,
 ) -> Result<Vec<f32>, String> {
-    if x_min >= x_max || y_min >= y_max || z_min >= z_max {
-        return Err("向量场采样需要每个轴都有有效的 min < max 区间".to_string());
-    }
+    validate_1d_interval(x_min, x_max)?;
+    validate_1d_interval(y_min, y_max)?;
+    validate_1d_interval(z_min, z_max)?;
     if nx == 0 || ny == 0 || nz == 0 {
         return Err("向量场采样需要 nx/ny/nz 均大于 0".to_string());
     }
@@ -236,9 +234,7 @@ pub fn sample_function_1d(
     n: usize,
     sample_shape: SampleShape,
 ) -> Result<Vec<f64>, String> {
-    if a >= b {
-        return Err("积分采样需要有效的区间 a < b".to_string());
-    }
+    validate_1d_interval(a, b)?;
     if n == 0 {
         return Err("积分采样需要 n > 0".to_string());
     }
@@ -271,8 +267,9 @@ pub fn sample_function_1d(
     }
 }
 
-/// 参数较多是因为这是纯函数采样核心;当前不引入请求结构体,
-/// 保持与 WASM 边界的扁平参数一一对应,便于定位 FFI 问题.
+/// 2D 矩形域采样核心.参数保持扁平是为了与 domain_integral/核函数的
+/// 分组保持一致;wasm 边界的多参问题已由 lib.rs 的 JSON 请求结构
+/// (`wasm_payloads`)收口,这里不需要请求结构体.
 #[allow(clippy::too_many_arguments)]
 pub fn sample_function_2d(
     expr: &str,
@@ -301,7 +298,6 @@ pub fn sample_function_2d(
             n,
             m,
             false,
-            "积分采样需要有效的二维区间",
             "积分采样需要 n 和 m 均大于 0",
         ),
         SampleShape::RightCell => sample_cell_ends(

@@ -33,22 +33,23 @@ const wasmInit = init();
 createWasmWorker<VectorFieldWorkerRequest, VectorFieldWorkerResponse>(
     wasmInit,
     (req, post) => {
-        const vectors = sample_vector_field(
-            req.pExpr,
-            req.qExpr,
-            req.rExpr,
-            req.coeffNames,
-            new Float64Array(req.coeffValues),
-            req.range.x[0],
-            req.range.x[1],
-            req.range.y[0],
-            req.range.y[1],
-            req.range.z[0],
-            req.range.z[1],
-            req.gridSize[0],
-            req.gridSize[1],
-            req.gridSize[2],
-        );
+        const payload = JSON.stringify({
+            p_expr: req.pExpr,
+            q_expr: req.qExpr,
+            r_expr: req.rExpr,
+            coeff_names: req.coeffNames,
+            coeff_values: [...req.coeffValues],
+            x_min: req.range.x[0],
+            x_max: req.range.x[1],
+            y_min: req.range.y[0],
+            y_max: req.range.y[1],
+            z_min: req.range.z[0],
+            z_max: req.range.z[1],
+            nx: req.gridSize[0],
+            ny: req.gridSize[1],
+            nz: req.gridSize[2],
+        });
+        const vectors = sample_vector_field(payload);
         post({ id: req.id, vectors }, [vectors.buffer]);
     },
 );

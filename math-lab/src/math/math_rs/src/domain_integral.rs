@@ -24,7 +24,7 @@
 //! 一元 y=f(x).本模块不依赖 wasm-bindgen,便于 `cargo test` 纯 Rust 验证.
 
 use crate::eval_core::CompiledEvaluator;
-use crate::integral_core::lebesgue_layered_measure;
+use crate::integral_core::{lebesgue_layered_measure, validate_1d_interval};
 use crate::integral_method::{CellEnd, IntegralMethod};
 use crate::intersection_core::{solid_world_aabb, ObjectDescriptor, SolidProbe};
 use crate::transform_core::{apply_to_point, Mat4};
@@ -271,9 +271,7 @@ pub fn integrate_region(
     n: usize,
     layers: usize,
 ) -> Result<RegionOutcome, String> {
-    if input.xa.partial_cmp(&input.xb) != Some(std::cmp::Ordering::Less) {
-        return Err("region 积分需要 xa < xb".to_string());
-    }
+    validate_1d_interval(input.xa, input.xb)?;
     if n == 0 {
         return Err("region 积分需要 n > 0".to_string());
     }

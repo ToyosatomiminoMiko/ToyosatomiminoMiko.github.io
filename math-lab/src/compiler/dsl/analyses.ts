@@ -159,15 +159,16 @@ function compileAnalysisStatement(
     if (statement.op === 'gradient' && (object.kind === 'curve' || object.kind === 'surface')) {
         const isCurve = object.kind === 'curve';
         const [coeffNames, coeffValues] = coefficientArgs(object);
-        const result = wasmEvaluateGradientPoint(
-            normalizeExpression(object.expr),
-            cachedDerivativeExpression(object.expr, 'x'),
-            isCurve ? '0' : cachedDerivativeExpression(object.expr, 'y'),
-            coeffNames,
-            coeffValues,
-            at[0],
-            isCurve ? 0 : at[1],
-        );
+        const payload = JSON.stringify({
+            surface_expr: normalizeExpression(object.expr),
+            fx_expr: cachedDerivativeExpression(object.expr, 'x'),
+            fy_expr: isCurve ? '0' : cachedDerivativeExpression(object.expr, 'y'),
+            coeff_names: coeffNames,
+            coeff_values: [...coeffValues],
+            x: at[0],
+            y: isCurve ? 0 : at[1],
+        });
+        const result = wasmEvaluateGradientPoint(payload);
         const f0 = result.f0;
         const vector = normalizeVector(
             isCurve
@@ -186,16 +187,17 @@ function compileAnalysisStatement(
         const [pExpr, qExpr, rExpr] = object.components;
 
         if (statement.op === 'divergence') {
-            const scalar = wasmEvaluateDivergencePoint(
-                cachedDerivativeExpression(pExpr, 'x'),
-                cachedDerivativeExpression(qExpr, 'y'),
-                cachedDerivativeExpression(rExpr, 'z'),
-                coeffNames,
-                coeffValues,
-                at[0],
-                at[1],
-                at[2],
-            );
+            const payload = JSON.stringify({
+                dpx_expr: cachedDerivativeExpression(pExpr, 'x'),
+                dqy_expr: cachedDerivativeExpression(qExpr, 'y'),
+                drz_expr: cachedDerivativeExpression(rExpr, 'z'),
+                coeff_names: coeffNames,
+                coeff_values: [...coeffValues],
+                x: at[0],
+                y: at[1],
+                z: at[2],
+            });
+            const scalar = wasmEvaluateDivergencePoint(payload);
             results.push({
                 name: statement.name,
                 op: 'divergence',
@@ -206,19 +208,20 @@ function compileAnalysisStatement(
                 enabled: true,
             });
         } else {
-            const result = wasmEvaluateCurlPoint(
-                cachedDerivativeExpression(rExpr, 'y'),
-                cachedDerivativeExpression(qExpr, 'z'),
-                cachedDerivativeExpression(pExpr, 'z'),
-                cachedDerivativeExpression(rExpr, 'x'),
-                cachedDerivativeExpression(qExpr, 'x'),
-                cachedDerivativeExpression(pExpr, 'y'),
-                coeffNames,
-                coeffValues,
-                at[0],
-                at[1],
-                at[2],
-            );
+            const payload = JSON.stringify({
+                dr_dy_expr: cachedDerivativeExpression(rExpr, 'y'),
+                dq_dz_expr: cachedDerivativeExpression(qExpr, 'z'),
+                dp_dz_expr: cachedDerivativeExpression(pExpr, 'z'),
+                dr_dx_expr: cachedDerivativeExpression(rExpr, 'x'),
+                dq_dx_expr: cachedDerivativeExpression(qExpr, 'x'),
+                dp_dy_expr: cachedDerivativeExpression(pExpr, 'y'),
+                coeff_names: coeffNames,
+                coeff_values: [...coeffValues],
+                x: at[0],
+                y: at[1],
+                z: at[2],
+            });
+            const result = wasmEvaluateCurlPoint(payload);
             const vector: [number, number, number] = [result.x, result.y, result.z];
             results.push({
                 name: statement.name,

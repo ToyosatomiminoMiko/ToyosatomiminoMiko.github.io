@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use crate::symbolic::{compile_runtime_expr, evaluate_runtime_expr, RuntimeExpr};
 
@@ -20,9 +22,32 @@ pub(crate) fn build_base_context(
     Ok(ctx)
 }
 
-/// 把表达式字符串编译为符号引擎的求值树.
-pub(crate) fn compile_expression(expr: &str) -> Result<RuntimeExpr, String> {
-    compile_runtime_expr(expr).map_err(|e| format!("表达式解析失败: {}", e))
+/// 编译树缓存:表达式字符串 -> 已编译求值树.
+///
+/// 场分析(gradient/divergence/curl 的逐点入口)与 `evaluate_scalar` 高频按
+/// 同一批表达式反复调用 `CompiledEvaluator::new`;解析(词法/语法/别名重写)
+/// 是其中最大开销,这里按字符串缓存编译产物(只读,`Rc` 共享),
+/// 每次调用只剩"建系数上下文 + 求值".系数/坐标不参与缓存键,它们走 context.
+const EXPR_CACHE_CAP: usize = 256;
+
+thread_local! {
+    static EXPR_CACHE: RefCell<HashMap<String, Rc<RuntimeExpr>>> = RefCell::new(HashMap::new());
+}
+
+/// 把表达式字符串编译为符号引擎的求值树(带编译缓存).
+pub(crate) fn compile_expression(expr: &str) -> Result<Rc<RuntimeExpr>, String> {
+    if let Some(cached) = EXPR_CACHE.with(|cache| cache.borrow().get(expr).cloned()) {
+        return Ok(cached);
+    }
+    let node = Rc::new(compile_runtime_expr(expr).map_err(|e| format!("表达式解析失败: {}", e))?);
+    EXPR_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        if cache.len() >= EXPR_CACHE_CAP {
+            cache.clear();
+        }
+        cache.insert(expr.to_string(), node.clone());
+    });
+    Ok(node)
 }
 
 /// 向求值上下文写入一个浮点变量.
@@ -51,8 +76,10 @@ pub(crate) fn evaluate_node_opt(
 ///
 /// 采样/求交/场分析都要做大量逐点求值;把它们各自的"compile + 建 context
 /// + 每次写入坐标"收口到这里,避免每个调用点重复这套初始化逻辑.
+///
+/// `node` 用 `Rc` 共享编译缓存中的只读求值树,见 [`compile_expression`].
 pub(crate) struct CompiledEvaluator {
-    node: RuntimeExpr,
+    node: Rc<RuntimeExpr>,
     context: HashMap<String, f64>,
 }
 

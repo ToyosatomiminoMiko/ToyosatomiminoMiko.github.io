@@ -12,11 +12,13 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use crate::eval_core::CompiledEvaluator;
+use crate::sampling_core::uniform_nodes;
 use crate::transform_core::{apply_to_point, Mat4};
 
 const TAU: f64 = std::f64::consts::TAU;
 
-/// 与旧 TS 实现保持一致的去重半径(世界坐标).
+/// 去重半径的基础系数(世界坐标).实际去重按点/根的量级缩放,
+/// 见 `dedupe_point_tolerance` / `dedupe_root_tolerance`.
 const POINT_DEDUP_TOLERANCE: f64 = 1e-5;
 /// 顶点池的坐标量化精度(旧实现使用 toFixed(6)).
 const VERTEX_QUANTUM: f64 = 1e6;
@@ -227,8 +229,7 @@ fn sample_curve(
 ) -> Result<Vec<(f64, V3)>, String> {
     let [lo, hi] = expr.range;
     let mut samples: Vec<(f64, [f64; 3])> = Vec::with_capacity(steps + 1);
-    for i in 0..=steps {
-        let x: f64 = lo + (hi - lo) * (i as f64 / steps as f64);
+    for x in uniform_nodes(lo, hi, steps) {
         if let Some(point) = expr.world_at(matrix, x)? {
             samples.push((x, point));
         }
@@ -882,8 +883,7 @@ where
     let mut xs = Vec::with_capacity(steps + 1);
     let mut values = Vec::with_capacity(steps + 1);
     let mut f_scale = 0.0f64;
-    for i in 0..=steps {
-        let x = lo + (hi - lo) * (i as f64 / steps as f64);
+    for x in uniform_nodes(lo, hi, steps) {
         xs.push(x);
         let value = f(x)?;
         if let Some(v) = value.filter(|value| value.is_finite()) {
