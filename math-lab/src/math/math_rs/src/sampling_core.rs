@@ -1,4 +1,5 @@
 use crate::eval_core::CompiledEvaluator;
+use crate::integral_method::SampleShape;
 
 /// 采样一元函数 y = f(x).
 ///
@@ -233,7 +234,7 @@ pub fn sample_function_1d(
     a: f64,
     b: f64,
     n: usize,
-    sample_shape: &str,
+    sample_shape: SampleShape,
 ) -> Result<Vec<f64>, String> {
     if a >= b {
         return Err("积分采样需要有效的区间 a < b".to_string());
@@ -245,7 +246,7 @@ pub fn sample_function_1d(
     let mut evaluator = CompiledEvaluator::new(expr, coeff_names, coeff_values)?;
 
     match sample_shape {
-        "mid" => {
+        SampleShape::MidCell => {
             let h = (b - a) / n as f64;
             let mut values = Vec::with_capacity(n);
             for i in 0..n {
@@ -254,13 +255,18 @@ pub fn sample_function_1d(
             }
             Ok(values)
         }
-        _ => {
+        // 1D 的梯形/辛普森/黎曼端点/勒贝格统一取含端点整格 n+1 个点,
+        // 由 from-values 核按方法消费(左端点/右端点/全部/分层).
+        SampleShape::Grid => {
             let mut values = Vec::with_capacity(n + 1);
             for i in 0..=n {
                 let x = a + (b - a) * (i as f64 / n as f64);
                 values.push(evaluator.eval_1d(x)?.unwrap_or(f64::NAN));
             }
             Ok(values)
+        }
+        SampleShape::LeftCell | SampleShape::RightCell => {
+            Err("左/右单元端采样是二维端点黎曼形态,一维由整格采样 + 核取端点实现".to_string())
         }
     }
 }
@@ -278,34 +284,13 @@ pub fn sample_function_2d(
     yb: f64,
     n: usize,
     m: usize,
-    sample_shape: &str,
+    sample_shape: SampleShape,
 ) -> Result<Vec<f64>, String> {
-    if sample_shape == "corner" || sample_shape == "corner-right" || sample_shape == "mid2" {
-        // 黎曼端点法:每个网格单元取"采样端 = 方法端"的单个采样点.
-        // corner 复用 sample_surface_grid 的左端点形态,right/mid 走
-        // sample_cell_ends(右端/中点),三者在数值与可视化上同源.
-        if sample_shape == "corner" {
-            return sample_surface_grid(
-                expr,
-                coeff_names,
-                coeff_values,
-                xa,
-                xb,
-                ya,
-                yb,
-                n,
-                m,
-                false,
-                "积分采样需要有效的二维区间",
-                "积分采样需要 n 和 m 均大于 0",
-            );
-        }
-        let (fx, fy) = if sample_shape == "corner-right" {
-            (1.0, 1.0)
-        } else {
-            (0.5, 0.5)
-        };
-        return sample_cell_ends(
+    match sample_shape {
+        // 单元端采样:每个网格单元取"采样端 = 方法端"的单个采样点.
+        // 左端复用 sample_surface_grid 的左端点形态,右/中走 sample_cell_ends,
+        // 三者在数值与可视化上同源.
+        SampleShape::LeftCell => sample_surface_grid(
             expr,
             coeff_names,
             coeff_values,
@@ -315,12 +300,40 @@ pub fn sample_function_2d(
             yb,
             n,
             m,
-            fx,
-            fy,
-        );
+            false,
+            "积分采样需要有效的二维区间",
+            "积分采样需要 n 和 m 均大于 0",
+        ),
+        SampleShape::RightCell => sample_cell_ends(
+            expr,
+            coeff_names,
+            coeff_values,
+            xa,
+            xb,
+            ya,
+            yb,
+            n,
+            m,
+            1.0,
+            1.0,
+        ),
+        SampleShape::MidCell => sample_cell_ends(
+            expr,
+            coeff_names,
+            coeff_values,
+            xa,
+            xb,
+            ya,
+            yb,
+            n,
+            m,
+            0.5,
+            0.5,
+        ),
+        SampleShape::Grid => {
+            sample_surface_values(expr, coeff_names, coeff_values, xa, xb, ya, yb, n, m)
+        }
     }
-
-    sample_surface_values(expr, coeff_names, coeff_values, xa, xb, ya, yb, n, m)
 }
 
 #[cfg(test)]

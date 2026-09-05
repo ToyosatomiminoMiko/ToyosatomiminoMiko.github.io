@@ -373,6 +373,13 @@ pub fn lebesgue1d_from_values(
     })
 }
 
+/// 二维勒贝格积分:输入是 n×n 个**单元最小角(左下角)采样值**(行优先,
+/// 外层 y),与 2D 端点黎曼/region/solid 的"左端点代表格子"约定一致.
+///
+/// 每个格子 (i, j)(i 为 x 序号, j 为 y 序号)的代表值为
+/// `values[j * n + i]`;测度 {f > t} 按满足条件的格子数 × 单格面积计数.
+/// 采样形态由 `IntegralMethod::sample_shape_2d` 保证(Lebesgue → 最小角),
+/// 与 1D lebesgue 的"整格采样,核取左端点"是同一左端点约定的两种形态.
 pub fn lebesgue2d_from_values(
     values: &[f64],
     x_range: (f64, f64),
@@ -388,8 +395,8 @@ pub fn lebesgue2d_from_values(
         return Err("勒贝格积分 layers 必须大于 0".to_string());
     }
 
-    // values 是 (grid_size + 1) × (grid_size + 1) 的网格点值,行主序.
-    let expected = (grid_size + 1) * (grid_size + 1);
+    // values 是 n×n 的单元最小角值数组,行主序(外层 y,内层 x).
+    let expected = grid_size * grid_size;
     if values.len() != expected {
         return Err(format!(
             "二维勒贝格输入长度错误: 期望 {expected},实际 {}",
@@ -415,12 +422,12 @@ pub fn lebesgue2d_from_values(
         return Ok(0.0);
     }
 
-    // 以左下角点代表整个格子(与 1D 左端点法一致).
+    // 每个格子由其左下角样本代表(与 1D 左端点法一致).
     let measure_fn = |predicate: &dyn Fn(f64) -> bool| -> f64 {
         let mut measure = 0.0;
         for j in 0..grid_size {
             for i in 0..grid_size {
-                let z = values[j * (grid_size + 1) + i];
+                let z = values[j * grid_size + i];
                 if z.is_finite() && predicate(z) {
                     measure += area;
                 }

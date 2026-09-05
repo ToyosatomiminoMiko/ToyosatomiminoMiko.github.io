@@ -4,104 +4,17 @@ pub mod domain_integral;
 pub mod eval_core;
 pub mod field_core;
 pub mod integral_core;
+pub mod integral_method;
 pub mod intersection_core;
 pub mod sampling_core;
 pub mod symbolic;
 pub mod transform_core;
 
+use integral_method::IntegralMethod;
 use wasm_bindgen::prelude::*;
 
 fn math_error(message: impl Into<String>) -> JsValue {
     JsValue::from_str(&message.into())
-}
-
-#[derive(Clone, Copy)]
-enum SampleShape {
-    Grid,
-    Mid,
-    Corner,
-    CornerRight,
-    Mid2,
-}
-
-impl SampleShape {
-    fn as_str(self) -> &'static str {
-        match self {
-            SampleShape::Grid => "grid",
-            SampleShape::Mid => "mid",
-            SampleShape::Corner => "corner",
-            SampleShape::CornerRight => "corner-right",
-            SampleShape::Mid2 => "mid2",
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-enum IntegralMethod1D {
-    Trapz,
-    Simpson,
-    RiemannLeft,
-    RiemannRight,
-    RiemannMid,
-    Lebesgue,
-}
-
-impl IntegralMethod1D {
-    /// 与 IR `IntegralMethod`(compiler/ir/types)保持同一套语义名;
-    /// 维度由 Worker 请求里的 `dim` 决定,这里不再需要带维度的别名串.
-    fn parse(method: &str) -> Result<Self, String> {
-        match method {
-            "trapezoid" => Ok(Self::Trapz),
-            "simpson" => Ok(Self::Simpson),
-            "riemann:left" => Ok(Self::RiemannLeft),
-            "riemann:right" => Ok(Self::RiemannRight),
-            "riemann:mid" => Ok(Self::RiemannMid),
-            "lebesgue" => Ok(Self::Lebesgue),
-            _ => Err("未知一维积分方法".to_string()),
-        }
-    }
-
-    fn sample_shape(self) -> SampleShape {
-        match self {
-            Self::RiemannMid => SampleShape::Mid,
-            _ => SampleShape::Grid,
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-enum IntegralMethod2D {
-    Trapz,
-    Simpson,
-    RiemannLeft,
-    RiemannRight,
-    RiemannMid,
-    Lebesgue,
-}
-
-impl IntegralMethod2D {
-    /// 与 IR `IntegralMethod` 保持同一套语义名;二维矩形域从 2D 端点核放开
-    /// 后 left/right/mid 全部支持(采样端 = 方法端,数值与可视化同源).
-    fn parse(method: &str) -> Result<Self, String> {
-        match method {
-            "trapezoid" => Ok(Self::Trapz),
-            "simpson" => Ok(Self::Simpson),
-            "riemann:left" => Ok(Self::RiemannLeft),
-            "riemann:right" => Ok(Self::RiemannRight),
-            "riemann:mid" => Ok(Self::RiemannMid),
-            "lebesgue" => Ok(Self::Lebesgue),
-            _ => Err("未知二维积分方法".to_string()),
-        }
-    }
-
-    fn sample_shape(self) -> SampleShape {
-        match self {
-            Self::RiemannLeft | Self::Lebesgue => SampleShape::Corner,
-            Self::RiemannRight => SampleShape::CornerRight,
-            Self::RiemannMid => SampleShape::Mid2,
-            _ => SampleShape::Grid,
-        }
-    }
 }
 
 // ================================================================
@@ -227,41 +140,32 @@ pub fn integrate1d(
     layers: usize,
     method: &str,
 ) -> Result<IntegralSampleResult, JsValue> {
-    let method = IntegralMethod1D::parse(method).map_err(math_error)?;
-    let sample_shape = method.sample_shape();
-    let samples = sampling_core::sample_function_1d(
-        expr,
-        &coeff_names,
-        &coeff_values,
-        a,
-        b,
-        n,
-        sample_shape.as_str(),
-    )
-    .map_err(|e| JsValue::from_str(&e))?;
+    let method = IntegralMethod::parse(method).map_err(math_error)?;
+    let sample_shape = method.sample_shape_1d();
+    let samples =
+        sampling_core::sample_function_1d(expr, &coeff_names, &coeff_values, a, b, n, sample_shape)
+            .map_err(|e| JsValue::from_str(&e))?;
 
     let value = match method {
-        IntegralMethod1D::Trapz => {
+        IntegralMethod::Trapz => {
             integral_core::trapz1d_from_values(&samples, a, b).map_err(|e| JsValue::from_str(&e))?
         }
-        IntegralMethod1D::Simpson => integral_core::simpson1d_from_values(&samples, a, b)
+        IntegralMethod::Simpson => integral_core::simpson1d_from_values(&samples, a, b)
             .map_err(|e| JsValue::from_str(&e))?,
-        IntegralMethod1D::RiemannLeft => integral_core::riemann1d_left_from_values(&samples, a, b)
+        IntegralMethod::RiemannLeft => integral_core::riemann1d_left_from_values(&samples, a, b)
             .map_err(|e| JsValue::from_str(&e))?,
-        IntegralMethod1D::RiemannRight => {
-            integral_core::riemann1d_right_from_values(&samples, a, b)
-                .map_err(|e| JsValue::from_str(&e))?
-        }
-        IntegralMethod1D::RiemannMid => integral_core::riemann1d_mid_from_values(&samples, a, b)
+        IntegralMethod::RiemannRight => integral_core::riemann1d_right_from_values(&samples, a, b)
             .map_err(|e| JsValue::from_str(&e))?,
-        IntegralMethod1D::Lebesgue => integral_core::lebesgue1d_from_values(&samples, a, b, layers)
+        IntegralMethod::RiemannMid => integral_core::riemann1d_mid_from_values(&samples, a, b)
+            .map_err(|e| JsValue::from_str(&e))?,
+        IntegralMethod::Lebesgue => integral_core::lebesgue1d_from_values(&samples, a, b, layers)
             .map_err(|e| JsValue::from_str(&e))?,
     };
 
     Ok(IntegralSampleResult {
         value,
         samples,
-        sample_shape: sample_shape.as_str().to_string(),
+        sample_shape: sample_shape.tag_1d().to_string(),
         n,
         m: 0,
         xa: a,
@@ -288,8 +192,8 @@ pub fn integrate2d(
     layers: usize,
     method: &str,
 ) -> Result<IntegralSampleResult, JsValue> {
-    let method = IntegralMethod2D::parse(method).map_err(math_error)?;
-    let sample_shape = method.sample_shape();
+    let method = IntegralMethod::parse(method).map_err(math_error)?;
+    let sample_shape = method.sample_shape_2d();
     let samples = sampling_core::sample_function_2d(
         expr,
         &coeff_names,
@@ -300,32 +204,32 @@ pub fn integrate2d(
         yb,
         n,
         m,
-        sample_shape.as_str(),
+        sample_shape,
     )
     .map_err(|e| JsValue::from_str(&e))?;
 
     let value = match method {
-        IntegralMethod2D::Trapz => {
+        IntegralMethod::Trapz => {
             integral_core::trapz2d_from_values(&samples, (xa, xb), (ya, yb), n, m)
                 .map_err(|e| JsValue::from_str(&e))?
         }
-        IntegralMethod2D::Simpson => {
+        IntegralMethod::Simpson => {
             integral_core::simpson2d_from_values(&samples, (xa, xb), (ya, yb), n, m)
                 .map_err(|e| JsValue::from_str(&e))?
         }
-        IntegralMethod2D::RiemannLeft => {
+        IntegralMethod::RiemannLeft => {
             integral_core::riemann2d_left_from_values(&samples, (xa, xb), (ya, yb), n, m)
                 .map_err(|e| JsValue::from_str(&e))?
         }
-        IntegralMethod2D::RiemannRight => {
+        IntegralMethod::RiemannRight => {
             integral_core::riemann2d_right_from_values(&samples, (xa, xb), (ya, yb), n, m)
                 .map_err(|e| JsValue::from_str(&e))?
         }
-        IntegralMethod2D::RiemannMid => {
+        IntegralMethod::RiemannMid => {
             integral_core::riemann2d_mid_from_values(&samples, (xa, xb), (ya, yb), n, m)
                 .map_err(|e| JsValue::from_str(&e))?
         }
-        IntegralMethod2D::Lebesgue => {
+        IntegralMethod::Lebesgue => {
             integral_core::lebesgue2d_from_values(&samples, (xa, xb), (ya, yb), n, layers)
                 .map_err(|e| JsValue::from_str(&e))?
         }
@@ -334,7 +238,7 @@ pub fn integrate2d(
     Ok(IntegralSampleResult {
         value,
         samples,
-        sample_shape: sample_shape.as_str().to_string(),
+        sample_shape: sample_shape.tag_2d().to_string(),
         n,
         m,
         xa,
@@ -383,6 +287,7 @@ pub fn integrate_region(
         xa,
         xb,
     };
+    let method = IntegralMethod::parse(method).map_err(math_error)?;
     let outcome =
         domain_integral::integrate_region(method, &input, n, layers).map_err(math_error)?;
     Ok(IntegralSampleResult {
@@ -430,8 +335,10 @@ pub fn integrate_solid(
     )
     .map_err(math_error)?;
 
+    let method = IntegralMethod::parse(method).map_err(math_error)?;
+
     // f≡1 的 3D lebesgue 直接返回解析测度(体积),不建层几何,不做 O(n³) 网格.
-    if method == "lebesgue" && integrand_expr.trim() == "1" {
+    if method == IntegralMethod::Lebesgue && integrand_expr.trim() == "1" {
         let measure = domain_integral::solid_exact_measure(&descriptor).map_err(math_error)?;
         let aabb = intersection_core::solid_world_aabb(&descriptor).map_err(math_error)?;
         return Ok(IntegralSampleResult {
@@ -682,4 +589,234 @@ pub fn evaluate_curl_point(
     .map_err(|e| JsValue::from_str(&e))?;
 
     Ok(CurlPointResult { x, y, z })
+}
+
+// ================================================================
+// 分发层 / 契约层测试
+//
+// 审查报告指出:Rust 测试全是"核函数对拍",没有任何一项覆盖 lib.rs 的
+// wasm 语义分发(方法字符串 -> 采样形状 -> 消费核这条 glue)--P0(2D
+// rectangle lebesgue 采样/消费长度不一致)就住在 glue 里却一直全绿.
+// 这里为每个积分 wasm 入口放一条"真值已知"的黄金用例,直接以 wasm 层
+// 参数语义调用导出函数(宿主测试只走成功路径,Err 由 JsValue 构造,见
+// integral_core/domain_integral 的纯 Rust 错误用例).
+// ================================================================
+#[cfg(test)]
+mod glue_tests {
+    use super::*;
+
+    fn no_coeffs() -> (Vec<String>, Vec<f64>) {
+        (Vec::new(), Vec::new())
+    }
+
+    fn approx(actual: f64, expected: f64, tol: f64, label: &str) {
+        assert!(
+            (actual - expected).abs() <= tol,
+            "{label}: {actual} vs 期望 {expected} (±{tol})"
+        );
+    }
+
+    #[test]
+    fn integrate1d_trapezoid_simpson_riemann_known_values() {
+        let (names, values) = no_coeffs();
+        let result = integrate1d(
+            "x",
+            names.clone(),
+            values.clone(),
+            0.0,
+            1.0,
+            128,
+            8,
+            "trapezoid",
+        )
+        .expect("trapezoid 应成功");
+        approx(result.value, 0.5, 1e-9, "trapezoid ∫x");
+
+        let result = integrate1d(
+            "x",
+            names.clone(),
+            values.clone(),
+            0.0,
+            1.0,
+            128,
+            8,
+            "simpson",
+        )
+        .expect("simpson 应成功");
+        approx(result.value, 0.5, 1e-12, "simpson ∫x");
+
+        let result = integrate1d(
+            "x",
+            names.clone(),
+            values.clone(),
+            0.0,
+            1.0,
+            128,
+            8,
+            "riemann:left",
+        )
+        .expect("riemann:left 应成功");
+        approx(result.value, 0.5, 5e-3, "riemann:left ∫x");
+
+        let result = integrate1d("1", names, values, 0.0, 1.0, 320, 32, "lebesgue")
+            .expect("1D lebesgue 应成功");
+        approx(result.value, 1.0, 1e-9, "1D lebesgue ∫1");
+    }
+
+    /// P0 回归:2D rectangle 的 lebesgue 曾经因"corner 采样 N² 个值 vs
+    /// 消费端期望 (N+1)²"必然报错;这里要求以 wasm 层语义直接成功.
+    #[test]
+    fn integrate2d_rectangle_lebesgue_glue_contract() {
+        let (names, values) = no_coeffs();
+        let result = integrate2d(
+            "1",
+            names.clone(),
+            values.clone(),
+            0.0,
+            1.0,
+            0.0,
+            1.0,
+            64,
+            64,
+            16,
+            "lebesgue",
+        )
+        .expect("2D lebesgue f≡1 应成功(不再有长度错误)");
+        assert_eq!(result.sample_shape, "2d-corner");
+        assert_eq!(result.samples.len(), 64 * 64);
+        approx(result.value, 1.0, 1e-9, "2D lebesgue f≡1 面积");
+
+        // f=x:∬_[0,1]² x dA = 1/2(层-测度近似的量化误差随 n,layers 收敛).
+        let result = integrate2d(
+            "x", names, values, 0.0, 1.0, 0.0, 1.0, 512, 512, 512, "lebesgue",
+        )
+        .expect("2D lebesgue f=x 应成功");
+        approx(result.value, 0.5, 5e-3, "2D lebesgue f=x");
+    }
+
+    #[test]
+    fn integrate2d_rectangle_other_methods_known_values() {
+        let (names, values) = no_coeffs();
+        // 梯形/辛普森对双线性精确.
+        let result = integrate2d(
+            "x + y",
+            names.clone(),
+            values.clone(),
+            0.0,
+            1.0,
+            0.0,
+            1.0,
+            64,
+            64,
+            8,
+            "simpson",
+        )
+        .expect("2D simpson 应成功");
+        approx(result.value, 1.0, 1e-9, "2D simpson ∬(x+y)");
+
+        let result = integrate2d(
+            "x",
+            names.clone(),
+            values.clone(),
+            0.0,
+            1.0,
+            0.0,
+            1.0,
+            128,
+            128,
+            8,
+            "riemann:mid",
+        )
+        .expect("2D riemann:mid 应成功");
+        approx(result.value, 0.5, 1e-9, "2D riemann:mid ∬x");
+    }
+
+    #[test]
+    fn integrate_region_known_area_and_moment() {
+        let (n1, v1) = no_coeffs();
+        // D = {0≤x≤1, 0≤y≤x}:面积 1/2,∬ x dA = 1/3.
+        let input = domain_integral::RegionInput {
+            integrand_expr: "1",
+            integrand_names: &n1,
+            integrand_values: &v1,
+            boundary_exprs: ["0", "x"],
+            boundary_names: [&n1, &n1],
+            boundary_values: [&v1, &v1],
+            xa: 0.0,
+            xb: 1.0,
+        };
+        let outcome = domain_integral::integrate_region(
+            IntegralMethod::parse("simpson").unwrap(),
+            &input,
+            128,
+            8,
+        )
+        .expect("region simpson 应成功");
+        approx(outcome.value, 0.5, 1e-9, "region simpson 面积");
+
+        let input = domain_integral::RegionInput {
+            integrand_expr: "x",
+            integrand_names: &n1,
+            integrand_values: &v1,
+            boundary_exprs: ["0", "x"],
+            boundary_names: [&n1, &n1],
+            boundary_values: [&v1, &v1],
+            xa: 0.0,
+            xb: 1.0,
+        };
+        let outcome = domain_integral::integrate_region(
+            IntegralMethod::parse("simpson").unwrap(),
+            &input,
+            128,
+            8,
+        )
+        .expect("region simpson 应成功");
+        approx(outcome.value, 1.0 / 3.0, 1e-7, "region simpson ∬x");
+    }
+
+    #[test]
+    fn integrate_solid_volume_and_quadratic_integrand() {
+        let (names, values) = no_coeffs();
+        // 单位球体积 4π/3(wasm 层的 lebesgue f≡1 短路径).
+        let result = integrate_solid(
+            "lebesgue",
+            "sphere",
+            vec![0.0, 0.0, 0.0, 1.0],
+            vec![],
+            vec![],
+            "1",
+            names.clone(),
+            values.clone(),
+            0,
+            8,
+        )
+        .expect("solid lebesgue f≡1 应成功");
+        approx(
+            result.value,
+            4.0 / 3.0 * std::f64::consts::PI,
+            1e-9,
+            "球体积",
+        );
+
+        // ∭(x²+y²+z²) dV = 4π/5.
+        let result = integrate_solid(
+            "simpson",
+            "sphere",
+            vec![0.0, 0.0, 0.0, 1.0],
+            vec![],
+            vec![],
+            "x*x + y*y + z*z",
+            names,
+            values,
+            64,
+            8,
+        )
+        .expect("solid simpson 应成功");
+        approx(
+            result.value,
+            4.0 / 5.0 * std::f64::consts::PI,
+            1e-3,
+            "单位球 ∭r² dV",
+        );
+    }
 }

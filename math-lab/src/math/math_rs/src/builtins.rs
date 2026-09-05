@@ -17,6 +17,8 @@ pub(crate) enum LatexStyle {
     Exp,
     /// 根号形式 `\sqrt{...}`.
     Sqrt,
+    /// k 次根号形式 `\sqrt[k]{...}`.
+    NthRoot(u8),
     /// 绝对值形式 `\left|...\right|`.
     Abs,
     /// 指定底数的对数,例如 `\log_{10}\left(...\right)`.
@@ -134,11 +136,27 @@ fn derivative_sqrt(arg: &Expr) -> Expr {
     )
 }
 
+/// d/dx |x| 用显式的 sign 语义表达(而不是 `|x|/x` 的 0/0 写法):
+/// 符号层输出 `sign(u)`,数值层在 u=0 处显式返回 NaN(该点导数不存在),
+/// 不再依赖 IEEE 除法撞大运.离 0 处 sign(u) 与 |u|/u 完全一致.
 fn derivative_abs(arg: &Expr) -> Expr {
+    call("sign", vec![arg.clone()])
+}
+
+fn derivative_sign(_arg: &Expr) -> Expr {
+    // sign 在 0 处不可导;离 0 处处处为常数,链式规则输出 0.
+    num(0.0)
+}
+
+fn derivative_cbrt(arg: &Expr) -> Expr {
     bin(
-        BinOp::Mul,
-        call("abs", vec![arg.clone()]),
-        bin(BinOp::Div, num(1.0), arg.clone()),
+        BinOp::Div,
+        num(1.0),
+        bin(
+            BinOp::Mul,
+            num(3.0),
+            bin(BinOp::Pow, call("cbrt", vec![arg.clone()]), num(2.0)),
+        ),
     )
 }
 
@@ -228,10 +246,32 @@ const MATH_FUNCTIONS: &[MathBuiltin] = &[
         latex: LatexStyle::Sqrt,
     },
     MathBuiltin {
+        name: "cbrt",
+        eval: f64::cbrt,
+        derivative: derivative_cbrt,
+        latex: LatexStyle::NthRoot(3),
+    },
+    MathBuiltin {
         name: "abs",
         eval: f64::abs,
         derivative: derivative_abs,
         latex: LatexStyle::Abs,
+    },
+    MathBuiltin {
+        // sign(u) = u/|u|(u≠0);u=0 处显式 NaN(该点符号意义上的值未定义).
+        // 符号求导(d|x|/dx 等)输出 sign 语义而不是 |u|/u 的 0/0 写法.
+        name: "sign",
+        eval: |value: f64| {
+            if value > 0.0 {
+                1.0
+            } else if value < 0.0 {
+                -1.0
+            } else {
+                f64::NAN
+            }
+        },
+        derivative: derivative_sign,
+        latex: LatexStyle::Named("\\operatorname{sgn}"),
     },
 ];
 

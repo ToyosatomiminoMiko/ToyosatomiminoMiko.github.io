@@ -868,18 +868,31 @@ fn build_patches(descriptor: &ObjectDescriptor, segments: usize) -> Result<Vec<P
 // 一维求根
 // ================================================================
 
-/// 采样 + 符号变化二分 + 相切采样点,返回参数位置.与旧 TS 一致.
+/// 采样 + 符号变化二分 + 相切采样点,返回参数位置.
+///
+/// 容差全部取"相对尺度"而非硬编码绝对量:
+/// - 残差收敛 |f| ≤ 1e-12·f_scale(f_scale = 采样值量级):坐标/函数整体
+///   缩放到 1e-6 量级时,判据随量级收缩,不会把区间中点过早当根;
+/// - 相切判定 |f| ≤ 1e-7·f_scale,与残差判据同尺度;
+/// - 区间宽度收敛 1e-11·(1+|x|) 已是相对形式.
 fn find_1d_roots<F>(f: &mut F, lo: f64, hi: f64, steps: usize) -> Result<Vec<f64>, String>
 where
     F: FnMut(f64) -> Result<Option<f64>, String>,
 {
     let mut xs = Vec::with_capacity(steps + 1);
     let mut values = Vec::with_capacity(steps + 1);
+    let mut f_scale = 0.0f64;
     for i in 0..=steps {
         let x = lo + (hi - lo) * (i as f64 / steps as f64);
         xs.push(x);
-        values.push(f(x)?);
+        let value = f(x)?;
+        if let Some(v) = value.filter(|value| value.is_finite()) {
+            f_scale = f_scale.max(v.abs());
+        }
+        values.push(value);
     }
+    // 量级下限只用于避免除零/判据恒真;真实函数整体缩小时判据跟着缩小.
+    let f_scale = f_scale.max(f64::MIN_POSITIVE);
 
     let mut roots = Vec::new();
     for i in 0..steps {
@@ -913,7 +926,7 @@ where
             let Some(fm) = fm.filter(|value| value.is_finite()) else {
                 break;
             };
-            if fm == 0.0 || fm.abs() < 1e-12 {
+            if fm == 0.0 || fm.abs() < 1e-12 * f_scale {
                 roots.push(mid);
                 converged = true;
                 break;
@@ -936,10 +949,10 @@ where
         }
     }
 
-    // 相切:采样点本身就在边界上但没有符号变化.
+    // 相切:采样点本身就在边界上但没有符号变化(阈值随函数量级缩放).
     for (i, value) in values.iter().enumerate() {
         let value = value.filter(|value| value.is_finite()).unwrap_or(f64::NAN);
-        if value.abs() <= 1e-7 {
+        if value.abs() <= 1e-7 * f_scale {
             roots.push(xs[i]);
         }
     }
@@ -947,12 +960,24 @@ where
     Ok(roots)
 }
 
+/// 世界坐标点集的去重半径:随坐标量级缩放,而不是固定绝对半径.
+/// 场景整体缩放到 1e-6 量级时,若仍用绝对 1e-5 会把不同交点全并掉.
+fn dedupe_point_tolerance(points: &[V3]) -> f64 {
+    let scale = points
+        .iter()
+        .map(|point| point.iter().map(|c| c.abs()).fold(0.0f64, f64::max))
+        .fold(0.0f64, f64::max)
+        .max(1e-6);
+    POINT_DEDUP_TOLERANCE * scale
+}
+
 fn dedupe_points(points: Vec<V3>) -> Vec<V3> {
+    let tolerance = dedupe_point_tolerance(&points);
     let mut result: Vec<V3> = Vec::with_capacity(points.len());
     for point in points {
         if !result
             .iter()
-            .any(|existing| dist(*existing, point) < POINT_DEDUP_TOLERANCE)
+            .any(|existing| dist(*existing, point) < tolerance)
         {
             result.push(point);
         }
@@ -960,12 +985,23 @@ fn dedupe_points(points: Vec<V3>) -> Vec<V3> {
     result
 }
 
+/// 一维根坐标的去重半径:按坐标量级缩放(1D 根来自参数区间 [lo,hi]).
+fn dedupe_root_tolerance(roots: &[f64]) -> f64 {
+    let scale = roots
+        .iter()
+        .map(|root| root.abs())
+        .fold(0.0f64, f64::max)
+        .max(1e-6);
+    POINT_DEDUP_TOLERANCE * scale
+}
+
 fn dedupe_roots(roots: Vec<f64>) -> Vec<f64> {
+    let tolerance = dedupe_root_tolerance(&roots);
     let mut result: Vec<f64> = Vec::with_capacity(roots.len());
     for root in roots {
         if !result
             .iter()
-            .any(|existing| (*existing - root).abs() < POINT_DEDUP_TOLERANCE)
+            .any(|existing| (*existing - root).abs() < tolerance)
         {
             result.push(root);
         }

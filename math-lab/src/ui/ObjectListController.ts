@@ -35,7 +35,10 @@ const INTEGRAL_METHOD_LABELS: Record<IntegralTask['method'], string> = {
     'riemann:left': '黎曼和(左端点)',
     'riemann:right': '黎曼和(右端点)',
     'riemann:mid': '黎曼和(中点)',
-    lebesgue: '勒贝格法',
+    // 数值上它是"按值域分层数格子"的分层黎曼和,只收敛到(而不是等于)
+    // 勒贝格积分;UI 里如实标注"层-测度近似",避免学生误以为这是
+    // 测度论意义下的勒贝格积分(见 prompt/review_report.md P2.4).
+    lebesgue: '层-测度近似',
 };
 
 function intersectionSummary(
