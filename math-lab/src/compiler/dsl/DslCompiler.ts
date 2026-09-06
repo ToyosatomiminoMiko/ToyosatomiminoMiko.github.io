@@ -6,7 +6,7 @@ import type {
 } from '../ir/types';
 import type { MatrixOps } from '../../math/tensor/SceneTransform';
 import { withStatementSpan } from '../errors';
-import { materializeObject } from './objects';
+import { materializeObject } from './objects/materialize';
 import { applyParamOverrides } from './params';
 import { compileIntegralTask } from './integrals';
 import { compileAnalyses } from './analyses';
@@ -26,7 +26,8 @@ import {
  * 具体职责已经拆到:
  * - options.ts     选项与列表解析
  * - params.ts      参数收集/覆盖/求值 scope
- * - objects.ts     对象 blueprint 构建与物化(region 面积图形见该文件头注释)
+ * - objects/        对象子系统:types.ts(blueprint 类型)/build.ts(语句→blueprint;
+ *                    region 面积图形 V1 语义见该文件头)/materialize.ts(blueprint→数值 IR)
  * - expression.ts  Rust 符号归一化/求导与数值求值
  * - transforms.ts  矩阵/变换求值(统一因子语法见该文件头注释)
  * - integrals.ts   积分任务编译(dim/domainKind/integrand 语义)
@@ -42,7 +43,7 @@ import {
  *    查重,integralFormulas 这类 Record<名字,…> 会被同名语句静默覆盖.
  * 3. 表达式归一化收口:curve/surface 单表达式与 vector_field 三分量在
  *    blueprint 阶段统一归一化;region 边界系数也按"归一化后的边界表达式"
- *    提取,保证符号求导/LaTeX/系数集合与对象自身同源(objects.ts 文件头).
+ *    提取,保证符号求导/LaTeX/系数集合与对象自身同源(objects/build.ts 文件头).
  * 4. 参数覆盖值统一走 params.ts 的 materializeCoefficient/
  *    requireDeclaredCoefficient / buildParamScope;applyParamOverrides 只负责
  *    让 IR scene.params 携带当前滑块值,消费方不要依赖 map 回写副作用.

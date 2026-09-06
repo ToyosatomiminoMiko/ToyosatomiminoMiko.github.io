@@ -13,11 +13,8 @@ import type { AnimationClip, ParamDeclaration } from '../ir/types';
 import type { MatrixOps } from '../../math/tensor/SceneTransform';
 import { cloneMat4, type Mat4 } from '../../math/tensor/rowMajorMatrix';
 import { withStatementSpan } from '../errors';
-import {
-    blueprintHasCoefficients,
-    buildObjectBlueprint,
-    type ObjectBlueprint,
-} from './objects';
+import { buildObjectBlueprint } from './objects/build';
+import { blueprintHasCoefficients, type ObjectBlueprint } from './objects/types';
 import { assertKnownOptions, findOption, toFiniteNumber } from './options';
 import { collectParams, createDefaultParam } from './params';
 import {
@@ -282,7 +279,7 @@ function buildStaticScene(ast: AstProgram, matrixOps: MatrixOps): StaticScene {
 }
 
 /**
- * region 面积图形的运行时约束(V1 x 型带,见 objects.ts / ir/types.ts):
+ * region 面积图形的运行时约束(V1 x 型带,见 objects/build.ts / ir/types.ts):
  * - 两条边界曲线必须已在对象列表声明且是 curve(buildObjectBlueprint 已按
  *   ObjectStatement 校验,这里对 blueprint 结果做同源复查);
  * - 边界曲线不得带静态变换或动画--否则 y=f(x) 的带状语义(曲线必须保持在
