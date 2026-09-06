@@ -252,7 +252,7 @@ function buildStaticScene(ast: AstProgram, matrixOps: MatrixOps): StaticScene {
         });
     }
 
-    // region 边界约束是纯声明级检查,放在这里一次性执行(见文件头结论).
+    // "region" 边界约束是纯声明级检查,放在这里一次性执行(见文件头结论).
     finalizeRegionBlueprints(
         objectBlueprints,
         statementsByName,

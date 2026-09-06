@@ -1,8 +1,20 @@
 //! 表达式解析与归一化:词法 + Pratt 语法分析产出 `Expr` 树,随后做
 //! 别名重写(pow/log/sec/deg...)与"函数是否支持数值求值"的校验.
+//!
+//! 编码注意:
+//! - 解析是递归下降(括号/函数参数/右结合幂链/一元链都按嵌套深度递归),
+//!   嵌套深度受 [`MAX_PARSE_DEPTH`] 护栏保护,越界报错而不是栈溢出;
+//! - 隐式乘法(2x,2 sin(x),(x+1)(x-1))在 parse_expr 循环里按原子判定,
+//!   不要改成独立运算符,否则会破坏 2/(3x) 这类既有结合性;
+//! - 词法对畸形数字宽容(如 "1.2.3" 会被读成两个数再隐式相乘)--这是
+//!   历史行为,新代码不要让它变得更安静,出错信息仍尽量带定位.
 
 use super::{BinOp, Expr, UnaryOp};
 use crate::builtins;
+
+/// 表达式嵌套深度上限(括号/函数参数/一元与幂链),防止递归栈溢出.
+/// 正常表达式远小于该值;越界报错并提示简化表达式.
+const MAX_PARSE_DEPTH: usize = 512;
 
 #[derive(Debug, Clone, PartialEq)]
 enum Token {
@@ -166,11 +178,17 @@ impl Lexer {
 struct Parser {
     tokens: Vec<Token>,
     pos: usize,
+    /// 当前递归嵌套深度(parse_expr 护栏用,见 [`MAX_PARSE_DEPTH`]).
+    depth: usize,
 }
 
 impl Parser {
     fn new(tokens: Vec<Token>) -> Self {
-        Self { tokens, pos: 0 }
+        Self {
+            tokens,
+            pos: 0,
+            depth: 0,
+        }
     }
 
     fn peek(&self) -> &Token {
@@ -221,7 +239,20 @@ impl Parser {
         }
     }
 
+    /// 表达式入口(带深度护栏):所有递归(右结合幂链,括号,函数参数,
+    /// 一元链,数组嵌套)都从这里再次进入,深度越界即报错.
     pub(crate) fn parse_expr(&mut self, min_prec: u8) -> Result<Expr, String> {
+        self.depth += 1;
+        if self.depth > MAX_PARSE_DEPTH {
+            self.depth -= 1;
+            return Err("表达式嵌套过深(超过 512 层),请简化表达式".to_string());
+        }
+        let result = self.parse_expr_inner(min_prec);
+        self.depth -= 1;
+        result
+    }
+
+    fn parse_expr_inner(&mut self, min_prec: u8) -> Result<Expr, String> {
         let mut lhs = self.parse_prefix()?;
 
         loop {

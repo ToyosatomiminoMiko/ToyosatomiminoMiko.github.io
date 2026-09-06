@@ -350,4 +350,19 @@ mod tests {
             vec![1.0, 0.0, 0.0, 2.0, 0.0, 1.0, 0.0, 3.0, 0.0, 0.0, 1.0, 4.0, 0.0, 0.0, 0.0, 1.0]
         );
     }
+
+    /// 数字因子合并不随书写顺序漂移(202609 审查前 x*2*3 输出 3*(2*x)).
+    #[test]
+    fn simplify_merges_numeric_factors_regardless_of_position() {
+        assert_eq!(symbolic_derivative("x * 2 * 3", "x").unwrap(), "6");
+        assert_eq!(symbolic_derivative("2 * 3 * x", "x").unwrap(), "6");
+    }
+
+    /// 递归下降解析器的深度护栏:超深括号链报错而不是栈溢出.
+    #[test]
+    fn deeply_nested_expression_is_rejected_not_stack_overflow() {
+        let deep = format!("{}x{}", "(".repeat(600), ")".repeat(600));
+        let error = normalize_expression(&deep).unwrap_err();
+        assert!(error.contains("嵌套"), "护栏报错应可读: {error}");
+    }
 }

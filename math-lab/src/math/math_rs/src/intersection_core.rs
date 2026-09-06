@@ -6,11 +6,21 @@
 //! - 对象描述是可序列化的枚举数据,不携带跨 WASM 边界的闭包;
 //! - marching squares 的鞍点歧义与旧 TS 实现保持一致(中心符号判定).
 //!
+//! 行为契约:
+//! - **所有几何容差都是相对尺度**(随坐标量级缩放,见 find_1d_roots /
+//!   dedupe_* / 顶点量化),场景整体缩放到任意量级都不该改变拓扑--
+//!   新容差一律相对化,禁止再引入硬编码绝对半径/绝对量化;
+//! - segments 规模护栏在 [`compute_pair`] 入口执行(见 config),marching
+//!   squares 单元数与 curve×curve 空间候选对都是 O(segments²);
+//! - 顶点池去重(vertex key)与点/根去重语义一致:视作"同一几何顶点"合并,
+//!   防止跨单元同一边两侧的浮点差产生缝隙.
+//!
 //! 本模块不直接依赖 wasm-bindgen,便于在 `cargo test` 里做纯 Rust 验证.
 
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
+use crate::config::MAX_INTERSECTION_SEGMENTS;
 use crate::eval_core::CompiledEvaluator;
 use crate::sampling_core::uniform_nodes;
 use crate::transform_core::{apply_to_point, Mat4};
@@ -20,10 +30,25 @@ const TAU: f64 = std::f64::consts::TAU;
 /// 去重半径的基础系数(世界坐标).实际去重按点/根的量级缩放,
 /// 见 `dedupe_point_tolerance` / `dedupe_root_tolerance`.
 const POINT_DEDUP_TOLERANCE: f64 = 1e-5;
-/// 顶点池的坐标量化精度(旧实现使用 toFixed(6)).
+/// 顶点池坐标量化的相对精度:key = round(坐标 · VERTEX_QUANTUM / 该点量级),
+/// 等价于"相对 1e-6 精度"量化(旧实现与 TS 的 toFixed(6) 是绝对 1e-6,
+/// 场景整体缩小时会把不同顶点错误合并;202609 审查后改相对,见 vertex_key).
 const VERTEX_QUANTUM: f64 = 1e6;
 
 type V3 = [f64; 3];
+
+/// 顶点池的坐标量化键:按该顶点自身的坐标量级取相对精度,
+/// 使"同一几何顶点的两次计算(±ulp)"必然命中同键,而真实不同的顶点
+/// (间距 ~ 网格步长)永不并键.
+fn vertex_key(p: V3) -> (i64, i64, i64) {
+    let scale = p.iter().fold(0.0f64, |max, &c| max.max(c.abs())).max(1e-6);
+    let factor = VERTEX_QUANTUM / scale;
+    (
+        (p[0] * factor).round() as i64,
+        (p[1] * factor).round() as i64,
+        (p[2] * factor).round() as i64,
+    )
+}
 
 #[derive(Clone, Copy)]
 struct Crossing {
@@ -1307,11 +1332,7 @@ fn trace_contours(
     let mut pool: HashMap<(i64, i64, i64), u32> = HashMap::new();
     let mut vertex_id = |u: f64, v: f64| -> Option<u32> {
         let p = patch.point(u, v)?;
-        let key = (
-            (p[0] * VERTEX_QUANTUM).round() as i64,
-            (p[1] * VERTEX_QUANTUM).round() as i64,
-            (p[2] * VERTEX_QUANTUM).round() as i64,
-        );
+        let key = vertex_key(p);
         Some(match pool.get(&key) {
             Some(id) => *id,
             None => {
@@ -1553,6 +1574,11 @@ pub fn compute_pair(
 ) -> Result<IntersectionCoreOutput, String> {
     if segments == 0 {
         return Err("求交 segments 必须大于 0".to_string());
+    }
+    if segments > MAX_INTERSECTION_SEGMENTS {
+        return Err(format!(
+            "求交 segments 超过上限 {MAX_INTERSECTION_SEGMENTS}"
+        ));
     }
     match (a.kind, b.kind) {
         (ObjectKind::Curve, ObjectKind::Curve) => Ok(IntersectionCoreOutput::from_points(

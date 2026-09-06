@@ -22,10 +22,22 @@
 //!
 //! 所有被积函数一律以**世界坐标**求值(所见即所得);boundary/域边界曲线为
 //! 一元 y=f(x).本模块不依赖 wasm-bindgen,便于 `cargo test` 纯 Rust 验证.
+//!
+//! 行为契约(202609 审查收口):
+//! - **掩码语义与 integral_core 统一**:被积函数在采样点非有限 = 该点不贡献
+//!   测度(单元丢弃/按 0 计入),不因个别点把整条内层积分或整片清零;求值 Err 上抛;
+//! - 规模护栏:region n ≤ MAX_GRID_N,solid n ≤ MAX_SOLID_N(见 config),
+//!   进入 n³ 分配前先校验;layers 上限由 lebesgue 核统一执行;
+//! - solid C2(trapz/simpson)的数值走轴向切片,可视化体元样本刻意再跑一遍
+//!   C1 中点网格(仅画面):两条路径成本都是 O(n³),重复采样是**有意的**,
+//!   不要在数值路径里顺带产出 C1 样本(会改变 C2 的数值语义);
+//! - 编码注意:单元端坐标用 `cell_end_at`,勒贝格层扫描用
+//!   `lebesgue_over_cells`,不要复制第三份"扫 min/max + 按谓词计测度".
 
+use crate::config::{MAX_GRID_N, MAX_SOLID_N};
 use crate::eval_core::CompiledEvaluator;
-use crate::integral_core::{lebesgue_layered_measure, validate_1d_interval};
-use crate::integral_method::{CellEnd, IntegralMethod};
+use crate::integral_core::{lebesgue_over_cells, validate_1d_interval};
+use crate::integral_method::{cell_end_at, IntegralMethod};
 use crate::intersection_core::{solid_world_aabb, ObjectDescriptor, SolidProbe};
 use crate::transform_core::{apply_to_point, Mat4};
 
@@ -109,18 +121,13 @@ fn region_cell_grid(
         return Err("region 积分需要 n > 0".to_string());
     }
     let end = method.cell_end();
-    let hx = (xb - xa) / n as f64;
 
     // 每列(x 单元)的采样端 x 与带上下界.
     let mut lo_col: Vec<Option<f64>> = Vec::with_capacity(n);
     let mut hi_col: Vec<Option<f64>> = Vec::with_capacity(n);
     let mut x_end: Vec<f64> = Vec::with_capacity(n);
     for i in 0..n {
-        let x = match end {
-            CellEnd::MinCorner => xa + i as f64 * hx,
-            CellEnd::MaxCorner => xa + (i + 1) as f64 * hx,
-            CellEnd::Center => xa + (i as f64 + 0.5) * hx,
-        };
+        let x = cell_end_at(end, xa, xb, n, i);
         let band = band_at(lo_eval, hi_eval, x)?;
         x_end.push(x);
         lo_col.push(band.map(|(lo, _)| lo));
@@ -142,15 +149,10 @@ fn region_cell_grid(
     if y_max <= y_min {
         return Err("边界曲线在积分区间内恒相交,区域为空".to_string());
     }
-    let hy = (y_max - y_min) / n as f64;
 
     let mut samples = Vec::with_capacity(n * n);
     for j in 0..n {
-        let y = match end {
-            CellEnd::MinCorner => y_min + j as f64 * hy,
-            CellEnd::MaxCorner => y_min + (j + 1) as f64 * hy,
-            CellEnd::Center => y_min + (j as f64 + 0.5) * hy,
-        };
+        let y = cell_end_at(end, y_min, y_max, n, j);
         for i in 0..n {
             let inside = match (lo_col[i], hi_col[i]) {
                 (Some(lo), Some(hi)) => lo <= y && y <= hi,
@@ -234,29 +236,10 @@ fn region_iterated_value(
     integrate_1d_values(&outer, xa, xb, method)
 }
 
+/// region 勒贝格:单元采样端在带内时计入单元测度(左端点格子约定),
+/// 层扫描统一走 integral_core 的 `lebesgue_over_cells`.
 fn lebesgue_region_value(samples: &[f64], hx: f64, hy: f64, layers: usize) -> Result<f64, String> {
-    let area = hx * hy;
-    let mut z_min = f64::INFINITY;
-    let mut z_max = f64::NEG_INFINITY;
-    for &z in samples {
-        if z.is_finite() {
-            z_min = z_min.min(z);
-            z_max = z_max.max(z);
-        }
-    }
-    // 单元在带内 -> 计入该单元的测度;z 取该单元采样端值(左端点约定).
-    let measure_fn = |predicate: &dyn Fn(f64) -> bool| -> f64 {
-        let mut measure = 0.0;
-        for &z in samples {
-            if z.is_finite() && predicate(z) {
-                measure += area;
-            }
-        }
-        measure
-    };
-    lebesgue_layered_measure(layers, z_min, z_max, &|t| measure_fn(&|z| z > t), &|t| {
-        measure_fn(&|z| z < -t)
-    })
+    lebesgue_over_cells(samples, hx * hy, layers)
 }
 
 /// region 域积分统一入口.
@@ -274,6 +257,9 @@ pub fn integrate_region(
     validate_1d_interval(input.xa, input.xb)?;
     if n == 0 {
         return Err("region 积分需要 n > 0".to_string());
+    }
+    if n > MAX_GRID_N {
+        return Err(format!("region 积分 n 超过上限 {MAX_GRID_N}"));
     }
     let mut integrand = CompiledEvaluator::new(
         input.integrand_expr,
@@ -373,21 +359,9 @@ fn solid_cell_grid(
     let hx = (x_max - x_min) / n as f64;
     let hy = (y_max - y_min) / n as f64;
     let hz = (z_max - z_min) / n as f64;
-    let x_of = |i: usize| match end {
-        CellEnd::MinCorner => x_min + i as f64 * hx,
-        CellEnd::MaxCorner => x_min + (i + 1) as f64 * hx,
-        CellEnd::Center => x_min + (i as f64 + 0.5) * hx,
-    };
-    let y_of = |j: usize| match end {
-        CellEnd::MinCorner => y_min + j as f64 * hy,
-        CellEnd::MaxCorner => y_min + (j + 1) as f64 * hy,
-        CellEnd::Center => y_min + (j as f64 + 0.5) * hy,
-    };
-    let z_of = |k: usize| match end {
-        CellEnd::MinCorner => z_min + k as f64 * hz,
-        CellEnd::MaxCorner => z_min + (k + 1) as f64 * hz,
-        CellEnd::Center => z_min + (k as f64 + 0.5) * hz,
-    };
+    let x_of = |i: usize| cell_end_at(end, x_min, x_max, n, i);
+    let y_of = |j: usize| cell_end_at(end, y_min, y_max, n, j);
+    let z_of = |k: usize| cell_end_at(end, z_min, z_max, n, k);
 
     let mut samples = Vec::with_capacity(n * n * n);
     for k in 0..n {
@@ -413,26 +387,7 @@ fn solid_cell_grid(
 }
 
 fn lebesgue_solid_value(samples: &[f64], volume: f64, layers: usize) -> Result<f64, String> {
-    let mut z_min = f64::INFINITY;
-    let mut z_max = f64::NEG_INFINITY;
-    for &z in samples {
-        if z.is_finite() {
-            z_min = z_min.min(z);
-            z_max = z_max.max(z);
-        }
-    }
-    let measure_fn = |predicate: &dyn Fn(f64) -> bool| -> f64 {
-        let mut measure = 0.0;
-        for &z in samples {
-            if z.is_finite() && predicate(z) {
-                measure += volume;
-            }
-        }
-        measure
-    };
-    lebesgue_layered_measure(layers, z_min, z_max, &|t| measure_fn(&|z| z > t), &|t| {
-        measure_fn(&|z| z < -t)
-    })
+    lebesgue_over_cells(samples, volume, layers)
 }
 
 // ---------------- C2:轴向切片 ----------------
@@ -667,6 +622,9 @@ pub fn integrate_solid(
     if n == 0 {
         return Err("solid 积分需要 n > 0".to_string());
     }
+    if n > MAX_SOLID_N {
+        return Err(format!("solid 积分 n 超过上限 {MAX_SOLID_N}"));
+    }
     let aabb = solid_world_aabb(descriptor)?;
     let mut probe = SolidProbe::new(descriptor)?;
     let mut integrand = CompiledEvaluator::new(integrand_expr, integrand_names, integrand_values)?;
@@ -693,8 +651,9 @@ pub fn integrate_solid(
     };
 
     // 返回可视化体元样本(与 C1 采样端同源).
+    // C2(trapz/simpson)数值走轴向切片,不产出体元样本,这里刻意再跑一遍
+    // C1 中点网格(仅画面)--成本同为 O(n³),重复采样是有意的,见文件头契约.
     let samples = if matches!(method, IntegralMethod::Trapz | IntegralMethod::Simpson) {
-        // C2 数值路径不生成体元样本;可视化降级为 C1 中点网格(仅画面).
         let (samples, _) = solid_cell_grid(
             IntegralMethod::RiemannMid,
             &mut probe,

@@ -1,7 +1,21 @@
+//! 表达式求值的共享运行时:编译缓存 + 系数上下文 + CompiledEvaluator.
+//!
+//! 行为契约:
+//! - 表达式只按字符串编译一次(EXPR_CACHE,256 上限,Rc 共享),系数/坐标
+//!   永不进缓存键;改系数/坐标只重建 context 或覆写坐标键;
+//! - 系数名与保留符号的约定:见 [`build_base_context`]--"x" 与带数值的
+//!   内置常量名一律拒绝;y/z 仅在被 eval_2d/eval_at 覆写时才是冲突,调用
+//!   方负责按维度给出与坐标集不相交的系数表(TS 侧 WORLD_VARIABLES 镜像);
+//! - 求值结果语义:有限值 -> Ok(Some);非有限 -> Ok(None)(掩码语义,由
+//!   消费方决定跳过/置零/报错);解析与未绑定变量 -> Err;
+//! - 编码注意:set_variable 直接覆写同名键,不要在此之外假设上下文只增不改;
+//!   不要手动实现"编译 + 建表 + 覆写坐标"的循环,直接建 CompiledEvaluator.
+
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use crate::builtins;
 use crate::symbolic::{compile_runtime_expr, evaluate_runtime_expr, RuntimeExpr};
 
 /// 构建包含自由系数和内置函数的求值上下文.
@@ -16,6 +30,15 @@ pub(crate) fn build_base_context(
     let mut ctx = HashMap::new();
 
     for (name, &value) in coeff_names.iter().zip(coeff_values.iter()) {
+        // 系数名冲突防护:x 在任何采样维度都会被坐标覆写,数值常量在求值
+        // 时优先于变量,两者都是"静默失效",报错优于猜对.y/z 不在此列:
+        // 它们在 1D(interval/curve)与 2D(rectangle)语境是合法参数名,
+        // 只有被 eval_2d/eval_at 覆写时才冲突(调用方建表 bug,见文件头契约).
+        if name == "x" || builtins::constant_value(name).is_some() {
+            return Err(format!(
+                "系数名 '{name}' 与保留符号(采样坐标 x 或内置常量)冲突,请更换参数名"
+            ));
+        }
         set_variable(&mut ctx, name, value)?;
     }
 
@@ -192,5 +215,37 @@ mod tests {
         // |x| 的导数 = sign(x),同样在 0 处显式无定义.
         let mut evaluator = CompiledEvaluator::new("sign(x)", &[], &[]).unwrap();
         assert!(evaluator.eval_1d(0.0).unwrap().is_none());
+    }
+
+    #[test]
+    fn coefficients_named_x_or_constants_are_rejected() {
+        // x 在任何采样维度都会被坐标覆写(静默失效),常量在求值时优先于
+        // 变量--两者都以明确报错代替猜对.
+        let values = vec![2.0];
+        let error = match CompiledEvaluator::new("a * x", &["x".to_string()], &values) {
+            Err(e) => e,
+            Ok(_) => panic!("x 系数应被拒绝"),
+        };
+        assert!(error.contains("x"), "错误应点名冲突的系数: {error}");
+
+        for constant in ["e", "pi", "Infinity"] {
+            let names = vec![constant.to_string()];
+            let error = match CompiledEvaluator::new("a * x", &names, &values) {
+                Err(e) => e,
+                Ok(_) => panic!("{constant} 系数应被拒绝"),
+            };
+            assert!(error.contains(constant), "{constant} 应被拒绝: {error}");
+        }
+    }
+
+    #[test]
+    fn coefficients_named_y_or_z_are_allowed_in_1d_context() {
+        // y/z 在 1D(interval/curve)语境是合法参数名,不被 eval_1d 覆写;
+        // 只有把它们送进会覆写 y/z 的 2D/3D 采样才是调用方 bug(见头契约).
+        let names = vec!["y".to_string(), "z".to_string()];
+        let values = vec![2.0, 3.0];
+        let mut evaluator = CompiledEvaluator::new("y * x + z", &names, &values).unwrap();
+        assert_eq!(evaluator.eval_1d(0.0).unwrap(), Some(3.0));
+        assert_eq!(evaluator.eval_1d(1.0).unwrap(), Some(5.0));
     }
 }

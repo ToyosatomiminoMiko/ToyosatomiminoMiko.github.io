@@ -1,3 +1,22 @@
+//! 采样层:曲线/曲面/向量场的网格求值,以及积分域的采样形状.
+//!
+//! 行为契约:
+//! - 采样是"求值层",不做掩码决策:非有限值一律写成 `NaN` 占位(曲面/网格),
+//!   或按调用方约定跳过(曲线,返回变长数组).积分消费核把 NaN 解释为
+//!   "该点不贡献测度"(掩码语义,见 integral_core 头契约),渲染层把它当
+//!   "无数据格"--两种消费方共用同一份 NaN 占位;
+//! - 布局:二维/三维数组一律行主序(外层 y / 外层 z 中层 y,内层 x);
+//!   含端点整格 (n+1)(m+1) 与单元端 n×m 两种形态见 SampleShape,
+//!   由 integral_method::sample_shape_* 决定,采样侧不自行发明形状;
+//! - 坐标都是世界坐标,系数名与坐标名冲突防护在 eval_core::build_base_context
+//!   (1D 允许 y/z 作系数,2D 允许 z,因为对应维度不会覆写它们);
+//! - 规模护栏:每个入口先过 config 的上限(MAX_GRID_N / MAX_CURVE_SAMPLES /
+//!   MAX_VECTOR_FIELD_POINTS),在分配前报错.
+//!
+//! 编码注意:单元端点坐标用 integral_method::cell_end_at;线性插值用
+//! uniform_nodes,不要在文件里手写第三句 `lo + (hi-lo)*i/n`.
+
+use crate::config::{MAX_CURVE_SAMPLES, MAX_GRID_N, MAX_VECTOR_FIELD_POINTS};
 use crate::eval_core::CompiledEvaluator;
 use crate::integral_core::{validate_1d_interval, validate_2d_interval};
 use crate::integral_method::SampleShape;
@@ -24,6 +43,9 @@ pub fn sample_curve(
     validate_1d_interval(x_min, x_max)?;
     if steps == 0 {
         return Err("曲线采样需要 steps > 0".to_string());
+    }
+    if steps > MAX_CURVE_SAMPLES {
+        return Err(format!("曲线采样 steps 超过上限 {MAX_CURVE_SAMPLES}"));
     }
 
     let mut evaluator: CompiledEvaluator = CompiledEvaluator::new(expr, coeff_names, coeff_values)?;
@@ -63,6 +85,9 @@ fn sample_surface_grid(
     validate_2d_interval((xa, xb), (ya, yb))?;
     if nx == 0 || ny == 0 {
         return Err(count_error.to_string());
+    }
+    if nx > MAX_GRID_N || ny > MAX_GRID_N {
+        return Err(format!("采样网格每轴步数超过上限 {MAX_GRID_N}"));
     }
 
     let mut evaluator: CompiledEvaluator = CompiledEvaluator::new(expr, coeff_names, coeff_values)?;
@@ -136,6 +161,9 @@ fn sample_cell_ends(
     if nx == 0 || ny == 0 {
         return Err("积分采样需要 n 和 m 均大于 0".to_string());
     }
+    if nx > MAX_GRID_N || ny > MAX_GRID_N {
+        return Err(format!("采样网格每轴步数超过上限 {MAX_GRID_N}"));
+    }
     let mut evaluator: CompiledEvaluator = CompiledEvaluator::new(expr, coeff_names, coeff_values)?;
     let hx = (xb - xa) / nx as f64;
     let hy = (yb - ya) / ny as f64;
@@ -176,6 +204,15 @@ pub fn sample_vector_field(
     validate_1d_interval(z_min, z_max)?;
     if nx == 0 || ny == 0 || nz == 0 {
         return Err("向量场采样需要 nx/ny/nz 均大于 0".to_string());
+    }
+    if nx > MAX_GRID_N || ny > MAX_GRID_N || nz > MAX_GRID_N {
+        return Err(format!("向量场采样每轴格数超过上限 {MAX_GRID_N}"));
+    }
+    let total_points = nx as u64 * ny as u64 * nz as u64;
+    if total_points > MAX_VECTOR_FIELD_POINTS as u64 {
+        return Err(format!(
+            "向量场采样总点数 {total_points} 超过上限 {MAX_VECTOR_FIELD_POINTS}"
+        ));
     }
 
     let mut p_evaluator: CompiledEvaluator =
@@ -237,6 +274,9 @@ pub fn sample_function_1d(
     validate_1d_interval(a, b)?;
     if n == 0 {
         return Err("积分采样需要 n > 0".to_string());
+    }
+    if n > MAX_GRID_N {
+        return Err(format!("积分采样 n 超过上限 {MAX_GRID_N}"));
     }
 
     let mut evaluator = CompiledEvaluator::new(expr, coeff_names, coeff_values)?;

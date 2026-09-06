@@ -11,6 +11,8 @@
 //!   唯二的事实来源,加方法必须两处同步;
 //! - `cell_end` 是方法在网格单元上的采样端语义(region/solid 网格,
 //!   2D 端点黎曼,lebesgue 左端点格子都用它);
+//! - `cell_end_at` 是"采样端 -> 坐标"的唯一映射(202609 审查收口,
+//!   之前 region/solid 各自手写三份 match),各调用点一律复用;
 //! - `SampleShape` 是采样层实际需要的"整格 / 单元端"形态,跨模块用枚举
 //!   传递,不再用 `&str` 靠注释维持契约.
 
@@ -23,6 +25,20 @@ pub enum CellEnd {
     MaxCorner,
     /// 单元中心.
     Center,
+}
+
+/// 第 `index`(0..n)个单元在该采样端语义下的代表坐标,区间为 [lo, hi].
+///
+/// region/solid 的网格采样与 2D 端点黎曼共用这一份"单元端 -> 坐标"映射;
+/// 禁止在各调用点手写三份 match(历史上五处复制导致过一次端不一致).
+/// 调用方需保证 n > 0 且 index < n(各入口已校验 n > 0).
+pub(crate) fn cell_end_at(end: CellEnd, lo: f64, hi: f64, n: usize, index: usize) -> f64 {
+    let h = (hi - lo) / n as f64;
+    match end {
+        CellEnd::MinCorner => lo + index as f64 * h,
+        CellEnd::MaxCorner => lo + (index + 1) as f64 * h,
+        CellEnd::Center => lo + (index as f64 + 0.5) * h,
+    }
 }
 
 /// 采样函数实际产出哪种数组形态.

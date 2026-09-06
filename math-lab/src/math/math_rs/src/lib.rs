@@ -1,3 +1,18 @@
+//! math_rs 的 wasm-bindgen 门面(lib crate 根).
+//!
+//! 职责与约定:
+//! - 每个 wasm 导出都只是"解包参数 -> 调 core 模块 -> 包结果/错误"的薄层,
+//!   数值语义一律在 core(integral_core/sampling_core/domain_integral/
+//!   intersection_core/...)里定义并可在 `cargo test` 纯 Rust 验证;
+//! - 复杂入口走 JSON payload(wasm_payloads.rs),签名保持 `(payload: &str)`,
+//!   新增字段只动"结构体 + TS 构造处",不要退回 20 个扁平参数的旧风格;
+//! - 掩码语义,规模护栏(n/m/layers/segments 上限)由 core 模块统一执行,
+//!   这里不重复校验(除非要先报错再分配);
+//! - 本文件尾部 `glue_tests` 覆盖"方法字符串 -> 采样形状 -> 消费核"的 wasm 层
+//!   语义分发(host 测试只走成功路径);纯 Rust 错误用例在 core 模块内.
+//!
+//! 编码注意:不要在此文件内联任何采样/积分/求交算法;改动数学行为先找 core.
+
 pub mod builtins;
 pub mod config;
 pub mod domain_integral;
@@ -235,7 +250,7 @@ pub fn integrate2d(payload: &str) -> Result<IntegralSampleResult, JsValue> {
                 .map_err(math_error)?
         }
         IntegralMethod::Lebesgue => {
-            integral_core::lebesgue2d_from_values(&samples, (xa, xb), (ya, yb), n, layers)
+            integral_core::lebesgue2d_from_values(&samples, (xa, xb), (ya, yb), n, m, layers)
                 .map_err(math_error)?
         }
     };

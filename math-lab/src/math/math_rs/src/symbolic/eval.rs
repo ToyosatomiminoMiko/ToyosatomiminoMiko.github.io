@@ -26,6 +26,11 @@ fn finite_value(value: f64) -> Option<f64> {
 /// m/n 时有实值((−x)^(m/n) = (−1)^m·|x|^(m/n));否则返回 NaN.
 /// 避免 `(-8)^(1/3)` 之类数学上可定义的实值运算被 `powf` 一律给 NaN
 /// (见 prompt/review_report.md P2.2).正底/整数指数仍直接走 `powf`.
+///
+/// 编码注意:`odd_denominator_rational` 是"容差内最接近奇分母有理数"的
+/// 识别器,不是精确判定;因此微小但非零的指数(如 1e-9)若被归约为 0/1
+/// 会错误给出 ≈1 的实值,而 (−x)^ε 在 ε->0 沿奇分母逼近的极限不存在,
+/// 应为无实值 NaN.m==0 候选在识别器内被跳过以堵住这条路径.
 pub(crate) fn real_pow(base: f64, exp: f64) -> f64 {
     if base >= 0.0 || !exp.is_finite() || exp.fract() == 0.0 || !base.is_finite() {
         return base.powf(exp);
@@ -67,6 +72,12 @@ fn odd_denominator_rational(x: f64) -> Option<(i64, u64)> {
     for n in (1u64..=1023).step_by(2) {
         let m = (x * n as f64).round();
         if !m.is_finite() {
+            continue;
+        }
+        // m==0 意味着 x ≈ 0/1:微小但非零的指数并不等于 0,(−x)^ε 沿奇分母
+        // 有理数逼近 0 的极限不存在,应判无实值;x==0 已在函数开头返回.
+        // 若在这里放行,(-8)^(1e-9) 会被归约为指数 0 而错误返回 ≈1.
+        if m == 0.0 {
             continue;
         }
         if (x - m / n as f64).abs() > 1e-9 * scale {
@@ -169,5 +180,19 @@ mod tests {
         assert!((real_pow(-8.0, -1.0 / 3.0) - -0.5).abs() < 1e-12);
         assert!((real_pow(-1.0, 0.5)).is_nan(), "(-1)^0.5 无实值");
         assert!((real_pow(2.0, 1.0 / 3.0) - 2.0f64.powf(1.0 / 3.0)).abs() < 1e-12);
+    }
+
+    #[test]
+    fn tiny_nonzero_exponents_are_not_rounded_to_zero() {
+        // P3 回归:微小但非零的指数不得被归约为 0/1 而返回 ≈1;
+        // 1e-9 = 1/10^9 约分后分母为偶,按实数语义应无实值.
+        assert!(
+            real_pow(-8.0, 1e-9).is_nan(),
+            "(-8)^1e-9 不应被当作 (-8)^0 ≈ 1"
+        );
+        assert!(real_pow(-8.0, -1e-20).is_nan());
+        // 真正的奇分母小指数(1/1001)仍给出负实值.
+        let value = real_pow(-8.0, 1.0 / 1001.0);
+        assert!(value < 0.0 && (value + 8.0f64.powf(1.0 / 1001.0)).abs() < 1e-9);
     }
 }

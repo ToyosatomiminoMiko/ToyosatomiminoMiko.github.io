@@ -1,6 +1,10 @@
 //! 常量求值(用于 matrix 条目)与代数化简(折叠,去幺元/零元,乘积因子).
-
-use std::f64::consts::{E, PI};
+//!
+//! 编码注意:
+//! - `pi`/`e` 等符号常量在表达式归一化阶段(rewrite_aliases)已被折叠成 Num,
+//!   因此 evaluate_constant 里不再内联一份常量表(202609 审查去掉重复);
+//!   残留的 Sym 一律视为未绑定变量并报错;
+//! - 乘积化简的数字因子在任意位置都合并成单一系数,结果不随书写顺序漂移.
 
 use super::eval::real_pow;
 use super::{BinOp, Expr, UnaryOp};
@@ -9,8 +13,8 @@ use crate::builtins;
 pub(crate) fn evaluate_constant(expr: &Expr) -> Result<f64, String> {
     match expr {
         Expr::Num(value) => Ok(*value),
-        Expr::Sym(name) if name == "pi" || name == "PI" => Ok(PI),
-        Expr::Sym(name) if name == "e" || name == "E" => Ok(E),
+        // pi/e 等常量在 rewrite_aliases 阶段已折叠为 Num,这里不重复登记;
+        // 任何残留 Sym 都是未绑定变量(或调用方忘了先归一化).
         Expr::Sym(name) => Err(format!("矩阵条目包含未绑定变量 {name}")),
         Expr::Unary(UnaryOp::Neg, operand) => Ok(-evaluate_constant(operand)?),
         Expr::Binary(op, left, right) => {
@@ -168,25 +172,28 @@ fn simplify_mul(left: Expr, right: Expr) -> Expr {
         }
     }
 
-    let mut product = Expr::Num(1.0);
+    // 数字因子无论出现在哪个位置都先合并成一个系数:保证 `2 * 3 * x`
+    // 与 `x * 2 * 3` 化简出同一棵树(202609 审查前数字只在"连续前缀"时
+    // 合并,输出随输入书写顺序漂移,3*(2*x) 不会被收成 6*x).
+    let mut coefficient = 1.0;
+    let mut terms: Vec<Expr> = Vec::new();
     for factor in clean_factors {
-        if is_one(&factor) {
-            continue;
+        match factor {
+            Expr::Num(value) => coefficient *= value,
+            other => terms.push(other),
         }
-        if is_zero(&factor) {
-            return Expr::Num(0.0);
-        }
-        product = if matches!(product, Expr::Num(value) if value == 1.0) {
-            factor
-        } else if let Expr::Num(value) = factor {
-            if let Expr::Num(acc) = product {
-                Expr::Num(acc * value)
-            } else {
-                Expr::Binary(BinOp::Mul, Box::new(Expr::Num(value)), Box::new(product))
-            }
-        } else {
-            Expr::Binary(BinOp::Mul, Box::new(product), Box::new(factor))
-        };
+    }
+    if coefficient == 0.0 {
+        return Expr::Num(0.0);
+    }
+
+    let mut product: Expr = if coefficient == 1.0 && !terms.is_empty() {
+        terms.remove(0)
+    } else {
+        Expr::Num(coefficient)
+    };
+    for term in terms {
+        product = Expr::Binary(BinOp::Mul, Box::new(product), Box::new(term));
     }
 
     if negative {

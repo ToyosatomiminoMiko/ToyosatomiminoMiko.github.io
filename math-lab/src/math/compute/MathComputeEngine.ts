@@ -86,7 +86,7 @@ export class MathComputeEngine {
         objects: readonly SceneObject[],
         transforms: Readonly<Record<number, Mat4>>,
     ): IntegralSpec {
-        // region/solid 域的被积表达式里出现的额外参数(见 integrals.ts),
+        // "region"/"solid" 域的被积表达式里出现的额外参数(见 integrals.ts),
         // 它们是任务自身携带的系数,不挂在域对象上.
         const integrandCoeffs = coefficientsToRecord(task.integrandCoefficients);
 
