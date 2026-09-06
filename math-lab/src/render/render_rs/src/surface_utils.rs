@@ -1,6 +1,68 @@
+// ================================================================
+// surface_utils.rs -- 曲面生成:数值采样 + 网格后处理(Rust/WASM 侧)
+//
+// 职责:把 "z = f(x, y)" 表达式变成可直接交给 Three.js 的网格数据,
+// 产出 positions / valid_indices / normals 以及 z_min / z_max.
+// 本文件只做几何,不做颜色.
+//
+// ------------------------------------------------------------------
+// 颜色映射已拆到渲染侧(着色器),见 math-lab/src/render/visualization/
+// surfaceColorMap.ts:旧的 CPU 路径 map_surface_colors(HSL 伪彩色 +
+// color attribute + vertexColors)已从 render_rs 移除;同一套 z->HSL
+// 映射搬进了顶点着色器,按 position.z 与 uZRange 每帧实时计算.
+// 因此本文件仍需把采样结果的 z 极值(z_min/z_max)回传出去 -- 它是
+// 着色器色带区间的数据来源(主线程把它更新进 uZRange uniform).
+//
+// 曲面生成的完整流程:
+//
+//   UI 输入(滑杆 / 系数 / 区间)变化
+//     -> rAF 脏标记绘制 SurfaceRenderer.draw()
+//     -> SurfaceMesh.update()
+//     -> SurfaceComputeClient(latest-only,过期请求被丢弃)
+//     -> surfaceWorker(独立线程)
+//     -> render_rs::sample_and_process_surface(lib.rs 的 wasm 导出)
+//         └─ sample_and_process_surface(本文件,编排入口)
+//              ① sample_surface_values()    数值采样
+//                 委托 math_rs::sampling_core::sample_surface_values:
+//                 表达式(CompiledEvaluator)只编译一次,在
+//                 (cols+1)×(rows+1) 行优先网格(外 y 内 x)上逐点求值
+//                 z = f(x,y),非有限值写为 NaN;再据此组装 positions
+//                 (x,y,z 扁平 f32)并统计 z_min/z_max -- 只统计有限 z,
+//                 若全部非法则回退 DEGENERATE_Z_MIN/Z_MAX(见 config.rs)
+//              ② generate_full_indices()    网格索引
+//                 每格拆两个三角形 (a,b,d)+(a,d,c),共 cols·rows·6 个
+//              ③ filter_nan_triangles()     无效三角形剔除
+//                 丢弃任一顶点 z 为 NaN 的三角形,防止 NaN 面法线经
+//                 顶点平均污染相邻正常三角形
+//              ④ compute_vertex_normals()   平滑法线
+//                 对共享顶点累加三角形面法线再归一化,与 Three.js
+//                 BufferGeometry.computeVertexNormals() 语义一致;
+//                 放在 WASM 做,避免主线程 O(顶点数) 遍历
+//             ↓ 产出
+//         SurfaceSampleResult { positions, valid_indices, normals,
+//                               z_min, z_max }
+//     -> 结果经 Transferable 数组回主线程
+//     -> SurfaceMesh._applyResult()
+//          · 把 positions / normals / valid_indices 写回预分配的
+//            BufferGeometry(几何体只创建一次,高频更新只改 attribute)
+//          · colorRange.setRange(z_min, z_max) -> 更新 uZRange uniform
+//     -> 渲染(Three.js Phong 材质,渲染侧流程)
+//          顶点着色器  surfaceColorFromZ(position.z) -> vSurfaceColor
+//                      · t = (z - z_min)/(z_max - z_min),clamp 到 [0,1];
+//                        range == 0(平面)时取 FLAT_COLOR_T = 0.5
+//                      · NaN/Inf 顶点 -> 黑(其所在三角形已被 ③ 剔除)
+//                      · hue 0.66->0,sat 0.9,light 0.5->0.8(HSL 伪彩)
+//          片段着色器  diffuseColor.rgb *= vSurfaceColor
+//                      (diffuse 乘顶点色;specular 不受影响,
+//                       与旧 vertexColors + CPU color 语义一致)
+//
+// 同步约束:config.rs 中的配色常量(SURFACE_HUE_START / SURFACE_SATURATION /
+// SURFACE_LIGHTNESS_BASE / SURFACE_LIGHTNESS_RANGE / FLAT_COLOR_T)必须与
+// surfaceColorMap.ts 内嵌的 GLSL 常量保持一致 -- 改任一侧都要同步另一侧.
+// ================================================================
 use crate::config::{DEGENERATE_Z_MAX, DEGENERATE_Z_MIN};
 
-/*
+/**
 剔除所有包含 NaN z 值的三角形
 
 原理:任何包含 NaN 顶点的三角形,其面法线为 NaN,

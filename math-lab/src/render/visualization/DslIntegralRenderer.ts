@@ -5,7 +5,7 @@ import type {
     SceneObject,
 } from '../../compiler/ir/types';
 import type { Mat4 } from '../../math/tensor/rowMajorMatrix';
-import { IntegralVisualizer } from './IntegralVisualizer';
+import { IntegralVisualizer } from './integral/IntegralVisualizer';
 import type { MathComputeEngine } from '../../math/compute/MathComputeEngine';
 import type { IntegralResult } from '../../math/compute/IntegralWasm';
 import {
@@ -357,7 +357,7 @@ export class DslIntegralRenderer {
             task.domainKind === 'region'
             && (task.method === 'trapezoid' || task.method === 'simpson')
         ) {
-            // region 的梯形/辛普森数值是 B1 累次积分,体元/曲面可视化按
+            // "region" 的梯形/辛普森数值是 B1 累次积分,体元/曲面可视化按
             // 中点单元网格近似示意(数值不受影响).
             diagnostics(
                 'warning',

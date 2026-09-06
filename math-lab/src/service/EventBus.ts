@@ -48,7 +48,7 @@ export class EventBus<Events extends Record<string, any>> {
      * 取消订阅
      */
     /**
-     * @cache access
+     * @cache_access
      * 从监听器注册表移除一个订阅.
      */
     off<K extends keyof Events>(
@@ -66,7 +66,7 @@ export class EventBus<Events extends Record<string, any>> {
      * 触发事件
      */
     /**
-     * @cache access
+     * @cache_access
      * 命中监听器注册表并触发回调.
      */
     emit<K extends keyof Events>(event: K, data: Events[K]): void {
@@ -86,7 +86,7 @@ export class EventBus<Events extends Record<string, any>> {
 
     /** 清空所有监听 用于销毁/重置 */
     /**
-     * @cache access
+     * @cache_access
      * 清空监听器注册表.
      */
     clear(): void {

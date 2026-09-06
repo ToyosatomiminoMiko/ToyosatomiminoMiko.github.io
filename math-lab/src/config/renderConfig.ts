@@ -67,7 +67,7 @@ export const RENDER_CONFIG = {
         axisLabelLength: 11,
         // Line2 坐标轴线宽(像素),可在右侧"视图"面板调整
         axisLineWidth: 3,
-        // 网格:大刻度线粗、小刻度线细,均用 Line2 系列绘制
+        // 网格:大刻度线粗,小刻度线细,均用 Line2 系列绘制
         grid: {
             size: 20,
             majorStep: 5,
@@ -108,6 +108,7 @@ export const RENDER_CONFIG = {
         labelCanvasSize: 64,
         labelFont: 'Bold 36px Arial',
         labelScale: 0.8,
+        // 坐标轴颜色 (行业惯例)
         axisColors: {
             x: '#ff4444',
             y: '#44ff44',
