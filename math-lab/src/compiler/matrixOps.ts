@@ -3,8 +3,9 @@
  *
  * 为什么放在 `compiler/` 下:
  * - 编译期需要真正求值:`dsl/staticScene.ts` 折叠 transform/动画表达式时经
- *   `parseTransformExpression(expr, matrices, matrixOps)` 得到具体 Mat4,
- *   编译管线以 `compileScene(ast, params, matrixOps)` 显式注入本模块产物,
+ *   `parseTransformExpression(expr, matrices, transforms, matrixOps)` 得到
+ *   具体 Mat4(transforms 表支持声明体内的引用),编译管线以
+ *   `compileScene(ast, params, matrixOps)` 显式注入本模块产物,
  *   生产 WASM 实现必须与编译需求方同侧,调用方为 `app/CompileController.ts`.
  * - 与 DSL 解析无关,独立成模块:避免 `parser` 包同时承担解析与矩阵后端职责.
  * - 分层约定:纯接口 `MatrixOps`/`createMatrixOps` 在 `math/tensor/SceneTransform.ts`,

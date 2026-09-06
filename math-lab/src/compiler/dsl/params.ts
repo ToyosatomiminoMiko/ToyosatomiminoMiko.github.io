@@ -3,7 +3,7 @@
  * 从 DslCompiler 拆出,保持参数相关逻辑集中管理.
  */
 import type { AstProgram } from '../ast/types';
-import type { ParamDeclaration } from '../ir/types';
+import type { Coefficient, ParamDeclaration } from '../ir/types';
 import { NUMERIC_CONFIG } from '../../config/numericConfig';
 import { withStatementSpan } from '../errors';
 import { toFiniteNumber } from './options';
@@ -17,6 +17,57 @@ export function createDefaultParam(name: string): ParamDeclaration {
         max: NUMERIC_CONFIG.param.defaultMax,
         step: NUMERIC_CONFIG.param.defaultStep,
     };
+}
+
+/**
+ * 单个自由参数的取值解析(202609 review 结论,全 DSL 唯一入口).
+ *
+ * 规则:value = overrides[name] ?? 声明值;min/max/step 只来自声明表
+ * (隐式参数使用 NUMERIC_CONFIG 默认).此前 objects/integrals 各写一份
+ * "overrides[name] ?? declared.value",analyses 又手工建 scope,四处对
+ * "参数未声明时怎么办"的处理互相矛盾(对象侧静默建默认,积分侧直接报错).
+ * 收敛后差异只剩一个开关:materializeCoefficient 允许隐式默认,
+ * requireDeclaredCoefficient 强制必须已声明(并携带语句级错误文案).
+ */
+function coefficientFromDeclaration(
+    name: string,
+    declared: ParamDeclaration,
+    overrides: Record<string, number>,
+): Coefficient {
+    return {
+        name,
+        value: overrides[name] ?? declared.value,
+        min: declared.min,
+        max: declared.max,
+        step: declared.step,
+    };
+}
+
+/** 解析对象系数:未声明参数静默使用默认声明(与既有对象行为一致). */
+export function materializeCoefficient(
+    name: string,
+    params: Map<string, ParamDeclaration>,
+    overrides: Record<string, number>,
+): Coefficient {
+    return coefficientFromDeclaration(
+        name,
+        params.get(name) ?? createDefaultParam(name),
+        overrides,
+    );
+}
+
+/** 解析积分被积函数等"必须显式声明"的参数;未声明时直接报错. */
+export function requireDeclaredCoefficient(
+    name: string,
+    params: Map<string, ParamDeclaration>,
+    overrides: Record<string, number>,
+    context: string,
+): Coefficient {
+    const declared = params.get(name);
+    if (!declared) {
+        throw new Error(`${context} 引用了未声明的参数 ${name}`);
+    }
+    return coefficientFromDeclaration(name, declared, overrides);
 }
 
 export function collectParams(ast: AstProgram): Map<string, ParamDeclaration> {
@@ -63,6 +114,15 @@ export function collectParams(ast: AstProgram): Map<string, ParamDeclaration> {
     return params;
 }
 
+/**
+ * 把覆盖值回写进参数声明表.
+ *
+ * 仅用于让 IR scene.params 携带当前滑块值(param 面板读它恢复滑块位置);
+ * 各编译消费者(对象物化/积分/分析)必须直接使用 buildParamScope /
+ * materializeCoefficient / requireDeclaredCoefficient 读取 overrides,
+ * 不要依赖"先改 map 再读 map"的副作用通道(202609 review:回写 map 与
+ * 逐处读 overrides 是双轨口径,已收敛为后者唯一来源).
+ */
 export function applyParamOverrides(
     params: Map<string, ParamDeclaration>,
     overrides: Record<string, number>,

@@ -55,6 +55,8 @@ vi.mock('../../wasm/math_rs/math_rs', () => ({
         switch (expr) {
             case '[y, -x, 0]':
                 return '["y", "-x", "0"]';
+            case '[sin(x*a), 0, 0]':
+                return '["sin(x*a)", "0", "0"]';
             case '[a, 1, 0]':
                 return '["a", "1", "0"]';
             case '[[1, 2, 3], [a, 0, 1]]':
@@ -1304,5 +1306,176 @@ describe('语句级错误定位', () => {
                 source,
             ),
         ).toBe('第 2 行第 1 列: 分析 g 引用了不存在的对象 nope');
+    });
+});
+
+// 202609 review 修复的回归测试:见 DslCompiler.ts / analyses.ts / staticScene.ts
+// 文件头的约定(1. hidden 先校验后禁用;2. 求值语句名唯一;3. 表达式归一化
+// 收口;5. region 边界约束上收 staticScene).
+describe('review 修复回归测试', () => {
+    function curve(name: string, expr: string): AstProgram['statements'][number] {
+        return {
+            type: 'object',
+            kind: 'curve',
+            name,
+            expr,
+            options: [{ name: 'range', value: '[-4, 4]' }],
+            span: { start: 0, end: 0 },
+        };
+    }
+
+    it('rejects duplicate integral names instead of silently overwriting formulas', () => {
+        const badAst: AstProgram = {
+            statements: [
+                curve('c', 'sin(x)'),
+                {
+                    type: 'integral',
+                    name: 'I',
+                    source: 'c',
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'integral',
+                    name: 'I',
+                    source: 'c',
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+        expect(() => compileScene(badAst)).toThrow('积分 I 重复声明');
+    });
+
+    it('rejects duplicate analysis names', () => {
+        const badAst: AstProgram = {
+            statements: [
+                curve('c', 'sin(x)'),
+                {
+                    type: 'analysis',
+                    op: 'gradient',
+                    name: 'g',
+                    call: 'grad',
+                    source: 'c',
+                    at: ['1'],
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'analysis',
+                    op: 'gradient',
+                    name: 'g',
+                    call: 'grad',
+                    source: 'c',
+                    at: ['1'],
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+        expect(() => compileScene(badAst)).toThrow('分析 g 重复声明');
+    });
+
+    it('validates hidden integrals like visible ones (missing source still errors)', () => {
+        const badAst: AstProgram = {
+            statements: [
+                curve('c', 'sin(x)'),
+                {
+                    type: 'integral',
+                    name: 'I',
+                    source: 'missing',
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+        expect(() => compileScene(
+            badAst,
+            {},
+            { hiddenIntegralNames: new Set(['I']) },
+        )).toThrow('积分 I 引用了不存在的对象 missing');
+    });
+
+    it('validates hidden analyses against the op × kind matrix (unsupported kind still errors)', () => {
+        const badAst: AstProgram = {
+            statements: [
+                {
+                    type: 'object',
+                    kind: 'sphere',
+                    name: 'S',
+                    expr: '[0, 0, 0]',
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'analysis',
+                    op: 'gradient',
+                    name: 'g',
+                    call: 'grad',
+                    source: 'S',
+                    at: ['0'],
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+        expect(() => compileScene(
+            badAst,
+            {},
+            { hiddenAnalysisNames: new Set(['g']) },
+        )).toThrow('分析 g 不能应用于 sphere 类型对象');
+    });
+
+    it('normalizes vector_field components at blueprint build like curve/surface exprs', () => {
+        const fieldAst: AstProgram = {
+            statements: [
+                {
+                    type: 'object',
+                    kind: 'vector_field',
+                    name: 'G',
+                    expr: '[sin(x*a), 0, 0]',
+                    options: [{ name: 'grid', value: '[4, 4, 4]' }],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+        const scene = compileScene(fieldAst);
+        const field = scene.objects[0];
+        expect(field.kind).toBe('vector_field');
+        if (field.kind === 'vector_field') {
+            expect(field.components).toEqual(['sin(x * a)', '0', '0']);
+        }
+    });
+
+    it('accepts a bare matrix name in an object transform option (unified reference grammar)', () => {
+        const transformAst: AstProgram = {
+            statements: [
+                {
+                    type: 'tensor',
+                    kind: 'matrix',
+                    name: 'M',
+                    expr: '[[1, 0, 0, 2], [0, 1, 0, 3], [0, 0, 1, 4], [0, 0, 0, 1]]',
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'object',
+                    kind: 'curve',
+                    name: 'c',
+                    expr: 'x',
+                    options: [
+                        { name: 'transform', value: 'M' },
+                        { name: 'range', value: '[-1, 1]' },
+                    ],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+        const scene = compileScene(transformAst);
+        expect(scene.objectTransforms[1]).toEqual([
+            [1, 0, 0, 2],
+            [0, 1, 0, 3],
+            [0, 0, 1, 4],
+            [0, 0, 0, 1],
+        ]);
     });
 });

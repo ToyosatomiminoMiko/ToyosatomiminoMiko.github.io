@@ -55,6 +55,27 @@ export function parseNumberList(raw: string, context: string): number[] {
     return values;
 }
 
+/**
+ * 定长数字列表解析:parseNumberList + 长度校验.
+ *
+ * 202609 review 结论:curve/surface/vector_field/integral 的 range,grid 此前各写
+ * 一遍"拆串 + 数个数 + 报错"逻辑,文案还各不相同;统一成这个入口后,各调用点
+ * 只需按自身语义做 min < max / 正整数 / 上限等二次校验即可.
+ */
+export function parseNumberListOfSize(
+    raw: string,
+    size: number,
+    context: string,
+): number[] {
+    const values = parseNumberList(raw, context);
+    if (values.length !== size) {
+        throw new Error(
+            `${context} 需要 ${size} 个数值,当前为 ${values.length} 个`,
+        );
+    }
+    return values;
+}
+
 export function optionalNumber(
     raw: string | undefined,
     context: string,

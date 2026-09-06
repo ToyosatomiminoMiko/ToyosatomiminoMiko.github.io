@@ -3,6 +3,12 @@
  *
  * 表达式在进入 blueprint 前统一经 Rust 符号引擎归一化,因此后续
  * 采样/积分/分析和渲染都直接消费 Rust/evalexpr 可执行的字符串.
+ * 归一化覆盖所有"函数型"表达式:curve/surface 单表达式,vector_field 的
+ * P/Q/R 三分量,体积对象的位置/几何参数,region 的边界曲线表达式
+ * (202609 review:vector_field 分量与 region 边界系数此前保留了未归一化原文,
+ * 同一表达式在曲线/向量场语境下会走不同的符号求导/LaTeX 路径,已收口;
+ * region 的边界曲线又必须与边界 curve 自身同源,故统一对 raw 语句表达式
+ * 再做一次归一化后提取系数--normalizeExpression 自带缓存,成本可忽略).
  *
  * region(面积图形)实体:V1 只支持 x 型带状区域,不持有曲线几何拷贝,只按
  * 名引用两条边界 `curve`;后续规划(y 型 / 极坐标 r-θ / 多曲线边界 /
@@ -14,7 +20,6 @@ import { RENDER_CONFIG } from '../../config/renderConfig';
 import type { ObjectStatement } from '../ast/types';
 import type {
     BoxObject,
-    Coefficient,
     ConicSolidObject,
     CurveObject,
     ParamDeclaration,
@@ -32,10 +37,10 @@ import {
     optionalNumber,
     parseCappedPositiveInteger,
     parseCappedPositiveIntegerList,
-    parseNumberList,
+    parseNumberListOfSize,
     stripQuotes,
 } from './options';
-import { buildParamScope, createDefaultParam } from './params';
+import { buildParamScope, materializeCoefficient } from './params';
 import {
     evaluateRequiredNumber,
     extractSymbolNames,
@@ -208,7 +213,7 @@ const CONIC_OPTION_NAMES = [
     'transform',
     'animation',
 ] as const;
-// region V1:只有外观/采样选项;transform/animation 由未知选项校验直接拒绝,
+// "region" V1:只有外观/采样选项;transform/animation 由未知选项校验直接拒绝,
 // 后续规划(极坐标/y 型/多边界等)见文件头与 RegionObject 注释.
 const REGION_OPTION_NAMES = ['range', 'color', 'opacity', 'segments'] as const;
 
@@ -268,10 +273,7 @@ function parseRegionReference(
 
 /** 解析一条 `[min, max]` 形式的 x 区间(range 选项),统一校验与报错. */
 function parseXRange2(raw: string, context: string): [number, number] {
-    const values = parseNumberList(raw, `${context} 的 range`);
-    if (values.length !== 2) {
-        throw new Error(`${context} 的 range 需要 2 个数值`);
-    }
+    const values = parseNumberListOfSize(raw, 2, `${context} 的 range`);
     if (values[0] >= values[1]) {
         throw new Error(`${context} 的 range 需要 min < max`);
     }
@@ -393,23 +395,6 @@ function extractCoefficientNames(
     return [...names];
 }
 
-function materializeCoefficients(
-    names: string[],
-    params: Map<string, ParamDeclaration>,
-    overrides: Record<string, number>,
-): Coefficient[] {
-    return names.map((name) => {
-        const declared = params.get(name) ?? createDefaultParam(name);
-        return {
-            name,
-            value: overrides[name] ?? declared.value,
-            min: declared.min,
-            max: declared.max,
-            step: declared.step,
-        };
-    });
-}
-
 export function buildObjectBlueprint(
     statement: ObjectStatement,
     id: number,
@@ -450,11 +435,8 @@ export function buildObjectBlueprint(
             const expr = normalizeExpression(statement.expr);
             const rawRange = findOption(statement.options, 'range');
             const rangeValues = rawRange
-                ? parseNumberList(rawRange, `曲面 ${statement.name} 的 range`)
+                ? parseNumberListOfSize(rawRange, 4, `曲面 ${statement.name} 的 range`)
                 : [...NUMERIC_CONFIG.surface.defaultRange];
-            if (rangeValues.length !== 4) {
-                throw new Error(`曲面 ${statement.name} 的 range 需要 4 个数值`);
-            }
             if (rangeValues[0] >= rangeValues[1] || rangeValues[2] >= rangeValues[3]) {
                 throw new Error(`曲面 ${statement.name} 的 range 需要 min < max`);
             }
@@ -487,14 +469,18 @@ export function buildObjectBlueprint(
                 VECTOR_FIELD_OPTION_NAMES,
                 `向量场 ${statement.name}`,
             );
-            const [pExpr, qExpr, rExpr] = parseVectorComponents(statement.expr);
+            // 分量与 curve/surface 一样先归一化再入库(见文件头 202609 review 结论),
+            // 保证散度/旋度符号求导与 LaTeX 展示与曲线语境同源.
+            const [pExpr, qExpr, rExpr] = parseVectorComponents(statement.expr)
+                .map((component) => normalizeExpression(component)) as [
+                    string,
+                    string,
+                    string,
+                ];
             const rawRange = findOption(statement.options, 'range');
             const rangeValues = rawRange
-                ? parseNumberList(rawRange, `向量场 ${statement.name} 的 range`)
+                ? parseNumberListOfSize(rawRange, 6, `向量场 ${statement.name} 的 range`)
                 : [...NUMERIC_CONFIG.vectorField.defaultRange];
-            if (rangeValues.length !== 6) {
-                throw new Error(`向量场 ${statement.name} 的 range 需要 6 个数值`);
-            }
             if (
                 rangeValues[0] >= rangeValues[1]
                 || rangeValues[2] >= rangeValues[3]
@@ -710,8 +696,11 @@ export function buildObjectBlueprint(
                 curveAName: curveA.name,
                 curveBName: curveB.name,
                 range,
+                // 系数从"归一化后的边界表达式"提取,与边界 curve 自身 blueprints
+                // 的 coefficientNames 保持同源(见文件头 202609 review 结论;
+                // 归一化有缓存,重复调用成本可忽略).
                 coefficientNames: extractCoefficientNames(
-                    [curveA.expr, curveB.expr],
+                    [normalizeExpression(curveA.expr), normalizeExpression(curveB.expr)],
                     new Set(['x']),
                 ),
                 color,
@@ -737,7 +726,7 @@ export function materializeObject(
                 id: blueprint.id,
                 name: blueprint.name,
                 expr: blueprint.expr,
-                coefficients: materializeCoefficients(blueprint.coefficientNames, params, overrides),
+                coefficients: blueprint.coefficientNames.map((name) => materializeCoefficient(name, params, overrides)),
                 color: blueprint.color,
                 enabled: true,
                 range: blueprint.range,
@@ -751,7 +740,7 @@ export function materializeObject(
                 id: blueprint.id,
                 name: blueprint.name,
                 expr: blueprint.expr,
-                coefficients: materializeCoefficients(blueprint.coefficientNames, params, overrides),
+                coefficients: blueprint.coefficientNames.map((name) => materializeCoefficient(name, params, overrides)),
                 color: blueprint.color,
                 enabled: true,
                 range: blueprint.range,
@@ -803,7 +792,7 @@ export function materializeObject(
                 id: blueprint.id,
                 name: blueprint.name,
                 components: [blueprint.pExpr, blueprint.qExpr, blueprint.rExpr],
-                coefficients: materializeCoefficients(blueprint.coefficientNames, params, overrides),
+                coefficients: blueprint.coefficientNames.map((name) => materializeCoefficient(name, params, overrides)),
                 color: blueprint.color,
                 enabled: true,
                 gridSize: blueprint.gridSize,
@@ -832,7 +821,7 @@ export function materializeObject(
                 expr: blueprint.expr,
                 position: { x, y, z },
                 radius,
-                coefficients: materializeCoefficients(blueprint.coefficientNames, params, overrides),
+                coefficients: blueprint.coefficientNames.map((name) => materializeCoefficient(name, params, overrides)),
                 color: blueprint.color,
                 opacity: blueprint.opacity,
                 segments: blueprint.segments,
@@ -858,7 +847,7 @@ export function materializeObject(
                 expr: blueprint.expr,
                 position: { x, y, z },
                 size,
-                coefficients: materializeCoefficients(blueprint.coefficientNames, params, overrides),
+                coefficients: blueprint.coefficientNames.map((name) => materializeCoefficient(name, params, overrides)),
                 color: blueprint.color,
                 opacity: blueprint.opacity,
                 enabled: true,
@@ -939,7 +928,7 @@ export function materializeObject(
                 topRadius,
                 height,
                 sideAngle,
-                coefficients: materializeCoefficients(blueprint.coefficientNames, params, overrides),
+                coefficients: blueprint.coefficientNames.map((name) => materializeCoefficient(name, params, overrides)),
                 color: blueprint.color,
                 opacity: blueprint.opacity,
                 segments: blueprint.segments,
@@ -955,7 +944,7 @@ export function materializeObject(
                 curveAName: blueprint.curveAName,
                 curveBName: blueprint.curveBName,
                 range: blueprint.range,
-                coefficients: materializeCoefficients(blueprint.coefficientNames, params, overrides),
+                coefficients: blueprint.coefficientNames.map((name) => materializeCoefficient(name, params, overrides)),
                 color: blueprint.color,
                 opacity: blueprint.opacity,
                 segments: blueprint.segments,

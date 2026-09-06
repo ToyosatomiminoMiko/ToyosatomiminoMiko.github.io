@@ -1,6 +1,14 @@
 /**
  * 微分分析编译.
  * 负责 gradient/divergence/curl 的符号求导与 WASM 数值求值编排.
+ *
+ * 202609 review 结论(hidden 语义,与 intersections/integrals 统一):
+ * "隐藏 = 先完整校验,后禁用,仅跳过数值计算".分析语句即使被隐藏也必须
+ * 通过全部声明级校验(对象存在 / 选项白名单 / 函数名与算子匹配 / kind × 算子
+ * 可用矩阵 / at 数量与坐标可求值 / show 白名单),校验失败照常抛语句级错误;
+ * 只有 WASM 符号求值/数值核(以及为它准备的 payload)在隐藏时跳过,产出
+ * enabled:false 的列表占位.分析名在 compileAnalyses 循环内查重,与
+ * param/object/animation 的"重复声明"契约一致.
  */
 import type {
     AnalysisCallName,
@@ -10,7 +18,6 @@ import type {
 } from '../ast/types';
 import type {
     AnalysisResult,
-    Coefficient,
     ParamDeclaration,
     SceneObject,
 } from '../ir/types';
@@ -20,6 +27,7 @@ import {
     evaluate_divergence_point as wasmEvaluateDivergencePoint,
     evaluate_gradient_point as wasmEvaluateGradientPoint,
 } from '../../wasm/math_rs/math_rs';
+import { splitCoefficients } from '../../math/coefficientUtils';
 import { withStatementSpan } from '../errors';
 import { assertKnownOptions, parseShowOption } from './options';
 import { buildParamScope } from './params';
@@ -38,13 +46,6 @@ const ANALYSIS_CALL_NAMES: Record<AnalysisOpKind, AnalysisCallName> = {
     laplacian: 'laplacian',
 };
 
-function coefficientArgs(source: { coefficients: Coefficient[] }): [string[], Float64Array] {
-    return [
-        source.coefficients.map((coefficient) => coefficient.name),
-        new Float64Array(source.coefficients.map((coefficient) => coefficient.value)),
-    ];
-}
-
 function normalizeVector(vector: [number, number, number]): [number, number, number] {
     const [x, y, z] = vector;
     const length = Math.sqrt(x * x + y * y + z * z);
@@ -57,16 +58,29 @@ export function compileAnalyses(
     ast: AstProgram,
     objectByName: Map<string, SceneObject>,
     params: Map<string, ParamDeclaration>,
+    paramOverrides: Record<string, number>,
     hiddenNames: ReadonlySet<string> = new Set(),
 ): AnalysisResult[] {
     const results: AnalysisResult[] = [];
+    const seenNames = new Set<string>();
 
     for (const statement of ast.statements) {
         if (statement.type !== 'analysis') continue;
         // 语句级错误定位:单条 analysis 编译抛错时携带本语句 span,
         // 应用层据此换算成源码行列(见 compiler/errors.ts).
         withStatementSpan(statement.span, () => {
-            compileAnalysisStatement(statement, objectByName, params, hiddenNames, results);
+            if (seenNames.has(statement.name)) {
+                throw new Error(`分析 ${statement.name} 重复声明`);
+            }
+            seenNames.add(statement.name);
+            compileAnalysisStatement(
+                statement,
+                objectByName,
+                params,
+                paramOverrides,
+                hiddenNames,
+                results,
+            );
         });
     }
 
@@ -83,6 +97,7 @@ function compileAnalysisStatement(
     statement: AnalysisStatement,
     objectByName: Map<string, SceneObject>,
     params: Map<string, ParamDeclaration>,
+    paramOverrides: Record<string, number>,
     hiddenNames: ReadonlySet<string>,
     results: AnalysisResult[],
 ): void {
@@ -105,19 +120,9 @@ function compileAnalysisStatement(
         throw new Error(`分析算子 ${statement.op} 暂未实现`);
     }
 
-    if (hiddenNames.has(statement.name)) {
-        results.push({
-            name: statement.name,
-            op: statement.op,
-            point: [0, 0, 0],
-            vector: [0, 0, 0],
-            scalar: null,
-            show: [],
-            enabled: false,
-        });
-        return;
-    }
-
+    // ---- 校验面 1:对象 kind × 算子 可用矩阵 ----
+    // 粗 gate 只放行"能参与分析"的对象 kind;细 gate 校验算子与 kind 的组合.
+    // 两处都在 hidden 分支之前,保证隐藏项同样必须合法(见文件头结论).
     if (
         object.kind !== 'curve'
         && object.kind !== 'surface'
@@ -125,17 +130,24 @@ function compileAnalysisStatement(
     ) {
         throw new Error(`分析 ${statement.name} 不能应用于 ${object.kind} 类型对象`);
     }
-
-    const coefficients = object.coefficients;
-    const atScope = buildParamScope(params, {});
-    for (const coefficient of coefficients) {
-        atScope[coefficient.name] = coefficient.value;
+    const opMatchesKind = statement.op === 'gradient'
+        ? object.kind === 'curve' || object.kind === 'surface'
+        : object.kind === 'vector_field';
+    if (!opMatchesKind) {
+        throw new Error(
+            `分析算子 ${statement.op} 不能应用于 ${object.kind} 类型对象`,
+        );
     }
 
+    // ---- 校验面 2:at 坐标 ----
+    // scope 直接由 buildParamScope(params, overrides) 提供,不再依赖
+    // "先 applyParamOverrides 改 map 再建 scope"的副作用通道
+    // (202609 review:见 params.ts 注释).
+    const atScope = buildParamScope(params, paramOverrides);
     const rawAt = statement.at ?? [];
     const requiredAtCount =
         statement.op === 'gradient' && object.kind === 'surface' ? 2
-            : (statement.op === 'divergence' || statement.op === 'curl') && object.kind === 'vector_field' ? 3
+            : object.kind === 'vector_field' ? 3
                 : 1;
     if (rawAt.length < requiredAtCount) {
         throw new Error(`分析 ${statement.name} 的 at 至少需要 ${requiredAtCount} 个坐标`);
@@ -154,17 +166,37 @@ function compileAnalysisStatement(
         atValues[1] ?? 0,
         atValues[2] ?? 0,
     ];
+
+    // show 白名单也在隐藏前校验,避免隐藏项带着拼写错误的 show 静默存活.
     const show = parseShowOption(statement.options);
 
-    if (statement.op === 'gradient' && (object.kind === 'curve' || object.kind === 'surface')) {
+    // ---- 隐藏:仅保留列表项,不执行数值计算 ----
+    if (hiddenNames.has(statement.name)) {
+        results.push({
+            name: statement.name,
+            op: statement.op,
+            point: [0, 0, 0],
+            vector: [0, 0, 0],
+            scalar: null,
+            show,
+            enabled: false,
+        });
+        return;
+    }
+
+    const { names: coeffNames, values: coeffValues } = splitCoefficients(
+        object.coefficients,
+    );
+
+    if (object.kind === 'curve' || object.kind === 'surface') {
+        // 经过 op×kind gate,此处 statement.op 必为 gradient.
         const isCurve = object.kind === 'curve';
-        const [coeffNames, coeffValues] = coefficientArgs(object);
         const payload = JSON.stringify({
             surface_expr: normalizeExpression(object.expr),
             fx_expr: cachedDerivativeExpression(object.expr, 'x'),
             fy_expr: isCurve ? '0' : cachedDerivativeExpression(object.expr, 'y'),
             coeff_names: coeffNames,
-            coeff_values: [...coeffValues],
+            coeff_values: coeffValues,
             x: at[0],
             y: isCurve ? 0 : at[1],
         });
@@ -182,61 +214,54 @@ function compileAnalysisStatement(
         return;
     }
 
-    if ((statement.op === 'divergence' || statement.op === 'curl') && object.kind === 'vector_field') {
-        const [coeffNames, coeffValues] = coefficientArgs(object);
-        const [pExpr, qExpr, rExpr] = object.components;
-
-        if (statement.op === 'divergence') {
-            const payload = JSON.stringify({
-                dpx_expr: cachedDerivativeExpression(pExpr, 'x'),
-                dqy_expr: cachedDerivativeExpression(qExpr, 'y'),
-                drz_expr: cachedDerivativeExpression(rExpr, 'z'),
-                coeff_names: coeffNames,
-                coeff_values: [...coeffValues],
-                x: at[0],
-                y: at[1],
-                z: at[2],
-            });
-            const scalar = wasmEvaluateDivergencePoint(payload);
-            results.push({
-                name: statement.name,
-                op: 'divergence',
-                point: at,
-                vector: [0, 0, 0],
-                scalar,
-                show,
-                enabled: true,
-            });
-        } else {
-            const payload = JSON.stringify({
-                dr_dy_expr: cachedDerivativeExpression(rExpr, 'y'),
-                dq_dz_expr: cachedDerivativeExpression(qExpr, 'z'),
-                dp_dz_expr: cachedDerivativeExpression(pExpr, 'z'),
-                dr_dx_expr: cachedDerivativeExpression(rExpr, 'x'),
-                dq_dx_expr: cachedDerivativeExpression(qExpr, 'x'),
-                dp_dy_expr: cachedDerivativeExpression(pExpr, 'y'),
-                coeff_names: coeffNames,
-                coeff_values: [...coeffValues],
-                x: at[0],
-                y: at[1],
-                z: at[2],
-            });
-            const result = wasmEvaluateCurlPoint(payload);
-            const vector: [number, number, number] = [result.x, result.y, result.z];
-            results.push({
-                name: statement.name,
-                op: 'curl',
-                point: at,
-                vector,
-                scalar: null,
-                show,
-                enabled: true,
-            });
-        }
+    // vector_field:divergence / curl(经过 op×kind gate).
+    const [pExpr, qExpr, rExpr] = object.components;
+    if (statement.op === 'divergence') {
+        const payload = JSON.stringify({
+            dpx_expr: cachedDerivativeExpression(pExpr, 'x'),
+            dqy_expr: cachedDerivativeExpression(qExpr, 'y'),
+            drz_expr: cachedDerivativeExpression(rExpr, 'z'),
+            coeff_names: coeffNames,
+            coeff_values: coeffValues,
+            x: at[0],
+            y: at[1],
+            z: at[2],
+        });
+        const scalar = wasmEvaluateDivergencePoint(payload);
+        results.push({
+            name: statement.name,
+            op: 'divergence',
+            point: at,
+            vector: [0, 0, 0],
+            scalar,
+            show,
+            enabled: true,
+        });
         return;
     }
 
-    throw new Error(
-        `分析算子 ${statement.op} 不能应用于 ${object.kind} 类型对象`,
-    );
+    const payload = JSON.stringify({
+        dr_dy_expr: cachedDerivativeExpression(rExpr, 'y'),
+        dq_dz_expr: cachedDerivativeExpression(qExpr, 'z'),
+        dp_dz_expr: cachedDerivativeExpression(pExpr, 'z'),
+        dr_dx_expr: cachedDerivativeExpression(rExpr, 'x'),
+        dq_dx_expr: cachedDerivativeExpression(qExpr, 'x'),
+        dp_dy_expr: cachedDerivativeExpression(pExpr, 'y'),
+        coeff_names: coeffNames,
+        coeff_values: coeffValues,
+        x: at[0],
+        y: at[1],
+        z: at[2],
+    });
+    const result = wasmEvaluateCurlPoint(payload);
+    const vector: [number, number, number] = [result.x, result.y, result.z];
+    results.push({
+        name: statement.name,
+        op: 'curl',
+        point: at,
+        vector,
+        scalar: null,
+        show,
+        enabled: true,
+    });
 }

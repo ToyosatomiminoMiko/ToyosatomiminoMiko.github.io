@@ -36,12 +36,13 @@ import type {
 } from '../ir/types';
 import { NUMERIC_CONFIG } from '../../config/numericConfig';
 import { normalizeExpression, extractSymbolNames } from './expression';
+import { requireDeclaredCoefficient } from './params';
 import {
     assertKnownOptions,
     findOption,
     parseBooleanOption,
     parseCappedPositiveInteger,
-    parseNumberList,
+    parseNumberListOfSize,
 } from './options';
 
 /**
@@ -96,6 +97,13 @@ const WORLD_VARIABLES: Record<IntegralDomainKind, Set<string>> = {
     solid: new Set(['x', 'y', 'z']),
 };
 
+/**
+ * 物化被积表达式里出现的自由参数.
+ *
+ * 202609 review 结论:只做"世界坐标变量剔除 + 逐个解析",取值/报错逻辑
+ * 已收敛到 params.ts 的 requireDeclaredCoefficient(未声明参数必须报错,
+ * 与对象系数"隐式默认"的口径差异是有意的,见 params.ts 注释).
+ */
 function materializeIntegrandCoefficients(
     integrand: string,
     domainKind: IntegralDomainKind,
@@ -105,21 +113,9 @@ function materializeIntegrandCoefficients(
 ): Coefficient[] {
     const excluded = WORLD_VARIABLES[domainKind];
     const symbols = extractSymbolNames(integrand, excluded);
-    return symbols.map((name) => {
-        const declared = params.get(name);
-        if (!declared) {
-            throw new Error(
-                `${context} 的被积表达式引用了未声明的参数 ${name}`,
-            );
-        }
-        return {
-            name,
-            value: overrides[name] ?? declared.value,
-            min: declared.min,
-            max: declared.max,
-            step: declared.step,
-        };
-    });
+    return symbols.map((name) =>
+        requireDeclaredCoefficient(name, params, overrides, `${context} 的被积表达式`),
+    );
 }
 
 /**
@@ -171,33 +167,28 @@ export function compileIntegralTask(
 
     if (domainKind === 'interval') {
         const rangeValues = rawRange
-            ? parseNumberList(rawRange, `积分 ${name} 的 range`)
+            ? parseNumberListOfSize(rawRange, 2, `积分 ${name} 的 range`)
             : [...NUMERIC_CONFIG.integral.defaultRange1D];
-        if (rangeValues.length !== 2) {
-            throw new Error(`积分 ${name} 的 range 需要 2 个数值`);
-        }
         if (rangeValues[0] >= rangeValues[1]) {
             throw new Error(`积分 ${name} 需要有效的一维区间 a < b`);
         }
         range = [rangeValues[0], rangeValues[1]];
     } else if (domainKind === 'rectangle') {
         const rangeValues = rawRange
-            ? parseNumberList(rawRange, `积分 ${name} 的 range`)
+            ? parseNumberListOfSize(rawRange, 4, `积分 ${name} 的 range`)
             : [...NUMERIC_CONFIG.integral.defaultRange2D];
-        if (rangeValues.length !== 4) {
-            throw new Error(`积分 ${name} 的 range 需要 4 个数值`);
-        }
         if (rangeValues[0] >= rangeValues[1] || rangeValues[2] >= rangeValues[3]) {
             throw new Error(`积分 ${name} 需要有效的二维区间`);
         }
         range = [rangeValues[0], rangeValues[1], rangeValues[2], rangeValues[3]];
     } else if (domainKind === 'region') {
-        // region 源的 x 区间:显式 range 覆盖,否则沿用区域对象自身的 x 区间.
+        // "region" 源的 x 区间:显式 range 覆盖,否则沿用区域对象自身的 x 区间.
         if (rawRange) {
-            const rangeValues = parseNumberList(rawRange, `积分 ${name} 的 range`);
-            if (rangeValues.length !== 2) {
-                throw new Error(`积分 ${name} 的 region range 需要 2 个数值`);
-            }
+            const rangeValues = parseNumberListOfSize(
+                rawRange,
+                2,
+                `积分 ${name} 的 region range`,
+            );
             if (rangeValues[0] >= rangeValues[1]) {
                 throw new Error(`积分 ${name} 需要有效的 x 区间 a < b`);
             }

@@ -5,7 +5,14 @@
  * - 编译器不在这里做数值计算,只产出对象引用,颜色,segments;
  * - 数值内核在 Rust `math_rs::intersection_core`,由 IntersectionRenderer
  *   调度到 Worker 异步执行;
- * - 隐藏的求交不进入计算队列.
+ * - 隐藏的求交不进入计算队列(仍保留列表项).
+ *
+ * 202609 review 结论(hidden 语义,与 analyses/integrals 统一):
+ * "隐藏 = 先完整校验,后禁用,仅跳过计算".隐藏求交同样必须通过对象存在/
+ * 自交 / kind 支持 / 动画与静态变换可逆性校验,否则照常抛语句级错误;
+ * 只是不产出可计算的任务(占位项 aId/bId = -1,enabled = false).
+ * 求交名在 compileIntersections 循环内查重,与 param/object/animation 的
+ * "重复声明"契约一致.
  */
 import type { AstProgram, IntersectionStatement } from '../ast/types';
 import type { IntersectionTask, SceneObject } from '../ir/types';
@@ -65,12 +72,17 @@ export function compileIntersections(
 ): IntersectionTask[] {
     const tasks: IntersectionTask[] = [];
     let colorIndex = 0;
+    const seenNames = new Set<string>();
 
     for (const statement of ast.statements) {
         if (statement.type !== 'intersection') continue;
         // 语句级错误定位:单条求交编译抛错时携带本语句 span,
         // 应用层据此换算成源码行列(见 compiler/errors.ts).
         withStatementSpan(statement.span, () => {
+            if (seenNames.has(statement.name)) {
+                throw new Error(`求交 ${statement.name} 重复声明`);
+            }
+            seenNames.add(statement.name);
             compileIntersectionStatement(
                 statement,
                 objects,
@@ -122,20 +134,7 @@ function compileIntersectionStatement(
         )
         ?? NUMERIC_CONFIG.intersection.defaultSegments;
 
-    if (hiddenNames.has(name)) {
-        tasks.push({
-            name,
-            aName: statement.a,
-            bName: statement.b,
-            aId: -1,
-            bId: -1,
-            segments,
-            color,
-            enabled: false,
-        });
-        return;
-    }
-
+    // ---- 完整校验面(先于 hidden 分支,见文件头结论)----
     const a = objects.get(statement.a);
     const b = objects.get(statement.b);
     if (!a) {
@@ -160,6 +159,21 @@ function compileIntersectionStatement(
 
     assertObjectFrame(a, objectTransforms, objectAnimations, name);
     assertObjectFrame(b, objectTransforms, objectAnimations, name);
+
+    // ---- 隐藏:保留占位项但不调度计算 ----
+    if (hiddenNames.has(name)) {
+        tasks.push({
+            name,
+            aName: statement.a,
+            bName: statement.b,
+            aId: -1,
+            bId: -1,
+            segments,
+            color,
+            enabled: false,
+        });
+        return;
+    }
 
     tasks.push({
         name,

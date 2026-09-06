@@ -1,6 +1,12 @@
 /**
  * 静态场景构建与缓存.
  * 负责 params/matrix/transform 和对象 blueprint 的声明级建模.
+ *
+ * 202609 review 结论:region 面积图形的"边界曲线必须存在且为 curve,不得带
+ * animation/静态 transform"约束只依赖声明级数据(blueprint 与两张 map),
+ * 与参数无关;原先放在 compileScene 每次刷新时对"物化对象"重跑一遍,还在
+ * 每个 region 里重建一次全对象索引.已上收到 buildStaticScene 末尾一次性
+ * 执行(见 finalizeRegionBlueprints),编译缓存命中后不再重复.
  */
 import type { AstProgram, ObjectStatement } from '../ast/types';
 import type { AnimationClip, ParamDeclaration } from '../ir/types';
@@ -158,7 +164,14 @@ function buildStaticScene(ast: AstProgram, matrixOps: MatrixOps): StaticScene {
     for (const statement of ast.statements) {
         if (statement.type !== 'tensor' || statement.kind !== 'transform') continue;
         withStatementSpan(statement.span, () => {
-            const transform = parseTransformExpression(statement.expr, matrices, matrixOps);
+            // transforms 表按声明顺序边解析边写入,因此 transform 声明体可以
+            // 引用"此前已声明"的 matrix/transform(见 transforms.ts 语法表).
+            const transform = parseTransformExpression(
+                statement.expr,
+                matrices,
+                transforms,
+                matrixOps,
+            );
             if (transform) transforms.set(statement.name, transform);
             else throw new Error(`变换 ${statement.name} 无法求值`);
         });
@@ -200,7 +213,7 @@ function buildStaticScene(ast: AstProgram, matrixOps: MatrixOps): StaticScene {
 
     let nextId = 1;
     const objectNames = new Set<string>();
-    // region 声明按名引用两条边界 curve(允许引用声明在区域之后的对象),
+    // "region" 声明按名引用两条边界 curve(允许引用声明在区域之后的对象),
     // 索引构建复用 objectStatementsByName.
     const statementsByName = objectStatementsByName(ast);
     for (const statement of ast.statements) {
@@ -242,6 +255,14 @@ function buildStaticScene(ast: AstProgram, matrixOps: MatrixOps): StaticScene {
         });
     }
 
+    // region 边界约束是纯声明级检查,放在这里一次性执行(见文件头结论).
+    finalizeRegionBlueprints(
+        objectBlueprints,
+        statementsByName,
+        objectTransforms,
+        objectAnimations,
+    );
+
     for (const blueprint of objectBlueprints) {
         if (!blueprintHasCoefficients(blueprint)) continue;
         for (const name of blueprint.coefficientNames) {
@@ -258,4 +279,57 @@ function buildStaticScene(ast: AstProgram, matrixOps: MatrixOps): StaticScene {
         animations,
         objectAnimations,
     };
+}
+
+/**
+ * region 面积图形的运行时约束(V1 x 型带,见 objects.ts / ir/types.ts):
+ * - 两条边界曲线必须已在对象列表声明且是 curve(buildObjectBlueprint 已按
+ *   ObjectStatement 校验,这里对 blueprint 结果做同源复查);
+ * - 边界曲线不得带静态变换或动画--否则 y=f(x) 的带状语义(曲线必须保持在
+ *   z=0 平面)会被破坏,报错文案由调用方 UI 直接展示.
+ *
+ * 只依赖 blueprint 与 objectTransforms/objectAnimations,与参数无关;
+ * 202609 review 结论:该检查原先在 compileScene 对"物化对象"每次参数刷新
+ * 重跑,且每个 region 各重建一次全对象索引,现上收到这里只跑一次.
+ */
+function finalizeRegionBlueprints(
+    objectBlueprints: ObjectBlueprint[],
+    statementsByName: Map<string, ObjectStatement>,
+    objectTransforms: Map<number, Mat4>,
+    objectAnimations: Map<number, string[]>,
+): void {
+    const blueprintByName = new Map(objectBlueprints.map((item) => [item.name, item] as const));
+    for (const blueprint of objectBlueprints) {
+        if (blueprint.kind !== 'region') continue;
+        const statement = statementsByName.get(blueprint.name);
+
+        const checkBoundary = (name: string, role: string): void => {
+            const curve = blueprintByName.get(name);
+            if (!curve || curve.kind !== 'curve') {
+                throw new Error(
+                    `区域 ${blueprint.name} 的${role}边界曲线必须是已声明的 curve`,
+                );
+            }
+            if ((objectAnimations.get(curve.id) ?? []).length > 0) {
+                throw new Error(
+                    `区域 ${blueprint.name} 的${role}边界曲线 ${curve.name} 带动画,暂不支持`,
+                );
+            }
+            if (objectTransforms.has(curve.id)) {
+                throw new Error(
+                    `区域 ${blueprint.name} 的${role}边界曲线 ${curve.name} 带静态变换,暂不支持`,
+                );
+            }
+        };
+
+        const run = (): void => {
+            checkBoundary(blueprint.curveAName, '下');
+            checkBoundary(blueprint.curveBName, '上');
+        };
+        if (statement) {
+            withStatementSpan(statement.span, run);
+        } else {
+            run();
+        }
+    }
 }

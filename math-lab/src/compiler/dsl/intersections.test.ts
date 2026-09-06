@@ -261,4 +261,52 @@ describe('compileIntersections', () => {
             intersection('I', 'c', 's'),
         ))).toThrow('变换矩阵不可逆');
     });
+
+    // 202609 review 结论:intersections 与 analyses/integrals 统一为
+    // "hidden = 先完整校验,后禁用,仅跳过计算",见 intersections.ts 文件头.
+    it('rejects duplicate intersection names', () => {
+        expect(() => compileScene(program(
+            curve('a', 'x'),
+            curve('b', '-x + 2'),
+            intersection('I', 'a', 'b'),
+            intersection('I', 'a', 'b'),
+        ))).toThrow('求交 I 重复声明');
+    });
+
+    it('validates hidden intersections like visible ones (missing source still errors)', () => {
+        expect(() => compileScene(
+            program(
+                curve('a', 'x'),
+                intersection('I', 'a', 'missing'),
+            ),
+            {},
+            { hiddenIntersectionNames: new Set(['I']) },
+        )).toThrow('求交 I 引用了不存在的对象 missing');
+    });
+
+    it('rejects hidden intersections that reference animated sources', () => {
+        expect(() => compileScene(
+            program(
+                {
+                    type: 'animation',
+                    name: 'drift',
+                    expr: 'translate([1, 0, 0])',
+                    options: [{ name: 'duration', value: '1' }],
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    ...curve('c', 'x'),
+                    options: [
+                        { name: 'range', value: '[-2, 2]' },
+                        { name: 'segments', value: '64' },
+                        { name: 'animation', value: '[drift]' },
+                    ],
+                },
+                surface('s', 'y'),
+                intersection('I', 'c', 's'),
+            ),
+            {},
+            { hiddenIntersectionNames: new Set(['I']) },
+        )).toThrow('带动画,暂不支持');
+    });
 });
