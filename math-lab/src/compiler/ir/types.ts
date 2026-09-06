@@ -230,13 +230,28 @@ export type SceneObject =
  * `jacobian`/`laplacian`,用于在编译期给出"暂未实现"诊断.
  */
 export type AnalysisOp = 'gradient' | 'divergence' | 'curl';
-export type AnalysisShow = 'point' | 'normal' | 'tangent_plane';
+/**
+ * 分析可视化中的可画元素:
+ * - `point`/`normal`:通用,点 + 法向(曲线求导时为切线的法向)箭矢;
+ * - `tangent_plane`:曲面 gradient(偏导)的切平面;
+ * - `tangent`:一元 curve 的 gradient(求导)在分析点处的切线.
+ */
+export type AnalysisShow = 'point' | 'normal' | 'tangent' | 'tangent_plane';
 
 export interface AnalysisResult {
     name: string;
     op: AnalysisOp;
     point: [number, number, number];
     vector: [number, number, number];
+    /**
+     * 切线方向(未归一化,(1, f', 0),位于 z=0 曲线平面).
+     *
+     * 仅 curve 源的 gradient 分析给值:方向 = (1, f'(px), 0),即"Δx 走 1,
+     * Δy 走 f'",与法向 `vector` = (-f', 1, 0) 归一化后在平面内正交;
+     * 曲面/向量场分析为 null.渲染层画 `show` 里的 `tangent`(切线)时
+     * 以分析点为中心,按该方向(x 分量为 1,长度即 x 向半长)取端点.
+     */
+    tangent: [number, number, number] | null;
     scalar: number | null;
     show: AnalysisShow[];
     /** 求值对象是否参与计算.为 false 时仅保留列表项,不执行数值计算. */

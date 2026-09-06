@@ -203,6 +203,7 @@ describe('compileScene', () => {
         expect(scene.analyses[0].vector[0]).toBeCloseTo(-2 / Math.sqrt(5));
         expect(scene.analyses[0].vector[1]).toBeCloseTo(1 / Math.sqrt(5));
         expect(scene.analyses[0].vector[2]).toBe(0);
+        expect(scene.analyses[0].tangent).toEqual([1, 2, 0]);
         expect(scene.analyses[0].show).toContain('tangent_plane');
         const gradientPayload = JSON.parse(
             String(vi.mocked(evaluate_gradient_point).mock.calls[vi.mocked(evaluate_gradient_point).mock.calls.length - 1][0]),
@@ -222,6 +223,88 @@ describe('compileScene', () => {
         expect(scene.objectFormulas[2]).toBe('z=sin(x) * cos(y)');
         expect(scene.objectFormulas[3]).toContain('\\mathbf{F}');
         expect(scene.integralFormulas.I).toContain('\\int');
+    });
+
+    it('defaults univariate curve gradients to also show the tangent line', () => {
+        vi.mocked(evaluate_gradient_point).mockReturnValueOnce({
+            f0: 0.5,
+            fx: 3,
+            fy: 0,
+            free: () => {},
+        });
+        const curveGradientAst: AstProgram = {
+            statements: [
+                ast.statements[2],
+                {
+                    type: 'analysis',
+                    op: 'gradient',
+                    name: 'gt',
+                    call: 'grad',
+                    source: 'c',
+                    at: ['a'],
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        const scene = compileScene(curveGradientAst);
+
+        // 一元求导默认画切线:方向 = (1, f'(x), 0),未归一化,不随 show 缺失丢失.
+        expect(scene.analyses[0].show).toEqual(['point', 'normal', 'tangent']);
+        expect(scene.analyses[0].tangent).toEqual([1, 3, 0]);
+    });
+
+    it('respects an explicit show list for curve gradients (tangent opt-in)', () => {
+        vi.mocked(evaluate_gradient_point).mockReturnValueOnce({
+            f0: 0.5,
+            fx: 3,
+            fy: 0,
+            free: () => {},
+        });
+        const curveGradientAst: AstProgram = {
+            statements: [
+                ast.statements[2],
+                {
+                    type: 'analysis',
+                    op: 'gradient',
+                    name: 'gt',
+                    call: 'grad',
+                    source: 'c',
+                    at: ['a'],
+                    options: [{ name: 'show', value: '[point, normal]' }],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        const scene = compileScene(curveGradientAst);
+
+        expect(scene.analyses[0].show).toEqual(['point', 'normal']);
+        // 切向仍随导数计算出来,只是 show 里没有 tangent 时不绘制.
+        expect(scene.analyses[0].tangent).toEqual([1, 3, 0]);
+    });
+
+    it('accepts tangent in explicit show lists for curve gradients', () => {
+        const curveGradientAst: AstProgram = {
+            statements: [
+                ast.statements[2],
+                {
+                    type: 'analysis',
+                    op: 'gradient',
+                    name: 'gt',
+                    call: 'grad',
+                    source: 'c',
+                    at: ['a'],
+                    options: [{ name: 'show', value: '[point, normal, tangent]' }],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        const scene = compileScene(curveGradientAst);
+
+        expect(scene.analyses[0].show).toEqual(['point', 'normal', 'tangent']);
     });
 
     it('normalizes bare riemann to left and accepts right/mid variants', () => {
@@ -540,6 +623,9 @@ describe('compileScene', () => {
         expect(scene.analyses[0].point[0]).toBe(2);
         expect(scene.analyses[0].point[1]).toBe(4);
         expect(scene.analyses[0].point[2]).toBe(0);
+        // 曲面偏导没有唯一"切线",默认 show 不含 tangent,切向为 null.
+        expect(scene.analyses[0].show).toEqual(['point', 'normal']);
+        expect(scene.analyses[0].tangent).toBeNull();
     });
 
     it('computes surface gradients from both partial derivatives', () => {

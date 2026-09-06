@@ -6,5 +6,7 @@ math-lab/target/
 dist/
 .vscode
 /prompt
-**/docs
-math-lab/example/**
+# math-lab 的示例与文档是仓库内容,需要正常提交(此前 **/docs 与
+# math-lab/example/** 把它们全部忽略了;放开规则让它们可 git add).
+!math-lab/docs/
+!math-lab/example/

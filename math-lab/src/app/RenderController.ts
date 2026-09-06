@@ -136,6 +136,7 @@ export class RenderController {
 
         eventBus.on('point:changed', ({ radius, visible }) => {
             this.plotter.setPointStyle({ radius, visible });
+            this.analysisRenderer.setPointStyle({ radius, visible });
         });
         this.pointStyleController = new PointStyleController(eventBus);
 

@@ -18,6 +18,7 @@ import type {
 } from '../ast/types';
 import type {
     AnalysisResult,
+    AnalysisShow,
     ParamDeclaration,
     SceneObject,
 } from '../ir/types';
@@ -168,7 +169,12 @@ function compileAnalysisStatement(
     ];
 
     // show 白名单也在隐藏前校验,避免隐藏项带着拼写错误的 show 静默存活.
-    const show = parseShowOption(statement.options);
+    // 缺省项按源对象分派:一元 curve 求导(gradient)默认连同切线一起画,
+    // 让"求导要有切线"在没写 show 时也成立;曲面/向量场沿用 [point, normal].
+    const defaultShow = statement.op === 'gradient' && object.kind === 'curve'
+        ? (['point', 'normal', 'tangent'] as AnalysisShow[])
+        : (['point', 'normal'] as AnalysisShow[]);
+    const show = parseShowOption(statement.options, defaultShow);
 
     // ---- 隐藏:仅保留列表项,不执行数值计算 ----
     if (hiddenNames.has(statement.name)) {
@@ -177,6 +183,7 @@ function compileAnalysisStatement(
             op: statement.op,
             point: [0, 0, 0],
             vector: [0, 0, 0],
+            tangent: null,
             scalar: null,
             show,
             enabled: false,
@@ -207,10 +214,24 @@ function compileAnalysisStatement(
                 ? [-result.fx, 1, 0]
                 : [-result.fx, -result.fy, 1],
         );
+        // 一元曲线求导的切线方向:(1, f', 0),与上面的法向在 z=0 平面内
+        // 正交;曲面只有切平面,没有唯一"切线",故为 null.
+        const tangent: [number, number, number] | null = isCurve
+            ? [1, result.fx, 0]
+            : null;
         const point: [number, number, number] = isCurve
             ? [at[0], f0, 0]
             : [at[0], at[1], f0];
-        results.push({ name: statement.name, op: 'gradient', point, vector, scalar: f0, show, enabled: true });
+        results.push({
+            name: statement.name,
+            op: 'gradient',
+            point,
+            vector,
+            tangent,
+            scalar: f0,
+            show,
+            enabled: true,
+        });
         return;
     }
 
@@ -233,6 +254,7 @@ function compileAnalysisStatement(
             op: 'divergence',
             point: at,
             vector: [0, 0, 0],
+            tangent: null,
             scalar,
             show,
             enabled: true,
@@ -260,6 +282,7 @@ function compileAnalysisStatement(
         op: 'curl',
         point: at,
         vector,
+        tangent: null,
         scalar: null,
         show,
         enabled: true,

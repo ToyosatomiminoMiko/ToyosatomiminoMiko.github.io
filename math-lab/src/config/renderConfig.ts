@@ -36,13 +36,17 @@ export const RENDER_CONFIG = {
         radialSegments: 8,
     },
     analysis: {
-        pointRadius: 0.08,
         arrowLength: 1.5,
         arrowHeadLength: 0.2,
         arrowHeadWidth: 0.1,
+        // 一元曲线求导(show = tangent)切线的 x 向半长:以分析点为
+        // 中心沿切向 (1, f', 0) 左右各延伸 Δx = 该值(Δy 随斜率自然放大).
+        tangentHalfLength: 2,
         tangentPlaneSize: 1.6,
         tangentPlaneOpacity: 0.55,
         tolerance: 1e-12,
+        // 分析测量点(show = point)不再自设半径:与场景 point 对象共用
+        // scene.point 的半径/可见(右侧"点"面板统一控制).
     },
     intersection: {
         pointSize: 0.18,
@@ -99,7 +103,8 @@ export const RENDER_CONFIG = {
             y: true,
             z: true,
         },
-        // 点对象:全局渲染样式,大小(可设置具体值)/比例缩放/可见性
+        // 点(场景 point 对象 + 分析测量点共用同一定义):全局渲染样式,
+        // 大小(可设置具体值)/比例缩放/可见性,由右侧"点"面板统一控制.
         point: {
             radius: 0.2,
             scale: 1,

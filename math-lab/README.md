@@ -23,8 +23,16 @@ Math-lab 的当前入口是 `index.html`,它加载 `src/main.ts`,再由
   作为二重积分的积分域;边界曲线只允许不带静态变换/动画的纯函数曲线
 - `matrix` / `transform`:对象场景变换
 - `animation`:单矩阵动画片段,可通过对象 `animation = [...]` 绑定并顺序播放
-- `gradient` / `divergence` / `curl`:点分析
-- `gradient` 的 `show = [point, normal, tangent_plane]`:已支持
+- `gradient` / `divergence` / `curl`:点分析(求导/偏导经这些微分分析
+  算子暴露:一元求导 = curve 的 gradient,偏导 = surface 的 gradient,
+  div/curl = 向量场的一阶偏导组合;用户文档见 `docs/derivatives-guide.md`)
+- `gradient` 的 `show` 元素:通用 `point`/`normal`;曲面(偏导)可加
+  `tangent_plane` 画切平面,一元曲线(求导)可加 `tangent` 画切线;
+  曲线求导不写 `show` 时默认画 `[point, normal, tangent]`,让切线
+  始终可见,其余分析默认 `[point, normal]`.示例集见 `example/README.md`:
+  一元求导 `example/derivative_curve.scad` 与求导法则对照
+  `example/derivative_rules.scad`,偏导 `example/partial_derivative_surface.scad`,
+  散度/旋度 `example/divergence_vector_field.scad` 与 `example/curl_vector_field.scad`
 - `integral`:数值积分 + 黎曼/梯形/辛普森/勒贝格可视化,方法为
   `trapezoid`/`simpson`/`lebesgue`,以及黎曼系列 `riemann:left`/
   `riemann:right`/`riemann:mid`;裸写 `riemann` 等价于 `riemann:left`.

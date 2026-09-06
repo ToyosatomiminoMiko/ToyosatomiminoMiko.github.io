@@ -3,8 +3,9 @@
  * 从 DslCompiler 拆出,负责 DSL 选项/数字列表解析.
  */
 import type { OptionPair } from '../ast/types';
+import type { AnalysisShow } from '../ir/types';
 
-const SHOW_KINDS = new Set(['point', 'normal', 'tangent_plane']);
+const SHOW_KINDS = new Set<AnalysisShow>(['point', 'normal', 'tangent', 'tangent_plane']);
 
 export function findOption(options: OptionPair[], name: string): string | undefined {
     return options.find((item) => item.name === name)?.value;
@@ -185,22 +186,23 @@ export function parseBooleanOption(
 
 export function parseShowOption(
     options: OptionPair[],
-): Array<'point' | 'normal' | 'tangent_plane'> {
+    defaultShow: AnalysisShow[] = ['point', 'normal'],
+): AnalysisShow[] {
     const raw = findOption(options, 'show');
-    if (!raw) return ['point', 'normal'];
+    if (raw === undefined) return defaultShow;
 
     // 不再过滤未知项.show 里的拼写错误必须直接报错,
-    // 否则 gradient 的 normal/tangent_plane 可能被用户误认为已经绘制.
+    // 否则 gradient 的 normal/tangent_plane/tangent 可能被用户误认为已经绘制.
     const items = raw.replace(/[[\]]/g, '').split(',').map((item) => item.trim());
     if (items.length === 0 || items.some((item) => item.length === 0)) {
         throw new Error(`show 选项不能为空: ${raw}`);
     }
 
     for (const item of items) {
-        if (!SHOW_KINDS.has(item)) {
+        if (!SHOW_KINDS.has(item as AnalysisShow)) {
             throw new Error(`show 选项包含未知种类: ${item}`);
         }
     }
 
-    return items as Array<'point' | 'normal' | 'tangent_plane'>;
+    return items as AnalysisShow[];
 }
