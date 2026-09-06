@@ -3,7 +3,11 @@
 //! 职责与约定:
 //! - 每个 wasm 导出都只是"解包参数 -> 调 core 模块 -> 包结果/错误"的薄层,
 //!   数值语义一律在 core(integral_core/sampling_core/domain_integral/
-//!   intersection_core/...)里定义并可在 `cargo test` 纯 Rust 验证;
+//!   geometry_core/intersection_core/...)里定义并可在 `cargo test` 纯
+//!   Rust 验证;
+//! - 几何对象模型与隐式场在 geometry_core(求交与体积积分共享),求交算法在
+//!   intersection_core,带域积分在 domain_integral:域积分特性只依赖几何,
+//!   不依赖求交实现(依赖方向见 geometry_core 文件头);
 //! - 复杂入口走 JSON payload(wasm_payloads.rs),签名保持 `(payload: &str)`,
 //!   新增字段只动"结构体 + TS 构造处",不要退回 20 个扁平参数的旧风格;
 //! - 掩码语义,规模护栏(n/m/layers/segments 上限)由 core 模块统一执行,
@@ -18,6 +22,7 @@ pub mod config;
 pub mod domain_integral;
 pub mod eval_core;
 pub mod field_core;
+pub mod geometry_core;
 pub mod integral_core;
 pub mod integral_method;
 pub mod intersection_core;
@@ -345,7 +350,7 @@ pub fn integrate_solid(payload: &str) -> Result<IntegralSampleResult, JsValue> {
         layers,
     } = parse_payload::<IntegrateSolidPayload>(payload)?;
     // 实体没有表达式:expr 传空,系数为空.
-    let descriptor = intersection_core::parse_object_descriptor(
+    let descriptor = geometry_core::parse_object_descriptor(
         kind,
         "",
         Vec::new(),
@@ -361,7 +366,7 @@ pub fn integrate_solid(payload: &str) -> Result<IntegralSampleResult, JsValue> {
     // f≡1 的 3D lebesgue 直接返回解析测度(体积),不建层几何,不做 O(n³) 网格.
     if method == IntegralMethod::Lebesgue && integrand_expr.trim() == "1" {
         let measure = domain_integral::solid_exact_measure(&descriptor).map_err(math_error)?;
-        let aabb = intersection_core::solid_world_aabb(&descriptor).map_err(math_error)?;
+        let aabb = geometry_core::solid_world_aabb(&descriptor).map_err(math_error)?;
         return Ok(IntegralSampleResult {
             value: measure,
             samples: Vec::new(),
@@ -445,7 +450,8 @@ pub fn evaluate_scalar(
 /// 求交统一入口;参数走 JSON 请求(见 `wasm_payloads`).
 ///
 /// 两个对象各用 `(kind, expr, coeff_names, coeff_values, params, matrix, inverse)`
-/// 描述;`params` 布局见 `intersection_core` 模块注释.表达式/系数只在 Rust
+/// 描述;`params` 布局见 `geometry_core` 模块注释(求交参与方与体积积分域
+/// 共用同一描述符).表达式/系数只在 Rust
 /// 内核里编译一次,后续逐点求值都复用上下文,不再每次跨 JS/WASM 边界重建.
 #[wasm_bindgen]
 pub fn intersect_pair(payload: &str) -> Result<IntersectionOutput, JsValue> {

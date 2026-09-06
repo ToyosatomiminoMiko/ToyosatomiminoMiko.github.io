@@ -23,6 +23,15 @@
 //! 所有被积函数一律以**世界坐标**求值(所见即所得);boundary/域边界曲线为
 //! 一元 y=f(x).本模块不依赖 wasm-bindgen,便于 `cargo test` 纯 Rust 验证.
 //!
+//! 模块边界(2026 架构审查,为何保持单文件):region 与 solid 不是两个偶合
+//! 特性,而是"带域积分"这一个 feature 的两半--掩码语义,1D 求积 helper,
+//! lebesgue 层扫描与测试基建(descriptor/解析值对拍)全部共享,非测试代码
+//! 仅约 690 行(文件其余约 39% 是 `#[cfg(test)]`);仅为行数沿 region/solid
+//! 切开只会分裂共享契约文档与测试基建,净收益低,故**刻意不拆**.若未来某
+//! 侧单独膨胀(新域类型/新可视化形态),再按该轴拆.实体几何(ObjectDescriptor
+//! /隐式场/SolidProbe/世界 AABB)由 geometry_core 统一提供:本模块与
+//! intersection_core 共享同一几何层,域积分特性不依赖求交算法实现.
+//!
 //! 行为契约(202609 审查收口):
 //! - **掩码语义与 integral_core 统一**:被积函数在采样点非有限 = 该点不贡献
 //!   测度(单元丢弃/按 0 计入),不因个别点把整条内层积分或整片清零;求值 Err 上抛;
@@ -36,9 +45,9 @@
 
 use crate::config::{MAX_GRID_N, MAX_SOLID_N};
 use crate::eval_core::CompiledEvaluator;
+use crate::geometry_core::{solid_world_aabb, ObjectDescriptor, ObjectKind, SolidProbe};
 use crate::integral_core::{lebesgue_over_cells, validate_1d_interval};
 use crate::integral_method::{cell_end_at, IntegralMethod};
-use crate::intersection_core::{solid_world_aabb, ObjectDescriptor, SolidProbe};
 use crate::transform_core::{apply_to_point, Mat4};
 
 /// 一维 from-values 积分核的最小包装,便于复用梯形/辛普森(等距样本).
@@ -399,21 +408,21 @@ fn lebesgue_solid_value(samples: &[f64], volume: f64, layers: usize) -> Result<f
 pub fn solid_exact_measure(descriptor: &ObjectDescriptor) -> Result<f64, String> {
     let p = &descriptor.params;
     let local = match descriptor.kind {
-        crate::intersection_core::ObjectKind::Sphere => {
+        ObjectKind::Sphere => {
             let r = p[3];
             if r <= 0.0 {
                 return Err("球体半径必须大于 0".to_string());
             }
             4.0 / 3.0 * std::f64::consts::PI * r * r * r
         }
-        crate::intersection_core::ObjectKind::Box => {
+        ObjectKind::Box => {
             let (sx, sy, sz) = (p[3], p[4], p[5]);
             if sx <= 0.0 || sy <= 0.0 || sz <= 0.0 {
                 return Err("方块尺寸必须大于 0".to_string());
             }
             sx * sy * sz
         }
-        crate::intersection_core::ObjectKind::Conic => {
+        ObjectKind::Conic => {
             let (base, top, height) = (p[3], p[4], p[5]);
             if base <= 0.0 || height <= 0.0 {
                 return Err("旋转体 base/height 必须大于 0".to_string());
@@ -456,7 +465,7 @@ fn conic_radius_at(base: f64, top: f64, height: f64, u: f64) -> f64 {
 fn solid_slice_family(descriptor: &ObjectDescriptor) -> Result<SliceFamily, String> {
     let p = &descriptor.params;
     match descriptor.kind {
-        crate::intersection_core::ObjectKind::Sphere => {
+        ObjectKind::Sphere => {
             let (cx, cy, cz, radius) = (p[0], p[1], p[2], p[3]);
             Ok(SliceFamily::Disk {
                 cx,
@@ -474,7 +483,7 @@ fn solid_slice_family(descriptor: &ObjectDescriptor) -> Result<SliceFamily, Stri
                 }),
             })
         }
-        crate::intersection_core::ObjectKind::Conic => {
+        ObjectKind::Conic => {
             let (cx, cy, cz, base, top, height) = (p[0], p[1], p[2], p[3], p[4], p[5]);
             Ok(SliceFamily::Disk {
                 cx,
@@ -484,7 +493,7 @@ fn solid_slice_family(descriptor: &ObjectDescriptor) -> Result<SliceFamily, Stri
                 radius: Box::new(move |u: f64| conic_radius_at(base, top, height, u)),
             })
         }
-        crate::intersection_core::ObjectKind::Box => {
+        ObjectKind::Box => {
             let (cx, cy, cz) = (p[0], p[1], p[2]);
             let (sx, sy, sz) = (p[3], p[4], p[5]);
             Ok(SliceFamily::Rect {
@@ -686,7 +695,7 @@ pub fn integrate_solid(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::intersection_core::parse_object_descriptor;
+    use crate::geometry_core::parse_object_descriptor;
 
     const PI: f64 = std::f64::consts::PI;
 
