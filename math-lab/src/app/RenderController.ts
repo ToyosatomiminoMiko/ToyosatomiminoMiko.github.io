@@ -192,6 +192,7 @@ export class RenderController {
         this.cameraManager.updateAspect(width, height);
     }
 
+    /** [键盘事件]按下`home`键视角看向原点(0,0,0) */
     resetHome(): void {
         if (!this.controls) return;
         this.controls.target.set(0, 0, 0);

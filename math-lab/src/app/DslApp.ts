@@ -14,6 +14,7 @@
  */
 import type { SceneIR } from '../compiler/ir/types';
 import { EventBus } from '../service/EventBus';
+import { KeyboardController } from '../service/KeyboardController';
 import type { MathLabEvents } from '../types';
 import { SceneStore } from './SceneStore';
 import { CompileController } from './CompileController';
@@ -54,11 +55,7 @@ export class DslApp {
         this.renderController.resize();
     };
 
-    private readonly onKeyDown = (event: KeyboardEvent): void => {
-        if (event.key === 'Home') {
-            this.renderController.resetHome();
-        }
-    };
+    private keyboardController: KeyboardController | null = null;
 
     constructor() {
         const viewport = document.getElementById('viewport')!;
@@ -105,8 +102,13 @@ export class DslApp {
         this.panelController = new PanelController();
         this.panelController.bind(document.getElementById('app')!);
 
+        this.keyboardController = new KeyboardController(this.editor, {
+            onHome: () => this.renderController.resetHome(),
+            onRun: () => void this.run(),
+        });
+        this.keyboardController.bind();
+
         window.addEventListener('resize', this.onResize);
-        document.addEventListener('keydown', this.onKeyDown);
         this.animationFrameId = requestAnimationFrame(this.animate);
 
         void this.run();
@@ -119,8 +121,10 @@ export class DslApp {
         }
         this._cancelPendingRefresh();
 
+        this.keyboardController?.dispose();
+        this.keyboardController = null;
+
         window.removeEventListener('resize', this.onResize);
-        document.removeEventListener('keydown', this.onKeyDown);
 
         this.panelController?.dispose();
         this.lineNumbers.dispose();
@@ -169,12 +173,6 @@ export class DslApp {
 
     private _wireEditor(): void {
         this.runButton.addEventListener('click', () => void this.run());
-        this.editor.addEventListener('keydown', (event) => {
-            if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-                event.preventDefault();
-                void this.run();
-            }
-        });
     }
 
     private animate = (timestamp: number): void => {
