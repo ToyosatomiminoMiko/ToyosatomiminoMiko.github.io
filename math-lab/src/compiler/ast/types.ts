@@ -126,6 +126,24 @@ export interface IntersectionStatement {
     span: SourceSpan;
 }
 
+/**
+ * `derivative 名称 = derivative(源对象 [, 变量]);` 求导语句.
+ *
+ * 生成一个新对象(curve -> curve,求 x 导;surface -> surface,需指定
+ * x|y),其表达式是源对象表达式的符号导数.常量/系数照旧当常数,
+ * 自由变量 x/y 被求导.函数名遵循项目全名习惯,不做 `deriv` 缩写(见
+ * miko.pest 的 derivative_stmt 注释).
+ */
+export interface DerivativeStatement {
+    type: 'derivative';
+    name: string;
+    source: string;
+    /** 求导变量;curve 缺省为 'x',surface 必填 'x' 或 'y'. */
+    variable?: string;
+    options: OptionPair[];
+    span: SourceSpan;
+}
+
 export type AstStatement =
     | ParamStatement
     | TensorStatement
@@ -133,7 +151,8 @@ export type AstStatement =
     | ObjectStatement
     | AnalysisStatement
     | IntegralStatement
-    | IntersectionStatement;
+    | IntersectionStatement
+    | DerivativeStatement;
 
 export interface AstProgram {
     statements: AstStatement[];

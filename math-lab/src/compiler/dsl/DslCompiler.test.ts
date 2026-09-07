@@ -1352,6 +1352,147 @@ describe('compileScene', () => {
     });
 });
 
+describe('derivative 求导语句', () => {
+    function derivative(
+        name: string,
+        source: string,
+        extra: Partial<{ variable: string; options: { name: string; value: string }[] }> = {},
+    ): AstProgram['statements'][number] {
+        return {
+            type: 'derivative',
+            name,
+            source,
+            variable: extra.variable,
+            options: extra.options ?? [],
+            span: { start: 0, end: 0 },
+        } as AstProgram['statements'][number];
+    }
+
+    it('compiles a curve derivative into a new curve object inheriting range/segments', () => {
+        const derivAst: AstProgram = {
+            statements: [
+                ast.statements[2], // curve c = sin(x*a), range [-8,8], segments 128
+                derivative('dc', 'c'),
+            ],
+        };
+        const scene = compileScene(derivAst);
+
+        expect(scene.objects).toHaveLength(2);
+        const deriv = scene.objects[1] as {
+            kind: 'curve';
+            expr: string;
+            coefficients: { name: string }[];
+            range: [number, number];
+            segments: number;
+            id: number;
+        };
+        expect(deriv.kind).toBe('curve');
+        expect(deriv.expr).toBe('a * cos(x * a)');
+        expect(deriv.coefficients.map((coefficient) => coefficient.name)).toEqual(['a']);
+        // 继承源对象的 range/segments,id 排在源对象之后.
+        expect(deriv.range).toEqual([-8, 8]);
+        expect(deriv.segments).toBe(128);
+        expect(deriv.id).toBe(2);
+        // 进入对象列表公式.
+        expect(scene.objectFormulas[2]).toContain('a * cos(x * a)');
+    });
+
+    it('compiles a surface derivative with an explicit variable', () => {
+        const derivAst: AstProgram = {
+            statements: [
+                ast.statements[3], // surface s
+                derivative('ds', 's', { variable: 'x' }),
+            ],
+        };
+        const scene = compileScene(derivAst);
+
+        expect(scene.objects).toHaveLength(2);
+        const surface = scene.objects[1] as {
+            kind: 'surface';
+            expr: string;
+            coefficients: { name: string }[];
+        };
+        expect(surface.kind).toBe('surface');
+        expect(surface.expr).toBe('cos(y) * cos(x)');
+        expect(surface.coefficients).toEqual([]);
+        expect(scene.objectFormulas[2]).toContain('cos(y) * cos(x)');
+    });
+
+    it('supports chaining to higher-order derivatives (d²f)', () => {
+        const derivAst: AstProgram = {
+            statements: [
+                ast.statements[2],
+                derivative('dc', 'c'),
+                derivative('d2c', 'dc'),
+            ],
+        };
+        const scene = compileScene(derivAst);
+
+        expect(scene.objects).toHaveLength(3);
+        const d2 = scene.objects[2] as { kind: 'curve'; expr: string };
+        // mock 对未知表达式返回 '1'(对 'a * cos(x * a)' 再求 x 导).
+        expect(d2.kind).toBe('curve');
+        expect(d2.expr).toBe('1');
+    });
+
+    it('rejects derivative of a non-curve/surface source', () => {
+        const badAst: AstProgram = {
+            statements: [
+                ast.statements[4], // vector_field F
+                derivative('dF', 'F'),
+            ],
+        };
+        expect(() => compileScene(badAst)).toThrow(
+            '求导 dF 只能应用于 curve/surface 类型对象',
+        );
+    });
+
+    it('rejects derivative referencing a missing source', () => {
+        const badAst: AstProgram = {
+            statements: [derivative('d', 'nope')],
+        };
+        expect(() => compileScene(badAst)).toThrow('求导 d 引用了不存在的对象 nope');
+    });
+
+    it('requires a variable for surface derivatives and rejects invalid ones', () => {
+        const noVar: AstProgram = {
+            statements: [
+                ast.statements[3],
+                derivative('ds', 's'),
+            ],
+        };
+        expect(() => compileScene(noVar)).toThrow('曲面求导 ds 需要指定变量 x 或 y');
+
+        const badVar: AstProgram = {
+            statements: [
+                ast.statements[3],
+                derivative('ds', 's', { variable: 'z' }),
+            ],
+        };
+        expect(() => compileScene(badVar)).toThrow('曲面求导 ds 的变量只能是 x 或 y');
+    });
+
+    it('rejects curve derivatives with a non-x variable', () => {
+        const badAst: AstProgram = {
+            statements: [
+                ast.statements[2],
+                derivative('dc', 'c', { variable: 'y' }),
+            ],
+        };
+        expect(() => compileScene(badAst)).toThrow('曲线 dc 的求导变量只能是 x');
+    });
+
+    it('rejects unknown derivative options instead of silently using defaults', () => {
+        const badAst: AstProgram = {
+            statements: [
+                ast.statements[2],
+                derivative('dc', 'c', { options: [{ name: 'segmetns', value: '32' }] }),
+            ],
+        };
+        expect(() => compileScene(badAst)).toThrow('求导 dc 包含未知选项: segmetns');
+    });
+});
+
 describe('语句级错误定位', () => {
     it('compileScene 抛出的语句错误携带真实 span,可换算成源码行列', () => {
         const source = 'curve c = sin(x);\ngradient g = grad(nope) at [0];';

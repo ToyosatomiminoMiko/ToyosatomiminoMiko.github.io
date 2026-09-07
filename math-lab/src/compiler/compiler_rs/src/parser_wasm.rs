@@ -272,6 +272,47 @@ fn integral_to_stmt(pair: &Pair<'_, Rule>) -> Value {
     })
 }
 
+/// 将求导语句(derivative_stmt)转换为 JSON AST 节点.
+/// 包含名称,源对象(source),可选求导变量(variable),选项列表和位置.
+/// 函数名遵循项目全名习惯(derivative),见 miko.pest 的 derivative_stmt.
+fn derivative_to_stmt(pair: &Pair<'_, Rule>) -> Value {
+    let mut name = String::new();
+    let mut source = String::new();
+    let mut variable: Option<String> = None;
+    let mut options: Vec<Value> = Vec::new();
+
+    for child in pair.clone().into_inner() {
+        match child.as_rule() {
+            Rule::ident => name = child.as_str().to_string(),
+            Rule::derivative_call => {
+                let mut idents = child
+                    .into_inner()
+                    .filter(|inner| inner.as_rule() == Rule::ident);
+                if let Some(first) = idents.next() {
+                    source = first.as_str().to_string();
+                }
+                if let Some(second) = idents.next() {
+                    variable = Some(second.as_str().to_string());
+                }
+            }
+            Rule::stmt_end => options = options_from_end(&child),
+            _ => {}
+        }
+    }
+
+    let mut statement = json!({
+        "type": "derivative",
+        "name": name,
+        "source": source,
+        "options": options,
+        "span": span_of(pair),
+    });
+    if let Some(variable) = variable {
+        statement["variable"] = json!(variable);
+    }
+    statement
+}
+
 /// 将交集语句(intersection_stmt)转换为 JSON AST 节点.
 /// 包含名称,两个操作数 a 和 b,选项列表和位置.
 fn intersection_to_stmt(pair: &Pair<'_, Rule>) -> Value {
@@ -320,6 +361,7 @@ fn statement_to_ast(pair: Pair<'_, Rule>) -> Result<Value, String> {
         Rule::analysis_stmt => Ok(analysis_to_stmt(&pair)),
         Rule::integral_stmt => Ok(integral_to_stmt(&pair)),
         Rule::intersection_stmt => Ok(intersection_to_stmt(&pair)),
+        Rule::derivative_stmt => Ok(derivative_to_stmt(&pair)),
         _ => Err(format!("未知语句规则: {:?}", pair.as_rule())),
     }
 }
@@ -462,6 +504,39 @@ intersect Y = intersect(s1, S);
         assert!(json.contains("\"name\":\"Y\""));
         assert!(json.contains("\"a\":\"s1\""));
         assert!(json.contains("\"b\":\"S\""));
+    }
+
+    #[test]
+    fn parses_derivative_statements_with_and_without_variable() {
+        let src = r##"
+curve c = sin(x * a) {
+    range = [-8, 8];
+    segments = 256;
+}
+derivative dc = derivative(c);
+surface s = sin(x) * cos(y);
+derivative dsx = derivative(s, x);
+derivative dsy = derivative(s, y);
+"##;
+        let value: Value = serde_json::from_str(&parse_to_json(src).unwrap()).unwrap();
+        let statements = value["statements"].as_array().unwrap();
+        let derivatives: Vec<&Value> = statements
+            .iter()
+            .filter(|stmt| stmt["type"] == "derivative")
+            .collect();
+        assert_eq!(derivatives.len(), 3);
+
+        assert_eq!(derivatives[0]["name"], "dc");
+        assert_eq!(derivatives[0]["source"], "c");
+        assert!(derivatives[0].get("variable").is_none());
+
+        assert_eq!(derivatives[1]["name"], "dsx");
+        assert_eq!(derivatives[1]["source"], "s");
+        assert_eq!(derivatives[1]["variable"], "x");
+
+        assert_eq!(derivatives[2]["name"], "dsy");
+        assert_eq!(derivatives[2]["source"], "s");
+        assert_eq!(derivatives[2]["variable"], "y");
     }
 
     #[test]

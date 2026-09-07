@@ -3,6 +3,9 @@
 Math-lab 的当前入口是 `index.html`,它加载 `src/main.ts`,再由
 `DslApp` 驱动 `.miko` DSL.
 
+这是符号计算引擎(Symbolic Computation Engine),
+作为计算机代数系统(Computer Algebra System, CAS)是不完全的.
+
 ## 数据流
 
 ```text
@@ -23,6 +26,10 @@ Math-lab 的当前入口是 `index.html`,它加载 `src/main.ts`,再由
   作为二重积分的积分域;边界曲线只允许不带静态变换/动画的纯函数曲线
 - `matrix` / `transform`:对象场景变换
 - `animation`:单矩阵动画片段,可通过对象 `animation = [...]` 绑定并顺序播放
+- `derivative`:求导语句,把符号求导结果做成一个新对象并画出整条导数
+  函数曲线/曲面(curve -> curve 求 x 导,surface -> surface 求 x/y 偏导);
+  语法 `derivative 名称 = derivative(源对象 [, 变量])`,函数名用全名不缩写;
+  示例 `example/derivative_graph.scad`
 - `gradient` / `divergence` / `curl`:点分析(求导/偏导经这些微分分析
   算子暴露:一元求导 = curve 的 gradient,偏导 = surface 的 gradient,
   div/curl = 向量场的一阶偏导组合;用户文档见 `docs/derivatives-guide.md`)

@@ -45,5 +45,11 @@ intersection_kind = { "intersection" | "intersect" }
 intersection_call = { intersection_kind ~ "(" ~ ident ~ "," ~ ident ~ ")" }
 intersection_stmt = { intersection_kind ~ ident ~ "=" ~ intersection_call ~ stmt_end }
 
-statement = _{ param_stmt | tensor_stmt | animation_stmt | object_stmt | analysis_stmt | integral_stmt | intersection_stmt }
+// 求导语句:`derivative 名称 = derivative(源对象 [, 变量]);`.
+// 源对象必须是已声明的 curve(surface 需在第二个参数给出 x 或 y).
+// 函数名遵循项目全名习惯,不缩写.
+derivative_stmt = { "derivative" ~ ident ~ "=" ~ derivative_call ~ stmt_end }
+derivative_call = { "derivative" ~ "(" ~ ident ~ ("," ~ ident)? ~ ")" }
+
+statement = _{ param_stmt | tensor_stmt | animation_stmt | object_stmt | analysis_stmt | integral_stmt | intersection_stmt | derivative_stmt }
 program = { SOI ~ statement* ~ EOI }

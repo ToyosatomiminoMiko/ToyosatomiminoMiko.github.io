@@ -5,8 +5,11 @@
 
 ## 1. 现状结论
 
-- **DSL 层没有独立的求导/偏导语句**.一元求导,二元偏导,向量场散度/
-  旋度全部经由"微分分析"算子暴露,与"梯度"功能耦合:
+- **`derivative` 语句把符号求导结果做成新对象**,画出整条导数函数曲线/曲面
+  (curve -> curve 求 x 导,surface -> surface 求 x/y 偏导).对象与手写
+  curve/surface 完全同构,复用同一 blueprint/物化/渲染管线;语法见
+  [derivatives-guide.md](derivatives-guide.md) §1.
+- **"微分分析"算子**在指定点做点分析(与"梯度"功能耦合):
   - 一元导数 = `curve` 上的 `gradient`(等价的数学说法:对隐式曲线
     `y − f(x) = 0` 求梯度 ∇ = (−f′, 1, 0),切线方向即 (1, f′, 0));
   - 偏导 = `surface` 上的 `gradient`(fx = ∂f/∂x,fy = ∂f/∂y,法向
@@ -14,8 +17,9 @@
   - div/curl = `vector_field` 上的六个一阶偏导组合.
 - **求导本身在编译期完成(符号求导),数值求值在 WASM 内完成**,对象与
   分析结果都是"纯数据",拖动参数只重新求值,不重新求导(表达式级缓存).
-- **所有求导输出都是"点值"**:在某一点求 f′(px),fx/fy(px,py),
-  div/curl(px,py,pz).没有"导数曲线/梯度场曲线"这类连续可视化.
+- **`derivative` 语句输出"导数函数对象",分析算子输出"点值"**:前者是
+  整条 f′ 曲线(f′ 表达式作为新对象表达式),后者是在某一点求 f′(px),
+  fx/fy(px,py),div/curl(px,py,pz).
 - **jacobian / laplacian 未实现**:pest 语法与 AST 类型已接受,编译期
   (`analyses.ts`)抛"分析算子 ... 暂未实现".
 
@@ -93,7 +97,10 @@ f′ 曲线可视化,应在 DSL/IR 层增加显式语义(参考 §5 的未实现
 - `jacobian` / `laplacian`:AST 类型 `AnalysisOpKind` 与 pest
   `analysis_op` 已收,但 analyses.ts 编译期直接抛"暂未实现";加算子时
   需同步 `compiler_rs/src/miko.pest` 与 `ast/types.ts`.
-- 高阶/混合偏导(f″,fxy),对数组/向量表达式求导:未支持.
+- 高阶/混合偏导没有独立语句,但可用 `derivative` 链式求导得到:每步把
+  上一步的导数对象当源对象即可(如 `derivative(d = derivative(s, x))` 得
+  ∂²f/∂x²,`derivative(dy = derivative(d, y))` 得 ∂²f/∂y∂x).
+- 对数组/向量表达式求导:未支持(`derivative` 源只能是 curve/surface).
 - 点分析只输出测量点的值;`at` 坐标个数不足时编译报错(curve 最少
   1 个,surface 2 个,vector_field 3 个;语法上 `at` 至少两个数).
 - 隐藏语义:被隐藏的分析先完整校验再置 `enabled: false` 占位,不执行
