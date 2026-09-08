@@ -135,3 +135,42 @@
 .ieee-formula .katex-display {
     margin: 0;
 }
+
+/* 特殊值参考表 */
+.ieee-special {
+    overflow-x: auto;
+}
+
+.ieee-special-table {
+    border-collapse: collapse;
+    width: 100%;
+    font-family: 'JetBrains Mono Slashed', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.82rem;
+}
+
+.ieee-special-table th,
+.ieee-special-table td {
+    text-align: left;
+    padding: 5px 10px;
+    border: 1px solid #334155;
+    white-space: nowrap;
+}
+
+.ieee-special-table th {
+    color: #94a3b8;
+    font-weight: 600;
+    background: #0f172a;
+}
+
+.ieee-special-table tbody tr {
+    color: #e2e8f0;
+    cursor: pointer;
+}
+
+.ieee-special-table tbody tr:hover {
+    background: #1e293b;
+}
+
+.ieee-special-table td.ieee-bits {
+    color: #7dd3fc;
+}

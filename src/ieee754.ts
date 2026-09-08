@@ -3,12 +3,12 @@
 APP: #ieee754 (主站 tab)
 IEEE 754 浮点可视化:单精度(float32) / 双精度(float64)
 ========================================================================
-【职责】
+[职责]
   把用户输入的"十进制小数"或"二进制位串"转成 IEEE 754 的三段
   (符号 S / 指数 E / 尾数 M)二进制视图,并生成 KaTeX 公式;支持三处
   双向换算:① 数字输入 -> 位; ② 点按位 -> 数字; ③ 纯位串 -> 数字.
 
-【行为契约】
+[行为契约]
   - float64 直接按 JS number(本身即 double)取位;float32 先经
     Float32Array 舍入到单精度再取位,保证位图与真机一致.
   - 分类(classification)严格按 IEEE 754:指数域全 0 且尾数全 0 = 零;
@@ -21,7 +21,7 @@ IEEE 754 浮点可视化:单精度(float32) / 双精度(float64)
   - KaTeX 渲染统一走 katex.render(throwOnError:false),绝不注入
     未转义 HTML 到 innerHTML.
 
-【编码注意】
+[编码注意]
   - 取位用 TypedArray(Float32Array/Float64Array + Uint32Array/BigUint64Array),
     不要用纯数学移位去"猜"double 的 64 位--那会因 JS number 无 64 位整数而
     丢失精度.
@@ -194,18 +194,52 @@ export function unbiasedExponent(v: IEEE754Value): number {
     return 0;
 }
 
-/** 数值部分的 LaTeX(±∞ / ±0 / NaN 用符号表达). */
-function valueLatex(v: IEEE754Value): string {
+/**
+ * 由位域计算该二进制串的精确真值,并输出为"整数尾数 × 2^exp"形式(已把尾数
+ * 归一为奇数,去掉公因子 2).完全以位域(sign / exponentField / fraction)为准,
+ * 不依赖 JS number 的舍入字符串,因此对任何不可精确表示的值(如 0.1)都能给出
+ * 与二进制位图严格一致的精确值.±0 / ±∞ / NaN 用符号表达.
+ *
+ * 例:float64 的 0.1 -> "3602879701896397 \\times 2^{-55}";1.0 -> "1";
+ *    Number.MIN_VALUE -> "1 \\times 2^{-1074}".
+ */
+export function exactValueLatex(v: IEEE754Value): string {
     switch (v.classification) {
-        case 'nan':
-            return '\\mathrm{NaN}';
-        case 'infinity':
-            return v.sign ? '-\\infty' : '+\\infty';
         case 'zero':
             return v.sign ? '-0' : '0';
+        case 'infinity':
+            return v.sign ? '-\\infty' : '+\\infty';
+        case 'nan':
+            return '\\mathrm{NaN}';
         default:
-            return String(v.value);
+            break;
     }
+
+    const s = v.sign ? '-' : '';
+    const fb = v.format.fractionBits;
+    let m: bigint;
+    let e: bigint;
+    // 规格化:整数有效数字含隐含前导 1,即 2^fb + fraction;
+    // 次正规:整数有效数字就是尾数域本身.
+    if (v.classification === 'normal') {
+        m = (1n << BigInt(fb)) | BigInt(v.fraction);
+        e = BigInt(v.exponentField - v.format.bias) - BigInt(fb);
+    } else {
+        m = BigInt(v.fraction);
+        e = BigInt(1 - v.format.bias) - BigInt(fb);
+    }
+    // 去掉 2 的公因子,让尾数为奇数(更紧凑,更标准的精确形式).
+    while (m !== 0n && (m & 1n) === 0n) {
+        m >>= 1n;
+        e += 1n;
+    }
+    const mStr = m.toString();
+    return e === 0n ? `${s}${mStr}` : `${s}${mStr} \\times 2^{${e}}`;
+}
+
+/** 数值部分的 LaTeX(即位域所代表的精确真值,±∞ / ±0 / NaN 用符号表达). */
+function valueLatex(v: IEEE754Value): string {
+    return exactValueLatex(v);
 }
 
 /** 生成该值对应的 KaTeX 公式(按分类给出不同的展开式). */
@@ -285,6 +319,94 @@ function breakdownHtml(v: IEEE754Value): string {
     ].join('');
 }
 
+// ============================================================
+// 特殊值参考表(纯数据 + 无 DOM 依赖的构造;渲染在 UI 层)
+// ============================================================
+
+interface SpecialValue {
+    name: string;
+    make: (format: IEEE754Format) => IEEE754Value;
+}
+
+/** 用固定的 S/E/M 位域构造给定精度的特殊值,保证位图与数值一致. */
+const SPECIAL_VALUES: SpecialValue[] = [
+    { name: '正零 +0', make: (f) => buildIEEE754(0, 0, 0, f) },
+    { name: '负零 -0', make: (f) => buildIEEE754(1, 0, 0, f) },
+    { name: '正无穷 +∞', make: (f) => buildIEEE754(0, Math.pow(2, f.exponentBits) - 1, 0, f) },
+    { name: '负无穷 -∞', make: (f) => buildIEEE754(1, Math.pow(2, f.exponentBits) - 1, 0, f) },
+    { name: 'NaN 非数', make: (f) => buildIEEE754(0, Math.pow(2, f.exponentBits) - 1, 1, f) },
+    { name: '最小正规格化数', make: (f) => buildIEEE754(0, 1, 0, f) },
+    { name: '最小正次规格化数', make: (f) => buildIEEE754(0, 0, 1, f) },
+    { name: '最大有限值', make: (f) => buildIEEE754(0, Math.pow(2, f.exponentBits) - 2, Math.pow(2, f.fractionBits) - 1, f) },
+];
+
+/**
+ * 把某值写成可回填输入框的字符串.
+ * 保留 -0 / ±∞ / NaN 语义(String(v.value) 会把 -0 变成 "0",这里补回符号).
+ */
+function valueInputText(v: IEEE754Value): string {
+    switch (v.classification) {
+        case 'zero':
+            return v.sign ? '-0' : '0';
+        case 'infinity':
+            return v.sign ? '-Infinity' : 'Infinity';
+        case 'nan':
+            return 'NaN';
+        default:
+            return String(v.value);
+    }
+}
+
+/**
+ * 渲染特殊值参考表(随当前精度重生成).点击一行调用 onPick 载入该值.
+ * 所有单元格用 textContent 写入,不拼接 HTML.
+ */
+function renderSpecialTable(
+    container: HTMLElement,
+    format: IEEE754Format,
+    onPick: (v: IEEE754Value) => void,
+): void {
+    container.replaceChildren();
+    const table = document.createElement('table');
+    table.className = 'ieee-special-table';
+
+    const thead = document.createElement('thead');
+    const headTr = document.createElement('tr');
+    for (const label of ['名称', '位模式 (S / E / M)', '数值']) {
+        const th = document.createElement('th');
+        th.textContent = label;
+        headTr.appendChild(th);
+    }
+    thead.appendChild(headTr);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    for (const row of SPECIAL_VALUES) {
+        const v = row.make(format);
+        const tr = document.createElement('tr');
+        tr.title = '点击载入此特殊值';
+
+        const tdName = document.createElement('td');
+        tdName.textContent = row.name;
+
+        const { sign, exponent, fraction } = splitBits(v);
+        const tdBits = document.createElement('td');
+        tdBits.className = 'ieee-bits';
+        tdBits.textContent = `S=${sign} E=${exponent} M=${fraction}`;
+
+        const tdVal = document.createElement('td');
+        tdVal.textContent = valueInputText(v);
+
+        tr.appendChild(tdName);
+        tr.appendChild(tdBits);
+        tr.appendChild(tdVal);
+        tr.addEventListener('click', () => onPick(v));
+        tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    container.appendChild(table);
+}
+
 export function mountIEEE754(): void {
     const formatSel = document.getElementById('ieee-format') as HTMLSelectElement | null;
     const input = document.getElementById('ieee-input') as HTMLInputElement | null;
@@ -293,6 +415,7 @@ export function mountIEEE754(): void {
     const breakdownEl = document.getElementById('ieee-breakdown');
     const formulaEl = document.getElementById('ieee-formula');
     const errorEl = document.getElementById('ieee-error');
+    const specialEl = document.getElementById('ieee-special');
     const expBitsLabel = document.querySelector('[data-role="exp-bits"]');
     const fracBitsLabel = document.querySelector('[data-role="frac-bits"]');
 
@@ -355,7 +478,7 @@ export function mountIEEE754(): void {
         const exponentField = parseInt(bits.slice(expStart, fracStart).join(''), 2);
         const fraction = parseInt(bits.slice(fracStart).join(''), 2);
         current = buildIEEE754(sign, exponentField, fraction, current.format);
-        renderAll(current);
+        renderAll(current, true);
     };
 
     const showError = (msg: string): void => {
@@ -367,11 +490,15 @@ export function mountIEEE754(): void {
         errorEl.hidden = true;
     };
 
-    /** 用当前值刷新全部展示(数字输入 / 位图 / 位串 / 分解 / 公式). */
-    const renderAll = (v: IEEE754Value): void => {
+    /**
+     * 用当前值刷新全部展示(位图 / 位串 / 分解 / 公式).
+     * @param syncInput 是否回写输入框.仅当数值的"来源"是位图/精度切换/特殊值
+     *  时才回写;用户正在输入框里打字时置 false,避免每次按键都被规范化后的
+     *  字符串覆盖(这正是"输入与二进制打架"的根因).
+     */
+    const renderAll = (v: IEEE754Value, syncInput: boolean): void => {
         clearError();
-        // 程序化赋值不会触发 'input' 事件,故不会回环
-        input.value = String(v.value);
+        if (syncInput) input.value = valueInputText(v);
         renderBits(v);
         breakdownEl.innerHTML = breakdownHtml(v);
         renderLatex(ieee754Latex(v), formulaEl);
@@ -396,8 +523,9 @@ export function mountIEEE754(): void {
             const fraction = parseInt(bits.slice(fracStart).join(''), 2);
             formatSel.value = fmt === FLOAT32 ? 'f32' : 'f64';
             refreshLabels(fmt);
+            refreshSpecial(fmt);
             current = buildIEEE754(sign, exponentField, fraction, fmt);
-            renderAll(current);
+            renderAll(current, false);
             return;
         }
 
@@ -409,16 +537,17 @@ export function mountIEEE754(): void {
         }
         const fmt = formatSel.value === 'f32' ? FLOAT32 : FLOAT64;
         current = computeIEEE754(num, fmt);
-        renderAll(current);
+        renderAll(current, false);
     };
 
     formatSel.addEventListener('change', () => {
-        // 切换精度:用当前数值值重算(位图随之重排)
+        // 切换精度:用当前数值值重算(位图随之重排),并刷新特殊值表
         if (!current) return;
         const fmt = IEEE754_FORMATS[formatSel.value as 'f32' | 'f64'];
         refreshLabels(fmt);
+        refreshSpecial(fmt);
         current = computeIEEE754(current.value, fmt);
-        renderAll(current);
+        renderAll(current, true);
     });
 
     input.addEventListener('input', () => applyInput(input.value));
@@ -428,7 +557,18 @@ export function mountIEEE754(): void {
         if (expBitsLabel) expBitsLabel.textContent = String(fmt.exponentBits);
         if (fracBitsLabel) fracBitsLabel.textContent = String(fmt.fractionBits);
     };
+
+    // 特殊值参考表:点击某一行即把该值载入工具
+    const onPickSpecial = (v: IEEE754Value): void => {
+        current = v;
+        renderAll(current, true);
+    };
+    const refreshSpecial = (fmt: IEEE754Format): void => {
+        if (specialEl) renderSpecialTable(specialEl, fmt, onPickSpecial);
+    };
+
     refreshLabels(FLOAT64);
+    refreshSpecial(FLOAT64);
 
     // 初始渲染
     applyInput(input.value);

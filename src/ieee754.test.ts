@@ -4,6 +4,7 @@ import {
     FLOAT64,
     buildIEEE754,
     computeIEEE754,
+    exactValueLatex,
     ieee754Latex,
     reconstructIEEE754,
     unbiasedExponent,
@@ -140,5 +141,99 @@ describe('IEEE754 buildIEEE754 / unbiasedExponent / latex', () => {
         const latex = ieee754Latex(computeIEEE754(Number.MIN_VALUE, FLOAT64));
         expect(latex).toContain('2^{-1022}');
         expect(latex).toContain('0.');
+    });
+});
+
+describe('IEEE754 exactValueLatex (真实值, 以位域为准)', () => {
+    it('规格化: 1.0 -> 1; 2.0 -> 1 × 2^{1}', () => {
+        expect(exactValueLatex(computeIEEE754(1, FLOAT64))).toBe('1');
+        expect(exactValueLatex(computeIEEE754(2, FLOAT64))).toBe('1 \\times 2^{1}');
+    });
+
+    it('float64 0.1 -> 3602879701896397 × 2^{-55} (奇数尾数)', () => {
+        expect(exactValueLatex(computeIEEE754(0.1, FLOAT64)))
+            .toBe('3602879701896397 \\times 2^{-55}');
+    });
+
+    it('次正规: 最小正次正规数 -> 1 × 2^{-1074}', () => {
+        expect(exactValueLatex(computeIEEE754(Number.MIN_VALUE, FLOAT64)))
+            .toBe('1 \\times 2^{-1074}');
+    });
+
+    it('最大有限值 -> 9007199254740991 × 2^{971}', () => {
+        expect(exactValueLatex(buildIEEE754(0, 2046, Math.pow(2, 52) - 1, FLOAT64)))
+            .toBe('9007199254740991 \\times 2^{971}');
+    });
+
+    it('float32 0.1 用舍入后位图的真实值', () => {
+        const v = computeIEEE754(0.1, FLOAT32);
+        // 0.1 舍入到单精度后精确为 13421773 × 2^-27
+        expect(exactValueLatex(v)).toBe('13421773 \\times 2^{-27}');
+        // 与直接用同一位域构造的值严格一致
+        expect(exactValueLatex(v)).toBe(exactValueLatex(
+            buildIEEE754(v.sign, v.exponentField, v.fraction, FLOAT32),
+        ));
+    });
+
+    it('±0 / ±∞ / NaN 的符号表达', () => {
+        expect(exactValueLatex(computeIEEE754(-0, FLOAT64))).toBe('-0');
+        expect(exactValueLatex(computeIEEE754(0, FLOAT64))).toBe('0');
+        expect(exactValueLatex(computeIEEE754(Infinity, FLOAT64))).toBe('+\\infty');
+        expect(exactValueLatex(computeIEEE754(-Infinity, FLOAT64))).toBe('-\\infty');
+        expect(exactValueLatex(computeIEEE754(NaN, FLOAT64))).toBe('\\mathrm{NaN}');
+    });
+
+    it('latex 公式的右端使用精确真实值(而不是 JS 舍入串)', () => {
+        const latex = ieee754Latex(computeIEEE754(0.1, FLOAT64));
+        expect(latex).toContain('3602879701896397 \\times 2^{-55}');
+        expect(latex).not.toContain('= 0.1');
+    });
+});
+
+describe('IEEE754 特殊值', () => {
+    it('float64 最大有限值 / 最小正常数 / 最小次正规数', () => {
+        const maxFinite = buildIEEE754(0, 2046, Math.pow(2, 52) - 1, FLOAT64);
+        expect(maxFinite.classification).toBe('normal');
+        expect(maxFinite.value).toBe(Number.MAX_VALUE);
+
+        const minNormal = buildIEEE754(0, 1, 0, FLOAT64);
+        expect(minNormal.value).toBe(2 ** -1022);
+        expect(minNormal.classification).toBe('normal');
+
+        const minSub = buildIEEE754(0, 0, 1, FLOAT64);
+        expect(minSub.value).toBe(Number.MIN_VALUE);
+        expect(minSub.classification).toBe('subnormal');
+    });
+
+    it('±∞ / ±0 / NaN 位图与数值', () => {
+        const posInf = buildIEEE754(0, 2047, 0, FLOAT64);
+        expect(posInf.value).toBe(Infinity);
+        expect(posInf.classification).toBe('infinity');
+        expect(posInf.bits).toBe('0' + '1'.repeat(11) + '0'.repeat(52));
+
+        const negInf = buildIEEE754(1, 2047, 0, FLOAT64);
+        expect(negInf.value).toBe(-Infinity);
+        expect(negInf.sign).toBe(1);
+
+        const negZero = buildIEEE754(1, 0, 0, FLOAT64);
+        expect(negZero.classification).toBe('zero');
+        expect(Object.is(negZero.value, -0)).toBe(true);
+
+        const nan = buildIEEE754(0, 2047, 1, FLOAT64);
+        expect(nan.classification).toBe('nan');
+        expect(Number.isNaN(nan.value)).toBe(true);
+    });
+
+    it('float32 最大有限值的位域', () => {
+        const maxFinite32 = buildIEEE754(0, 254, Math.pow(2, 23) - 1, FLOAT32);
+        expect(maxFinite32.classification).toBe('normal');
+        expect(maxFinite32.exponentField).toBe(254);
+
+        // 该值回填后应与原值一致(不会溢出为无穷)
+        const v = computeIEEE754(maxFinite32.value, FLOAT32);
+        expect(v.classification).toBe('normal');
+        expect(v.exponentField).toBe(254);
+        expect(v.fraction).toBe(Math.pow(2, 23) - 1);
+        expect(v.value).toBe(maxFinite32.value);
     });
 });
