@@ -75,7 +75,11 @@ createWasmWorker<SurfaceWorkerRequest, SurfaceWorkerResponse>(
 
         // Worker 收到的普通数组先转成 WASM 期望的 Float64Array
         const coeffValues = new Float64Array(req.coeffValues);
-        const result = sample_and_process_surface(
+        // 方案 A(曲面,多数组打包):Rust 现在直接返回一块打包好的 `Vec<u8>`
+        // (glue 只做一次 `.slice()`,已消除 wasm-bindgen 结构体 getter 的 wasm 内
+        // 克隆),不再是一个带 getter 的结构体对象.见
+        // prompt/JS_WASM_BOUNDARY_COPY_REPORT.md.
+        const packed = sample_and_process_surface(
             req.expr,
             req.coeffNames,
             coeffValues,
@@ -94,13 +98,24 @@ createWasmWorker<SurfaceWorkerRequest, SurfaceWorkerResponse>(
             );
         }
 
-        // 先取出所有副本,再释放 WASM 端对象
-        const positions = result.positions;
-        const normals = result.normals;
-        const validIndices = result.valid_indices;
-        const zMin = result.z_min;
-        const zMax = result.z_max;
-        result.free();
+        // 拆包:头部元数据 + 零拷贝 subarray 视图.三个视图共享同一块
+        // ArrayBuffer,后续整体 transfer 这一块 buffer,零额外拷贝.
+        const dv = new DataView(packed.buffer, packed.byteOffset, packed.byteLength);
+        const positionsLen = dv.getUint32(0, true);
+        const normalsLen = dv.getUint32(4, true);
+        const validIndicesLen = dv.getUint32(8, true);
+        const zMin = dv.getFloat64(12, true);
+        const zMax = dv.getFloat64(20, true);
+
+        const headerBytes = 28;
+        const base = packed.byteOffset + headerBytes;
+        const positions = new Float32Array(packed.buffer, base, positionsLen);
+        const normals = new Float32Array(packed.buffer, base + positionsLen * 4, normalsLen);
+        const validIndices = new Uint32Array(
+            packed.buffer,
+            base + (positionsLen + normalsLen) * 4,
+            validIndicesLen,
+        );
 
         const response: SurfaceWorkerResponse = {
             id: req.id,
@@ -112,11 +127,8 @@ createWasmWorker<SurfaceWorkerRequest, SurfaceWorkerResponse>(
             computeMs,
         };
 
-        // 用 Transferable 传回主线程,避免结构化克隆再复制一遍大数组
-        post(response, [
-            positions.buffer,
-            normals.buffer,
-            validIndices.buffer,
-        ]);
+        // 三个视图共享 `packed.buffer`,只需把它 transfer 一次(对同一块 buffer
+        // 重复列出会抛错),避免结构化克隆再复制一遍大数组.
+        post(response, [packed.buffer]);
     },
 );
