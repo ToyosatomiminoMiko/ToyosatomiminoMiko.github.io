@@ -6,6 +6,7 @@ import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 import { mountClock } from './clock';
 import { mountRBT } from './rbt';
 import { OLEDCanvas } from './oled';
+import { mountIEEE754 } from './ieee754';
 
 document.addEventListener('DOMContentLoaded', () => {
     // 背景切换
@@ -22,4 +23,5 @@ document.addEventListener('DOMContentLoaded', () => {
     mountClock();
     mountRBT();
     new OLEDCanvas();
+    mountIEEE754();
 });

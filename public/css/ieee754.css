@@ -1,0 +1,137 @@
+/* IEEE 754 */
+.ieee-hint {
+    color: #cbd5e1;
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+}
+
+.ieee-error {
+    color: #f43f5e;
+    font-weight: 600;
+    margin: 6px 0;
+}
+
+.ieee-section {
+    margin: 12px 0;
+    padding: 10px;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    background: #0b1220;
+}
+
+.ieee-legend {
+    display: flex;
+    gap: 16px;
+    color: #94a3b8;
+    font-size: 0.8rem;
+    margin-bottom: 6px;
+}
+
+.ieee-legend b {
+    color: #7dd3fc;
+}
+
+.ieee-bits {
+    font-family: 'JetBrains Mono Slashed', 'Fira Code', 'Consolas', monospace;
+    line-height: 2;
+    user-select: none;
+    white-space: nowrap;
+    overflow-x: auto;
+}
+
+.ieee-bit-group {
+    display: inline-flex;
+    gap: 2px;
+    margin-right: 8px;
+}
+
+.ieee-gap {
+    display: inline-block;
+    width: 6px;
+}
+
+.ieee-bit {
+    display: inline-block;
+    width: 12px;
+    height: 22px;
+    line-height: 22px;
+    text-align: center;
+    font-size: 11px;
+    border: 1px solid #475569;
+    background: #0f172a;
+    color: #7dd3fc;
+    cursor: pointer;
+}
+
+.ieee-bit:hover {
+    background: #1e293b;
+}
+
+.ieee-bit.on {
+    font-weight: 700;
+}
+
+.ieee-bit-group.ieee-sign .ieee-bit {
+    background: #be123c;
+    color: #fff;
+}
+
+.ieee-bit-group.ieee-exp .ieee-bit {
+    background: #7c2d12;
+    color: #fff;
+}
+
+.ieee-bit-group.ieee-frac .ieee-bit {
+    background: #065f46;
+    color: #fff;
+}
+
+.ieee-legend .ieee-s {
+    color: #fda4af;
+}
+
+.ieee-legend .ieee-e {
+    color: #fdba74;
+}
+
+.ieee-legend .ieee-m {
+    color: #6ee7b7;
+}
+
+.ieee-bitstring {
+    margin-top: 8px;
+    font-family: 'JetBrains Mono Slashed', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.85rem;
+    color: #e2e8f0;
+    word-break: break-all;
+}
+
+.ieee-breakdown {
+    margin: 8px 0;
+    font-family: 'JetBrains Mono Slashed', 'Fira Code', 'Consolas', monospace;
+    color: #e2e8f0;
+    line-height: 1.8;
+}
+
+.ieee-breakdown b {
+    color: #7dd3fc;
+}
+
+.ieee-breakdown .ieee-muted {
+    color: #94a3b8;
+}
+
+.ieee-formula-title {
+    color: #94a3b8;
+    font-size: 0.8rem;
+    margin-bottom: 4px;
+}
+
+.ieee-formula {
+    overflow-x: auto;
+    padding: 6px 0;
+}
+
+.ieee-formula .katex-display {
+    margin: 0;
+}

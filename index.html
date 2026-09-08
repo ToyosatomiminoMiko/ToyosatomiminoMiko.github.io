@@ -19,6 +19,7 @@ ToyosatomiminoMiko
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
     <link href="/css/index.css" rel="stylesheet" type="text/css" />
+    <link href="/css/ieee754.css" rel="stylesheet" type="text/css" />
 </head>
 
 <body>
@@ -32,6 +33,9 @@ ToyosatomiminoMiko
             </li>
             <li class="nav-item">
                 <a class="nav-link" data-bs-toggle="tab" href="#rbt">RBT</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#ieee754">IEEE754</a>
             </li>
             <li class="nav-item">
                 <a class="nav-link" data-bs-toggle="tab" href="#setting">SETTING</a>
@@ -120,6 +124,57 @@ ToyosatomiminoMiko
                         ></textarea>
                         <div id="treeError" class="error-msg" hidden></div>
                         <canvas id="rbCanvas" width="1200" height="640"></canvas>
+                    </div>
+                </div>
+            </div>
+            <!-- IEEE 754 -->
+            <div class="tab-pane fade" id="ieee754">
+                <div class="card">
+                    <div class="card-header">
+                        <h4>🧮 IEEE 754 浮点可视化</h4>
+                    </div>
+                    <div class="card-body">
+                        <p class="ieee-hint">
+                            💡 输入十进制小数自动转二进制;也可以点按下面的二进制位(0/1)反向换算,
+                            或直接粘贴长度匹配的 0/1 位串.尾数高位在左,低位在右,每 4 位一组.
+                        </p>
+                        <div class="row g-3 align-items-center mb-3">
+                            <div class="col-auto">
+                                <label class="form-label mb-0" for="ieee-format">精度</label>
+                                <select id="ieee-format" class="form-select form-select-sm">
+                                    <option value="f32">单精度 float32 (32位)</option>
+                                    <option value="f64" selected>双精度 float64 (64位)</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label mb-0" for="ieee-input">十进制数值</label>
+                                <input
+                                    id="ieee-input"
+                                    class="form-control form-control-sm"
+                                    value="3.14"
+                                    spellcheck="false"
+                                />
+                            </div>
+                        </div>
+
+                        <div id="ieee-error" class="ieee-error" hidden></div>
+
+                        <div class="ieee-section">
+                            <div class="ieee-legend">
+                                <span class="ieee-s">S 符号</span>
+                                <span class="ieee-e">E 指数(共 <b data-role="exp-bits">11</b> 位)</span>
+                                <span class="ieee-m">M 尾数(共 <b data-role="frac-bits">52</b> 位)</span>
+                            </div>
+                            <div id="ieee-bits" class="ieee-bits"></div>
+                            <div id="ieee-bitstring" class="ieee-bitstring"></div>
+                        </div>
+
+                        <div id="ieee-breakdown" class="ieee-breakdown"></div>
+
+                        <div class="ieee-section">
+                            <div class="ieee-formula-title">Σ 公式 (KaTeX)</div>
+                            <div id="ieee-formula" class="ieee-formula"></div>
+                        </div>
                     </div>
                 </div>
             </div>
