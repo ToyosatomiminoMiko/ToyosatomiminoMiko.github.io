@@ -6,7 +6,7 @@ import { createComputeWorkerClient } from './ComputeWorkerClient';
 import type {
     CurveWorkerRequest,
     CurveWorkerResponse,
-} from './curveWorker';
+} from './CurveWorker';
 
 /** 曲线采样结果:扁平顶点 + 每段起始顶点下标(见采样层 `CurvePoints`). */
 export type CurveSampleResult = {
@@ -26,7 +26,7 @@ export const curveComputeClient = createComputeWorkerClient<
     CurveSampleResult
 >(
     () => new Worker(
-        new URL('./curveWorker.ts', import.meta.url),
+        new URL('./CurveWorker.ts', import.meta.url),
         { type: 'module' },
     ),
     (response) => ({ points: response.points, offsets: response.offsets }),

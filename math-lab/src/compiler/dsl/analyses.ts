@@ -28,7 +28,7 @@ import {
     evaluate_divergence_point as wasmEvaluateDivergencePoint,
     evaluate_gradient_point as wasmEvaluateGradientPoint,
 } from '../../wasm/math_rs/math_rs';
-import { splitCoefficients } from '../../math/coefficientUtils';
+import { splitCoefficients } from '../../math/adapters/coefficientUtils';
 import { withStatementSpan } from '../errors';
 import { assertKnownOptions, parseShowOption } from './options';
 import { buildParamScope } from './params';

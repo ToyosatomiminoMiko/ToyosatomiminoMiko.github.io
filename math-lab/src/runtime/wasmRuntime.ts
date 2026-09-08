@@ -7,7 +7,7 @@ import initMath from '../wasm/math_rs/math_rs';
  * 键/失效策略:模块级单例;首次调用时创建 Promise,之后复用,永不失效.
  * 生命周期:随页面模块存活,应用销毁时无需显式释放.
  *
- * 注意:render_rs 不在此初始化.它仅被 surfaceWorker 在 Worker 内自持
+ * 注意:render_rs 不在此初始化.它仅被 SurfaceWorker 在 Worker 内自持
  * (且其 wasm 因依赖 math_rs,导出面含整个 math 引擎),主线程没有任何
  * render_rs 导出函数的调用方,预载只会白下载/实例化一份冗余模块.
  * 若未来主线程确实需要渲染侧计算,再把它加回这里.

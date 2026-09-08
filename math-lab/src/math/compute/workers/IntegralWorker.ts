@@ -14,7 +14,7 @@ import init, {
     integrate_solid,
 } from "../../../wasm/math_rs/math_rs";
 import type { IntegralDomainKind, IntegralMethod } from '../../../compiler/ir/types';
-import { recordToCoefficientArgs } from '../../coefficientUtils';
+import { recordToCoefficientArgs } from '../../adapters/coefficientUtils';
 import { createWasmWorker } from './wasmWorkerRuntime';
 
 export type IntegralBoundaryDesc = {

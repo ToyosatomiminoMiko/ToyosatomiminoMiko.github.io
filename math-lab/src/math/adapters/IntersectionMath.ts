@@ -15,7 +15,7 @@ import type {
     Vec3,
 } from '../../compiler/ir/types';
 import { NUMERIC_CONFIG } from '../../config/numericConfig';
-import { splitCoefficients } from '../coefficientUtils';
+import { splitCoefficients } from './coefficientUtils';
 import {
     flattenOptionalMat4,
     invertMat4,

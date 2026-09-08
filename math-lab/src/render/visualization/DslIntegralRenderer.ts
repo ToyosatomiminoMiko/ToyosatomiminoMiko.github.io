@@ -7,7 +7,7 @@ import type {
 import type { Mat4 } from '../../math/tensor/rowMajorMatrix';
 import { IntegralVisualizer } from './integral/IntegralVisualizer';
 import type { MathComputeEngine } from '../../math/compute/MathComputeEngine';
-import type { IntegralResult } from '../../math/compute/IntegralWasm';
+import type { IntegralResult } from '../../math/compute/workers/IntegralCompute';
 import {
     clampIntegral1DVisualization,
     clampIntegral2DVisualization,

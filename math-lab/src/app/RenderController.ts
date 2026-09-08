@@ -36,7 +36,7 @@ import { ObjectListController } from '../ui/ObjectListController';
 import { disposeCurveComputeClient } from '../math/compute/workers/CurveComputeClient';
 import { disposeSurfaceComputeClient } from '../math/compute/workers/SurfaceComputeClient';
 import { disposeVectorFieldComputeClient } from '../math/compute/workers/VectorFieldComputeClient';
-import { disposeIntegralWorker } from '../math/compute/IntegralWasm';
+import { disposeIntegralWorker } from '../math/compute/workers/IntegralCompute';
 import { disposeIntersectionComputeClient } from '../math/compute/workers/IntersectionComputeClient';
 
 export class RenderController {

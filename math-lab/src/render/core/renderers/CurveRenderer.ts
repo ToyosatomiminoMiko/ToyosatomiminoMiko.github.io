@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import { NUMERIC_CONFIG } from '../../../config/numericConfig';
 import type { IRenderer } from './IRenderer';
 import type { CurveObject } from '../../../compiler/ir/types';
-import { splitCoefficients } from '../../../math/coefficientUtils';
+import { splitCoefficients } from '../../../math/adapters/coefficientUtils';
 import { sharedCurveSamplingEngine as curveComputeEngine } from '../../../math/compute/MathComputeEngine';
 import type { CurveSampleResult } from '../../../math/compute/workers/CurveComputeClient';
 import {

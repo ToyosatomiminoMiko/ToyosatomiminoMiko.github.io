@@ -140,6 +140,14 @@ npm run build
 2. `npm run build:wasm`:分别重建 `src/math/math_rs`/
    `src/compiler/compiler_rs`/`src/render/render_rs`
    三个 Rust crate,并把产物输出到对应的 `src/wasm/*` 目录
+
+> **源码 vs 产物的对应关系**:`src/*/{math_rs,compiler_rs,render_rs}` 是 Rust
+> **源码**(唯一权威,含数值/编译/渲染内核);`src/wasm/*` 是它们 `wasm-pack`
+> 构建后生成的 JS/TS 绑定与 `.wasm` **产物**,且整个目录在 `.gitignore` 中
+> 被忽略(`*`),不提交进仓库.两者同名同树,但**不要手工修改或直接搜索/导入
+> `src/wasm/*` 里的生成文件**;改内核只改 `src/*_rs`,再跑 `npm run build:wasm`
+> 重新生成.前端代码统一从 `wasm/*` 的绑定入口导入.
+
 3. `npm run typecheck`:执行 `tsc --noEmit`
 4. `vite build`
 
@@ -242,9 +250,9 @@ new DslApp().start()
 
 | 内容 | 渲染/调用入口 | Worker | Rust/WASM | 返回 |
 | --- | --- | --- | --- | --- |
-| 曲线采样 | `CurveRenderer` | `curveWorker` | `math_rs.sample_curve` | 顶点数组 |
-| 曲面采样 | `SurfaceRenderer` -> `SurfaceMesh` | `surfaceWorker` | `render_rs.sample_and_process_surface` | 位置/颜色/法线/索引 |
-| 向量场采样 | `VectorFieldRenderer` | `vectorFieldWorker` | `math_rs.sample_vector_field` | 向量数组 |
+| 曲线采样 | `CurveRenderer` | `CurveWorker` | `math_rs.sample_curve` | 顶点数组 |
+| 曲面采样 | `SurfaceRenderer` -> `SurfaceMesh` | `SurfaceWorker` | `render_rs.sample_and_process_surface` | 位置/颜色/法线/索引 |
+| 向量场采样 | `VectorFieldRenderer` | `VectorFieldWorker` | `math_rs.sample_vector_field` | 向量数组 |
 | 数值积分 | `DslIntegralRenderer` -> `MathComputeEngine` | `IntegralWorker` | `math_rs.integrate1d/2d`,带域 `integrate_region`(2D 区域)/`integrate_solid`(3D 实体) | 积分值/样本 |
 | 求交 | `IntersectionRenderer` | `IntersectionWorker` | `math_rs.intersect_pair` | 交点/交线折线 |
 

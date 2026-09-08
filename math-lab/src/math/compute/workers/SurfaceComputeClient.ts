@@ -6,7 +6,7 @@ import { createComputeWorkerClient } from './ComputeWorkerClient';
 import type {
     SurfaceWorkerRequest,
     SurfaceWorkerResponse,
-} from './surfaceWorker';
+} from './SurfaceWorker';
 
 /**
  * @cache
@@ -19,7 +19,7 @@ export const surfaceComputeClient = createComputeWorkerClient<
     SurfaceWorkerResponse
 >(
     () => new Worker(
-        new URL('./surfaceWorker.ts', import.meta.url),
+        new URL('./SurfaceWorker.ts', import.meta.url),
         { type: 'module' },
     ),
 );

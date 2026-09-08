@@ -21,13 +21,13 @@ import type {
 } from '../../compiler/ir/types';
 import type { Mat4 } from '../tensor/rowMajorMatrix';
 import { invertMat4 } from '../tensor/rowMajorMatrix';
-import { coefficientsToRecord } from '../coefficientUtils';
+import { coefficientsToRecord } from '../adapters/coefficientUtils';
 import {
     integrate as runIntegral,
     type IntegralResult,
     type IntegralSpec,
-} from './IntegralWasm';
-import { describeSide } from '../intersection/IntersectionMath';
+} from './workers/IntegralCompute';
+import { describeSide } from '../adapters/IntersectionMath';
 import {
     curveComputeClient,
     type CurveSampleResult,

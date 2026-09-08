@@ -21,7 +21,7 @@ import {
     LatestRequestExecutor,
     type RequestClient,
 } from '../../../math/compute/workers/LatestRequestExecutor';
-import { splitCoefficients } from '../../../math/coefficientUtils';
+import { splitCoefficients } from '../../../math/adapters/coefficientUtils';
 import type { CurveSampleResult } from '../../../math/compute/workers/CurveComputeClient';
 import { reportSamplingFailure } from '../samplingErrors';
 

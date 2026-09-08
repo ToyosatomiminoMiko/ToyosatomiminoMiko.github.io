@@ -17,7 +17,7 @@ import type { Mat4 } from '../../../math/tensor/rowMajorMatrix';
 import {
     buildIntersectionInput,
     decodeIntersectionOutput,
-} from '../../../math/intersection/IntersectionMath';
+} from '../../../math/adapters/IntersectionMath';
 import {
     requestIntersection,
 } from '../../../math/compute/workers/IntersectionComputeClient';

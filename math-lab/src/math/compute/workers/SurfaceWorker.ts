@@ -2,7 +2,7 @@ import init, { sample_and_process_surface } from '../../../wasm/render_rs/render
 import { createWasmWorker } from './wasmWorkerRuntime';
 
 // ================================================================
-// surfaceWorker - 曲面采样 Worker
+// SurfaceWorker - 曲面采样 Worker
 //
 // 架构流程:
 //   DOM slider input
@@ -10,7 +10,7 @@ import { createWasmWorker } from './wasmWorkerRuntime';
 //     -> SurfaceRenderer.draw()
 //     -> SurfaceMesh.requestUpdate()
 //     -> SurfaceComputeClient
-//     -> surfaceWorker (本文件)
+//     -> SurfaceWorker (本文件)
 //     -> Rust/WASM sample_and_process_surface
 //     -> Transferable 数组
 //     -> SurfaceMesh.applyResult()
@@ -18,6 +18,13 @@ import { createWasmWorker } from './wasmWorkerRuntime';
 //
 // 注意:顶点配色(HSL 伪彩色)已从 CPU 侧移除,改由渲染侧的顶点
 // 着色器依据 position.z 与 zMin/zMax 实时计算,因此这里不再传递 colors.
+//
+// 注意(跨模块依赖):本文件从 `wasm/render_rs/render_rs` 导入,而非
+// `wasm/math_rs/math_rs`.原因:曲面采样输出的是"渲染可直接消费的网格"
+// (positions/normals/validIndices),属渲染职责,由 render_rs 的
+// sample_and_process_surface 统一完成采样+后处理;math/core 的其它采样
+// (曲线/向量场/求交/积分)则走 math_rs.刻意为之,勿为了"math 只用 math_rs"
+// 而把它搬回 math_rs.
 // ================================================================
 
 export type SurfaceWorkerRequest = {

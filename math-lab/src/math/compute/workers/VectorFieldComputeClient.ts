@@ -6,7 +6,7 @@ import { createComputeWorkerClient } from './ComputeWorkerClient';
 import type {
     VectorFieldWorkerRequest,
     VectorFieldWorkerResponse,
-} from './vectorFieldWorker';
+} from './VectorFieldWorker';
 
 /**
  * @cache
@@ -20,7 +20,7 @@ export const vectorFieldComputeClient = createComputeWorkerClient<
     Float32Array
 >(
     () => new Worker(
-        new URL('./vectorFieldWorker.ts', import.meta.url),
+        new URL('./VectorFieldWorker.ts', import.meta.url),
         { type: 'module' },
     ),
     (response) => response.vectors,

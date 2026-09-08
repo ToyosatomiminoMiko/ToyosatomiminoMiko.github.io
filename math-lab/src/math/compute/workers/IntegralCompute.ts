@@ -9,14 +9,14 @@
  *   采样所需的外接范围由 Rust 核回传(xa/xb/ya/yb/za/zb);
  * - 调度(Worker 复用,latest-only,dispose)保持原样.
  */
-import type { IntegralDomainKind, IntegralMethod } from '../../compiler/ir/types';
-import { NUMERIC_CONFIG } from '../../config/numericConfig';
-import { ComputeWorkerClient } from './workers/ComputeWorkerClient';
-import { LatestRequestExecutor } from './workers/LatestRequestExecutor';
+import type { IntegralDomainKind, IntegralMethod } from '../../../compiler/ir/types';
+import { NUMERIC_CONFIG } from '../../../config/numericConfig';
+import { ComputeWorkerClient } from './ComputeWorkerClient';
+import { LatestRequestExecutor } from './LatestRequestExecutor';
 import type {
     IntegralWorkerRequest,
     IntegralWorkerResponse,
-} from './workers/IntegralWorker';
+} from './IntegralWorker';
 
 export type IntegralSampleShape = NonNullable<IntegralWorkerResponse['sampleShape']>;
 
@@ -84,7 +84,7 @@ export type IntegralSpec = {
  * 生命周期:模块级,随页面存活.
  */
 const integralClient = new ComputeWorkerClient<IntegralWorkerRequest, IntegralWorkerResponse>(() => new Worker(
-    new URL('./workers/IntegralWorker.ts', import.meta.url),
+    new URL('./IntegralWorker.ts', import.meta.url),
     { type: 'module' },
 ));
 

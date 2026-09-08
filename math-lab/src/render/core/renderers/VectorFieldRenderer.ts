@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import type { IRenderer } from './IRenderer';
 import type { VectorFieldObject } from '../../../compiler/ir/types';
-import { splitCoefficients } from '../../../math/coefficientUtils';
+import { splitCoefficients } from '../../../math/adapters/coefficientUtils';
 import { VectorFieldMesh } from '../../visualization/VectorFieldMesh';
 import { vectorFieldComputeClient } from '../../../math/compute/workers/VectorFieldComputeClient';
-import type { VectorFieldWorkerRequest } from '../../../math/compute/workers/vectorFieldWorker';
+import type { VectorFieldWorkerRequest } from '../../../math/compute/workers/VectorFieldWorker';
 import { LatestRequestExecutor } from '../../../math/compute/workers/LatestRequestExecutor';
 import { reportSamplingFailure } from '../samplingErrors';
 

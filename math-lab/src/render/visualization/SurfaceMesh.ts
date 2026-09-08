@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Coefficient } from '../../compiler/ir/types';
-import { splitCoefficients } from '../../math/coefficientUtils';
+import { splitCoefficients } from '../../math/adapters/coefficientUtils';
 import { RENDER_CONFIG } from '../../config/renderConfig';
 import {
     surfaceComputeClient,
@@ -15,7 +15,7 @@ import type { SurfaceStyle } from '../types';
 import type {
     SurfaceWorkerRequest,
     SurfaceWorkerResponse,
-} from '../../math/compute/workers/surfaceWorker';
+} from '../../math/compute/workers/SurfaceWorker';
 
 // ============================================================
 // SurfaceMesh - 可复用的 3D 曲面网格封装
@@ -24,7 +24,7 @@ import type {
 //   SurfaceRenderer.draw()
 //     -> SurfaceMesh.update()
 //     -> SurfaceComputeClient.request()
-//     -> surfaceWorker
+//     -> SurfaceWorker
 //     -> Rust/WASM 采样 + 后处理
 //     -> SurfaceMesh.applyResult()
 //     -> Three.js BufferGeometry

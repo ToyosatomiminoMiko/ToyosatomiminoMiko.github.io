@@ -3,7 +3,7 @@ import { compileScene as compileSceneWithOps } from './DslCompiler';
 import type { CompileSceneOptions } from './DslCompiler';
 import { jsMatrixOps } from '../../math/tensor/testMatrixOps';
 import type { AstProgram, ObjectStatement } from '../ast/types';
-import { buildIntersectionInput } from '../../math/intersection/IntersectionMath';
+import { buildIntersectionInput } from '../../math/adapters/IntersectionMath';
 
 vi.mock('../../wasm/math_rs/math_rs', () => {
     function evaluate(

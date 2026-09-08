@@ -5,7 +5,7 @@
  * `intersect_pair`;表达式只在 Rust 侧编译一次,后续网格/二分都复用上下文.
  */
 import init, { intersect_pair } from '../../../wasm/math_rs/math_rs';
-import type { IntersectionComputeSide } from '../../intersection/IntersectionMath';
+import type { IntersectionComputeSide } from '../../adapters/IntersectionMath';
 import { createWasmWorker } from './wasmWorkerRuntime';
 
 export type IntersectionWorkerRequest = {
