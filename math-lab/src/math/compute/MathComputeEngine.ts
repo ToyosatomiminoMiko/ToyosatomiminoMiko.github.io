@@ -28,7 +28,10 @@ import {
     type IntegralSpec,
 } from './IntegralWasm';
 import { describeSide } from '../intersection/IntersectionMath';
-import { curveComputeClient } from './workers/CurveComputeClient';
+import {
+    curveComputeClient,
+    type CurveSampleResult,
+} from './workers/CurveComputeClient';
 
 export type IntegralSource = Extract<
     SceneObject,
@@ -54,7 +57,7 @@ function findObject(objects: readonly SceneObject[], id: number): SceneObject | 
 }
 
 export class MathComputeEngine {
-    async sampleCurve(request: CurveSampleRequest): Promise<Float32Array> {
+    async sampleCurve(request: CurveSampleRequest): Promise<CurveSampleResult> {
         // 曲线采样与曲面/向量场保持一致:交给 Worker 执行,避免高 segments
         // 或大量曲线时阻塞主线程.失败直接上抛,由渲染层统一上报诊断,
         // 不再做主线程静默兜底(否则 Worker 故障会被悄悄掩盖).

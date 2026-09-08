@@ -13,6 +13,8 @@ export type CurveWorkerRequest = {
 export type CurveWorkerResponse = {
     id: number;
     points: Float32Array;
+    /** 每段在 `points` 里的起始顶点下标;末项等于顶点总数. */
+    offsets: Uint32Array;
     error?: string;
 };
 
@@ -27,7 +29,7 @@ const wasmInit = init();
 createWasmWorker<CurveWorkerRequest, CurveWorkerResponse>(
     wasmInit,
     (req, post) => {
-        const points = sample_curve(
+        const result = sample_curve(
             req.expr,
             req.coeffNames,
             new Float64Array(req.coeffValues),
@@ -35,6 +37,11 @@ createWasmWorker<CurveWorkerRequest, CurveWorkerResponse>(
             req.range[1],
             req.segments,
         );
-        post({ id: req.id, points }, [points.buffer]);
+        // 曲线在定义域空洞/竖直渐近线处被切成多段:points 是扁平顶点数组,
+        // offsets 是每段的起始顶点下标.两张缓冲都随响应转移,避免主线程再复制.
+        post(
+            { id: req.id, points: result.points, offsets: result.offsets },
+            [result.points.buffer, result.offsets.buffer],
+        );
     },
 );

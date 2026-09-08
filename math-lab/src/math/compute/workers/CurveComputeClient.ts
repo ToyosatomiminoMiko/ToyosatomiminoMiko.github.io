@@ -8,6 +8,12 @@ import type {
     CurveWorkerResponse,
 } from './curveWorker';
 
+/** 曲线采样结果:扁平顶点 + 每段起始顶点下标(见采样层 `CurvePoints`). */
+export type CurveSampleResult = {
+    points: Float32Array;
+    offsets: Uint32Array;
+};
+
 /**
  * @cache
  * 缓存目的:曲线采样复用同一个 Worker client.
@@ -17,13 +23,13 @@ import type {
 export const curveComputeClient = createComputeWorkerClient<
     CurveWorkerRequest,
     CurveWorkerResponse,
-    Float32Array
+    CurveSampleResult
 >(
     () => new Worker(
         new URL('./curveWorker.ts', import.meta.url),
         { type: 'module' },
     ),
-    (response) => response.points,
+    (response) => ({ points: response.points, offsets: response.offsets }),
 );
 
 /**

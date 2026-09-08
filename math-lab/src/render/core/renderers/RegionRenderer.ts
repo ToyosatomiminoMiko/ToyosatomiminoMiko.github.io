@@ -22,6 +22,7 @@ import {
     type RequestClient,
 } from '../../../math/compute/workers/LatestRequestExecutor';
 import { splitCoefficients } from '../../../math/coefficientUtils';
+import type { CurveSampleResult } from '../../../math/compute/workers/CurveComputeClient';
 import { reportSamplingFailure } from '../samplingErrors';
 
 type RegionSampleRequest = {
@@ -34,7 +35,7 @@ type RegionSampleRequest = {
 };
 
 // @cache 与 CurveRenderer 共享同一采样门面(共享模块级 worker client).
-const regionRequestClient: RequestClient<RegionSampleRequest, Float32Array> = {
+const regionRequestClient: RequestClient<RegionSampleRequest, CurveSampleResult> = {
     request(request) {
         return regionComputeEngine.sampleCurve(request);
     },
@@ -42,7 +43,7 @@ const regionRequestClient: RequestClient<RegionSampleRequest, Float32Array> = {
 
 interface BoundaryState {
     curve: CurveObject;
-    executor: LatestRequestExecutor<RegionSampleRequest, Float32Array>;
+    executor: LatestRequestExecutor<RegionSampleRequest, CurveSampleResult>;
     /** 最近一次采样结果(扁平 [x, y, 0, ...] 三元组). */
     points: Float32Array;
     /** 采样站点数(非有限值被跳过后的实际点数). */
@@ -101,12 +102,14 @@ export class RegionRenderer implements IRenderer {
         });
 
         void Promise.all(requests)
-            .then(([pointsA, pointsB]) => {
+            .then(([resultA, resultB]) => {
                 if (this.disposed) return;
-                this.boundaries[0].points = pointsA;
-                this.boundaries[0].count = pointsA.length / 3;
-                this.boundaries[1].points = pointsB;
-                this.boundaries[1].count = pointsB.length / 3;
+                // 区域填充/描边只按 x 有序的扁平顶点消费;断点(offsets)用于
+                // 曲线本身的多段绘制,这里沿用原有的按 x 配对与"列缺失断开"策略.
+                this.boundaries[0].points = resultA.points;
+                this.boundaries[0].count = resultA.points.length / 3;
+                this.boundaries[1].points = resultB.points;
+                this.boundaries[1].count = resultB.points.length / 3;
                 this._rebuild();
             })
             .catch((error: Error) => {
@@ -133,7 +136,7 @@ export class RegionRenderer implements IRenderer {
         this._disposeGeometry();
     }
 
-    private _createExecutor(): LatestRequestExecutor<RegionSampleRequest, Float32Array> {
+    private _createExecutor(): LatestRequestExecutor<RegionSampleRequest, CurveSampleResult> {
         return new LatestRequestExecutor(regionRequestClient);
     }
 

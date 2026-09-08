@@ -89,6 +89,18 @@ pub fn mat4_apply_point(matrix: Vec<f64>, x: f64, y: f64, z: f64) -> Result<Vec<
 // 曲线 / 向量场采样
 // ================================================================
 
+/// 曲线采样结果:扁平顶点 + 每段起始顶点下标.
+///
+/// 曲线会在定义域空洞/竖直渐近线处拆成多段,渲染层据此画多条互不相连的
+/// 折线,避免在断点两侧画出一条伪连接线(见 `sampling_core::sample_curve`).
+#[wasm_bindgen(getter_with_clone)]
+pub struct CurveSampleResult {
+    /// 扁平 `[x, y, 0, ...]` 顶点数组.
+    pub points: Vec<f32>,
+    /// 每段在 `points` 里的起始顶点下标;末项等于顶点总数.
+    pub offsets: Vec<u32>,
+}
+
 #[wasm_bindgen]
 pub fn sample_curve(
     expr: &str,
@@ -97,9 +109,11 @@ pub fn sample_curve(
     x_min: f64,
     x_max: f64,
     steps: usize,
-) -> Result<Vec<f32>, JsValue> {
-    sampling_core::sample_curve(expr, &coeff_names, &coeff_values, x_min, x_max, steps)
-        .map_err(math_error)
+) -> Result<CurveSampleResult, JsValue> {
+    let (points, offsets) =
+        sampling_core::sample_curve(expr, &coeff_names, &coeff_values, x_min, x_max, steps)
+            .map_err(math_error)?;
+    Ok(CurveSampleResult { points, offsets })
 }
 
 /// 三维向量场采样统一入口:参数走 JSON 请求(见 `wasm_payloads`),

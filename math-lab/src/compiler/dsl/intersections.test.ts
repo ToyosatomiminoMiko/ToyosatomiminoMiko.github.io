@@ -53,7 +53,10 @@ vi.mock('../../wasm/math_rs/math_rs', () => {
             0, 0, 1, 0,
             0, 0, 0, 1,
         ]),
-        sample_curve: vi.fn(() => new Float32Array()),
+        sample_curve: vi.fn(() => ({
+            points: new Float32Array(),
+            offsets: new Uint32Array([0]),
+        })),
         sample_surface_values: vi.fn(() => new Float64Array()),
         evaluate_gradient_point: vi.fn(() => ({ f0: 0, fx: 0, fy: 0 })),
         evaluate_divergence_point: vi.fn(() => 0),
