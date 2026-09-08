@@ -120,7 +120,21 @@ createWasmWorker<IntegralWorkerRequest, IntegralWorkerResponse>(
         const resp: IntegralWorkerResponse = {
             id: req.id,
             value: result.value,
-            samples: Float64Array.from(result.samples),
+            // 直接复用 wasm-bindgen getter 产出的 Float64Array,不再用
+            // Float64Array.from(result.samples) 二次拷贝.
+            //
+            // 目的:wasm-bindgen 的 struct getter(getter_with_clone)在读取
+            // `.samples` 时就已经把整块 Vec<f64> 从 wasm 线性内存 `.slice()`
+            // 复制成一块独立,自含 ArrayBuffer 的 JS Float64Array(见生成
+            // math_rs.js 的 `get samples(){ ... .slice(); }`).原来的
+            // `Float64Array.from(...)` 会把这份已经物化的采样网格再完整拷贝
+            // 一次--对三维 solid(n³)约 7MB,二维 lebesgue 约 8.4MB 的
+            // 结果来说纯属浪费,而且紧接着就被 postMessage 的 transferable
+            // 转移到主线程,拷出来的第二份根本没有存在价值.
+            //
+            // 直接转走 `resp.samples!.buffer` 即可把样本数组的"JS 堆内重复
+            // 拷贝"从 2 次降到 1 次,收益随输出规模线性放大.
+            samples: result.samples,
             sampleShape: result.sampleShape,
             n: result.n,
             m: result.m || undefined,
@@ -158,7 +172,7 @@ function compute(
         const result = integrate1d(payload);
         return {
             value: result.value,
-            samples: Float64Array.from(result.samples),
+            samples: result.samples,
             sampleShape: result.sample_shape as '1d-grid' | '1d-mid',
             n: result.n,
             xa: result.xa,
@@ -186,7 +200,7 @@ function compute(
         const result = integrate2d(payload);
         return {
             value: result.value,
-            samples: Float64Array.from(result.samples),
+            samples: result.samples,
             sampleShape: result.sample_shape as
                 | '2d-grid'
                 | '2d-corner'
@@ -225,7 +239,7 @@ function compute(
         const result = integrate_region(payload);
         return {
             value: result.value,
-            samples: Float64Array.from(result.samples),
+            samples: result.samples,
             sampleShape: '2d-cell',
             n: result.n,
             m: result.m,
@@ -255,7 +269,7 @@ function compute(
     const result = integrate_solid(payload);
     return {
         value: result.value,
-        samples: Float64Array.from(result.samples),
+        samples: result.samples,
         sampleShape: result.sample_shape as '3d-cells' | '3d-skip',
         n: result.n,
         m: result.m,
