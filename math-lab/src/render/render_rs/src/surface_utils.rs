@@ -66,7 +66,10 @@
 // SURFACE_LIGHTNESS_BASE / SURFACE_LIGHTNESS_RANGE / FLAT_COLOR_T)必须与
 // surfaceColorMap.ts 内嵌的 GLSL 常量保持一致 -- 改任一侧都要同步另一侧.
 // ================================================================
-use crate::config::{DEGENERATE_Z_MAX, DEGENERATE_Z_MIN};
+use crate::config::{
+    COLOR_AUTO_SWITCH_FACTOR, COLOR_PERCENTILE_HI, COLOR_PERCENTILE_LO, DEGENERATE_Z_MAX,
+    DEGENERATE_Z_MIN,
+};
 
 pub fn generate_full_indices(cols: usize, rows: usize) -> Vec<u32> {
     let mut indices = Vec::with_capacity(cols * rows * 6);
@@ -181,14 +184,14 @@ fn edge_crosses_discontinuity(
 /// **① 任一顶点 z 为 NaN(必须剔除,勿删).**
 ///
 /// 任何包含 NaN 顶点的三角形,其面法线是 NaN;而
-/// [`compute_vertex_normals`] 会把三角形面法线按共享顶点累加再归一化,
+/// `compute_vertex_normals` 会把三角形面法线按共享顶点累加再归一化,
 /// 一旦某个含 NaN 的三角形参与了累加,NaN 就会通过顶点平均**扩散到所有
 /// 相邻的正常三角形**,导致整片曲面出现高光/阴影异常.所以这里的 NaN
 /// 判断不能省:它是"把采样层登记的非有限值(NaN 占位)挡在网格之外"的
 /// 最后一道闸.某些统计口径(如 `z_min`/`z_max`)会遍历含 NaN 的顶点,
 /// 但**绘制几何只认 `valid_indices`**,不含 NaN 单元.
 ///
-/// **② 单元跨越了竖直渐近线(见 [`edge_crosses_discontinuity`]).**
+/// **② 单元跨越了竖直渐近线(见 `edge_crosses_discontinuity`).**
 ///
 /// `tan(x*a)` 这类曲面在渐近线两侧都是"有限但巨大"的 z 值,不会产生 NaN,
 /// 若不按此剔除,跨线单元会被画成一堵贯穿渐近线的"墙".
@@ -282,10 +285,52 @@ pub struct SurfaceSampleResult {
 // 采样/索引过滤和法线计算
 // ================================================================
 
+/// 数组按升序排序后取第 `p` 分位的值(最近秩法).
+fn percentile(sorted: &[f64], p: f64) -> f64 {
+    let n = sorted.len();
+    if n == 0 {
+        return f64::NAN;
+    }
+    let idx = ((n - 1) as f64 * p).round() as usize;
+    sorted[idx]
+}
+
+/// 计算用于颜色映射的稳健 z 区间(见 [`COLOR_PERCENTILE_LO`] 注释).
+///
+/// 动作:
+/// - 平滑曲面(全量区间约等于分位数区间)-> 用全量 min/max,不压缩;
+/// - 存在尖刺(全量区间显著宽于分位数区间,如 `tan(x*a)` 的渐近线
+///   ±40 vs 主体 ±6)-> 用分位数区间,尖刺钳到颜色两端.
+///
+/// 只统计有限 z;若全部非法(整片曲面无定义),回退到 config.rs 的退化值.
+fn robust_color_range(finite_z: &[f64]) -> (f64, f64) {
+    if finite_z.is_empty() {
+        return (DEGENERATE_Z_MIN, DEGENERATE_Z_MAX);
+    }
+    let mut sorted = finite_z.to_vec();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let full_min = sorted[0];
+    let full_max = *sorted.last().unwrap();
+    let lo = percentile(&sorted, COLOR_PERCENTILE_LO);
+    let hi = percentile(&sorted, COLOR_PERCENTILE_HI);
+
+    let full_span = full_max - full_min;
+    let robust_span = (hi - lo).max(f64::MIN_POSITIVE);
+    if full_span > COLOR_AUTO_SWITCH_FACTOR * robust_span {
+        (lo, hi)
+    } else {
+        (full_min, full_max)
+    }
+}
+
 /// 曲面网格采样.
 ///
 /// 返回 `(positions, z_vals, z_min, z_max)`.该函数只负责数值采样,
 /// 不再掺杂索引过滤或法线计算.
+///
+/// 注意:返回的 `z_min/z_max` 是**颜色映射用的稳健区间**(分位数),而非
+/// z 的绝对最小/最大(那会被渐近线附近的巨大值撑爆).它们只被上色 uniform
+/// 消费,几何体真正的高度仍写在 `positions` 里.
 #[allow(clippy::too_many_arguments)]
 fn sample_surface_values(
     expr: &str,
@@ -312,8 +357,7 @@ fn sample_surface_values(
 
     let total = z_vals.len();
     let mut positions = Vec::with_capacity(total * 3);
-    let mut z_min = f64::INFINITY;
-    let mut z_max = f64::NEG_INFINITY;
+    let mut finite_z: Vec<f64> = Vec::with_capacity(total);
 
     for j in 0..=rows {
         let y = y_min + (y_max - y_min) * (j as f64 / rows as f64);
@@ -326,16 +370,12 @@ fn sample_surface_values(
             positions.push(z as f32);
 
             if z.is_finite() {
-                z_min = z_min.min(z);
-                z_max = z_max.max(z);
+                finite_z.push(z);
             }
         }
     }
 
-    if !z_min.is_finite() || !z_max.is_finite() {
-        z_min = DEGENERATE_Z_MIN;
-        z_max = DEGENERATE_Z_MAX;
-    }
+    let (z_min, z_max) = robust_color_range(&finite_z);
 
     Ok((positions, z_vals, z_min, z_max))
 }
@@ -513,6 +553,47 @@ mod tests {
             full,
             "1000·sin(x) 是连续曲面,不应剔除任何单元"
         );
+    }
+
+    #[test]
+    fn robust_color_range_clamps_asymptote_blowout() {
+        // tan(x) 的 z 全量 min/max 会被渐近线附近的巨大值撑到 ±几十;
+        // 颜色区间应改用稳健分位数,明显收窄,避免正常区域全是同一个色.
+        // 这里用 collect 出全部有限 z 来对比"全量极值"与"分位数区间".
+        let names: Vec<String> = vec!["a".to_string()];
+        let values: Vec<f64> = vec![1.0];
+        let z = math_rs::sampling_core::sample_surface_values(
+            "tan(x * a)",
+            &names,
+            &values,
+            -6.0,
+            6.0,
+            -6.0,
+            6.0,
+            64,
+            64,
+        )
+        .unwrap();
+        let finite: Vec<f64> = z.iter().copied().filter(|v| v.is_finite()).collect();
+        let global_min = finite.iter().copied().fold(f64::INFINITY, f64::min);
+        let global_max = finite.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        let (lo, hi) = robust_color_range(&finite);
+
+        assert!(lo > global_min, "颜色区间下界应高于全量最小(剔除负向尖刺)");
+        assert!(hi < global_max, "颜色区间上界应低于全量最大(剔除正向尖刺)");
+        assert!(hi > lo, "颜色区间应是一个有意义(非退化)的区间");
+        // 全量极值通常被撑到 ±20+;稳健区间应远窄于它.
+        assert!(
+            (hi - lo) < (global_max - global_min) * 0.5,
+            "分位数区间应显著收窄"
+        );
+    }
+
+    #[test]
+    fn robust_color_range_falls_back_when_all_nonfinite() {
+        let (lo, hi) = robust_color_range(&[]);
+        assert!(lo.is_finite() && hi.is_finite());
+        assert!(hi > lo);
     }
 
     #[test]

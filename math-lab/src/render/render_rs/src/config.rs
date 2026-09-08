@@ -13,3 +13,16 @@ pub const DEGENERATE_Z_MAX: f64 = 1.0;
 
 /// 平坦曲面(range == 0)的颜色位置.
 pub const FLAT_COLOR_T: f64 = 0.5;
+
+/// 颜色映射 z 区间使用的分位数(低/高).
+///
+/// 若直接用 z 的全量 min/max,像 `tan(x*a)` 这类曲面在竖直渐近线两侧的巨大
+/// 值会把整个色彩区间撑到 ±极大,导致正常区域全挤在一个色上,看不出起伏.
+/// 这里改用分位数取"主体区间",让正常区域占满渐变,尖刺部分钳到颜色两端
+/// (着色器里 t 已 clamp 到 [0,1]).
+pub const COLOR_PERCENTILE_LO: f64 = 0.05;
+pub const COLOR_PERCENTILE_HI: f64 = 0.95;
+
+/// 只有当全量区间比分位数区间明显更宽(存在显著尖刺/outlier)时,才回退到
+/// 分位数区间;否则保持全量 min/max,避免把光滑曲面也轻微压缩.
+pub const COLOR_AUTO_SWITCH_FACTOR: f64 = 3.0;
