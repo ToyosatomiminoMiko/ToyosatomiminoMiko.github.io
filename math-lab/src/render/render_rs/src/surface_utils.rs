@@ -31,9 +31,15 @@
 //                 若全部非法则回退 DEGENERATE_Z_MIN/Z_MAX(见 config.rs)
 //              ② generate_full_indices()    网格索引
 //                 每格拆两个三角形 (a,b,d)+(a,d,c),共 cols·rows·6 个
-//              ③ filter_nan_triangles()     无效三角形剔除
-//                 丢弃任一顶点 z 为 NaN 的三角形,防止 NaN 面法线经
-//                 顶点平均污染相邻正常三角形
+//              ③ compute_valid_cells()       无效单元过滤
+//                 一个单元在以下情况不参与绘制:
+//                   · 任一顶点 z 为 NaN(防止 NaN 面法线经顶点平均污染
+//                     相邻正常三角形);
+//                   · 单元跨过竖直渐近线/间断(某条边两端 z 符号相反且
+//                     跳变远超该方向的中位跳变)--像 tan(x) 在渐近线两侧
+//                     都是"有限但巨大"的 z 值,不会产生 NaN,若不按此剔除
+//                     会被画成一堵贯穿渐近线的"墙".
+//                 再经 generate_valid_indices() 只对有效单元出两个三角形.
 //              ④ compute_vertex_normals()   平滑法线
 //                 对共享顶点累加三角形面法线再归一化,与 Three.js
 //                 BufferGeometry.computeVertexNormals() 语义一致;
@@ -62,48 +68,197 @@
 // ================================================================
 use crate::config::{DEGENERATE_Z_MAX, DEGENERATE_Z_MIN};
 
-/**
-剔除所有包含 NaN z 值的三角形
-
-原理:任何包含 NaN 顶点的三角形,其面法线为 NaN,
-Three.js 的 computeVertexNormals 会把 NaN 通过顶点平均
-扩散到相邻的正常三角形,导致高光/阴影异常.
-
-修复:遍历所有三角形,只保留三个顶点 z 值均有限的三角形.
-
-- `z_values[i*3+2]` 对应的 z 值(注意: 实际我们只需要 z 分量, 可以只传 z 数组)
-
-参数:
-- `full_indices`: 完整三角形的顶点索引(每 3 个一组)
-- `z_values`: 所有顶点的 z 坐标, NaN 表示无效顶点
-
-返回: 过滤后的索引数组, 长度是 3 的倍数
-*/
-pub fn filter_nan_triangles(full_indices: &[u32], z_values: &[f64]) -> Vec<u32> {
-    // 预分配容量(最多等于原始长度)
-    let mut filtered = Vec::with_capacity(full_indices.len());
-
-    for chunk in full_indices.as_chunks::<3>().0 {
-        let a = chunk[0] as usize;
-        let b = chunk[1] as usize;
-        let c = chunk[2] as usize;
-
-        // 安全边界检查(Rust 会自动 panic, 但我们可以用 get 避免崩溃)
-        if let (Some(&za), Some(&zb), Some(&zc)) =
-            (z_values.get(a), z_values.get(b), z_values.get(c))
-        {
-            if za.is_finite() && zb.is_finite() && zc.is_finite() {
-                filtered.extend_from_slice(chunk);
-            }
-        }
-    }
-    filtered
-}
-
 pub fn generate_full_indices(cols: usize, rows: usize) -> Vec<u32> {
     let mut indices = Vec::with_capacity(cols * rows * 6);
     for j in 0..rows {
         for i in 0..cols {
+            let a = (j * (cols + 1) + i) as u32;
+            let b = (j * (cols + 1) + i + 1) as u32;
+            let c = ((j + 1) * (cols + 1) + i) as u32;
+            let d = ((j + 1) * (cols + 1) + i + 1) as u32;
+            indices.extend_from_slice(&[a, b, d, a, d, c]);
+        }
+    }
+    indices
+}
+
+/// 垂直渐近线式"跳变必须超出的相对倍数"(相对该方向的中位跳变).
+///
+/// 与采样层曲线的 `ASYMPTOTE_JUMP_FACTOR` 同量级.用于捕捉"渐近线恰好靠近
+/// 网格点"的情形:此时近侧采样值已经很大,跨线边跳变远超中位跳变.
+const POLE_JUMP_FACTOR: f64 = 16.0;
+
+/// 中点发散倍数:判定一条符号翻转边是否是"冲到 ±∞"的间断.
+///
+/// 只在边中点重新求值一次 f:若中点值远超两端 z 的幅值,说明函数在两点之间
+/// 发散(间断);若只是平滑过零(如 `z=1000·sin(x)`),中点值应介于两端之间.
+const POLE_MIDPOINT_FACTOR: f64 = 2.0;
+
+/// 中位数;空切片返回 0,避免除零/NaN 污染.
+fn median(values: &[f64]) -> f64 {
+    if values.is_empty() {
+        return 0.0;
+    }
+    let mut sorted = values.to_vec();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let mid = sorted.len() / 2;
+    if sorted.len().is_multiple_of(2) {
+        (sorted[mid - 1] + sorted[mid]) / 2.0
+    } else {
+        sorted[mid]
+    }
+}
+
+/// 网格中某一方向(水平 x / 竖直 y)相邻边跳变 |Δz| 的中位数,作为该方向
+/// "正常跳变"的稳健尺度.非有限端点不计入.
+fn edge_median(z_values: &[f64], cols: usize, rows: usize, horizontal: bool) -> f64 {
+    let width = cols + 1;
+    let mut jumps: Vec<f64> = Vec::new();
+    if horizontal {
+        for j in 0..=rows {
+            for i in 0..cols {
+                let a = z_values[j * width + i];
+                let b = z_values[j * width + i + 1];
+                if a.is_finite() && b.is_finite() {
+                    jumps.push((b - a).abs());
+                }
+            }
+        }
+    } else {
+        for i in 0..=cols {
+            for j in 0..rows {
+                let a = z_values[j * width + i];
+                let b = z_values[(j + 1) * width + i];
+                if a.is_finite() && b.is_finite() {
+                    jumps.push((b - a).abs());
+                }
+            }
+        }
+    }
+    median(&jumps)
+}
+
+/// 判断一条"符号翻转"边是否跨越了竖直渐近线.
+///
+/// 两个互相补充的信号(任一成立即可判为间断,避免互相漏检):
+/// - **跳变远超**该方向的中位跳变:捕捉渐近线靠近网格点,近侧采样值已经
+///   很大的情形;
+/// - **中点发散**:在边中点重新求值,若远超两端 z 幅值,捕捉渐近线落在
+///   单元中部,两侧采样值都不大的情形.该项尺度无关,对 `tan(x*a)` 任意
+///   `a` 都稳定,不会因渐近线变密而被全局中位数污染.
+///
+/// 仅当两端 z 符号相反时才检查,以排除"平滑但陡峭"的正常边.
+#[allow(clippy::too_many_arguments)]
+fn edge_crosses_discontinuity(
+    z0: f64,
+    z1: f64,
+    mid_x: f64,
+    mid_y: f64,
+    median_jump: f64,
+    expr: &str,
+    names: &[String],
+    values: &[f64],
+) -> bool {
+    if (z0 < 0.0) == (z1 < 0.0) {
+        return false;
+    }
+    if median_jump > 0.0 && (z1 - z0).abs() > POLE_JUMP_FACTOR * median_jump {
+        return true;
+    }
+    let f_mid = math_rs::field_core::evaluate_scalar(expr, names, values, mid_x, mid_y, 0.0)
+        .unwrap_or(f64::NAN);
+    if !f_mid.is_finite() {
+        return true;
+    }
+    let scale = z0.abs().max(z1.abs()).max(f64::MIN_POSITIVE);
+    f_mid.abs() > POLE_MIDPOINT_FACTOR * scale
+}
+
+/// 逐单元判断是否可参与绘制.
+///
+/// 无效条件(满足任一即丢弃该单元的两个三角形):
+///
+/// **① 任一顶点 z 为 NaN(必须剔除,勿删).**
+///
+/// 任何包含 NaN 顶点的三角形,其面法线是 NaN;而
+/// [`compute_vertex_normals`] 会把三角形面法线按共享顶点累加再归一化,
+/// 一旦某个含 NaN 的三角形参与了累加,NaN 就会通过顶点平均**扩散到所有
+/// 相邻的正常三角形**,导致整片曲面出现高光/阴影异常.所以这里的 NaN
+/// 判断不能省:它是"把采样层登记的非有限值(NaN 占位)挡在网格之外"的
+/// 最后一道闸.某些统计口径(如 `z_min`/`z_max`)会遍历含 NaN 的顶点,
+/// 但**绘制几何只认 `valid_indices`**,不含 NaN 单元.
+///
+/// **② 单元跨越了竖直渐近线(见 [`edge_crosses_discontinuity`]).**
+///
+/// `tan(x*a)` 这类曲面在渐近线两侧都是"有限但巨大"的 z 值,不会产生 NaN,
+/// 若不按此剔除,跨线单元会被画成一堵贯穿渐近线的"墙".
+#[allow(clippy::too_many_arguments)]
+fn compute_valid_cells(
+    z_values: &[f64],
+    cols: usize,
+    rows: usize,
+    x_min: f64,
+    x_max: f64,
+    y_min: f64,
+    y_max: f64,
+    expr: &str,
+    names: &[String],
+    values: &[f64],
+) -> Vec<bool> {
+    let width = cols + 1;
+    // 网格坐标映射:列/行 -> 世界坐标(与采样层 uniform_nodes 同式).
+    let cell_x = |i: usize| x_min + (x_max - x_min) * (i as f64 / cols as f64);
+    let cell_y = |j: usize| y_min + (y_max - y_min) * (j as f64 / rows as f64);
+
+    let med_h = edge_median(z_values, cols, rows, true);
+    let med_v = edge_median(z_values, cols, rows, false);
+
+    let mut valid = Vec::with_capacity(cols * rows);
+    for j in 0..rows {
+        let y0 = cell_y(j);
+        let y1 = cell_y(j + 1);
+        for i in 0..cols {
+            let x0 = cell_x(i);
+            let x1 = cell_x(i + 1);
+
+            let z00 = z_values[j * width + i];
+            let z10 = z_values[j * width + i + 1];
+            let z01 = z_values[(j + 1) * width + i];
+            let z11 = z_values[(j + 1) * width + i + 1];
+
+            let ok = [z00, z10, z01, z11].iter().all(|z| z.is_finite())
+                // 四条边各查一次:下/上(水平,中点变 x),左/右(竖直,变 y).
+                && !edge_crosses_discontinuity(
+                    z00, z10, (x0 + x1) / 2.0, y0, med_h, expr, names, values,
+                )
+                && !edge_crosses_discontinuity(
+                    z01, z11, (x0 + x1) / 2.0, y1, med_h, expr, names, values,
+                )
+                && !edge_crosses_discontinuity(
+                    z00, z01, x0, (y0 + y1) / 2.0, med_v, expr, names, values,
+                )
+                && !edge_crosses_discontinuity(
+                    z10, z11, x1, (y0 + y1) / 2.0, med_v, expr, names, values,
+                );
+            valid.push(ok);
+        }
+    }
+    valid
+}
+
+/// 只对有效单元生成三角形索引(每个单元两个三角形).
+///
+/// 这些索引会一路传给 `compute_vertex_normals` 并被写入 Three.js
+/// `BufferGeometry.index`,是**真正参与绘制的几何**.判断哪些单元"有效"
+/// 的逻辑集中在 [`compute_valid_cells`](里对 NaN 与渐近线间断的剔除),
+/// 这里只做"按有效 mask 产出对应三角形",不要再在这里补一套有效性规则.
+fn generate_valid_indices(cols: usize, rows: usize, valid: &[bool]) -> Vec<u32> {
+    let mut indices = Vec::with_capacity(cols * rows * 6);
+    for j in 0..rows {
+        for i in 0..cols {
+            if !valid[j * cols + i] {
+                continue;
+            }
             let a = (j * (cols + 1) + i) as u32;
             let b = (j * (cols + 1) + i + 1) as u32;
             let c = ((j + 1) * (cols + 1) + i) as u32;
@@ -213,8 +368,20 @@ pub fn sample_and_process_surface(
         rows,
     )?;
 
-    let full_indices = generate_full_indices(cols as usize, rows as usize);
-    let valid_indices = filter_nan_triangles(&full_indices, &z_vals);
+    // 先用"单元有效性"过滤(NaN + 渐近线间断),再据此生成索引.
+    let cell_valid = compute_valid_cells(
+        &z_vals,
+        cols as usize,
+        rows as usize,
+        x_min,
+        x_max,
+        y_min,
+        y_max,
+        expr,
+        coeff_names,
+        coeff_values,
+    );
+    let valid_indices = generate_valid_indices(cols as usize, rows as usize, &cell_valid);
     let normals = compute_vertex_normals(&positions, &valid_indices);
 
     Ok(SurfaceSampleResult {
@@ -301,4 +468,72 @@ pub fn compute_vertex_normals(positions: &[f32], valid_indices: &[u32]) -> Vec<f
     }
 
     normals
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn run(expr: &str, coeffs: &[(String, f64)]) -> SurfaceSampleResult {
+        let names: Vec<String> = coeffs.iter().map(|(n, _)| n.clone()).collect();
+        let values: Vec<f64> = coeffs.iter().map(|(_, v)| *v).collect();
+        sample_and_process_surface(expr, &names, &values, -6.0, 6.0, -6.0, 6.0, 64, 64).unwrap()
+    }
+
+    #[test]
+    fn tan_surface_drops_pole_crossing_cells() {
+        // tan(x) 在 x=±π/2, ±3π/2 附近有竖直渐近线:两侧都是有限但巨大的 z
+        // 值,跨线单元应被剔除(不再画出贯穿渐近线的"墙"),因此有效三角形
+        // 明显少于全量 cols*rows*6.
+        let result = run("tan(x * a)", &[("a".to_string(), 1.0)]);
+        let cols = 64usize;
+        let rows = 64usize;
+        let full = cols * rows * 6;
+        assert!(result.valid_indices.len() < full, "渐近线单元应被剔除");
+        assert_eq!(result.valid_indices.len() % 3, 0);
+        // tan(x) 在 [-6,6] 上有 4 条渐近线(±π/2, ±3π/2),每条只剔除跨线的
+        // 1 列(64 行 * 6 索引),共 4*64*6 = 1536.这里只校验剔除量"接近但小于
+        // 全量",避免把因子/采样噪声锁死为精确值.
+        assert!(
+            result.valid_indices.len() > full - 8 * rows * 6,
+            "剔除量应只集中在渐近线附近,实际有效 {} / 全量 {}",
+            result.valid_indices.len(),
+            full
+        );
+    }
+
+    #[test]
+    fn steep_smooth_surface_not_dropped() {
+        // 高幅平滑曲面(缩放正弦)即使很陡也不应被误判为间断:全部单元保留.
+        // 这是防止"陡峭但连续"被误切的关键回归用例.
+        let result = run("a * sin(x)", &[("a".to_string(), 1000.0)]);
+        let full = 64usize * 64usize * 6;
+        assert_eq!(
+            result.valid_indices.len(),
+            full,
+            "1000·sin(x) 是连续曲面,不应剔除任何单元"
+        );
+    }
+
+    #[test]
+    fn smooth_surface_keeps_all_cells() {
+        // 平滑平面(或光滑曲面)不应被误切成空洞:所有单元都保留.
+        for expr in ["x + y", "x * x + y * y", "x * x * x"] {
+            let result = run(expr, &[]);
+            let full = 64usize * 64usize * 6;
+            assert_eq!(
+                result.valid_indices.len(),
+                full,
+                "{expr} 是光滑曲面,不应剔除任何单元"
+            );
+        }
+    }
+
+    #[test]
+    fn nan_surface_still_masks_cells() {
+        // sqrt(x) 在 x<0 时 z 为 NaN,这些单元应被剔除(原有 NaN 掩码行为不丢失).
+        let result = run("sqrt(x)", &[]);
+        let full = 64usize * 64usize * 6;
+        assert!(result.valid_indices.len() < full, "NaN 区域单元应剔除");
+    }
 }
