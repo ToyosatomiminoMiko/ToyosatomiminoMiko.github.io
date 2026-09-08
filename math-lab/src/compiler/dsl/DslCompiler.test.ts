@@ -219,6 +219,8 @@ describe('compileScene', () => {
         expect(scene.integrals).toHaveLength(1);
         expect(scene.integrals[0].method).toBe('riemann:left');
         expect(scene.integrals[0].sourceKind).toBe('curve');
+        expect(scene.integrals[0].segments).toBe(32);
+        expect(scene.integrals[0].countCoefficients).toEqual([]);
         expect(scene.objectFormulas[1]).toBe('y=sin(x * a)');
         expect(scene.objectFormulas[2]).toBe('z=sin(x) * cos(y)');
         expect(scene.objectFormulas[3]).toContain('\\mathbf{F}');
@@ -824,6 +826,88 @@ describe('compileScene', () => {
         };
 
         expect(() => compileScene(badAst)).toThrow('积分 I2D 的 segments 不能超过 256');
+    });
+
+    it('resolves integral segments from a declared param and follows overrides', () => {
+        const paramSegmentsAst: AstProgram = {
+            statements: [
+                {
+                    type: 'param',
+                    name: 'a',
+                    value: '2',
+                    ui: { min: '-5', max: '5', step: '0.1' },
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'param',
+                    name: 'k',
+                    value: '64',
+                    ui: { min: '0', max: '256', step: '1' },
+                    span: { start: 0, end: 0 },
+                },
+                ast.statements[2],
+                {
+                    type: 'integral',
+                    name: 'I',
+                    source: 'c',
+                    options: [
+                        { name: 'method', value: 'riemann' },
+                        { name: 'range', value: '[-4, 4]' },
+                        { name: 'segments', value: 'k' },
+                    ],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        const scene = compileScene(paramSegmentsAst);
+        expect(scene.integrals[0].segments).toBe(64);
+        expect(scene.integrals[0].countCoefficients.map((coefficient) => coefficient.name))
+            .toEqual(['k']);
+
+        const refreshed = compileScene(paramSegmentsAst, { k: 128 });
+        expect(refreshed.integrals[0].segments).toBe(128);
+        expect(refreshed.integrals[0].countCoefficients[0].value).toBe(128);
+
+        const oddSimpsonAst: AstProgram = {
+            ...paramSegmentsAst,
+            statements: paramSegmentsAst.statements.map((statement) =>
+                statement.type === 'integral'
+                    ? {
+                          ...statement,
+                          options: [
+                              { name: 'method', value: 'simpson' },
+                              { name: 'range', value: '[-4, 4]' },
+                              { name: 'segments', value: 'k' },
+                          ],
+                      }
+                    : statement,
+            ),
+        };
+        expect(() => compileScene(oddSimpsonAst, { k: 31 })).toThrow(
+            '辛普森法要求分段数必须为偶数',
+        );
+    });
+
+    it('rejects an integral segments reference to an undeclared param', () => {
+        const badAst: AstProgram = {
+            statements: [
+                ast.statements[2],
+                {
+                    type: 'integral',
+                    name: 'I',
+                    source: 'c',
+                    options: [
+                        { name: 'method', value: 'riemann' },
+                        { name: 'range', value: '[-4, 4]' },
+                        { name: 'segments', value: 'missing' },
+                    ],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        expect(() => compileScene(badAst)).toThrow('积分 I 的 segments 引用了未声明的参数 missing');
     });
 
     it('rejects analysis points with fewer coordinates than the operator needs', () => {

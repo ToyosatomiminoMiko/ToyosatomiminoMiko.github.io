@@ -49,7 +49,8 @@ function isRiemann(method: IntegralTask['method']): boolean {
  * 缓存键使用积分名而不是对象 id,以支持同一个对象存在多个积分声明.
  *
  * region 域被积表达式与域边界曲线的"额外参数"通过 task.integrandCoefficients
- * 参与参数刷新 dirty 判定:拖动滑块命中任一参数即重算.
+ * 参与参数刷新 dirty 判定;计数(segments/layers)引用的参数通过
+ * task.countCoefficients 参与.拖动滑块命中任一参数即重算.
  */
 export class DslIntegralRenderer {
     private readonly visualizer: IntegralVisualizer;
@@ -88,6 +89,10 @@ export class DslIntegralRenderer {
         const affected = (task: IntegralTask): boolean =>
             (dirtyObjectIds?.has(task.objectId) ?? false)
             || task.integrandCoefficients.some((coefficient) =>
+                changedParams?.has(coefficient.name) ?? false,
+            )
+            // 计数(segments/layers)也允许引用参数,命中时同样要重算.
+            || task.countCoefficients.some((coefficient) =>
                 changedParams?.has(coefficient.name) ?? false,
             );
 

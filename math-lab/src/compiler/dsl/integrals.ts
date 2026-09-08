@@ -36,12 +36,12 @@ import type {
 } from '../ir/types';
 import { NUMERIC_CONFIG } from '../../config/numericConfig';
 import { normalizeExpression, extractSymbolNames } from './expression';
-import { requireDeclaredCoefficient } from './params';
+import { buildParamScope, requireDeclaredCoefficient } from './params';
 import {
     assertKnownOptions,
     findOption,
     parseBooleanOption,
-    parseCappedPositiveInteger,
+    parseCappedPositiveIntegerFromScope,
     parseNumberListOfSize,
 } from './options';
 
@@ -115,6 +115,26 @@ function materializeIntegrandCoefficients(
     const symbols = extractSymbolNames(integrand, excluded);
     return symbols.map((name) =>
         requireDeclaredCoefficient(name, params, overrides, `${context} 的被积表达式`),
+    );
+}
+
+/**
+ * 物化 segments/layers 这类"计数"选项里引用的自由参数.
+ *
+ * 计数允许写参数(如 `segments = k`),因此 k 变化时积分任务必须重算;产物
+ * 只用于参数刷新的 dirty 判定,不参与数值计算(计数已在编译期求成具体数字).
+ * 未声明参数必须报错(与积分被积函数的 requireDeclaredCoefficient 口径一致).
+ */
+function materializeCountCoefficients(
+    raw: string | undefined,
+    params: Map<string, ParamDeclaration>,
+    overrides: Record<string, number>,
+    context: string,
+): Coefficient[] {
+    if (raw === undefined) return [];
+    const symbols = extractSymbolNames(raw, new Set());
+    return symbols.map((name) =>
+        requireDeclaredCoefficient(name, params, overrides, context),
     );
 }
 
@@ -234,19 +254,43 @@ export function compileIntegralTask(
         : dim === 2
             ? NUMERIC_CONFIG.limits.integral.maxSegments2D
             : NUMERIC_CONFIG.limits.integral.maxSegments3D;
-    const segments = parseCappedPositiveInteger(
-        findOption(statement.options, 'segments'),
+    // 计数(segments/layers)允许引用已声明参数,取值随参数刷新变化
+    // (与球半径/尺寸等参数字表达式的口径一致,见 options.ts 的
+    // parseCappedPositiveIntegerFromScope).
+    const scope = buildParamScope(params, paramOverrides);
+    const rawSegments = findOption(statement.options, 'segments');
+    const segments = parseCappedPositiveIntegerFromScope(
+        rawSegments,
         `积分 ${name} 的 segments`,
         maxSegments,
+        scope,
     ) ?? NUMERIC_CONFIG.integral.defaultSegments;
     if (method === 'simpson' && segments % 2 !== 0) {
         throw new Error(`积分 ${name} 的辛普森法要求分段数必须为偶数,当前为 ${segments}`);
     }
-    const layers = parseCappedPositiveInteger(
-        findOption(statement.options, 'layers'),
+    const rawLayers = findOption(statement.options, 'layers');
+    const layers = parseCappedPositiveIntegerFromScope(
+        rawLayers,
         `积分 ${name} 的 layers`,
         NUMERIC_CONFIG.limits.integral.maxLayers,
+        scope,
     ) ?? Math.min(NUMERIC_CONFIG.integral.defaultLayersCap, segments);
+    // 计数选项里引用的参数只有声明级校验,编译期不参与数值;它们单独挂到
+    // task.countCoefficients 上,供渲染层做参数刷新的 dirty 判定.
+    const countCoefficients = [
+        ...materializeCountCoefficients(
+            rawSegments,
+            params,
+            paramOverrides,
+            `积分 ${name} 的 segments`,
+        ),
+        ...materializeCountCoefficients(
+            rawLayers,
+            params,
+            paramOverrides,
+            `积分 ${name} 的 layers`,
+        ),
+    ];
     const show = parseBooleanOption(
         statement.options,
         'show',
@@ -263,6 +307,7 @@ export function compileIntegralTask(
         method,
         integrand,
         integrandCoefficients,
+        countCoefficients,
         range,
         segments,
         layers,

@@ -325,6 +325,14 @@ export interface IntegralTask {
      */
     integrandCoefficients: Coefficient[];
     /**
+     * segments/layers 等计数选项里引用的自由参数.
+     *
+     * 计数允许写参数(如 `segments = k`),因此 k 变化时积分任务也必须重算;
+     * 它们只参与参数刷新的 dirty 判定,不参与数值计算(segments/layers 已在
+     * 编译期求成具体数字).
+     */
+    countCoefficients: Coefficient[];
+    /**
      * 积分区间:
      * - interval: [a, b];
      * - rectangle: [xa, xb, ya, yb];

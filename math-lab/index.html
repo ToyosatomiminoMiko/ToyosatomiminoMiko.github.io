@@ -77,7 +77,7 @@ curve c2 = 1 {
 
 // 曲线积分
 integral I1 = integral(c1) {
-    method = riemann;
+    method = riemann:mid;
     range = [-4, 4];
     segments = 32;
 };

@@ -4,6 +4,7 @@
  */
 import type { OptionPair } from '../ast/types';
 import type { AnalysisShow } from '../ir/types';
+import { evaluateNumber, extractSymbolNames } from './expression';
 
 const SHOW_KINDS = new Set<AnalysisShow>(['point', 'normal', 'tangent', 'tangent_plane']);
 
@@ -112,6 +113,45 @@ export function parseCappedPositiveInteger(
 ): number | undefined {
     const value = parsePositiveInteger(raw, context);
     if (value !== undefined && value > max) {
+        throw new Error(`${context} 不能超过 ${max},当前为 ${raw}`);
+    }
+    return value;
+}
+
+/**
+ * 带硬上限的正整数解析,允许"计数"引用已声明参数.
+ *
+ * 与 parseCappedPositiveInteger 的区别:取值既可以是字面正整数,也可以是
+ * 一个引用已声明参数(或参数表达式)的字符串.参数刷新时编译会携带当前值
+ * 重跑,因此计数(如积分 segments/layers)能跟随滑块变化.
+ *
+ * 约束(与积分被积函数 requireDeclaredCoefficient 的口径一致,避免拼错的
+ * 参数名被当成字面 0 静默画图):
+ * - 表达式里出现的自由符号必须是已声明参数(否则报"引用了未声明的参数");
+ * 求值结果必须是正整数且不超过 max.
+ */
+export function parseCappedPositiveIntegerFromScope(
+    raw: string | undefined,
+    context: string,
+    max: number,
+    scope: Record<string, number>,
+): number | undefined {
+    if (raw === undefined) return undefined;
+
+    for (const symbol of extractSymbolNames(raw, new Set())) {
+        if (!(symbol in scope)) {
+            throw new Error(`${context} 引用了未声明的参数 ${symbol}`);
+        }
+    }
+
+    const value = evaluateNumber(raw, scope);
+    if (value === null) {
+        throw new Error(`${context} 无法求值: ${raw}`);
+    }
+    if (!Number.isInteger(value) || value <= 0) {
+        throw new Error(`${context} 必须是正整数,当前为 ${raw}`);
+    }
+    if (value > max) {
         throw new Error(`${context} 不能超过 ${max},当前为 ${raw}`);
     }
     return value;
