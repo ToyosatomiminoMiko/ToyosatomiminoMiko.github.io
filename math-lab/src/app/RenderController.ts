@@ -21,6 +21,7 @@ import { CameraToggle } from '../render/controls/CameraToggle';
 import { ViewCubeController } from '../render/controls/ViewCubeController';
 import { RotationLockController } from '../render/controls/RotationLockController';
 import { PointStyleController } from '../render/controls/PointStyleController';
+import { SurfaceStyleController } from '../render/controls/SurfaceStyleController';
 import { AxisLineWidthController } from '../render/controls/AxisLineWidthController';
 import { GridTicksController } from '../render/controls/GridTicksController';
 import { AxisLabelController } from '../render/controls/AxisLabelController';
@@ -55,6 +56,7 @@ export class RenderController {
     private viewCubeController: ViewCubeController | null = null;
     private rotationLockController: RotationLockController | null = null;
     private pointStyleController: PointStyleController | null = null;
+    private surfaceStyleController: SurfaceStyleController | null = null;
     private axisLineWidthController: AxisLineWidthController | null = null;
     private gridTicksController: GridTicksController | null = null;
     private axisLabelController: AxisLabelController | null = null;
@@ -139,6 +141,11 @@ export class RenderController {
             this.analysisRenderer.setPointStyle({ radius, visible });
         });
         this.pointStyleController = new PointStyleController(eventBus);
+
+        eventBus.on('surface:changed', ({ wireframeVisible, colorMapEnabled }) => {
+            this.plotter.setSurfaceStyle({ wireframeVisible, colorMapEnabled });
+        });
+        this.surfaceStyleController = new SurfaceStyleController(eventBus);
 
         eventBus.on('axis:lineWidthChanged', ({ width }) => {
             this.sceneManager.setAxisLineWidth(width);
@@ -312,6 +319,7 @@ export class RenderController {
         this.viewCubeController?.dispose();
         this.rotationLockController?.dispose();
         this.pointStyleController?.dispose();
+        this.surfaceStyleController?.dispose();
         this.axisLineWidthController?.dispose();
         this.gridTicksController?.dispose();
         this.axisLabelController?.dispose();

@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { NUMERIC_CONFIG } from '../../../config/numericConfig';
+import { RENDER_CONFIG } from '../../../config/renderConfig';
 import { SurfaceMesh } from '../../visualization/SurfaceMesh';
 import type { IRenderer } from './IRenderer';
 import type { SurfaceObject } from '../../../compiler/ir/types';
+import type { SurfaceStyle } from '../../types';
 
 /**
  * 曲面渲染器
@@ -17,6 +19,11 @@ export class SurfaceRenderer implements IRenderer {
     private xRange: [number, number];
     private yRange: [number, number];
     private segments: number;
+    /** 全局"曲面"面板样式(线框/颜色映射);新建 mesh 时按它初始化 */
+    private surfaceStyle: SurfaceStyle = {
+        wireframeVisible: RENDER_CONFIG.surfaceMesh.wireframeVisible,
+        colorMapEnabled: RENDER_CONFIG.surfaceMesh.colorMapEnabled,
+    };
 
     constructor(private surface: SurfaceObject) {
         const range = surface.range;
@@ -46,7 +53,9 @@ export class SurfaceRenderer implements IRenderer {
                 this.segments,
                 this.segments,
                 this.surface.name,
+                this.surface.color,
             );
+            this.mesh.setSurfaceStyle(this.surfaceStyle);
             this.group.add(this.mesh.group);
         }
         // SurfaceMesh 只接受字符串表达式,因此这里直接传递归一化后的表达式字符串.
@@ -61,8 +70,16 @@ export class SurfaceRenderer implements IRenderer {
             this.xRange[0], this.xRange[1],
             this.yRange[0], this.yRange[1],
         );
+        // 基色随时同步(对象 color 可能在重新运行后变化),无需重建材质
+        this.mesh.setBaseColor(this.surface.color);
 
         this.group.visible = this.visible;
+    }
+
+    /** 应用全局"曲面"面板样式(线框/颜色映射). */
+    setSurfaceStyle(style: SurfaceStyle): void {
+        this.surfaceStyle = style;
+        this.mesh?.setSurfaceStyle(style);
     }
 
     setVisible(v: boolean): void {

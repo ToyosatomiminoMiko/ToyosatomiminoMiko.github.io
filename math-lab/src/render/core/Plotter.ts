@@ -8,6 +8,7 @@ import { VectorFieldRenderer } from './renderers/VectorFieldRenderer';
 import { SolidRenderer } from './renderers/SolidRenderer';
 import { RegionRenderer } from './renderers/RegionRenderer';
 import { RENDER_CONFIG } from '../../config/renderConfig';
+import type { SurfaceStyle } from '../types';
 import type {
     BoxObject,
     ConicSolidObject,
@@ -43,6 +44,12 @@ export class Plotter {
     private readonly pointStyle: PointStyle = {
         radius: RENDER_CONFIG.scene.point.radius,
         visible: RENDER_CONFIG.scene.point.visible,
+    };
+
+    /** 曲面的全局渲染样式(线框/颜色映射),由"曲面"面板统一控制 */
+    private readonly surfaceStyle: SurfaceStyle = {
+        wireframeVisible: RENDER_CONFIG.surfaceMesh.wireframeVisible,
+        colorMapEnabled: RENDER_CONFIG.surfaceMesh.colorMapEnabled,
     };
 
     /**
@@ -148,6 +155,17 @@ export class Plotter {
         for (const renderer of this.rendererMap.values()) {
             if (renderer instanceof PointRenderer) {
                 renderer.setStyle(this.pointStyle);
+            }
+        }
+    }
+
+    /** 更新所有曲面对象的全局样式(线框显隐/颜色映射),并记住最新值. */
+    setSurfaceStyle(style: SurfaceStyle): void {
+        this.surfaceStyle.wireframeVisible = style.wireframeVisible;
+        this.surfaceStyle.colorMapEnabled = style.colorMapEnabled;
+        for (const renderer of this.rendererMap.values()) {
+            if (renderer instanceof SurfaceRenderer) {
+                renderer.setSurfaceStyle(this.surfaceStyle);
             }
         }
     }
@@ -263,6 +281,9 @@ export class Plotter {
             renderer = new Ctor(initialData);
             if (renderer instanceof PointRenderer) {
                 renderer.setStyle(this.pointStyle);
+            }
+            if (renderer instanceof SurfaceRenderer) {
+                renderer.setSurfaceStyle(this.surfaceStyle);
             }
             this.plotContainer.add(renderer.group);
             this.rendererMap.set(id, renderer);

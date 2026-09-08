@@ -9,8 +9,9 @@ import { LatestRequestExecutor } from '../../math/compute/workers/LatestRequestE
 import { reportSamplingFailure } from '../core/samplingErrors';
 import {
     installSurfaceVertexColor,
-    type SurfaceColorRangeHandle,
+    type SurfaceColorHandle,
 } from './surfaceColorMap';
+import type { SurfaceStyle } from '../types';
 import type {
     SurfaceWorkerRequest,
     SurfaceWorkerResponse,
@@ -33,6 +34,10 @@ import type {
 // 配色:不再生成 color attribute / 不再用 vertexColors 通道.
 // 伪彩色由顶点着色器按 position.z 与 z_min/z_max 实时计算
 // (见 surfaceColorMap.ts),每次采样结果只更新 uZRange uniform.
+// 此外还有两个着色器 uniform 控制颜色映射开关与基色:
+//   - uSurfaceColorMapEnabled:颜色映射全局开关(关闭时曲面显示基色);
+//   - uSurfaceBaseColor:颜色映射关闭时的均匀基色(曲面对象的 color).
+// 这两个值由 setSurfaceStyle()/setBaseColor() 刷新,不需要重建材质.
 // ============================================================
 export class SurfaceMesh {
     cols: number;
@@ -43,10 +48,14 @@ export class SurfaceMesh {
     mesh: THREE.Mesh;
     wireframe: THREE.Mesh;
     group: THREE.Group;
-    /** z 极值 uniform 句柄,每次采样结果落地后更新 */
-    private readonly colorRange: SurfaceColorRangeHandle;
+    /** z 极值 + 颜色映射开关 + 基色的 uniform 句柄 */
+    private readonly colorRange: SurfaceColorHandle;
     /** dispose 后不再接受任何异步结果 */
     private _disposed = false;
+    /** 曲面线框网格是否显示(全局"曲面"面板控制) */
+    private _wireframeVisible = RENDER_CONFIG.surfaceMesh.wireframeVisible;
+    /** 是否启用 z->HSL 伪彩色映射(全局"曲面"面板控制) */
+    private _colorMapEnabled = RENDER_CONFIG.surfaceMesh.colorMapEnabled;
 
     /**
      * @cache
@@ -63,11 +72,13 @@ export class SurfaceMesh {
      * @param cols - x 方向网格分段数
      * @param rows - y 方向网格分段数
      * @param name - 所属曲面对象名,用于采样失败诊断
+     * @param baseColor - 曲面对象自身基色;颜色映射关闭时以它作为均匀 diffuse
      */
     constructor(
         cols: number = RENDER_CONFIG.surfaceMesh.defaultSegments,
         rows: number = RENDER_CONFIG.surfaceMesh.defaultSegments,
         private readonly name = '曲面',
+        baseColor = '#ffffff',
     ) {
         this.cols = cols;
         this.rows = rows;
@@ -103,6 +114,8 @@ export class SurfaceMesh {
             depthWrite: true, // 曲面主体保持深度写入
         });
         this.colorRange = installSurfaceVertexColor(this.material);
+        this.colorRange.setBaseColor(baseColor);
+        this.colorRange.setColorMapEnabled(this._colorMapEnabled);
 
         // 独立线框 mesh,单独控制透明度与深度写入
         this.wireframeMat = new THREE.MeshBasicMaterial({
@@ -115,6 +128,7 @@ export class SurfaceMesh {
 
         this.mesh = new THREE.Mesh(this.geometry, this.material);
         this.wireframe = new THREE.Mesh(this.geometry, this.wireframeMat);
+        this.wireframe.visible = this._wireframeVisible;
 
         // 将曲面和线框组织到一个 Group,方便场景中添加/移除
         this.group = new THREE.Group();
@@ -203,6 +217,31 @@ export class SurfaceMesh {
             this.geometry.setIndex(new THREE.BufferAttribute(validIndices, 1));
         }
 
+    }
+
+    /**
+     * 应用全局"曲面"面板样式到本网格:线框显隐 + 颜色映射开关.
+     *
+     * 调用时机:
+     * - 用户在视图面板切换"网格"/"颜色映射"开关(RenderController 收到
+     *   `surface:changed` 后遍历所有 SurfaceRenderer 转发到此);
+     * - SurfaceRenderer 新建 mesh 时用当前全局样式初始化.
+     */
+    setSurfaceStyle(style: SurfaceStyle): void {
+        this._wireframeVisible = style.wireframeVisible;
+        this._colorMapEnabled = style.colorMapEnabled;
+        this.wireframe.visible = this._wireframeVisible;
+        this.colorRange.setColorMapEnabled(this._colorMapEnabled);
+    }
+
+    /**
+     * 同步曲面对象的基色(颜色映射关闭时的均匀 diffuse).
+     *
+     * 每次 draw() 都会调用,保证对象 color 在重新运行/换色后落到着色器,
+     * 无需在分段数不变时重建材质.
+     */
+    setBaseColor(color: string): void {
+        this.colorRange.setBaseColor(color);
     }
 
     /**

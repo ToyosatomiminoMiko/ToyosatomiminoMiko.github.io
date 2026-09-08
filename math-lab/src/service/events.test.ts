@@ -22,5 +22,9 @@ describe('MathLabEvents', () => {
         expectTypeOf<MathLabEvents['axis:upChanged']>().toEqualTypeOf<{
             axis: 'x' | 'y' | 'z';
         }>();
+        expectTypeOf<MathLabEvents['surface:changed']>().toEqualTypeOf<{
+            wireframeVisible: boolean;
+            colorMapEnabled: boolean;
+        }>();
     });
 });

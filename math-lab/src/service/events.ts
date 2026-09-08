@@ -28,4 +28,5 @@ export interface MathLabEvents {
         minorWidth: number;
     };
     'point:changed': { radius: number; visible: boolean };
+    'surface:changed': { wireframeVisible: boolean; colorMapEnabled: boolean };
 }

@@ -59,6 +59,10 @@ export const RENDER_CONFIG = {
         specular: 0x222244,
         wireframeColor: 0x88aaff,
         wireframeOpacity: 0.15,
+        // 曲面线框网格默认显示(叠加在曲面上的采样网格),旧行为一致.
+        wireframeVisible: true,
+        // z->HSL 伪彩色映射默认启用;关闭后曲面显示自身基色(对象 color).
+        colorMapEnabled: true,
     },
     // 坐标轴XYZ设置
     scene: {
