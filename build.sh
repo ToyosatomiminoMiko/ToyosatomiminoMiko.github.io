@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 # Production build entrypoint.
-# This script is intentionally thin: it only installs pinned dependencies and
-# delegates every build/check stage to package.json scripts.
+# 这里只负责"安装锁定依赖"和"调用统一流水线",真正的构建/检查步骤序列
+# 定义在 package.json 的 build:all 脚本(单一事实源,避免两处重复).
+#
+# 为什么要保留这个壳而非直接内联到 CI:
+#   - 提供可复现的本地入口(bash ./build.sh 与 CI 完全一致);
+#   - 覆盖 npm run 无法提供的缺工具快速失败(require_command)
+#     与失败时的行号上下文(trap ... ERR),以及分阶段日志前缀.
 
 set -Eeuo pipefail
 
@@ -34,20 +39,9 @@ require_command wasm-pack
 log "installing pinned dependencies from package-lock.json"
 npm ci --no-audit --no-fund
 
-log "running Rust format and clippy checks"
-npm run lint:rs
-
-log "cleaning previous artifacts"
-npm run clean
-
-log "building WASM modules"
-npm run build:wasm
-
-log "running tests"
-npm test
-
-log "typechecking and building the app"
-npm run build:app
+# 流水线 = lint:rs -> clean -> build:wasm -> test -> build:app(内含 typecheck + vite build)
+log "running full build pipeline (lint -> clean -> wasm -> test -> app)"
+npm run build:all
 
 log "build succeeded"
 log "output directory: ${PROJECT_ROOT}/dist"

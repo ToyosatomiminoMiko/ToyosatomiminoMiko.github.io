@@ -2,7 +2,7 @@
   "name": "toyosatomiminomiko.github.io",
   "version": "0.0.0",
   "private": true,
-  "description": "",
+  "description": "ToyosatomiminoMiko",
   "type": "module",
   "dependencies": {
     "bootstrap": "^5.3.8",
@@ -26,9 +26,9 @@
     "build:wasm:render": "cd math-lab/src/render/render_rs && wasm-pack build --release --target web --out-dir ../../wasm/render_rs",
     "build:wasm": "npm run build:wasm:math && npm run build:wasm:compiler && npm run build:wasm:render",
     "build:app": "npm run typecheck && vite build",
-    "build": "npm run clean && npm run build:wasm && npm run build:app",
+    "build:all": "npm run lint:rs && npm run clean && npm run build:wasm && npm test && npm run build:app",
+    "build": "npm run build:all",
     "lint:rs": "cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings",
-    "check": "npm run build:wasm && npm run typecheck && npm test && npm run lint:rs",
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit --noUnusedLocals --noUnusedParameters"
