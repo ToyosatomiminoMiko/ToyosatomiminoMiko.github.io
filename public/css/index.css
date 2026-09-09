@@ -24,11 +24,13 @@ body {
     background-attachment: fixed;
 }
 
-nav {
+.nav {
     position: relative;
     left: 0px;
     right: 0px;
     top: 0px;
+    /* 导航栏高度 */
+    height: 42px;
 }
 
 main {
@@ -46,21 +48,10 @@ main {
     background-color: #00000000;
 }
 
-.card-head {
-    width: 70px;
-    height: 70px;
-    margin: 0px;
-}
-
-.pl-head {
-    width: 40px;
-    margin: 10px;
-}
-
-/* 用户头像 */
+/* 图标 */
 .head {
     width: 35px;
-    margin: 7px;
+    margin: 5px;
 }
 
 .head:hover {
@@ -155,18 +146,12 @@ canvas#pixelCanvas {
     cursor: pointer;
 }
 
-button#login_button {
-    margin-left: 20px;
-    margin-right: 20px;
-    margin-top: 2px;
-}
-
 /* LED clock */
 #app_led_clock {
     background-color: #000 !important;
     border-radius: 10px;
     padding: 20px;
-    box-shadow: 0 0 40px rgba(0, 255, 0, 0.3);
+    box-shadow: 0 0 40px rgba(0, 255, 255, 0.5);
     display: flex;
     justify-content: center;
     align-items: center;

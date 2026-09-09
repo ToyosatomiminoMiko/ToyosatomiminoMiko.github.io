@@ -417,7 +417,7 @@ function breakdownHtml(v: IEEE754Value): string {
         `<div>指数 E = <b>${v.exponentField}</b> <span class="ieee-muted">(` +
         `${v.exponentBits})</span> - ${expInfo}</div>`,
         `<div>尾数 M = <b>${mantissaHead}.${fraction}</b><sub>2</sub> ` +
-        `(${v.format.fractionBits} 位)</div>`,
+        `(${v.format.fractionBits} bit)</div>`,
     ].join('');
 }
 
