@@ -135,8 +135,9 @@ ToyosatomiminoMiko
                     </div>
                     <div class="card-body">
                         <p class="ieee-hint">
-                            💡 输入十进制小数自动转二进制;也可以点按下面的二进制位(0/1)反向换算,
-                            或直接粘贴长度匹配的 0/1 位串.尾数高位在左,低位在右,每 4 位一组.
+                            💡 输入十进制小数或长度匹配的 0/1 位串后点「转换」按钮转二进制;也可以点按下面的二进制位(0/1)直接改位.
+                            一切以二进制位为准,KaTeX 公式按递等链单向展示(二进制带入 = 十进制 = 精确十进制值).
+                            尾数高位在左,低位在右,每 4 位一组.
                         </p>
                         <div class="row g-3 align-items-center mb-3">
                             <div class="col-auto">
@@ -148,12 +149,15 @@ ToyosatomiminoMiko
                             </div>
                             <div class="col-6">
                                 <label class="form-label mb-0" for="ieee-input">十进制数值</label>
-                                <input
-                                    id="ieee-input"
-                                    class="form-control form-control-sm"
-                                    value="3.14"
-                                    spellcheck="false"
-                                />
+                                <div class="input-group input-group-sm">
+                                    <input
+                                        id="ieee-input"
+                                        class="form-control"
+                                        value="3.14"
+                                        spellcheck="false"
+                                    />
+                                    <button type="button" class="btn btn-primary" id="ieee-convert">转换</button>
+                                </div>
                             </div>
                         </div>
 
@@ -162,8 +166,8 @@ ToyosatomiminoMiko
                         <div class="ieee-section">
                             <div class="ieee-legend">
                                 <span class="ieee-s">S 符号</span>
-                                <span class="ieee-e">E 指数(共 <b data-role="exp-bits">11</b> 位)</span>
-                                <span class="ieee-m">M 尾数(共 <b data-role="frac-bits">52</b> 位)</span>
+                                <span class="ieee-e">E 指数(<b data-role="exp-bits">11</b> bit)</span>
+                                <span class="ieee-m">M 尾数(<b data-role="frac-bits">52</b> bit)</span>
                             </div>
                             <div id="ieee-bits" class="ieee-bits"></div>
                             <div id="ieee-bitstring" class="ieee-bitstring"></div>

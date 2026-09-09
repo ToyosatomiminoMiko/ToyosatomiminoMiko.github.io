@@ -4,6 +4,7 @@ import {
     FLOAT64,
     buildIEEE754,
     computeIEEE754,
+    exactValueDecimal,
     exactValueLatex,
     ieee754Latex,
     reconstructIEEE754,
@@ -139,7 +140,8 @@ describe('IEEE754 buildIEEE754 / unbiasedExponent / latex', () => {
 
     it('latex: 次正规数用 0.FFFF 前导并给 2^{1-bias}', () => {
         const latex = ieee754Latex(computeIEEE754(Number.MIN_VALUE, FLOAT64));
-        expect(latex).toContain('2^{-1022}');
+        // 次正规指数 = 1-bias = 1-1023, 前端为 0.FFFF
+        expect(latex).toContain('2^{1-1023}');
         expect(latex).toContain('0.');
     });
 });
@@ -183,10 +185,75 @@ describe('IEEE754 exactValueLatex (真实值, 以位域为准)', () => {
         expect(exactValueLatex(computeIEEE754(NaN, FLOAT64))).toBe('\\mathrm{NaN}');
     });
 
-    it('latex 公式的右端使用精确真实值(而不是 JS 舍入串)', () => {
+    it('latex: 有限值遵循递等链(二进制公式 = 十进制公式 = 精确十进制)', () => {
         const latex = ieee754Latex(computeIEEE754(0.1, FLOAT64));
-        expect(latex).toContain('3602879701896397 \\times 2^{-55}');
-        expect(latex).not.toContain('= 0.1');
+        // 第 1 行: 二进制公式(指数用 E-bias, 尾数带隐含前导 1)
+        expect(latex).toContain('2^{1019-1023}');
+        expect(latex).toContain('\\times \\left(1.');
+        expect(latex).toContain('\\right)_{2}');
+        // 第 2 行: 公式(十进制) -- 尾数换算成十进制
+        expect(latex).toContain('= 2^{1019-1023} \\times 1.6');
+        // 第 3 行: 计算后的精确十进制值, 按 32 字符分包续排
+        expect(latex).toContain('0.100000000000000005551115123125');
+        expect(latex).toContain('7827021181583404541015625');
+        expect(latex).toContain('\\begin{aligned}');
+    });
+
+    it('latex: 递等链第一行只出现一次符号, 负数带前导 -', () => {
+        const neg = ieee754Latex(computeIEEE754(-1.5, FLOAT64));
+        // -1.5 = -1.1₂ × 2^0, 即 E-bias = 1023-1023
+        expect(neg).toContain('& -2^{1023-1023}');
+        expect(neg).toContain('= -2^{1023-1023}');
+        // 最终结果为带符号的精确十进制
+        expect(neg).toContain('-1.5');
+    });
+});
+
+describe('IEEE754 exactValueDecimal (完整精确十进制值, 以位域为准)', () => {
+    it('float64 0.1 的完整精确十进制', () => {
+        expect(exactValueDecimal(computeIEEE754(0.1, FLOAT64)))
+            .toBe('0.1000000000000000055511151231257827021181583404541015625');
+    });
+
+    it('float64 1.0 -> "1"; 3.14 -> 完整精确值', () => {
+        expect(exactValueDecimal(computeIEEE754(1, FLOAT64))).toBe('1');
+        expect(exactValueDecimal(computeIEEE754(3.14, FLOAT64)))
+            .toBe('3.140000000000000124344978758017532527446746826171875');
+    });
+
+    it('float64 最小次正规数 -> 完整 1074 位小数, 且回读成立', () => {
+        const d = exactValueDecimal(computeIEEE754(Number.MIN_VALUE, FLOAT64));
+        // 从固定位域构造的结果与 computeIEEE754 一致
+        const v = computeIEEE754(Number.MIN_VALUE, FLOAT64);
+        expect(exactValueDecimal(v)).toBe(exactValueDecimal(
+            buildIEEE754(v.sign, v.exponentField, v.fraction, FLOAT64),
+        ));
+        // 完整(无省略号), 纯数字+小数点构成
+        expect(d).toMatch(/^0\.0*[1-9]\d+$/);
+        expect(d).not.toContain('...');
+        // 回读为 Number, 应精确等于 Number.MIN_VALUE
+        expect(Number(d)).toBe(Number.MIN_VALUE);
+    });
+
+    it('float64 最大有限值 -> 完整整数, 且回读等于 Number.MAX_VALUE', () => {
+        const d = exactValueDecimal(buildIEEE754(0, 2046, Math.pow(2, 52) - 1, FLOAT64));
+        expect(d).toMatch(/^\d+$/); // 纯整数
+        expect(Number(d)).toBe(Number.MAX_VALUE);
+        // 位数约为 309
+        expect(d.length).toBeGreaterThan(250);
+    });
+
+    it('float32 0.1 舍入后的精确值', () => {
+        expect(exactValueDecimal(computeIEEE754(0.1, FLOAT32)))
+            .toBe('0.100000001490116119384765625');
+    });
+
+    it('±0 / ±∞ / NaN 的符号表达', () => {
+        expect(exactValueDecimal(computeIEEE754(-0, FLOAT64))).toBe('-0');
+        expect(exactValueDecimal(computeIEEE754(0, FLOAT64))).toBe('0');
+        expect(exactValueDecimal(computeIEEE754(Infinity, FLOAT64))).toBe('Infinity');
+        expect(exactValueDecimal(computeIEEE754(-Infinity, FLOAT64))).toBe('-Infinity');
+        expect(exactValueDecimal(computeIEEE754(NaN, FLOAT64))).toBe('NaN');
     });
 });
 
