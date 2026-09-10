@@ -159,11 +159,12 @@ export class RenderController {
         });
         this.axisLabelController = new AxisLabelController(eventBus);
 
-        eventBus.on('grid:changed', ({ xzVisible, xyVisible, yzVisible, ticksVisible, majorWidth, minorWidth }) => {
+        eventBus.on('grid:changed', ({ xzVisible, xyVisible, yzVisible, ticksVisible, piUnit, majorWidth, minorWidth }) => {
             this.sceneManager.setPlaneVisible('xz', xzVisible);
             this.sceneManager.setPlaneVisible('xy', xyVisible);
             this.sceneManager.setPlaneVisible('yz', yzVisible);
             this.sceneManager.setTicksVisible(ticksVisible);
+            this.sceneManager.setTickUnit(piUnit);
             this.sceneManager.setGridLineWidths(majorWidth, minorWidth);
         });
         this.gridTicksController = new GridTicksController(eventBus);

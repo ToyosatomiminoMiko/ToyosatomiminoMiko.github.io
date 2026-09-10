@@ -26,5 +26,14 @@ describe('MathLabEvents', () => {
             wireframeVisible: boolean;
             colorMapEnabled: boolean;
         }>();
+        expectTypeOf<MathLabEvents['grid:changed']>().toEqualTypeOf<{
+            xzVisible: boolean;
+            xyVisible: boolean;
+            yzVisible: boolean;
+            ticksVisible: boolean;
+            piUnit: boolean;
+            majorWidth: number;
+            minorWidth: number;
+        }>();
     });
 });

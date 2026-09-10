@@ -94,6 +94,11 @@ export const RENDER_CONFIG = {
             size: 20,
             majorStep: 5,
             minorStep: 1,
+            // π 单位模式下的步长:大刻度 π,小刻度 π/2,于是网格线与刻度
+            // 落在 π/2 的整数倍上(标签 π/2,π,3π/2 ...),而不是给旧的
+            // 整数刻度换数字.由"坐标轴"面板的 π 单位开关切换.
+            piMajorStep: Math.PI,
+            piMinorStep: Math.PI / 2,
             majorColor: 0x555566,
             minorColor: 0x2e2e3d,
             majorLineWidth: 1.5,
@@ -113,6 +118,9 @@ export const RENDER_CONFIG = {
             // 刻度数字与 XYZ 轴标签共用 labelFont/labelCanvasSize/labelScale
             labelColor: '#9fb2d8',
             labelOffset: 0.35,
+            // 刻度数字显示单位:false 普通数值;true 时网格/刻度改按 π 步长
+            // 重排,数字显示为 π 的整数/简单分数倍,可在右侧"坐标轴"面板切换.
+            piUnit: false,
             visible: true,
         },
         // 各轴标签(隐藏标签时同步隐藏该轴的刻度数字)

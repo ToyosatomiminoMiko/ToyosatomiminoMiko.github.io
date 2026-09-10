@@ -24,6 +24,8 @@ export interface MathLabEvents {
         xyVisible: boolean;
         yzVisible: boolean;
         ticksVisible: boolean;
+        /** 刻度数字是否使用 π 单位显示 */
+        piUnit: boolean;
         majorWidth: number;
         minorWidth: number;
     };
