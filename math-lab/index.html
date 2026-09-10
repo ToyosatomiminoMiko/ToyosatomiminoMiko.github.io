@@ -214,12 +214,17 @@ intersection X = intersection(s1, s2) {
             <header class="panel-header">视图</header>
             <section id="view-controls">
                 <div class="cam-toggle">
-                    <span class="cam-label active" data-cam="perspective">透视</span>
+                    <!-- 透视/正交切换:data-cam 为模式的唯一标识;
+                         下面的 active/checked 只是首屏占位,与
+                         RENDER_CONFIG.camera.defaultMode 同为 orthographic,
+                         运行时由 CameraToggle 依配置统一覆盖 -->
+                    <span class="cam-label" data-cam="perspective">透视</span>
                     <label class="switch">
-                        <input type="checkbox" id="camToggle">
+                        <input type="checkbox" id="camToggle" checked>
                         <span class="slider"></span>
                     </label>
-                    <span class="cam-label" data-cam="orthographic">正交</span>
+                    <span class="cam-label active" data-cam="orthographic">正交</span>
+                    <!-- 旋转锁定开关 -->
                     <span>锁定旋转</span>
                     <label class="switch">
                         <input type="checkbox" id="rotationLockToggle">

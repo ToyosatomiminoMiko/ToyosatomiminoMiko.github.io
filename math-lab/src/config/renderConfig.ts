@@ -2,6 +2,7 @@
  * 渲染与可视化常量.
  *
  * 这里只放静态默认值,不包含几何体实例或 Three.js 对象.
+ * 相机与视图默认值统一放在 `camera`,场景(坐标轴/网格/点)放在 `scene`.
  */
 
 /** 坐标轴向上:正方向朝上的轴,兼容不同学科/工具习惯. */
@@ -63,6 +64,19 @@ export const RENDER_CONFIG = {
         wireframeVisible: true,
         // z->HSL 伪彩色映射默认启用;关闭后曲面显示自身基色(对象 color).
         colorMapEnabled: true,
+    },
+    // 相机与视图默认值:投影模式,初始机位与视锥参数,由 CameraManager 读取.
+    // defaultMode 同时是投影切换 UI(CameraToggle)的初态,避免两处默认值漂移.
+    camera: {
+        defaultMode: 'orthographic' as const,
+        frustumSize: 14,
+        initViewTarget: [0, 0, 0] as readonly number[],
+        defaultPosition: [12, 8, 12] as readonly number[],
+        defaultHome: 'isometric' as const,
+        viewDistance: 20,
+        perspFov: 45,
+        near: 0.1,
+        far: 200,
     },
     // 坐标轴XYZ设置
     scene: {

@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { APP_CONFIG } from '../../config/appConfig';
 import { RENDER_CONFIG, type UpAxis } from '../../config/renderConfig';
 import type { CamMode, ViewHome } from '../../types';
 // OrbitControls 没有独立类型包,从 three/examples 导入类型
@@ -80,36 +79,38 @@ export class CameraManager {
         this.upVector.set(...UP_VECTORS[this.upAxis]);
 
         this.perspCamera = new THREE.PerspectiveCamera(
-            APP_CONFIG.camera.perspFov,
+            RENDER_CONFIG.camera.perspFov,
             this.aspect,
-            APP_CONFIG.camera.near,
-            APP_CONFIG.camera.far,
+            RENDER_CONFIG.camera.near,
+            RENDER_CONFIG.camera.far,
         );
         this.perspCamera.up.copy(this.upVector);
-        this.perspCamera.position.set(...APP_CONFIG.camera.defaultPosition as [number, number, number]);
-        this.perspCamera.lookAt(...APP_CONFIG.camera.initViewTarget as [number, number, number]);
+        this.perspCamera.position.set(...RENDER_CONFIG.camera.defaultPosition as [number, number, number]);
+        this.perspCamera.lookAt(...RENDER_CONFIG.camera.initViewTarget as [number, number, number]);
 
-        const half = APP_CONFIG.camera.frustumSize / 2;
+        const half = RENDER_CONFIG.camera.frustumSize / 2;
         this.orthoCamera = new THREE.OrthographicCamera(
             -half * this.aspect, half * this.aspect,
             half, -half,
-            APP_CONFIG.camera.near, APP_CONFIG.camera.far,
+            RENDER_CONFIG.camera.near, RENDER_CONFIG.camera.far,
         );
         this.orthoCamera.up.copy(this.upVector);
-        this.orthoCamera.position.set(...APP_CONFIG.camera.defaultPosition as [number, number, number]);
-        this.orthoCamera.lookAt(...APP_CONFIG.camera.initViewTarget as [number, number, number]);
+        this.orthoCamera.position.set(...RENDER_CONFIG.camera.defaultPosition as [number, number, number]);
+        this.orthoCamera.lookAt(...RENDER_CONFIG.camera.initViewTarget as [number, number, number]);
 
-        this.activeCamera = this.perspCamera;
-        this.mode = APP_CONFIG.camera.defaultMode;
-        this.currentHome = APP_CONFIG.camera.defaultHome;
+        this.mode = RENDER_CONFIG.camera.defaultMode;
+        this.currentHome = RENDER_CONFIG.camera.defaultHome;
         this.controls = null;
+        // 初始激活相机必须与 mode 一致:两台相机都已按默认机位取景,
+        // 这里只挑选对应的一台(默认正交时若仍选透视相机就会渲染错相机).
+        this.activeCamera = this._cameraFor(this.mode);
     }
 
     setControls(controls: OrbitControls): void {
         this.controls = controls;
         if (this.controls) {
             this.controls.object = this.activeCamera;
-            this.controls.target.set(...APP_CONFIG.camera.initViewTarget as [number, number, number]);
+            this.controls.target.set(...RENDER_CONFIG.camera.initViewTarget as [number, number, number]);
             this.controls.update();
         }
     }
@@ -155,7 +156,7 @@ export class CameraManager {
             this.perspCamera.aspect = this.aspect;
             this.perspCamera.updateProjectionMatrix();
         } else {
-            const half = APP_CONFIG.camera.frustumSize / 2;
+            const half = RENDER_CONFIG.camera.frustumSize / 2;
             this.orthoCamera.left = -half * this.aspect;
             this.orthoCamera.right = half * this.aspect;
             this.orthoCamera.top = half;
@@ -168,6 +169,11 @@ export class CameraManager {
         return this.activeCamera;
     }
 
+    /** 投影模式与相机实例的对应关系(参数类型放宽为 CamMode,避免字面量收窄). */
+    private _cameraFor(mode: CamMode): THREE.Camera {
+        return mode === 'perspective' ? this.perspCamera : this.orthoCamera;
+    }
+
     dispose(): void {
         this.detachControls();
     }
@@ -176,7 +182,7 @@ export class CameraManager {
         const target = new THREE.Vector3(0, 0, 0);
         const pos = this.currentHome === 'isometric'
             ? new THREE.Vector3(
-                ...APP_CONFIG.camera.defaultPosition as [number, number, number],
+                ...RENDER_CONFIG.camera.defaultPosition as [number, number, number],
             )
             : this._homePosition(this.currentHome);
 
@@ -188,7 +194,7 @@ export class CameraManager {
             this.perspCamera.updateProjectionMatrix();
             this.activeCamera = this.perspCamera;
         } else {
-            const half = APP_CONFIG.camera.frustumSize / 2;
+            const half = RENDER_CONFIG.camera.frustumSize / 2;
             this.orthoCamera.left = -half * this.aspect;
             this.orthoCamera.right = half * this.aspect;
             this.orthoCamera.top = half;
@@ -212,7 +218,7 @@ export class CameraManager {
         home: Exclude<ViewHome, 'isometric'>,
     ): THREE.Vector3 {
         const direction = VIEW_DIRECTIONS[this.upAxis][home];
-        const distance = APP_CONFIG.camera.viewDistance;
+        const distance = RENDER_CONFIG.camera.viewDistance;
         return new THREE.Vector3(
             direction[0] * distance,
             direction[1] * distance,
