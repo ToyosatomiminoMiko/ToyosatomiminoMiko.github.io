@@ -1,20 +1,80 @@
 //! 表达式解析与归一化:词法 + Pratt 语法分析产出 `Expr` 树,随后做
 //! 别名重写(pow/log/sec/deg...)与"函数是否支持数值求值"的校验.
 //!
+//! 行为契约:
+//! - 归一化产物是**可执行字符串**:数字必须 round-trip(打印契约见
+//!   `printing.rs` 文件头),函数名与元数统一在这里校验;
+//! - 解析阶段就保证表达式树深度不超过 [`MAX_TREE_DEPTH`],因此后续**所有**
+//!   按树递归的遍历(别名重写/打印/化简/求导/变量提取/`Drop`)都有界;
+//! - 多字母标识符是**单个符号**:`lex_ident` 贪婪吃字母数字下划线,且 `_`
+//!   是名字的一部分(不是下标运算符).因此 `2xy` == `2 * xy`(变量 `xy`),
+//!   `x2`,`sinx`,`x_1` 都是合法变量名;`1e` 是 `1 * e`(e 在归一化阶段被
+//!   折叠成 2.718281828459045),而 `1e-20` 因指数分支被读成单个数字.
+//!   这条语义由 `multi_letter_identifiers_are_single_symbols` 固定.
+//!
 //! 编码注意:
 //! - 解析是递归下降(括号/函数参数/右结合幂链/一元链都按嵌套深度递归),
-//!   嵌套深度受 [`MAX_PARSE_DEPTH`] 护栏保护,越界报错而不是栈溢出;
+//!   嵌套深度受 [`MAX_PARSE_DEPTH`] 护栏保护;它**只**防语法递归,不防
+//!   "左结合长链"(parse 深度恒为 2,产出的却是 N 深左倾树),后者由
+//!   [`MAX_TREE_DEPTH`] 的节点预算兜底(SYM-P1.3);
 //! - 隐式乘法(2x,2 sin(x),(x+1)(x-1))在 parse_expr 循环里按原子判定,
 //!   不要改成独立运算符,否则会破坏 2/(3x) 这类既有结合性;
 //! - 词法对畸形数字宽容(如 "1.2.3" 会被读成两个数再隐式相乘)--这是
 //!   历史行为,新代码不要让它变得更安静,出错信息仍尽量带定位.
+//!
+//! 202609 审查修复锚点(本仓库内引用统一用 `SYM-` 前缀,避免与旧报告编号冲突):
+//! - `SYM-P1.2`:空参调用不得 panic;
+//! - `SYM-P1.3`:树深预算封住所有递归遍历;
+//! - `SYM-P2.1`:元数校验单点收口.
 
 use super::{BinOp, Expr, UnaryOp};
 use crate::builtins;
 
-/// 表达式嵌套深度上限(括号/函数参数/一元与幂链),防止递归栈溢出.
-/// 正常表达式远小于该值;越界报错并提示简化表达式.
+/// 表达式**语法嵌套**深度上限(括号/函数参数/一元与幂链),防止递归下降
+/// 解析自身栈溢出.正常表达式远小于该值;越界报错并提示简化表达式.
+///
+/// 它不限制表达式**树深**:`x + x + ... + x` 这种左结合链在解析期深度恒为
+/// 2,但会产出 N 深左倾树,那部分由 [`MAX_TREE_DEPTH`] 负责.
 const MAX_PARSE_DEPTH: usize = 512;
+
+/// 表达式**树深**上限(SYM-P1.3).
+///
+/// 左结合长链(`x + x + ...`)与长函数参数链在解析期不触发语法深度护栏,
+/// 却会产出深树;之后的别名重写/打印/化简/求导/`Drop` 全按树递归,在 wasm
+/// 1 MiB 栈上约 2.7 千项即 abort(不可 catch 的进程级错误).
+///
+/// 预算在**构造节点时**检查(而不是解析结束后再测深度--测深度那次遍历
+/// 自己就会溢出),这样任何成功解析的树都保证深度有界.
+///
+/// 阈值取值(实测,探针见 202609 审查 SYM-P1.3 与本次修复记录):
+/// - N 项左结合链的树深 = N;求导是最紧的遍历(递归里反复调
+///   `is_const_except` 与 `simplify`),打印/归一化次之;
+/// - debug 2 MiB 线程实测:求导 192 层 OK / 200 层溢出,打印 256 层仍 OK;
+/// - release 1 MiB(近似 wasm)实测:512 层各遍历都 OK;
+/// - 真实 wasm(wasm-pack release,1 MiB 栈)实测:512 项 OK,
+///   513 项起由本预算返回可读 `Err`,4000 项也不 trap.
+///
+/// 取 128:对 debug 求导(200 崩)留 1.5 倍余量,对 wasm release 留 4 倍余量;
+/// 手写表达式远达不到这个深度.现有 600 层括号用例依旧先被
+/// [`MAX_PARSE_DEPTH`] 拦下,报错形态不变.
+///
+/// 调大这个值之前,必须重跑 `deepest_allowed_tree_is_safe_for_every_traversal`
+/// 在 debug(`cargo test`)下的用例--它会把"预算"与"遍历栈开销"绑在一起.
+pub(crate) const MAX_TREE_DEPTH: usize = 128;
+
+/// 子树深度(叶子为 1).
+///
+/// 只在**已通过预算**的子树上调用:每次构造新节点都会先检查深度,所以
+/// 能进到这里的最深树就是 [`MAX_TREE_DEPTH`],递归本身有界.
+fn tree_depth(expr: &Expr) -> usize {
+    match expr {
+        Expr::Num(_) | Expr::Sym(_) => 1,
+        Expr::Unary(_, operand) => 1 + tree_depth(operand),
+        Expr::Binary(_, left, right) => 1 + tree_depth(left).max(tree_depth(right)),
+        Expr::Call(_, args) => 1 + args.iter().map(tree_depth).max().unwrap_or(0),
+        Expr::List(items) => 1 + items.iter().map(tree_depth).max().unwrap_or(0),
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 enum Token {
@@ -252,6 +312,16 @@ impl Parser {
         result
     }
 
+    /// 构造节点前的树深预算检查(SYM-P1.3):越界报可读错误,绝不产出深树.
+    fn check_tree_depth(&self, expr: &Expr) -> Result<(), String> {
+        if tree_depth(expr) > MAX_TREE_DEPTH {
+            return Err(format!(
+                "表达式结构过深(超过 {MAX_TREE_DEPTH} 层),请拆分成多个表达式"
+            ));
+        }
+        Ok(())
+    }
+
     fn parse_expr_inner(&mut self, min_prec: u8) -> Result<Expr, String> {
         let mut lhs = self.parse_prefix()?;
 
@@ -290,7 +360,10 @@ impl Parser {
                 self.bump();
             }
             let rhs = self.parse_expr(right_prec)?;
-            lhs = Expr::Binary(op, Box::new(lhs), Box::new(rhs));
+            // 左结合链在这里逐层加深,预算检查必须放在构造之前.
+            let node = Expr::Binary(op, Box::new(lhs), Box::new(rhs));
+            self.check_tree_depth(&node)?;
+            lhs = node;
         }
 
         Ok(lhs)
@@ -304,7 +377,9 @@ impl Parser {
         if matches!(self.peek(), Token::Minus) {
             self.bump();
             let operand = self.parse_expr(60)?;
-            return Ok(Expr::Unary(UnaryOp::Neg, Box::new(operand)));
+            let node = Expr::Unary(UnaryOp::Neg, Box::new(operand));
+            self.check_tree_depth(&node)?;
+            return Ok(node);
         }
         self.parse_primary()
     }
@@ -341,7 +416,9 @@ impl Parser {
                             _ => return Err("函数参数列表缺少右括号或逗号".to_string()),
                         }
                     }
-                    Ok(Expr::Call(name, args))
+                    let node = Expr::Call(name, args);
+                    self.check_tree_depth(&node)?;
+                    Ok(node)
                 } else {
                     Ok(Expr::Sym(name))
                 }
@@ -389,7 +466,9 @@ impl Parser {
                 _ => return Err("数组缺少右方括号或逗号".to_string()),
             }
         }
-        Ok(Expr::List(items))
+        let node = Expr::List(items);
+        self.check_tree_depth(&node)?;
+        Ok(node)
     }
 }
 
@@ -444,18 +523,16 @@ fn rewrite_aliases_inner(expr: &mut Expr) -> Result<(), String> {
     }
 }
 
-fn is_supported_function(name: &str) -> bool {
-    builtins::is_supported_function(name)
-}
-
+/// 校验"函数名 + 元数"是否可交给数值求值.
+///
+/// 元数检查在别名重写**之后**执行:`pow(x)`, `deg(x, y)` 这类别名错误由
+/// 展开函数报错(它们展开后的参数个数与基础函数元数无关),而展开后的
+/// 基础函数(`sqrt()`, `sin(x, y)`)由 `builtins::check_function_arity`
+/// 统一报错(202609 审查 SYM-P2.1).
 pub(crate) fn validate_supported(expr: &Expr) -> Result<(), String> {
     match expr {
         Expr::Call(name, args) => {
-            if !is_supported_function(name) {
-                return Err(format!(
-                    "表达式暂不支持函数 {name},无法交给 Rust/WASM 数值求值"
-                ));
-            }
+            builtins::check_function_arity(name, args.len())?;
             for arg in args {
                 validate_supported(arg)?;
             }

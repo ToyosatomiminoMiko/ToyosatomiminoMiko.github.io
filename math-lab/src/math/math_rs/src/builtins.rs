@@ -27,6 +27,10 @@ pub(crate) enum LatexStyle {
 
 struct MathBuiltin {
     name: &'static str,
+    /// 参数个数(元数).基础函数当前全为 1,但显式登记而不是默认 1:
+    /// `validate_supported` 是唯一的元数校验入口(202609 审查 P2.1),
+    /// 归一化/求导/LaTeX/求值四处不再各写一套检查.
+    arity: u8,
     eval: UnaryMathFunction,
     derivative: DerivativeFunction,
     latex: LatexStyle,
@@ -163,96 +167,112 @@ fn derivative_cbrt(arg: &Expr) -> Expr {
 const MATH_FUNCTIONS: &[MathBuiltin] = &[
     MathBuiltin {
         name: "sin",
+        arity: 1,
         eval: f64::sin,
         derivative: derivative_sin,
         latex: LatexStyle::Named("\\sin"),
     },
     MathBuiltin {
         name: "cos",
+        arity: 1,
         eval: f64::cos,
         derivative: derivative_cos,
         latex: LatexStyle::Named("\\cos"),
     },
     MathBuiltin {
         name: "tan",
+        arity: 1,
         eval: f64::tan,
         derivative: derivative_tan,
         latex: LatexStyle::Named("\\tan"),
     },
     MathBuiltin {
         name: "asin",
+        arity: 1,
         eval: f64::asin,
         derivative: derivative_asin,
         latex: LatexStyle::Named("\\arcsin"),
     },
     MathBuiltin {
         name: "acos",
+        arity: 1,
         eval: f64::acos,
         derivative: derivative_acos,
         latex: LatexStyle::Named("\\arccos"),
     },
     MathBuiltin {
         name: "atan",
+        arity: 1,
         eval: f64::atan,
         derivative: derivative_atan,
         latex: LatexStyle::Named("\\arctan"),
     },
     MathBuiltin {
         name: "sinh",
+        arity: 1,
         eval: f64::sinh,
         derivative: derivative_sinh,
         latex: LatexStyle::Named("\\sinh"),
     },
     MathBuiltin {
         name: "cosh",
+        arity: 1,
         eval: f64::cosh,
         derivative: derivative_cosh,
         latex: LatexStyle::Named("\\cosh"),
     },
     MathBuiltin {
         name: "tanh",
+        arity: 1,
         eval: f64::tanh,
         derivative: derivative_tanh,
         latex: LatexStyle::Named("\\tanh"),
     },
     MathBuiltin {
         name: "exp",
+        arity: 1,
         eval: f64::exp,
         derivative: derivative_exp,
         latex: LatexStyle::Exp,
     },
     MathBuiltin {
         name: "ln",
+        arity: 1,
         eval: f64::ln,
         derivative: derivative_ln,
         latex: LatexStyle::Named("\\ln"),
     },
     MathBuiltin {
         name: "log10",
+        arity: 1,
         eval: f64::log10,
         derivative: derivative_log10,
         latex: LatexStyle::LogBase(10),
     },
     MathBuiltin {
         name: "log2",
+        arity: 1,
         eval: f64::log2,
         derivative: derivative_log2,
         latex: LatexStyle::LogBase(2),
     },
     MathBuiltin {
         name: "sqrt",
+        arity: 1,
         eval: f64::sqrt,
         derivative: derivative_sqrt,
         latex: LatexStyle::Sqrt,
     },
     MathBuiltin {
         name: "cbrt",
+        arity: 1,
         eval: f64::cbrt,
         derivative: derivative_cbrt,
         latex: LatexStyle::NthRoot(3),
     },
     MathBuiltin {
         name: "abs",
+        arity: 1,
         eval: f64::abs,
         derivative: derivative_abs,
         latex: LatexStyle::Abs,
@@ -261,6 +281,7 @@ const MATH_FUNCTIONS: &[MathBuiltin] = &[
         // sign(u) = u/|u|(u≠0);u=0 处显式 NaN(该点符号意义上的值未定义).
         // 符号求导(d|x|/dx 等)输出 sign 语义而不是 |u|/u 的 0/0 写法.
         name: "sign",
+        arity: 1,
         eval: |value: f64| {
             if value > 0.0 {
                 1.0
@@ -275,8 +296,31 @@ const MATH_FUNCTIONS: &[MathBuiltin] = &[
     },
 ];
 
-pub(crate) fn is_supported_function(name: &str) -> bool {
-    MATH_FUNCTIONS.iter().any(|builtin| builtin.name == name)
+/// 返回基础函数的元数(参数个数);不是基础函数时返回 `None`.
+///
+/// 元数只在 `MATH_FUNCTIONS` 登记一处,由 `validate_supported` 统一校验;
+/// 别名函数(pow/sec/log/deg...)的元数在 `ALIASES` 的展开函数里检查.
+pub(crate) fn function_arity(name: &str) -> Option<u8> {
+    MATH_FUNCTIONS
+        .iter()
+        .find(|builtin| builtin.name == name)
+        .map(|builtin| builtin.arity)
+}
+
+/// 校验基础函数调用的元数;函数名或参数个数不对时返回可读错误.
+///
+/// 这是元数校验的单事实来源(202609 审查 P2.1):归一化,符号求导,LaTeX
+/// 与数值求值都从这里取结论,不再各自写一套检查.
+pub(crate) fn check_function_arity(name: &str, arg_count: usize) -> Result<(), String> {
+    match function_arity(name) {
+        Some(arity) if arity as usize == arg_count => Ok(()),
+        Some(arity) => Err(format!(
+            "函数 {name} 只接受 {arity} 个参数,当前收到 {arg_count} 个"
+        )),
+        None => Err(format!(
+            "表达式暂不支持函数 {name},无法交给 Rust/WASM 数值求值"
+        )),
+    }
 }
 
 /// 应用一元内置函数;函数不存在时返回 `Err`.
@@ -390,10 +434,6 @@ fn find_constant(name: &str) -> Option<&'static ConstantBuiltin> {
     CONSTANTS.iter().find(|constant| constant.name == name)
 }
 
-pub(crate) fn is_known_constant(name: &str) -> bool {
-    find_constant(name).is_some()
-}
-
 /// 归一化阶段折叠为数值的常量(`pi`/`PI`/`e`/`E`).
 pub(crate) fn foldable_constant_value(name: &str) -> Option<f64> {
     match find_constant(name) {
@@ -408,6 +448,14 @@ pub(crate) fn constant_value(name: &str) -> Option<f64> {
     find_constant(name).and_then(|constant| constant.value)
 }
 
+/// 纯保留字:在常量表里但没有数值(`i`/`true`/`false`/`null`).
+///
+/// 与 [`constant_value`] 互补,两者一起覆盖整张常量表;调用方用它们判断
+/// "这个名字是不是已被表吸收",而不是"求值时能不能算出来".
+pub(crate) fn is_reserved_word(name: &str) -> bool {
+    find_constant(name).is_some_and(|constant| constant.value.is_none())
+}
+
 /// 常量在 LaTeX 里的展示;不是展示型常量时返回 `None`.
 pub(crate) fn constant_latex(name: &str) -> Option<&'static str> {
     find_constant(name).and_then(|constant| constant.latex)
@@ -417,11 +465,11 @@ pub(crate) fn constant_latex(name: &str) -> Option<&'static str> {
 /// 展示规则无法从展开后的基础函数派生,因此单独登记).
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum AliasLatexKind {
-    /// `pow(a, b)` → `a^{b}`.
+    /// `pow(a, b)` -> `a^{b}`.
     SuperscriptPower,
-    /// `deg(x)` → `x^{\circ}`.
+    /// `deg(x)` -> `x^{\circ}`.
     Degree,
-    /// `log(x)` → `\ln(x)`.
+    /// `log(x)` -> `\ln(x)`.
     NaturalLog,
 }
 
@@ -515,10 +563,6 @@ const ALIASES: &[AliasBuiltin] = &[
 
 fn find_alias(name: &str) -> Option<&'static AliasBuiltin> {
     ALIASES.iter().find(|alias| alias.name == name)
-}
-
-pub(crate) fn is_alias_name(name: &str) -> bool {
-    find_alias(name).is_some()
 }
 
 /// 展开别名;`None` 表示该名字不是别名,调用方保持原样.

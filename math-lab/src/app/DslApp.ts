@@ -22,6 +22,7 @@ import { RenderController } from './RenderController';
 import { ParamPanelController } from '../ui/ParamPanelController';
 import { DiagnosticsController } from '../ui/DiagnosticsController';
 import { EditorLineNumbers } from '../ui/EditorLineNumbers';
+import { FormulaCopyController } from '../ui/FormulaCopyController';
 import { ObjectListController } from '../ui/ObjectListController';
 import { PanelController } from '../ui/PanelController';
 
@@ -33,6 +34,7 @@ export class DslApp {
     private readonly paramPanelController: ParamPanelController;
     private readonly diagnosticsController: DiagnosticsController;
     private readonly objectListController: ObjectListController;
+    private readonly formulaCopyController: FormulaCopyController;
 
     private readonly editor: HTMLTextAreaElement;
     private readonly runButton: HTMLButtonElement;
@@ -65,6 +67,7 @@ export class DslApp {
         const analysisList = document.getElementById('analysis-object-list')!;
         const integralList = document.getElementById('integral-object-list')!;
         const intersectionList = document.getElementById('intersection-object-list')!;
+        const formulaCopyHint = document.getElementById('formula-copy-hint')!;
 
         this.editor = document.getElementById('dsl-editor') as HTMLTextAreaElement;
         this.runButton = document.getElementById('run-btn') as HTMLButtonElement;
@@ -86,6 +89,7 @@ export class DslApp {
             paramsPanel,
             (name) => this._scheduleRefresh(name),
         );
+        this.formulaCopyController = new FormulaCopyController(formulaCopyHint);
         this.renderController = new RenderController(
             viewport,
             this.store,
@@ -101,6 +105,7 @@ export class DslApp {
 
         this.panelController = new PanelController();
         this.panelController.bind(document.getElementById('app')!);
+        this.formulaCopyController.bind(document.getElementById('app')!);
 
         this.keyboardController = new KeyboardController(this.editor, {
             onHome: () => this.renderController.resetHome(),
@@ -133,6 +138,7 @@ export class DslApp {
         this.paramPanelController.dispose();
         this.diagnosticsController.dispose();
         this.objectListController.dispose();
+        this.formulaCopyController.dispose();
     }
 
     async run(): Promise<void> {

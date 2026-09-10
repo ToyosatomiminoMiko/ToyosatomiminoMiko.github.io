@@ -190,7 +190,8 @@ mod tests {
 
     #[test]
     fn negative_base_rational_power_and_cbrt_evaluate_to_real_values() {
-        // P2.2:负底 + 奇数分母有理指数给出实值,不再是静默 NaN.
+        // 202609 审查 SYM-P1.1 条目来源:负底 + 奇数分母有理指数给出实值,
+        // 不再是静默 NaN(归一化串必须能 round-trip 才守得住这条).
         let mut evaluator = CompiledEvaluator::new("pow(x, 1 / 3)", &[], &[]).unwrap();
         let value = evaluator.eval_1d(-8.0).unwrap().unwrap();
         assert!((value - -2.0).abs() < 1e-12, "(-8)^(1/3) = {value}");
@@ -206,7 +207,8 @@ mod tests {
 
     #[test]
     fn sign_is_explicit_nan_at_zero_not_ieee_accident() {
-        // P2.1:sign(u) = u/|u|;0 处显式 NaN(而非 0/0 的 IEEE 撞大运).
+        // 202609 审查 SYM-P1.1 条目来源:sign(u) = u/|u|;0 处显式 NaN
+        // (而非 0/0 的 IEEE 撞大运).
         let mut evaluator = CompiledEvaluator::new("sign(x)", &[], &[]).unwrap();
         assert_eq!(evaluator.eval_1d(2.0).unwrap(), Some(1.0));
         assert_eq!(evaluator.eval_1d(-2.0).unwrap(), Some(-1.0));

@@ -37,7 +37,8 @@ const INTEGRAL_METHOD_LABELS: Record<IntegralTask['method'], string> = {
     'riemann:mid': '黎曼和(中点)',
     // 数值上它是"按值域分层数格子"的分层黎曼和,只收敛到(而不是等于)
     // 勒贝格积分;UI 里如实标注"层-测度近似",避免学生误以为这是
-    // 测度论意义下的勒贝格积分(见 prompt/review_report.md P2.4).
+    // 测度论意义下的勒贝格积分.这是**命名语义**,不是待修复缺陷:
+    // 符号引擎 202609 审查报告里没有对应条目,不要再往它上面挂编号.
     lebesgue: '层-测度近似',
 };
 
@@ -458,7 +459,7 @@ export class ObjectListController {
         const result = createElement(
             'code',
             task.enabled ? 'eval-result is-pending' : 'eval-result is-disabled',
-            task.enabled ? '计算中…' : '已隐藏,不参与计算',
+            task.enabled ? '计算中...' : '已隐藏,不参与计算',
         );
         main.append(name, meta, result);
         row.append(button, badge, main);
@@ -523,7 +524,7 @@ export class ObjectListController {
         const result = createElement(
             'code',
             task.enabled ? 'eval-result is-pending' : 'eval-result is-disabled',
-            task.enabled ? '计算中…' : '已隐藏,不参与计算',
+            task.enabled ? '计算中...' : '已隐藏,不参与计算',
         );
         main.append(name, result);
         row.append(button, badge, main);

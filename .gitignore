@@ -6,3 +6,4 @@ dist/
 .vscode
 /prompt
 __pycache__/
+.scratch-p34/

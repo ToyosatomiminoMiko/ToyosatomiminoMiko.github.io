@@ -41,5 +41,8 @@ export function createFormulaElement(
 
     const element = template.cloneNode(true) as HTMLElement;
     if (className) element.className = className;
+    // 原始 TeX 挂在 data-tex 上:FormulaCopyController 直接读这个属性,
+    // 不必反解 KaTeX 生成的 MathML annotation,模板缓存也能继续复用.
+    element.dataset.tex = latex;
     return element;
 }

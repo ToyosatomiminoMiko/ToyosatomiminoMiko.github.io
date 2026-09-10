@@ -5,12 +5,26 @@
 //! 迁到 Rust/WASM,使 TS 编译层和数值层不再依赖外部 JS 数学库.
 //!
 //! 按阶段拆成子模块,避免单一超长文件:
-//! - `parser`    - 词法/Pratt 语法分析,别名归一化,函数支持校验;
+//! - `parser`    - 词法/Pratt 语法分析,别名归一化,函数支持与元数校验;
 //! - `eval`      - 已编译表达式的数值解释器与实数幂语义(`real_pow`);
-//! - `printing`  - 文本打印(归一化字符串 / `Display`);
+//! - `printing`  - 文本打印(归一化字符串 / `Display`,数字 round-trip);
 //! - `latex`     - UI 公式的 LaTeX 排版(仅展示用,不参与数值路径);
 //! - `simplify`  - 常量求值(matrix 条目)与代数化简;
 //! - `derivative`- 符号求导(链式法则 + simplify).
+//!
+//! 行为契约(WASM 边界):
+//! - 所有入口**不 panic**:错误一律以 `Err(String)` 返回(编码规范第 5 条),
+//!   wasm 上 panic 会走 abort,异常不会滚回影子栈指针;
+//! - `normalize_expression` 的产物是**可执行字符串**(数字必须 round-trip,
+//!   见 `printing.rs` 头契约),它会被 TS 侧 `evaluate_scalar` 重新解析;
+//! - 元数/未知函数在 `parser::validate_supported` 一处校验,四个入口
+//!   (normalize/derivative/latex/eval)结论一致(202609 审查 SYM-P2.1);
+//! - `matrix4_from_expr` 是**结构参数**入口,非有限条目直接报错(SYM-P2.2),
+//!   不套用采样层的"非有限=掩码"语义.
+//!
+//! 202609 审查修复锚点在本仓库内统一写成 `SYM-x.y`;旧注释里的裸 `P1.x`/
+//! `P2.x`/`P3` 与本次报告编号语义不同,迁移对照见
+//! `prompt/review_report.md` 的"历史锚点对照"一节.
 
 mod derivative;
 mod eval;
@@ -79,10 +93,15 @@ impl BinOp {
     }
 }
 
+/// 自由变量提取时应当跳过的名字.
+///
+/// 契约(202609 审查 SYM-P3.2):**被常量表吸收的名字**才排除(`pi`/`PI`/`e`/
+/// `E`/`Infinity`/`NaN` 有值,`i`/`true`/`false`/`null` 是保留字);函数名/
+/// 别名名(`sin`/`deg`/...)算自由符号报出--否则 `symbolic_variables("sin")`
+/// 返回空表,调用方以为"没有自由变量",求值却报"变量 'sin' 未定义",
+/// 前后矛盾.提取结果只服务于"有哪些自由符号需要声明",不作数值保证.
 fn builtin_symbol(name: &str) -> bool {
-    builtins::is_supported_function(name)
-        || builtins::is_alias_name(name)
-        || builtins::is_known_constant(name)
+    builtins::constant_value(name).is_some() || builtins::is_reserved_word(name)
 }
 
 fn collect_symbols(expr: &Expr, out: &mut Vec<String>) {
@@ -144,6 +163,10 @@ fn expr_list_json(expr: &Expr) -> Result<String, String> {
 // WASM 入口
 // ============================================================
 
+/// 归一化为**可执行字符串**:解析 -> 别名重写 -> 元数/函数校验 -> 打印.
+///
+/// 输出契约:数字 round-trip 精确(见 `printing.rs` 文件头),
+/// TS 侧 `evaluate_scalar` 会把它重新解析成数值路径的输入.
 pub fn normalize_expression(expr: &str) -> Result<String, String> {
     let parsed = parse_expr(expr)?;
     let rewritten = rewrite_aliases(&parsed)?;
@@ -151,6 +174,10 @@ pub fn normalize_expression(expr: &str) -> Result<String, String> {
     Ok(rewritten.to_string())
 }
 
+/// 对 `expr` 求 `d/d(variable)`,返回归一化后的文本表达式.
+///
+/// 别名先展开,再走元数校验;结果是实数语义下的符号导数(`|x|` 用
+/// `sign(x)` 表达,见 `builtins.rs`),不做多项式正规化(见 `simplify.rs`).
 pub fn symbolic_derivative(expr: &str, variable: &str) -> Result<String, String> {
     if variable.trim().is_empty() {
         return Err("求导变量不能为空".to_string());
@@ -160,6 +187,14 @@ pub fn symbolic_derivative(expr: &str, variable: &str) -> Result<String, String>
     Ok(result.to_string())
 }
 
+/// 列出表达式里的自由符号(排序去重),供调用方做"参数是否已声明"的校验.
+///
+/// 行为契约(202609 审查 SYM-P3.2):
+/// - 已折叠/登记的常量不算自由符号(`pi`/`PI`/`e`/`E`/`Infinity`/`NaN`,
+///   以及保留字 `i`/`true`/`false`/`null`);
+/// - **函数名与别名名算自由符号**:`sin`(不带括号)求值时是"未定义变量",
+///   这里必须报出来,不能让调用方以为"没有自由变量";
+/// - `exclude` 里的名字额外剔除;结果只回答"有哪些自由符号",不保证可求值.
 pub fn symbolic_variables(expr: &str, exclude: &[String]) -> Result<Vec<String>, String> {
     let parsed = parse_expr(expr)?;
     let rewritten = rewrite_aliases(&parsed)?;
@@ -179,12 +214,25 @@ pub fn symbolic_variables(expr: &str, exclude: &[String]) -> Result<Vec<String>,
     Ok(result)
 }
 
+/// 把数组字面量转成 JSON 字符串(嵌套数组保留结构,叶子是表达式文本).
+///
+/// 元素只做别名重写与打印,不求值:变量名原样保留,供上层按名绑定.
+///
+/// 刻意**不做**元数/函数校验(与 `normalize_expression` 的分工不同):
+/// 本入口服务于 point/vector 这类结构字面量,其中未知符号是合法坐标参数;
+/// 需要数值求值的分量在进入这里之前已经各自走过 `normalize_expression`.
 pub fn parse_array_strings(expr: &str) -> Result<String, String> {
     let parsed = parse_expr(expr)?;
     let rewritten = rewrite_aliases(&parsed)?;
     expr_list_json(&rewritten)
 }
 
+/// 从 `[[...]]` 或 `matrix([[...]])` 字面量取出 4x4 矩阵的 16 个数值条目
+/// (行主序).
+///
+/// 行为契约(202609 审查 SYM-P2.2):矩阵是**结构参数**,不是采样值,不存在
+/// "非有限 = 掩码"的语义;条目必须是常量表达式且结果有限,`1/0` / `0/0`
+/// 一律报错并带上行列下标,绝不放 inf/NaN 进渲染/积分链.
 pub fn matrix4_from_expr(expr: &str) -> Result<Vec<f64>, String> {
     let parsed = parse_expr(expr)?;
     let rewritten = rewrite_aliases(&parsed)?;
@@ -202,11 +250,23 @@ pub fn matrix4_from_expr(expr: &str) -> Result<Vec<f64>, String> {
     }
 
     let mut out = Vec::with_capacity(16);
-    for row in rows {
+    for (row_index, row) in rows.iter().enumerate() {
         match row {
             Expr::List(items) if items.len() == 4 => {
-                for item in items {
-                    out.push(evaluate_constant(&item)?);
+                for (column_index, item) in items.iter().enumerate() {
+                    let value = evaluate_constant(item)?;
+                    // 202609 审查 SYM-P2.2:矩阵是**结构参数**,不是采样值,没有
+                    // "非有限 = 掩码"的语义.`1/0` / `0/0` 这类条目过去会静默
+                    // 产出 inf/NaN 并污染整条变换链,这里按编码规范
+                    // "非有限输入要有明确语义"直接报错并带上行列下标.
+                    if !value.is_finite() {
+                        return Err(format!(
+                            "矩阵第 {} 行第 {} 列不是有限数值: {item}",
+                            row_index + 1,
+                            column_index + 1
+                        ));
+                    }
+                    out.push(value);
                 }
             }
             _ => return Err("矩阵每一行必须为 4 个元素".to_string()),
@@ -233,9 +293,246 @@ mod tests {
         assert_eq!(normalize_expression("sec(x)").unwrap(), "1 / cos(x)");
         assert_eq!(normalize_expression("cot(x)").unwrap(), "cos(x) / sin(x)");
         assert_eq!(normalize_expression("pi").unwrap(), "3.141592653589793");
+        // deg(180) 的系数是 f64(PI/180),归一化串必须原样回读:
+        // 打印成 0.017453292519943(少 3 位)会让 180*该值 != PI(见
+        // `normalize_evaluate_round_trip_preserves_semantics`).
         assert_eq!(
             normalize_expression("deg(180)").unwrap(),
-            "180 * 0.017453292519943"
+            "180 * 0.017453292519943295"
+        );
+    }
+
+    /// 归一化串 -> 求值 的往返等价(202609 审查 SYM-P1.1).
+    ///
+    /// 这是 SYM-P1.1 真正该守的断言:只测 `real_pow` 会被"归一化把指数吃成 0"
+    /// 这条上游路径绕开.断言的是**语义等价**(归一化后求值 == 直接求值),
+    /// 因此不锁死打印形态,只锁死精度.
+    #[test]
+    fn normalize_evaluate_round_trip_preserves_semantics() {
+        fn evaluate(source: &str, scope: &[(&str, f64)]) -> Result<Option<f64>, String> {
+            let node = compile_runtime_expr(source)?;
+            let variables: std::collections::HashMap<String, f64> = scope
+                .iter()
+                .map(|(name, value)| (name.to_string(), *value))
+                .collect();
+            evaluate_runtime_expr(&node, &variables)
+        }
+
+        fn assert_same(raw: &str, scope: &[(&str, f64)]) {
+            let direct = evaluate(raw, scope);
+            let normalized = normalize_expression(raw).unwrap();
+            let round_trip = evaluate(&normalized, scope);
+            match (direct, round_trip) {
+                (Ok(Some(expected)), Ok(Some(actual))) => {
+                    if expected.is_nan() {
+                        assert!(actual.is_nan(), "{raw}: {normalized} 应为 NaN");
+                    } else {
+                        assert_eq!(
+                            expected, actual,
+                            "{raw} 归一化成 {normalized} 后求值精度不一致"
+                        );
+                    }
+                }
+                (Ok(None), Ok(None)) => {}
+                (Err(_), Err(_)) => {}
+                _ => panic!("{raw} 归一化成 {normalized} 后求值形态不一致"),
+            }
+        }
+
+        // 微小量级不得被打印成 0.
+        assert_same("1e-20", &[]);
+        assert_same("1e-16", &[]);
+        assert_same("4.9e-16", &[]);
+        assert_same("x + 1e-20", &[("x", 1.0)]);
+        assert_same("1e-20 * x", &[("x", 2.0)]);
+        assert_same("1e300", &[]);
+        assert_same("1e15", &[]);
+        assert_same("1e16", &[]);
+        // (-8)^(1e-16) 在归一化后必须仍是"微小非零指数",判无实值(NaN).
+        assert_same("(-8)^(1e-16)", &[]);
+        // deg(180) 的系数必须原样回读,不能被截断.
+        assert_same("deg(180)", &[]);
+        assert!(normalize_expression("(-8)^(1e-16)")
+            .unwrap()
+            .contains("1e-16"));
+    }
+
+    /// 打印器本身的 round-trip 契约:每个字面量归一化后回读必须按位相等.
+    ///
+    /// 这是 SYM-P1.1 的最小复现集:`{:.15}` 会把 4.9e-16 打成 `0`,把 5e-16 打成
+    /// `1e-15`(相对误差约 2 倍),所以 `1e-20` 这类量级必须走 `{:e}`.
+    #[test]
+    fn text_printer_round_trips_extreme_literals() {
+        fn evaluate(source: &str) -> Option<f64> {
+            let node = compile_runtime_expr(source).unwrap();
+            evaluate_runtime_expr(&node, &std::collections::HashMap::new()).unwrap()
+        }
+        for literal in [
+            "1e-20",
+            "1e-16",
+            "4.9e-16",
+            "5e-16",
+            "9.9e-16",
+            "1e-17",
+            "0.1",
+            "0.017453292519943295",
+            "1e15",
+            "1e16",
+            "1e300",
+            "-0.5",
+            "12345678901234567890",
+        ] {
+            let expected: f64 = literal.parse().unwrap();
+            let normalized = normalize_expression(literal).unwrap();
+            assert!(normalized != "0" || expected == 0.0, "{literal} 被打印成 0");
+            assert_eq!(
+                evaluate(&normalized),
+                Some(expected),
+                "{literal} 归一化成 {normalized} 后回读不一致"
+            );
+        }
+    }
+
+    /// 每个基础函数的元数在四个入口上结论一致(202609 审查 SYM-P1.2/SYM-P2.1).
+    #[test]
+    fn function_arity_is_enforced_consistently_across_entry_points() {
+        for source in ["sin(x, y)", "sqrt(x, y)", "sqrt()", "exp()", "abs()"] {
+            assert!(
+                normalize_expression(source).is_err(),
+                "{source} 应在归一化阶段报元数错误"
+            );
+            assert!(
+                symbolic_derivative(source, "x").is_err(),
+                "{source} 应在求导阶段报元数错误"
+            );
+            assert!(
+                latex_expression(source).is_err(),
+                "{source} 应在 LaTeX 阶段报元数错误"
+            );
+            assert!(
+                compile_runtime_expr(source).is_err(),
+                "{source} 应在编译阶段报元数错误"
+            );
+        }
+        // 正常一元调用不受影响.
+        assert_eq!(normalize_expression("sin(x)").unwrap(), "sin(x)");
+        assert_eq!(latex_expression("sin(x)").unwrap(), "\\sin\\left(x\\right)");
+    }
+
+    /// 空参/多参调用只允许返回 Err,绝不允许 panic(编码规范第 5 条).
+    #[test]
+    fn latex_never_panics_on_wrong_arity() {
+        for name in [
+            "sin", "cos", "tan", "asin", "acos", "atan", "sinh", "cosh", "tanh", "exp", "ln",
+            "log10", "log2", "sqrt", "cbrt", "abs", "sign",
+        ] {
+            for call in [format!("{name}()"), format!("{name}(x, y)")] {
+                if let Ok(text) = latex_expression(&call) {
+                    assert!(!text.is_empty(), "{call} 不应产生空 LaTeX");
+                }
+            }
+        }
+        // 别名函数的元数错误本来就在展开阶段报错.
+        assert!(latex_expression("deg(x, y)").is_err());
+        assert!(normalize_expression("pow(x)").is_err());
+    }
+
+    /// LaTeX 双负号必须加括号(202609 审查 SYM-P3.7).
+    #[test]
+    fn latex_parenthesizes_nested_negation() {
+        assert_eq!(latex_expression("--x").unwrap(), "-(-x)");
+        assert_eq!(latex_expression("-(-x)").unwrap(), "-(-x)");
+        assert_eq!(latex_expression("-(a + b)").unwrap(), "-(a + b)");
+        assert_eq!(latex_expression("-x").unwrap(), "-x");
+        assert_eq!(latex_expression("-2x").unwrap(), "-2\\,x");
+    }
+
+    /// 表达式树深预算:左结合长链报错而不是栈溢出(202609 审查 SYM-P1.3).
+    #[test]
+    fn deep_left_associated_chain_is_rejected_not_stack_overflow() {
+        let chain = std::iter::repeat_n("x", 4000)
+            .collect::<Vec<_>>()
+            .join(" + ");
+        let error = normalize_expression(&chain).unwrap_err();
+        assert!(error.contains("过深"), "预算报错应可读: {error}");
+        assert!(symbolic_derivative(&chain, "x").is_err());
+        assert!(symbolic_variables(&chain, &[]).is_err());
+        assert!(latex_expression(&chain).is_err());
+    }
+
+    /// 预算**边界内**的最深树对每个遍历都安全(202609 审查 SYM-P1.3).
+    ///
+    /// 用 `tree_depth - 1` 个 `+` 构造深度恰好等于 `MAX_TREE_DEPTH` 的左倾树:
+    /// 它必须能通过解析,并且归一化/打印/化简/求导/变量提取/`Drop` 全都不炸栈
+    /// (实测阈值见 `parser.rs` 的 `MAX_TREE_DEPTH` 注释;求导最紧).
+    /// 这个用例把"预算值"和"遍历栈开销"绑在一起:调大预算而没测过遍历的人会
+    /// 在这里当场看到失败,而不是线上 abort.
+    #[test]
+    fn deepest_allowed_tree_is_safe_for_every_traversal() {
+        let depth = super::parser::MAX_TREE_DEPTH;
+        let chain = std::iter::repeat_n("x", depth - 1)
+            .collect::<Vec<_>>()
+            .join(" + ");
+        assert_eq!(
+            normalize_expression(&chain).unwrap().matches(" + ").count(),
+            depth - 2
+        );
+        assert!(latex_expression(&chain).is_ok());
+        assert!(symbolic_derivative(&chain, "x").is_ok());
+        assert_eq!(symbolic_variables(&chain, &[]).unwrap(), vec!["x"]);
+    }
+
+    /// 基础函数的元数表是单事实来源(202609 审查 SYM-P2.1).
+    #[test]
+    fn builtin_arity_table_is_wired_up() {
+        assert_eq!(builtins::function_arity("sin"), Some(1));
+        assert_eq!(builtins::function_arity("sqrt"), Some(1));
+        assert_eq!(builtins::function_arity("nope"), None);
+        assert!(builtins::check_function_arity("cos", 1).is_ok());
+        assert!(builtins::check_function_arity("cos", 2).is_err());
+    }
+
+    /// 多字母标识符是单个符号,`1e` 是 1 * e(202609 审查 SYM-P3.1).
+    #[test]
+    fn multi_letter_identifiers_are_single_symbols() {
+        assert_eq!(normalize_expression("2xy").unwrap(), "2 * xy");
+        assert_eq!(normalize_expression("x2").unwrap(), "x2");
+        assert_eq!(normalize_expression("sinx").unwrap(), "sinx");
+        assert_eq!(normalize_expression("x_1").unwrap(), "x_1");
+        assert_eq!(normalize_expression("1e").unwrap(), "1 * 2.718281828459045");
+        assert_eq!(normalize_expression("1.2.3").unwrap(), "1.2 * 0.3");
+        assert_eq!(normalize_expression("1e-20").unwrap(), "1e-20");
+    }
+
+    /// 裸函数名是自由符号,不是被静默吞掉的"内建"(202609 审查 SYM-P3.2).
+    #[test]
+    fn bare_builtin_names_are_reported_as_free_symbols() {
+        // 带数值的常量不是自由变量.
+        assert!(symbolic_variables("pi + e", &[]).unwrap().is_empty());
+        assert!(symbolic_variables("Infinity", &[]).unwrap().is_empty());
+        // 裸函数名/别名名求值时会报"变量未定义",必须报出来.
+        assert_eq!(symbolic_variables("sin", &[]).unwrap(), vec!["sin"]);
+        assert_eq!(symbolic_variables("deg", &[]).unwrap(), vec!["deg"]);
+        // 同名常量仍按常量处理:`i` 是登记过的保留字,不是自由变量.
+        assert!(symbolic_variables("i", &[]).unwrap().is_empty());
+        // 真正的调用仍然只报参数里的自由变量.
+        assert_eq!(symbolic_variables("sin(x)", &[]).unwrap(), vec!["x"]);
+    }
+
+    /// 矩阵是结构参数:非有限条目必须报错(202609 审查 SYM-P2.2).
+    #[test]
+    fn matrix_rejects_non_finite_entries() {
+        let infinite = "[[1/0,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]";
+        let error = matrix4_from_expr(infinite).unwrap_err();
+        assert!(
+            error.contains("第 1 行第 1 列"),
+            "错误信息应带行列下标: {error}"
+        );
+        let nan = "[[0,0,0,0],[0,0/0,0,0],[0,0,1,0],[0,0,0,1]]";
+        let error = matrix4_from_expr(nan).unwrap_err();
+        assert!(
+            error.contains("第 2 行第 2 列"),
+            "错误信息应带行列下标: {error}"
         );
     }
 
@@ -268,7 +565,8 @@ mod tests {
         );
     }
 
-    /// P2.1:|x| 的符号导数输出 sign 语义,而不是 0/0 形态的 |x|/x.
+    /// 202609 审查 SYM-P1.1 系列:|x| 的符号导数输出 sign 语义,而不是
+    /// 0/0 形态的 |x|/x(数值侧 sign(0) 显式 NaN,见 `builtins.rs`).
     #[test]
     fn derivative_of_abs_uses_sign_semantics() {
         assert_eq!(symbolic_derivative("abs(x)", "x").unwrap(), "sign(x)");

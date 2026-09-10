@@ -193,11 +193,31 @@
 }
 
 .object-list-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     padding: 7px 10px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     font-size: 12px;
     color: #8e9fc7;
     background: rgba(20, 24, 40, 0.96);
+}
+
+/* 复制提示:唯一一处"公式可点"文案,复制成功/失败复用同一元素回显. */
+.object-list-hint {
+    font-size: 10px;
+    color: #5f6f96;
+    white-space: nowrap;
+    transition: color 0.2s ease;
+}
+
+.object-list-hint.is-copied {
+    color: #8ee6a5;
+}
+
+.object-list-hint.is-error {
+    color: #ff9aa8;
 }
 
 .object-list-body {
@@ -326,6 +346,15 @@
 .object-expr .katex {
     color: inherit;
     font-size: 1em;
+}
+
+/* 可复制公式:光标与悬停色表达"可点",提示文案不放在这里. */
+.object-expr[data-tex] {
+    cursor: pointer;
+}
+
+.object-expr[data-tex]:hover {
+    color: #dbe4ff;
 }
 
 .eval-result.is-pending {

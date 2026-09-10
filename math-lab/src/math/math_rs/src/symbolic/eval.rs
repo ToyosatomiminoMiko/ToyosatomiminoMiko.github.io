@@ -1,5 +1,12 @@
 //! 运行时数值求值:把编译后的 `Expr` 树按变量上下文逐点解释;
 //! 负底数 + 有理指数的实值幂(`real_pow`)也在这里统一实现.
+//!
+//! 编码注意:
+//! - **元数不在本文件校验**:`compile_runtime_expr` 的 `validate_supported`
+//!   已经保证每个 `Call` 的元数正确(`builtins::check_function_arity`,
+//!   单事实来源,202609 审查 SYM-P2.1),解释器按一元函数直接取 `values[0]`;
+//! - 非有限结果返回 `Ok(None)`(掩码语义),不是 `Err`;见 `eval_core.rs`
+//!   文件头契约.
 
 use std::collections::HashMap;
 
@@ -25,7 +32,8 @@ fn finite_value(value: f64) -> Option<f64> {
 /// 实数幂语义:负底数的非整数次幂只在指数是"约分后分母为奇数"的有理数
 /// m/n 时有实值((−x)^(m/n) = (−1)^m·|x|^(m/n));否则返回 NaN.
 /// 避免 `(-8)^(1/3)` 之类数学上可定义的实值运算被 `powf` 一律给 NaN
-/// (见 prompt/review_report.md P2.2).正底/整数指数仍直接走 `powf`.
+/// (见 prompt/review_report.md SYM-P1.1 的字符串往返教训与 `eval_core.rs`
+/// 的回归用例).正底/整数指数仍直接走 `powf`.
 ///
 /// 编码注意:`odd_denominator_rational` 是"容差内最接近奇分母有理数"的
 /// 识别器,不是精确判定;因此微小但非零的指数(如 1e-9)若被归约为 0/1
@@ -57,10 +65,28 @@ fn gcd(mut a: u64, mut b: u64) -> u64 {
     a
 }
 
+/// 识别指数所用分母上限(奇数扫描的终点,`(1..=MAX_ODD_DEN).step_by(2)`).
+const MAX_ODD_DEN: u64 = 1023;
+/// 容差:相对尺度上的 1e-9(见 [`odd_denominator_rational`]).
+const ODD_RATIONAL_REL_TOL: f64 = 1e-9;
+/// 先按"简单分母"扫描的终点:指数写成 1/3,2/3,1/5 这类常见有理数时,
+/// 命中都在这个范围内,不需要跑到 1023.
+const SIMPLE_ODD_DEN: u64 = 33;
+
 /// 把指数识别为约分后分母为奇数的有理数 `m/n`.
 ///
 /// 只在 |exp − m/n| 足够小(相对 1e-9)时判定成立,避免把任意浮点小数
 /// 误认成"奇数分母有理数"(如 0.5 不应命中任何奇数分母).
+///
+/// 成本与加速(202609 审查 SYM-P3.4):
+/// - 返回 `None` 的分支必须扫满,是热点(曲面网格十万点时是 5e7 次量级);
+/// - 两段扫描:先在 `n <= SIMPLE_ODD_DEN` 里找(覆盖全部常见有理指数),
+///   未命中再扫到 [`MAX_ODD_DEN`].判定顺序与阈值不变,所以**结果与原单段
+///   扫描逐位一致**(用 20 万随机指数 + 边界值对拍验证过);
+/// - 前置量级判断:`|x| <= 1/(2*MAX_ODD_DEN)` 时任何 `n` 都只能让
+///   `x*n` 舍入到 0(m==0 分支必被跳过),直接判无实值.这既省掉整段扫描,
+///   也顺手挡掉了「x 很小而 n 很大时 `x*n` 仍有限,但 `round()` 已丢光精度」
+///   的极端输入.
 fn odd_denominator_rational(x: f64) -> Option<(i64, u64)> {
     if !x.is_finite() {
         return None;
@@ -68,28 +94,35 @@ fn odd_denominator_rational(x: f64) -> Option<(i64, u64)> {
     if x == 0.0 {
         return Some((0, 1));
     }
-    let scale = x.abs().max(1.0);
-    for n in (1u64..=1023).step_by(2) {
-        let m = (x * n as f64).round();
-        if !m.is_finite() {
-            continue;
-        }
-        // m==0 意味着 x ≈ 0/1:微小但非零的指数并不等于 0,(−x)^ε 沿奇分母
-        // 有理数逼近 0 的极限不存在,应判无实值;x==0 已在函数开头返回.
-        // 若在这里放行,(-8)^(1e-9) 会被归约为指数 0 而错误返回 ≈1.
-        if m == 0.0 {
-            continue;
-        }
-        if (x - m / n as f64).abs() > 1e-9 * scale {
-            continue;
-        }
-        let g = gcd(m.abs() as u64, n);
-        let reduced_den = n / g;
-        if reduced_den % 2 == 1 {
-            return Some((m as i64 / g as i64, reduced_den));
-        }
+    let magnitude = x.abs();
+    if magnitude <= 1.0 / (2.0 * MAX_ODD_DEN as f64) {
+        return None;
     }
-    None
+    // 容差随量级缩放:常量指数(|x|<=1)用绝对 1e-9,更大的指数按相对比.
+    let tolerance = ODD_RATIONAL_REL_TOL * magnitude.max(1.0);
+
+    let scan = |max_odd_den: u64| -> Option<(i64, u64)> {
+        for n in (1u64..=max_odd_den).step_by(2) {
+            let m = (x * n as f64).round();
+            // m==0 意味着 x ≈ 0/1:微小但非零的指数并不等于 0,(−x)^ε 沿奇分母
+            // 有理数逼近 0 的极限不存在,应判无实值;x==0 已在函数开头返回.
+            // 若在这里放行,(-8)^(1e-9) 会被归约为指数 0 而错误返回 ≈1.
+            if m == 0.0 {
+                continue;
+            }
+            if (x - m / n as f64).abs() > tolerance {
+                continue;
+            }
+            let g = gcd(m.abs() as u64, n);
+            let reduced_den = n / g;
+            if reduced_den % 2 == 1 {
+                return Some((m as i64 / g as i64, reduced_den));
+            }
+        }
+        None
+    };
+
+    scan(SIMPLE_ODD_DEN).or_else(|| scan(MAX_ODD_DEN))
 }
 
 fn evaluate_expr_inner(
@@ -137,10 +170,13 @@ fn evaluate_expr_inner(
                 };
                 values.push(value);
             }
-            if args.len() != 1 {
-                return Err(format!("函数 {name} 只接受 1 个参数"));
-            }
-            let value = builtins::apply_unary(name, values[0])?;
+            // 元数由 `compile_runtime_expr -> validate_supported` 保证为 1
+            // (单事实来源,202609 审查 SYM-P2.1);取值仍用 `first()` 而不是索引,
+            // 保证任何构造路径下解释器都不会越界 panic(编码规范第 5 条).
+            let Some(value) = values.first().copied() else {
+                return Err(format!("函数 {name} 只接受 1 个参数,当前收到 0 个"));
+            };
+            let value = builtins::apply_unary(name, value)?;
             Ok(finite_value(value))
         }
         Expr::List(_) => Err("不能直接对数组表达式求值".to_string()),
@@ -155,7 +191,7 @@ pub(crate) fn evaluate_runtime_expr(
 }
 
 // ============================================================
-// 字符串输出
+// 回归测试
 // ============================================================
 
 #[cfg(test)]
@@ -184,7 +220,7 @@ mod tests {
 
     #[test]
     fn tiny_nonzero_exponents_are_not_rounded_to_zero() {
-        // P3 回归:微小但非零的指数不得被归约为 0/1 而返回 ≈1;
+        // 202609 审查 SYM-P1.1 回归:微小但非零的指数不得被归约为 0/1 而返回 ≈1;
         // 1e-9 = 1/10^9 约分后分母为偶,按实数语义应无实值.
         assert!(
             real_pow(-8.0, 1e-9).is_nan(),
