@@ -214,7 +214,23 @@ export class SurfaceMesh {
             (currentIndex.array as Uint32Array).set(validIndices);
             currentIndex.needsUpdate = true;
         } else {
-            this.geometry.setIndex(new THREE.BufferAttribute(validIndices, 1));
+            // 索引长度变化时必须换一个新的 BufferAttribute(three 不支持属性缓冲区
+            // 扩容),但新属性的 version 要接续上一份索引,不能停在默认的 0.
+            //
+            // 原因:three.js 的线框索引缓存(WebGLGeometries.getWireframeAttribute)
+            // 只在 `缓存 version < geometry.index.version` 时才重建.构造器里的空
+            // 占位索引(Uint32Array(0))是 version 0,首帧渲染会基于它缓存一份空的
+            // 线框索引;若这里替换进来的真实索引也是 version 0,缓存就被判为
+            // "未过期",线框一直绑在空索引上 -- 表现就是首次运行看不到曲面网格,
+            // 必须再点一次运行(第二次走上面的复用分支,needsUpdate 把 version
+            // 抬到 1)网格才出现.同理,后续任何"索引长度变化"的更新若把 version
+            // 退回 0,也会与已有线框缓存(version >= 1)撞车而留下过期线框.
+            //
+            // 曲面主体不受影响:WebGLBindingStates 按属性对象身份而非 version
+            // 判断索引是否变化.
+            const indexAttr = new THREE.BufferAttribute(validIndices, 1);
+            indexAttr.version = (currentIndex?.version ?? 0) + 1;
+            this.geometry.setIndex(indexAttr);
         }
 
     }
