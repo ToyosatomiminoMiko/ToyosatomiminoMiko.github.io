@@ -27,6 +27,20 @@ export interface ParamDeclaration {
  */
 export type Coefficient = ParamDeclaration;
 
+/**
+ * 求导来源:只有 `derivative` 语句生成的 curve/surface 才携带.
+ *
+ * 存在意义:产物在数值/渲染上与手写对象完全同构,但公式展示要保留微分算子,
+ * 且括号里放**源函数**(数学上是 d/dx(f),不是"对导函数再求一次导").
+ * 渲染/求值路径不读这个字段,它只服务于 sceneObjectLatex 的公式拼装.
+ */
+export interface DerivativeOrigin {
+    /** 被求导的源表达式(未求导的归一化结果). */
+    sourceExpr: string;
+    /** 求导变量:curve 恒为 x,surface 为 x 或 y. */
+    variable: 'x' | 'y';
+}
+
 /** 曲线对象:y = f(x),渲染在 z=0 平面. */
 export interface CurveObject {
     kind: 'curve';
@@ -39,6 +53,8 @@ export interface CurveObject {
     enabled: boolean;
     range?: [number, number];
     segments?: number;
+    /** 该 curve 由 `derivative` 生成时给出源函数与求导变量. */
+    derivativeOrigin?: DerivativeOrigin;
 }
 
 /** 曲面对象:z = f(x, y). */
@@ -53,6 +69,8 @@ export interface SurfaceObject {
     enabled: boolean;
     range: [number, number, number, number];
     segments?: number;
+    /** 该 surface 由 `derivative` 生成时给出源函数与求导变量. */
+    derivativeOrigin?: DerivativeOrigin;
 }
 
 /** 向量场对象:F(x, y, z) = [P, Q, R]. */

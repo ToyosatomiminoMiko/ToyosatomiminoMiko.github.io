@@ -1,5 +1,5 @@
 /**
- * 对象物化:blueprint + 参数值 → IR SceneObject.
+ * 对象物化:blueprint + 参数值 -> IR SceneObject.
  *
  * 声明期工作(buildObjectBlueprint,见 ./build.ts)已完成表达式归一化与
  * 选项/自由系数解析;本文件只在每次参数刷新时做数值求值:建参数 scope,
@@ -31,7 +31,7 @@ import type { ObjectBlueprint } from './types';
  * 202609 review 结论(第 3 项):point 坐标,vector 起点/方向,sphere/box/conic
  * 中心与 box 尺寸此前各写一遍 `exprs.map(expr => evaluateRequiredNumber(...))
  * as [number, number, number]`,共 7 处;收口后求值方式只有这一份,
- * 报错文案仍由调用方按对象与量纲(context)给出.单值(radius/base/height…)
+ * 报错文案仍由调用方按对象与量纲(context)给出.单值(radius/base/height...)
  * 求值与每类对象的几何约束(正值/夹逼)是各自的领域语义,不并入本 helper.
  */
 function evaluateRequiredTriple(
@@ -63,6 +63,8 @@ export function materializeObject(
                 enabled: true,
                 range: blueprint.range,
                 segments: blueprint.segments,
+                // 纯展示元数据:只有 derivative 产物有,直接透传给公式层.
+                derivativeOrigin: blueprint.derivativeOrigin,
             } satisfies CurveObject;
         }
 
@@ -77,6 +79,7 @@ export function materializeObject(
                 enabled: true,
                 range: blueprint.range,
                 segments: blueprint.segments,
+                derivativeOrigin: blueprint.derivativeOrigin,
             } satisfies SurfaceObject;
         }
 

@@ -85,10 +85,12 @@ type DerivativeSource = { kind: 'curve' | 'surface'; expr: string };
  *    a. 链式求导按源码顺序处理:`derivative d2 = derivative(d1)` 要求 d1
  *       声明在前;直接引用 curve/surface 源则允许前向引用(见调用处
  *       resolvable 的预填).若希望链式也支持乱序,需改成两阶段解析.
- *    b. 产物没有"导数"特殊标记,在对象列表里是普通 curve/surface(公式如
- *       y=a·cos(a·x));选项只收 color/range/segments,transform/animation
- *       刻意不继承--导数应是独立函数图形,与源对象的平移/动画无关
- *       (允许项见同文件顶部的 DERIVATIVE_OPTION_NAMES).
+ *    b. 产物 kind 与手写 curve/surface 相同(选项只收 color/range/segments,
+ *       transform/animation 刻意不继承--导数应是独立函数图形,与源对象的
+ *       平移/动画无关,允许项见同文件顶部的 DERIVATIVE_OPTION_NAMES);
+ *       唯一例外是 derivativeOrigin 这块展示元数据:公式要写成
+ *       d/dx(源函数) 而不是看不出求导的 y=f(x)(见 dsl/latex.ts),数值与
+ *       渲染路径不读它.
  * ──────────────────────────────────────────────────────────────
  */
 function buildDerivativeObjectBlueprint(
@@ -152,6 +154,15 @@ function buildDerivativeObjectBlueprint(
     const blueprint = buildObjectBlueprint(synthetic, nextId, statementsByName);
     if (!blueprint) {
         throw new Error(`求导 ${statement.name} 无法生成对象`);
+    }
+
+    // 只挂展示元数据:导出的对象本身仍是普通 curve/surface,数值/渲染不变;
+    // 公式层据此写成 d/dx(源函数) 或 ∂/∂y(源函数).
+    if (blueprint.kind === 'curve' || blueprint.kind === 'surface') {
+        blueprint.derivativeOrigin = {
+            sourceExpr: sourceInfo.expr,
+            variable,
+        };
     }
     return blueprint;
 }

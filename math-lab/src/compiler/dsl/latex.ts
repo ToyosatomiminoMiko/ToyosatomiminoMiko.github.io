@@ -3,10 +3,10 @@
  *
  * 只消费 IR 里的纯数据,不碰 DOM/Three.js;每个对象返回一段可直接交给
  * KaTeX 的字符串.表达式本体由 Rust/WASM 的 `latex_expression` 生成,
- * 这里只负责补上对象语义(curve 是 y=…,surface 是 z=…,region 是不等式带,
- * 积分是 ∫/∬/∭…).
+ * 这里只负责补上对象语义(curve 是 y=...,surface 是 z=...,求导对象是
+ * d/dx(源函数) 或 ∂/∂y(源函数),region 是不等式带,积分是 ∫/∬/∭...).
  */
-import type { IntegralTask, SceneObject } from '../ir/types';
+import type { DerivativeOrigin, IntegralTask, SceneObject } from '../ir/types';
 import { cachedLatexExpression } from './expression';
 
 function latexNumber(value: number): string {
@@ -15,10 +15,38 @@ function latexNumber(value: number): string {
 }
 
 /**
+ * 求导算子:curve 用常导 d/dx,surface 用偏导 ∂/∂x 或 ∂/∂y.
+ *
+ * 分母必须带求导变量,否则公式只是无意义的 "d/d";括号里放源函数而不是
+ * 已求出的导函数,使公式读作"对该函数求导",与 derivative 语句语义一致
+ * (见 staticScene.ts 的 buildDerivativeObjectBlueprint).
+ */
+function derivativeOperatorLatex(origin: DerivativeOrigin, partial: boolean): string {
+    // \partial 是控制词,后面必须留空格,否则会被读成 \partialx 这类未定义命令;
+    // \mathrm{d} 自带花括号,直接接变量即可.
+    return partial
+        ? `\\frac{\\partial}{\\partial ${origin.variable}}`
+        : `\\frac{\\mathrm{d}}{\\mathrm{d}${origin.variable}}`;
+}
+
+/** 求导对象的公式:curve 是 y=...,surface 是 z=...;括号里放源函数. */
+function derivativeLatex(
+    target: 'y' | 'z',
+    origin: DerivativeOrigin,
+    partial: boolean,
+): string {
+    return [
+        `${target}=`,
+        derivativeOperatorLatex(origin, partial),
+        `\\left(${cachedLatexExpression(origin.sourceExpr)}\\right)`,
+    ].join('');
+}
+
+/**
  * 实体对象表达式行对应的 LaTeX.
  *
  * 目前只对真正"携带表达式/可展示"的对象生成公式:
- * - curve / surface:标量函数;
+ * - curve / surface:标量函数;若带 derivativeOrigin 则写成微分算子 + 源函数;
  * - vector_field / point / vector:数组/向量;
  * - region:两条边界曲线围成的 x 型带状不等式 + x 区间;
  * - 体积对象(sphere/box/conic)在 IR 中只有数值化后的几何参数,
@@ -33,9 +61,13 @@ export function sceneObjectLatex(
     try {
         switch (object.kind) {
             case 'curve':
-                return `y=${cachedLatexExpression(object.expr)}`;
+                return object.derivativeOrigin
+                    ? derivativeLatex('y', object.derivativeOrigin, false)
+                    : `y=${cachedLatexExpression(object.expr)}`;
             case 'surface':
-                return `z=${cachedLatexExpression(object.expr)}`;
+                return object.derivativeOrigin
+                    ? derivativeLatex('z', object.derivativeOrigin, true)
+                    : `z=${cachedLatexExpression(object.expr)}`;
             case 'vector_field': {
                 const components = object.components
                     .map((component) => cachedLatexExpression(component))

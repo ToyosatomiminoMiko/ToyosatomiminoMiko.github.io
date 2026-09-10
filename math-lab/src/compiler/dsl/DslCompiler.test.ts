@@ -1477,8 +1477,10 @@ describe('derivative 求导语句', () => {
         expect(deriv.range).toEqual([-8, 8]);
         expect(deriv.segments).toBe(128);
         expect(deriv.id).toBe(2);
-        // 进入对象列表公式.
-        expect(scene.objectFormulas[2]).toContain('a * cos(x * a)');
+        // 进入对象列表公式:微分算子 + 源函数(latex mock 原样返回表达式).
+        expect(scene.objectFormulas[2]).toBe(
+            'y=\\frac{\\mathrm{d}}{\\mathrm{d}x}\\left(sin(x * a)\\right)',
+        );
     });
 
     it('compiles a surface derivative with an explicit variable', () => {
@@ -1499,7 +1501,24 @@ describe('derivative 求导语句', () => {
         expect(surface.kind).toBe('surface');
         expect(surface.expr).toBe('cos(y) * cos(x)');
         expect(surface.coefficients).toEqual([]);
-        expect(scene.objectFormulas[2]).toContain('cos(y) * cos(x)');
+        // 曲面偏导用 ∂/∂x,括号里同样是源函数.
+        expect(scene.objectFormulas[2]).toBe(
+            'z=\\frac{\\partial}{\\partial x}\\left(sin(x) * cos(y)\\right)',
+        );
+    });
+
+    it('uses the requested partial variable in the surface derivative formula', () => {
+        const derivAst: AstProgram = {
+            statements: [
+                ast.statements[3], // surface s
+                derivative('dsy', 's', { variable: 'y' }),
+            ],
+        };
+        const scene = compileScene(derivAst);
+
+        expect(scene.objectFormulas[2]).toBe(
+            'z=\\frac{\\partial}{\\partial y}\\left(sin(x) * cos(y)\\right)',
+        );
     });
 
     it('supports chaining to higher-order derivatives (d²f)', () => {

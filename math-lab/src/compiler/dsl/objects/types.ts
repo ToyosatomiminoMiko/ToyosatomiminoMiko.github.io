@@ -6,6 +6,8 @@
  * 把 blueprint 求值成 ir/types.ts 的 SceneObject.静态场景/构建/物化三处
  * 都只经由这里共享类型与 type guard.
  */
+import type { DerivativeOrigin } from '../../ir/types';
+
 export type CurveBlueprint = {
     name: string;
     id: number;
@@ -15,6 +17,8 @@ export type CurveBlueprint = {
     color: string;
     range?: [number, number];
     segments?: number;
+    /** 求导产物专用:见 ir/types.ts 的 DerivativeOrigin. */
+    derivativeOrigin?: DerivativeOrigin;
 };
 
 export type SurfaceBlueprint = {
@@ -26,6 +30,8 @@ export type SurfaceBlueprint = {
     color: string;
     range: [number, number, number, number];
     segments?: number;
+    /** 求导产物专用:见 ir/types.ts 的 DerivativeOrigin. */
+    derivativeOrigin?: DerivativeOrigin;
 };
 
 export type VectorFieldBlueprint = {
