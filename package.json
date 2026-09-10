@@ -21,6 +21,7 @@
   "scripts": {
     "dev": "vite",
     "clean": "node -e 'const fs = require(\"node:fs\"); for (const p of [\"dist\", \"math-lab/src/wasm\"]) fs.rmSync(p, { recursive: true, force: true });'",
+    "prepare": "node -e \"try{require('node:child_process').execSync('git config --local core.hooksPath .githooks',{stdio:'ignore'})}catch{}\"",
     "build:wasm:math": "cd math-lab/src/math/math_rs && wasm-pack build --release --target web --out-dir ../../wasm/math_rs",
     "build:wasm:compiler": "cd math-lab/src/compiler/compiler_rs && wasm-pack build --release --target web --out-dir ../../wasm/compiler_rs",
     "build:wasm:render": "cd math-lab/src/render/render_rs && wasm-pack build --release --target web --out-dir ../../wasm/render_rs",
