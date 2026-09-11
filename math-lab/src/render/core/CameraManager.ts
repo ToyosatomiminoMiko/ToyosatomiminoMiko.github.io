@@ -70,6 +70,13 @@ export class CameraManager {
     /** 当前"正方向朝上"的轴. */
     private upAxis: UpAxis;
     private readonly upVector = new THREE.Vector3();
+    /**
+     * 记住旋转锁定状态并回填到 OrbitControls.
+     *
+     * 锁定开关的初始状态可能早于 OrbitControls 创建(或切换向上轴时重建),
+     * 只写一次 `controls.enableRotate` 会与锁定态脱钩.
+     */
+    private rotationLocked = false;
 
     constructor(container: HTMLElement) {
         this.container = container;
@@ -111,13 +118,26 @@ export class CameraManager {
         if (this.controls) {
             this.controls.object = this.activeCamera;
             this.controls.target.set(...RENDER_CONFIG.camera.initViewTarget as [number, number, number]);
+            this.controls.enableRotate = !this.rotationLocked;
             this.controls.update();
         }
     }
 
+    /**
+     * 切换透视/正交投影.
+     *
+     * 只替换 activeCamera 并同步新相机的视锥/aspect:两台相机各自持有
+     * position/quaternion,这里把当前视角原样带过去,也不动 `controls.target`,
+     * 因此旋转/平移后的观察姿态不会被拉回预置机位.
+     *
+     * 重新取景只属于 `setView` / `setUpAxis`(它们是"换机位"语义).
+     * 正交 zoom 同样保留:它是用户在当前投影下的缩放状态,和保留下来的
+     * 机位一起才自洽,不应在往返切换后被清掉.
+     */
     setCameraMode(mode: CamMode): void {
+        if (mode === this.mode) return;
         this.mode = mode;
-        this._applyView();
+        this._activateCamera();
     }
 
     setView(home: ViewHome): void {
@@ -145,6 +165,7 @@ export class CameraManager {
     }
 
     setRotationLock(locked: boolean): void {
+        this.rotationLocked = locked;
         if (this.controls) {
             this.controls.enableRotate = !locked;
         }
@@ -152,17 +173,8 @@ export class CameraManager {
 
     updateAspect(width: number, height: number): void {
         this.aspect = width / height;
-        if (this.mode === 'perspective') {
-            this.perspCamera.aspect = this.aspect;
-            this.perspCamera.updateProjectionMatrix();
-        } else {
-            const half = RENDER_CONFIG.camera.frustumSize / 2;
-            this.orthoCamera.left = -half * this.aspect;
-            this.orthoCamera.right = half * this.aspect;
-            this.orthoCamera.top = half;
-            this.orthoCamera.bottom = -half;
-            this.orthoCamera.updateProjectionMatrix();
-        }
+        // 只同步当前激活相机;另一台在投影切换时会被 _activateCamera 同步.
+        this._syncProjection(this.activeCamera);
     }
 
     getCamera(): THREE.Camera {
@@ -178,6 +190,41 @@ export class CameraManager {
         this.detachControls();
     }
 
+    /**
+     * 只切换 activeCamera:把当前相机的姿态原样交给目标相机,再同步投影参数.
+     * 不改变机位,不改变 controls.target.
+     */
+    private _activateCamera(): void {
+        const previous = this.activeCamera;
+        const next = this._cameraFor(this.mode);
+        if (previous !== next) {
+            next.position.copy(previous.position);
+            next.quaternion.copy(previous.quaternion);
+            next.up.copy(previous.up);
+        }
+        this._syncProjection(next);
+        this.activeCamera = next;
+
+        if (this.controls) {
+            this.controls.object = next;
+            this.controls.update();
+        }
+    }
+
+    /** 按当前 aspect 同步一台相机的投影参数(不动 zoom / 机位). */
+    private _syncProjection(camera: THREE.Camera): void {
+        if (camera instanceof THREE.PerspectiveCamera) {
+            camera.aspect = this.aspect;
+        } else if (camera instanceof THREE.OrthographicCamera) {
+            const half = RENDER_CONFIG.camera.frustumSize / 2;
+            camera.left = -half * this.aspect;
+            camera.right = half * this.aspect;
+            camera.top = half;
+            camera.bottom = -half;
+        }
+        (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
+    }
+
     private _applyView(): void {
         const target = new THREE.Vector3(0, 0, 0);
         const pos = this.currentHome === 'isometric'
@@ -190,21 +237,14 @@ export class CameraManager {
             this.perspCamera.up.copy(this.upVector);
             this.perspCamera.position.copy(pos);
             this.perspCamera.lookAt(target);
-            this.perspCamera.aspect = this.aspect;
-            this.perspCamera.updateProjectionMatrix();
             this.activeCamera = this.perspCamera;
         } else {
-            const half = RENDER_CONFIG.camera.frustumSize / 2;
-            this.orthoCamera.left = -half * this.aspect;
-            this.orthoCamera.right = half * this.aspect;
-            this.orthoCamera.top = half;
-            this.orthoCamera.bottom = -half;
             this.orthoCamera.position.copy(pos);
             this.orthoCamera.up.copy(this.upVector);
             this.orthoCamera.lookAt(target);
-            this.orthoCamera.updateProjectionMatrix();
             this.activeCamera = this.orthoCamera;
         }
+        this._syncProjection(this.activeCamera);
 
         if (this.controls) {
             this.controls.object = this.activeCamera;

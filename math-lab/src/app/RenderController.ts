@@ -108,10 +108,8 @@ export class RenderController {
 
     /** 把相机相关 UI 控件挂到 EventBus,保持 DslApp 不直接处理相机细节. */
     wireViewControls(eventBus: EventBus<MathLabEvents>): void {
-        this.cameraToggle = new CameraToggle(eventBus);
-        this.viewCubeController = new ViewCubeController(eventBus);
-        this.rotationLockController = new RotationLockController(eventBus);
-
+        // 先注册监听,再创建控制器:控制器启动时会同步一次初始状态
+        // (RotationLockController 现在也会),监听晚注册就会丢掉这次同步.
         eventBus.on('camera:changed', ({ camMode }) =>
             this.cameraManager.setCameraMode(camMode),
         );
@@ -122,7 +120,10 @@ export class RenderController {
             this.cameraManager.setRotationLock(locked),
         );
 
-        // 先注册监听,再创建控制器,确保控制器启动时同步的初始状态不会丢失
+        this.cameraToggle = new CameraToggle(eventBus);
+        this.viewCubeController = new ViewCubeController(eventBus);
+        this.rotationLockController = new RotationLockController(eventBus);
+
         // OrbitControls 在构造时读取相机 up 向量,真的切换"向上轴"后才需要重建
         eventBus.on('axis:upChanged', ({ axis }) => {
             if (this.cameraManager.setUpAxis(axis)) {
@@ -288,7 +289,11 @@ export class RenderController {
             scene.objectAnimations,
         );
         this.previousObjects = scene.objects;
-        this._syncOverlays(scene, null, false);
+        // store 里换成了重新 materialize 的新对象实例,Plotter 手里的引用
+        // 必须同步,否则 renderer 会长期拿着过期对象(见 RND-P2.4).
+        this._syncPlotterRefs(scene);
+        // overlayOnly:切换某一"分析/积分/求交"显隐时,其他积分不该被销毁重算.
+        this._syncOverlays(scene, null, false, undefined, true);
     }
 
     toggleObject(object: SceneObject): void {
@@ -362,11 +367,34 @@ export class RenderController {
         this.plotter.applyTransform(id, matrix);
     }
 
+    /**
+     * 只同步 Plotter 持有的对象引用(不重新采样/重建 GPU 资源).
+     *
+     * `commitSceneWithoutRedraw` 会 `store.setScene(重新 materialize 的场景)`,
+     * 对象实例是新的,而 Plotter 的 renderer 仍指向旧实例;不重同步的话
+     * renderer 侧的 `point`/`curve` 等引用会长期过期,是 RND-P2.4 一类
+     * "可见性/参数用错来源"问题的根因.
+     */
+    private _syncPlotterRefs(scene: SceneIR): void {
+        const objectsByName = new Map<string, SceneObject>();
+        for (const object of scene.objects) {
+            if (object.name !== undefined) {
+                objectsByName.set(object.name, object);
+            }
+        }
+        for (const object of scene.objects) {
+            // updateObject(..., false) 只同步 renderer 内部引用与可见性
+            // (Plotter._updateRef 末尾会按 obj.enabled 设置 group.visible).
+            this.plotter.updateObject(object, false, objectsByName);
+        }
+    }
+
     private _syncOverlays(
         scene: SceneIR,
         dirtyObjectIds: ReadonlySet<number> | null,
         forceIntersections: boolean,
         changedParams: ReadonlySet<string> | undefined = undefined,
+        overlayOnly = false,
     ): void {
         this.diagnosticsController.clear();
         this.objectListController.renderScene(scene);
@@ -385,6 +413,7 @@ export class RenderController {
                 this.objectListController.setIntegralResult(name, value),
             (name, message) =>
                 this.objectListController.setIntegralError(name, message),
+            overlayOnly,
         );
     }
 

@@ -408,6 +408,10 @@ export class SceneManager {
         ctx.fillText(text, width / 2, height / 2);
 
         const texture = new THREE.CanvasTexture(canvas);
+        // 画布里的颜色是 sRGB 字节;不声明 colorSpace 时 three 会当线性值用,
+        // 经输出色彩空间编码后标签/刻度数字会明显偏亮(与配置里其他经
+        // `new THREE.Color(...)` 走 sRGB->linear 的颜色处理不一致).
+        texture.colorSpace = THREE.SRGBColorSpace;
         const material = new THREE.SpriteMaterial({
             map: texture,
             transparent: true,

@@ -29,21 +29,21 @@ function isCamMode(value: unknown): value is CamMode {
 export class CameraToggle {
     /** 当前投影模式,初始值取自配置,与 CameraManager 保持一致. */
     private _mode: CamMode = RENDER_CONFIG.camera.defaultMode;
-    /** 投影模式复选框. */
-    private readonly camToggle: HTMLInputElement;
+    /** 投影模式复选框;HTML 缺失时为 null(与其余控制器一致,不非空断言). */
+    private readonly camToggle: HTMLInputElement | null;
     /** 所有可点击的模式标签,通过 data-cam 与 CamMode 对应. */
     private readonly camLabels: NodeListOf<HTMLElement>;
     /** 统一解绑本类注册的所有 DOM 监听,dispose 时 abort. */
     private readonly _abortController = new AbortController();
 
     constructor(private readonly eventBus: EventBus<MathLabEvents>) {
-        this.camToggle = document.getElementById('camToggle') as HTMLInputElement;
+        this.camToggle = document.getElementById('camToggle') as HTMLInputElement | null;
         this.camLabels = document.querySelectorAll('.cam-label');
         const { signal } = this._abortController;
 
         // 入口一:复选框自身状态就是模式,无需再读 DOM 之外的来源
-        this.camToggle.addEventListener('change', () => {
-            this._setCamMode(this.camToggle.checked ? MODE_WHEN_CHECKED : MODE_WHEN_UNCHECKED);
+        this.camToggle?.addEventListener('change', () => {
+            this._setCamMode(this.camToggle?.checked ? MODE_WHEN_CHECKED : MODE_WHEN_UNCHECKED);
         }, { signal });
 
         // 入口二:标签的 data-cam 是 HTML 字符串,先校验再当 CamMode 使用
@@ -83,7 +83,9 @@ export class CameraToggle {
     private _syncUI(): void {
         const checked = this._mode === MODE_WHEN_CHECKED;
         // 先比较再赋值,避免无谓的 DOM 写入
-        if (this.camToggle.checked !== checked) this.camToggle.checked = checked;
+        if (this.camToggle && this.camToggle.checked !== checked) {
+            this.camToggle.checked = checked;
+        }
         this.camLabels.forEach(label => {
             label.classList.toggle('active', label.dataset.cam === this._mode);
         });

@@ -6,11 +6,11 @@
 //     六面体柱阵(四角取被积值,侧面随角点高度成斜平面);
 //   - createSurfaceGridGroup:   辛普森法,顶部曲面 + 底部平面 + 四周围裙,
 //     四角都有限(带内)的单元才生成顶面三角形.
-// 两函数均为纯构建,共用 area.ts 的 wrapSolidGroup 收尾;
+// 两函数均为纯构建,共用 solidPrimitives 的 wrapSolid 收尾;
 // 返回 null 表示没有可绘制单元,调用方不应登记缓存.
 // ============================================================
 import * as THREE from 'three';
-import { wrapSolidGroup } from './area';
+import { wrapSolid } from '../solidPrimitives';
 
 /**
  * 生成二维梯形可视化的"实体柱阵"组:每个网格单元是一根下底贴 xy 平面,
@@ -79,7 +79,7 @@ export function createTrapezoidGridGroup(
     geometry.setIndex(indices);
     geometry.computeVertexNormals();
 
-    return wrapSolidGroup(geometry, color, opacity, 0.3);
+    return wrapSolid(geometry, color, opacity, 0.3);
 }
 
 /**
@@ -190,5 +190,5 @@ export function createSurfaceGridGroup(
     geometry.setIndex(indices);
     geometry.computeVertexNormals();
 
-    return wrapSolidGroup(geometry, color, opacity, 0.3);
+    return wrapSolid(geometry, color, opacity, 0.3);
 }

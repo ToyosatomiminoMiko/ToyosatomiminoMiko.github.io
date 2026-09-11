@@ -48,6 +48,11 @@ export class SurfaceMesh {
     mesh: THREE.Mesh;
     wireframe: THREE.Mesh;
     group: THREE.Group;
+    /**
+     * 有效索引缓冲:构造时按最大规模 `cols*rows*6` 一次分配,
+     * 之后只覆写前缀并用 `drawRange` 限制绘制范围(永不替换属性对象).
+     */
+    private readonly indexAttr: THREE.BufferAttribute;
     /** z 极值 + 颜色映射开关 + 基色的 uniform 句柄 */
     private readonly colorRange: SurfaceColorHandle;
     /** dispose 后不再接受任何异步结果 */
@@ -95,12 +100,22 @@ export class SurfaceMesh {
         this.geometry.setAttribute(
             'normal', new THREE.BufferAttribute(normalArray, 3));
 
-        // 初始索引保持为空,等第一次 Worker 结果带回有效索引再设置.
+        // 索引缓冲一次性按最大规模分配:每个单元最多两个三角形(6 个 u32).
         //
-        // 这里不再生成 cols*rows*6 个 u32 的完整索引:
-        // 该数组在主线程会再被复制成 JS number[],随后很快被 Worker 的
-        // 有效索引替换,属于一次完全没有收益的大块分配.
-        this.geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(0), 1));
+        // 不采用"结果回来时替换 geometry.index"的写法.three 的
+        // WebGLBindingStates 只对 geometry.index 当前那一个属性调用
+        // attributes.remove()(唯一的 gl.deleteBuffer 路径),被替换下来的旧
+        // 属性既不在 geometry 上也没有其他引用,其 GPU element buffer 永远
+        // 回收不到 -- 每次索引长度变化就永久泄漏一个缓冲,拖 tan/定义域受限
+        // 曲面的参数时几乎每 tick 一次.
+        //
+        // 索引对象恒定后,长度变化改由 drawRange 表达;线框缓存仍按
+        // geometry.index.version 失效,因此 needsUpdate 照旧.
+        this.indexAttr = new THREE.BufferAttribute(
+            new Uint32Array(cols * rows * 6), 1);
+        this.geometry.setIndex(this.indexAttr);
+        // 首帧还没有有效单元,先不画任何三角形.
+        this.geometry.setDrawRange(0, 0);
 
         // 材质:Phong + 双面渲染.
         // 顶点配色不再走 vertexColors 通道,而是由 installSurfaceVertexColor
@@ -195,6 +210,8 @@ export class SurfaceMesh {
         const posAttr = this.geometry.attributes.position;
         posAttr.array.set(result.positions);
         posAttr.needsUpdate = true;
+        // 包围体必须在这里显式重算,详见 _updateBounds 注释
+        this._updateBounds(result.positions);
 
         // 颜色不再写入 attribute:由顶点着色器依据 position.z 实时计算,
         // 这里只把本次采样的 z 极值更新进 uniform
@@ -206,33 +223,71 @@ export class SurfaceMesh {
         normalAttr.array.set(result.normals);
         normalAttr.needsUpdate = true;
 
-        // 索引更新:优先复用已有 BufferAttribute,只写数据;
-        // 首帧 currentIndex 为空,会在这里创建真正的有效索引.
-        const validIndices = result.validIndices;
-        const currentIndex = this.geometry.index as THREE.BufferAttribute | null;
-        if (currentIndex && currentIndex.count === validIndices.length) {
-            (currentIndex.array as Uint32Array).set(validIndices);
-            currentIndex.needsUpdate = true;
-        } else {
-            // 索引长度变化时必须换一个新的 BufferAttribute(three 不支持属性缓冲区
-            // 扩容),但新属性的 version 要接续上一份索引,不能停在默认的 0.
-            //
-            // 原因:three.js 的线框索引缓存(WebGLGeometries.getWireframeAttribute)
-            // 只在 `缓存 version < geometry.index.version` 时才重建.构造器里的空
-            // 占位索引(Uint32Array(0))是 version 0,首帧渲染会基于它缓存一份空的
-            // 线框索引;若这里替换进来的真实索引也是 version 0,缓存就被判为
-            // "未过期",线框一直绑在空索引上 -- 表现就是首次运行看不到曲面网格,
-            // 必须再点一次运行(第二次走上面的复用分支,needsUpdate 把 version
-            // 抬到 1)网格才出现.同理,后续任何"索引长度变化"的更新若把 version
-            // 退回 0,也会与已有线框缓存(version >= 1)撞车而留下过期线框.
-            //
-            // 曲面主体不受影响:WebGLBindingStates 按属性对象身份而非 version
-            // 判断索引是否变化.
-            const indexAttr = new THREE.BufferAttribute(validIndices, 1);
-            indexAttr.version = (currentIndex?.version ?? 0) + 1;
-            this.geometry.setIndex(indexAttr);
+        // 索引只覆写前缀,长度变化用 drawRange 表达(属性对象恒定,
+        // 因此不会产生 RND-P1.2 那种 element buffer 泄漏).
+        //
+        // 线框索引缓存(WebGLGeometries.getWireframeAttribute)按
+        // geometry.index.version 失效,needsUpdate 会把它抬一档,缓存随即
+        // 按新索引重建;renderBufferDirect 对 wireframe 取 rangeFactor = 2,
+        // 所以 setDrawRange(0, N) 恰好画出这 N 个索引对应的三角形边.
+        this.indexAttr.array.set(result.validIndices);
+        this.indexAttr.needsUpdate = true;
+        this.geometry.setDrawRange(0, result.validIndices.length);
+    }
+
+    /**
+     * 用本次结果里的有限顶点重算包围盒/包围球.
+     *
+     * 为什么必须显式重算:three 的 `Frustum.intersectsObject()` 只在
+     * `geometry.boundingSphere === null` 时惰性计算一次.`SurfaceMesh` 在
+     * Worker 结果回来之前就会进入逐帧渲染,那一帧的 position 还是全 0 的
+     * 占位缓冲 -> 包围球被缓存成"圆心原点,半径 0",此后只写数组/置
+     * needsUpdate 都不会让它失效.相机一旦离开原点,整块曲面(连同共用
+     * geometry 的线框)就被视锥剔除,表现为"曲面突然消失".
+     *
+     * 为什么不能图省事把 boundingSphere 置 null 交给 three 重算:position 里
+     * 允许存在 NaN 顶点(其所在单元已被 Rust 侧剔除),three 重算会走到
+     * `Computed radius is NaN` 并让剔除彻底失效.这里只统计有限顶点.
+     */
+    private _updateBounds(positions: Float32Array): void {
+        let minX = Infinity;
+        let minY = Infinity;
+        let minZ = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        let maxZ = -Infinity;
+
+        for (let i = 0; i < positions.length; i += 3) {
+            const x = positions[i];
+            const y = positions[i + 1];
+            const z = positions[i + 2];
+            if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) continue;
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+            if (z < minZ) minZ = z;
+            if (z > maxZ) maxZ = z;
         }
 
+        // 复用已有包围体对象,避免每个采样 tick 都新建 Box3/Sphere.
+        const box = this.geometry.boundingBox ?? new THREE.Box3();
+        const sphere = this.geometry.boundingSphere ?? new THREE.Sphere();
+
+        if (minX > maxX || minY > maxY || minZ > maxZ) {
+            // 全部顶点非有限:没有可绘制内容,给一个退化包围体而不是留下 NaN
+            box.min.set(0, 0, 0);
+            box.max.set(0, 0, 0);
+            sphere.center.set(0, 0, 0);
+            sphere.radius = 0;
+        } else {
+            box.min.set(minX, minY, minZ);
+            box.max.set(maxX, maxY, maxZ);
+            box.getBoundingSphere(sphere);
+        }
+
+        this.geometry.boundingBox = box;
+        this.geometry.boundingSphere = sphere;
     }
 
     /**

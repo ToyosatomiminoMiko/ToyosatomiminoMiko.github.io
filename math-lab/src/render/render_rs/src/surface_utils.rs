@@ -29,9 +29,7 @@
 //                 z = f(x,y),非有限值写为 NaN;再据此组装 positions
 //                 (x,y,z 扁平 f32)并统计 z_min/z_max -- 只统计有限 z,
 //                 若全部非法则回退 DEGENERATE_Z_MIN/Z_MAX(见 config.rs)
-//              ② generate_full_indices()    网格索引
-//                 每格拆两个三角形 (a,b,d)+(a,d,c),共 cols·rows·6 个
-//              ③ compute_valid_cells()       无效单元过滤
+//              ② compute_valid_cells()       无效单元过滤
 //                 一个单元在以下情况不参与绘制:
 //                   · 任一顶点 z 为 NaN(防止 NaN 面法线经顶点平均污染
 //                     相邻正常三角形);
@@ -39,7 +37,9 @@
 //                     跳变远超该方向的中位跳变)--像 tan(x) 在渐近线两侧
 //                     都是"有限但巨大"的 z 值,不会产生 NaN,若不按此剔除
 //                     会被画成一堵贯穿渐近线的"墙".
-//                 再经 generate_valid_indices() 只对有效单元出两个三角形.
+//              ③ generate_valid_indices()    网格索引
+//                 只对有效单元出两个三角形,每格拆 (a,b,d)+(a,d,c);
+//                 无效单元不产出任何索引,这才是真正参与绘制的几何.
 //              ④ compute_vertex_normals()   平滑法线
 //                 对共享顶点累加三角形面法线再归一化,与 Three.js
 //                 BufferGeometry.computeVertexNormals() 语义一致;
@@ -56,7 +56,7 @@
 //          顶点着色器  surfaceColorFromZ(position.z) -> vSurfaceColor
 //                      · t = (z - z_min)/(z_max - z_min),clamp 到 [0,1];
 //                        range == 0(平面)时取 FLAT_COLOR_T = 0.5
-//                      · NaN/Inf 顶点 -> 黑(其所在三角形已被 ③ 剔除)
+//                      · NaN/Inf 顶点 -> 黑(其所在三角形已被 ② 剔除)
 //                      · hue 0.66->0,sat 0.9,light 0.5->0.8(HSL 伪彩)
 //          片段着色器  diffuseColor.rgb *= vSurfaceColor
 //                      (diffuse 乘顶点色;specular 不受影响,
@@ -70,20 +70,6 @@ use crate::config::{
     COLOR_AUTO_SWITCH_FACTOR, COLOR_PERCENTILE_HI, COLOR_PERCENTILE_LO, DEGENERATE_Z_MAX,
     DEGENERATE_Z_MIN,
 };
-
-pub fn generate_full_indices(cols: usize, rows: usize) -> Vec<u32> {
-    let mut indices = Vec::with_capacity(cols * rows * 6);
-    for j in 0..rows {
-        for i in 0..cols {
-            let a = (j * (cols + 1) + i) as u32;
-            let b = (j * (cols + 1) + i + 1) as u32;
-            let c = ((j + 1) * (cols + 1) + i) as u32;
-            let d = ((j + 1) * (cols + 1) + i + 1) as u32;
-            indices.extend_from_slice(&[a, b, d, a, d, c]);
-        }
-    }
-    indices
-}
 
 /// 垂直渐近线式"跳变必须超出的相对倍数"(相对该方向的中位跳变).
 ///

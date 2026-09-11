@@ -4,18 +4,25 @@ import { RENDER_CONFIG } from '../../config/renderConfig';
 
 type PointMode = 'size' | 'scale';
 
+/** 运行时校验:HTML 的 data-* 是字符串,非法值不能直接当 PointMode 用. */
+function isPointMode(value: unknown): value is PointMode {
+    return value === 'size' || value === 'scale';
+}
+
 /**
  * 点样式控制(场景 point 对象与分析测量点共用).
  *
  * "点"只有一种渲染定义(PointRenderer),场景 point 对象和导/偏导/散度/
  * 旋度分析里的测量点都受这里控制:
- * - 大小与缩放是同一控制量的两种模式,而不是两个独立值:
- *   - 设定大小:直接输入绝对半径,默认当前状态(0.2);
- *   - 按比例缩放:以默认大小为基准输入比例,默认 1(即 100%);
+ * - 大小与缩放是同一控制量(实际半径)的两种显示方式,而不是两个独立值:
+ *   - 设定大小:直接输入绝对半径,默认取配置里的半径;
+ *   - 按比例缩放:以该默认半径为基准输入比例,默认 1(即 100%);
  * - 可见开关:关闭后所有点(场景点对象与分析测量点)不可见.
  *
- * 切换模式时保持当前实际大小不变,只是换算显示方式.
- * 变化通过 EventBus 广播,由 RenderController 应用到场景.
+ * 状态只有一个来源 `sizeValue`(实际半径),缩放模式下的比例由它除以
+ * baseRadius 换算而来 -- 因此不存在"配置里的 scale 永远被覆盖"的死配置.
+ * 切换模式时会保留当前实际大小.变化通过 EventBus 广播,
+ * 由 RenderController 应用到场景.
  */
 export class PointStyleController {
     private readonly visibleToggle: HTMLInputElement | null;
@@ -26,8 +33,8 @@ export class PointStyleController {
 
     private readonly baseRadius = RENDER_CONFIG.scene.point.radius;
     private mode: PointMode = 'size';
+    /** 唯一状态:点的实际半径(缩放模式只是它的另一种显示方式). */
     private sizeValue = this.baseRadius;
-    private scaleValue = RENDER_CONFIG.scene.point.scale;
     private visible = RENDER_CONFIG.scene.point.visible;
 
     constructor(private readonly eventBus: EventBus<MathLabEvents>) {
@@ -52,8 +59,8 @@ export class PointStyleController {
 
         this.modeButtons.forEach((button) => {
             button.addEventListener('click', () => {
-                const mode = button.dataset.pointMode as PointMode | undefined;
-                if (!mode || mode === this.mode) return;
+                const mode = button.dataset.pointMode;
+                if (!isPointMode(mode) || mode === this.mode) return;
                 this._switchMode(mode);
             }, { signal });
         });
@@ -70,15 +77,8 @@ export class PointStyleController {
         this._abortController.abort();
     }
 
+    /** 切换显示方式:实际半径(`sizeValue`)不变,只换一种表示. */
     private _switchMode(mode: PointMode): void {
-        if (this.mode === 'size') {
-            // 保持当前实际大小,把绝对大小换算为相对默认大小的比例
-            this.scaleValue = this.baseRadius > 0
-                ? this.sizeValue / this.baseRadius
-                : 0;
-        } else {
-            this.sizeValue = this.baseRadius * this.scaleValue;
-        }
         this.mode = mode;
         this._syncModeUI();
         this._emit();
@@ -97,11 +97,8 @@ export class PointStyleController {
             this.valueInput.value = this._displayValue();
             return;
         }
-        if (this.mode === 'size') {
-            this.sizeValue = raw;
-        } else {
-            this.scaleValue = raw;
-        }
+        // 两种模式写的是同一个状态:实际半径
+        this.sizeValue = this.mode === 'size' ? raw : this.baseRadius * raw;
         this._emit();
     }
 
@@ -119,16 +116,15 @@ export class PointStyleController {
     }
 
     private _displayValue(): string {
-        const value = this.mode === 'size' ? this.sizeValue : this.scaleValue;
+        const value = this.mode === 'size'
+            ? this.sizeValue
+            : (this.baseRadius > 0 ? this.sizeValue / this.baseRadius : 0);
         return String(Number(value.toFixed(4)));
     }
 
     private _emit(): void {
-        const radius = this.mode === 'size'
-            ? this.sizeValue
-            : this.baseRadius * this.scaleValue;
         this.eventBus.emit('point:changed', {
-            radius,
+            radius: this.sizeValue,
             visible: this.visible,
         });
     }

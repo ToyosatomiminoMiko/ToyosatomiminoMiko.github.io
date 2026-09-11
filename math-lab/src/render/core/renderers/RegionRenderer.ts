@@ -46,6 +46,8 @@ interface BoundaryState {
     executor: LatestRequestExecutor<RegionSampleRequest, CurveSampleResult>;
     /** 最近一次采样结果(扁平 [x, y, 0, ...] 三元组). */
     points: Float32Array;
+    /** 每段起始顶点下标:定义域空洞/渐近线把边界切成多段. */
+    offsets: Uint32Array;
     /** 采样站点数(非有限值被跳过后的实际点数). */
     count: number;
 }
@@ -54,8 +56,11 @@ export class RegionRenderer implements IRenderer {
     readonly group = new THREE.Group();
 
     private fill: THREE.Mesh | null = null;
-    private lineA: THREE.Line | null = null;
-    private lineB: THREE.Line | null = null;
+    /** 两条边界各用一个容器承载"逐段折线",每段一条 THREE.Line. */
+    private readonly edgeGroups: [THREE.Group, THREE.Group] = [
+        new THREE.Group(),
+        new THREE.Group(),
+    ];
     private readonly boundaries: [BoundaryState, BoundaryState];
     private userVisible = true;
     private disposed = false;
@@ -70,8 +75,20 @@ export class RegionRenderer implements IRenderer {
         this.xRange = region.range;
         this.steps = region.segments;
         this.boundaries = [
-            { curve: curveA, executor: this._createExecutor(), points: new Float32Array(0), count: 0 },
-            { curve: curveB, executor: this._createExecutor(), points: new Float32Array(0), count: 0 },
+            {
+                curve: curveA,
+                executor: this._createExecutor(),
+                points: new Float32Array(0),
+                offsets: new Uint32Array(0),
+                count: 0,
+            },
+            {
+                curve: curveB,
+                executor: this._createExecutor(),
+                points: new Float32Array(0),
+                offsets: new Uint32Array(0),
+                count: 0,
+            },
         ];
     }
 
@@ -104,11 +121,13 @@ export class RegionRenderer implements IRenderer {
         void Promise.all(requests)
             .then(([resultA, resultB]) => {
                 if (this.disposed) return;
-                // 区域填充/描边只按 x 有序的扁平顶点消费;断点(offsets)用于
-                // 曲线本身的多段绘制,这里沿用原有的按 x 配对与"列缺失断开"策略.
+                // 区域填充只按 x 有序的扁平顶点配对;边界描边按 offsets 分段,
+                // 避免在定义域空洞/竖直渐近线处画出横跨空洞的伪连接线.
                 this.boundaries[0].points = resultA.points;
+                this.boundaries[0].offsets = resultA.offsets;
                 this.boundaries[0].count = resultA.points.length / 3;
                 this.boundaries[1].points = resultB.points;
+                this.boundaries[1].offsets = resultB.offsets;
                 this.boundaries[1].count = resultB.points.length / 3;
                 this._rebuild();
             })
@@ -176,8 +195,7 @@ export class RegionRenderer implements IRenderer {
 
     private _rebuildFill(columns: Array<{ x: number; ya: number; yb: number }>): void {
         if (this.fill) {
-            this.group.remove(this.fill);
-            this.fill.geometry?.dispose();
+            this._releaseObject(this.fill);
             this.fill = null;
         }
         if (columns.length < 2) return;
@@ -210,53 +228,79 @@ export class RegionRenderer implements IRenderer {
         this.group.add(this.fill);
     }
 
+    /**
+     * 重建一条边界的逐段折线.
+     *
+     * 采样层在定义域空洞/竖直渐近线处把曲线切成多段并回传 offsets;必须
+     * 逐段建线,否则会画出一条横跨空洞的伪连接线(CurveRenderer 已按此处理).
+     * 重建路径必须同时释放上一轮的 geometry **与 material**.
+     */
     private _rebuildEdge(index: 0 | 1): void {
-        const line = index === 0 ? this.lineA : this.lineB;
-        const points = this.boundaries[index].points;
-        const curve = this.boundaries[index].curve;
+        const container = this.edgeGroups[index];
+        const { points, offsets, curve } = this.boundaries[index];
+        // 释放上一轮各段的 geometry/material,并清空容器(容器自身会被
+        // _releaseObject 从 group 摘除,有内容时再重新挂回).
+        this._releaseObject(container);
+        container.clear();
+        if (points.length < 6 || offsets.length < 2) return;
 
-        if (line) {
-            this.group.remove(line);
-            line.geometry?.dispose();
-        }
-        if (points.length < 6) return;
-
-        const positions = new Float32Array(points.length);
-        positions.set(points);
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        // 同一条边界的所有段共用一份材质,重建时统一释放.
         const material = new THREE.LineBasicMaterial({
             color: curve.color || this.region.color,
             transparent: true,
             opacity: 0.9,
             depthWrite: false,
         });
-        const next = new THREE.Line(geometry, material);
-        next.renderOrder = 3;
-        this.group.add(next);
-        if (index === 0) {
-            this.lineA = next;
-        } else {
-            this.lineB = next;
+        let segments = 0;
+        for (let k = 0; k + 1 < offsets.length; k += 1) {
+            const start = offsets[k];
+            const end = offsets[k + 1];
+            const count = end - start;
+            if (count < 2) continue; // 单点段画不出线段
+
+            // points 是 Worker 转移过来的缓冲区,用 subarray 视图避免拷贝.
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute(
+                'position',
+                new THREE.BufferAttribute(points.subarray(start * 3, end * 3), 3),
+            );
+            const line = new THREE.Line(geometry, material);
+            line.renderOrder = 3;
+            container.add(line);
+            segments += 1;
         }
+
+        if (segments === 0) {
+            material.dispose();
+            return;
+        }
+        this.group.add(container);
+    }
+
+    /** 释放对象自身及其子节点的 GPU 资源,并从 group 摘除. */
+    private _releaseObject(object: THREE.Object3D | null): void {
+        if (!object) return;
+        this.group.remove(object);
+        object.traverse((node) => {
+            const renderable = node as THREE.Mesh;
+            renderable.geometry?.dispose();
+            const material = renderable.material;
+            if (Array.isArray(material)) {
+                material.forEach((entry) => entry?.dispose());
+            } else {
+                material?.dispose();
+            }
+        });
     }
 
     private _disposeGeometry(): void {
         if (this.fill) {
-            this.group.remove(this.fill);
-            this.fill.geometry?.dispose();
-            (Array.isArray(this.fill.material) ? this.fill.material : [this.fill.material])
-                .forEach((material) => material?.dispose());
+            this._releaseObject(this.fill);
             this.fill = null;
         }
-        for (const line of [this.lineA, this.lineB]) {
-            if (!line) continue;
-            this.group.remove(line);
-            line.geometry?.dispose();
-            const material = line.material;
-            (Array.isArray(material) ? material : [material]).forEach((entry) => entry?.dispose());
+        for (const container of this.edgeGroups) {
+            this._releaseObject(container);
+            container.clear();
         }
-        this.lineA = null;
-        this.lineB = null;
     }
 }

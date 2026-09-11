@@ -6,6 +6,7 @@ import type {
 } from '../../compiler/ir/types';
 import type { Mat4 } from '../../math/tensor/rowMajorMatrix';
 import { IntegralVisualizer } from './integral/IntegralVisualizer';
+import { makeFn1D, makeFn2D } from './integral/sampleLookup';
 import type { MathComputeEngine } from '../../math/compute/MathComputeEngine';
 import type { IntegralResult } from '../../math/compute/workers/IntegralCompute';
 import {
@@ -75,6 +76,11 @@ export class DslIntegralRenderer {
     /**
      * @cache_access
      * 更新任务序号缓存,并只清理/重算受 dirty 对象或 dirty 参数影响的积分.
+     *
+     * @param overlayOnly 仅"分析/积分/求交"显隐切换时传 true:按任务名增量
+     *                    增删,已有可视化与数值一概保留.若走全量分支
+     *                    (`clearAll` + 重算全部),切换任一 overlay 显隐都会
+     *                    把所有积分整体销毁重算(见 RND-P3.9).
      */
     sync(
         tasks: IntegralTask[],
@@ -85,6 +91,7 @@ export class DslIntegralRenderer {
         changedParams: ReadonlySet<string> | null = null,
         onResult?: IntegralResultCallback,
         onError?: IntegralErrorCallback,
+        overlayOnly = false,
     ): void {
         const affected = (task: IntegralTask): boolean =>
             (dirtyObjectIds?.has(task.objectId) ?? false)
@@ -95,6 +102,33 @@ export class DslIntegralRenderer {
             || task.countCoefficients.some((coefficient) =>
                 changedParams?.has(coefficient.name) ?? false,
             );
+
+        if (overlayOnly) {
+            // 只按名字增删:被移除/禁用的任务清掉可视化,新启用且从未算过的
+            // 任务补算一次,其余保持原样.
+            const activeNames = new Set<string>();
+            for (const task of tasks) {
+                if (task.enabled) activeNames.add(task.name);
+            }
+            for (const name of [...this.taskSequences.keys()]) {
+                if (!activeNames.has(name)) {
+                    this.taskSequences.delete(name);
+                    this.visualizer.clear(name);
+                }
+            }
+            const fresh = tasks.filter(
+                (task) => task.enabled && !this.taskSequences.has(task.name),
+            );
+            for (const task of fresh) {
+                this.taskSequences.set(task.name, ++this.sequence);
+            }
+            this.visualizer.group.visible = true;
+            if (fresh.length === 0) return;
+            void this._renderAll(
+                fresh, objects, transforms, diagnostics, onResult, onError,
+            );
+            return;
+        }
 
         if (dirtyObjectIds || changedParams) {
             // 参数/对象只影响部分任务时,只清除受影响积分的可视化,
@@ -171,14 +205,23 @@ export class DslIntegralRenderer {
                     transforms,
                 );
                 const value = result.value;
-                if (this.disposed || this.taskSequences.get(task.name) !== taskSequence) return;
+                if (this.disposed) return;
+                // 序号过期只跳过当前任务;用 return 会连带丢掉同批后续积分
+                // (对照 IntersectionRenderer._runAll 的 continue).
+                if (this.taskSequences.get(task.name) !== taskSequence) continue;
 
                 if (task.show) {
                     this._visualize(task, source, result, diagnostics);
                 }
                 onResult?.(task.name, value);
             } catch (error) {
-                if (this.disposed || this.taskSequences.get(task.name) !== taskSequence) return;
+                if (this.disposed) return;
+                // 被顶掉的请求不是计算失败:积分共用模块级 latest-only 执行器,
+                // 一个任务的新请求会让在飞的别的任务以 'superseded' 结算,把它
+                // 当错误上报会在对象列表里留下"积分 X 计算失败: superseded"
+                // 的假错误.其余渲染器都显式忽略这条消息.
+                if (error instanceof Error && error.message === 'superseded') continue;
+                if (this.taskSequences.get(task.name) !== taskSequence) continue;
                 const message =
                     `积分 ${task.name} 计算失败: ${error instanceof Error ? error.message : String(error)}`;
                 diagnostics('error', message);
@@ -225,7 +268,7 @@ export class DslIntegralRenderer {
         diagnostics: IntegralDiagnosticFn,
     ): void {
         const [a, b] = task.range as [number, number];
-        const fn = this._makeFn1D(a, b, result);
+        const fn = makeFn1D(a, b, result);
         const segments = task.segments;
 
         if (task.method !== 'lebesgue') {
@@ -294,7 +337,7 @@ export class DslIntegralRenderer {
         diagnostics: IntegralDiagnosticFn,
     ): void {
         const [xMin, xMax, yMin, yMax] = task.range as [number, number, number, number];
-        const fn = this._makeFn2D(xMin, xMax, yMin, yMax, result);
+        const fn = makeFn2D(xMin, xMax, yMin, yMax, result);
         this._visualize2DColumns(
             task,
             source,
@@ -316,8 +359,8 @@ export class DslIntegralRenderer {
         const yMin = result.ya ?? NaN;
         const yMax = result.yb ?? NaN;
         if (!Number.isFinite(yMin) || !Number.isFinite(yMax)) return;
-        // 采样网格在带外为 NaN,_makeFn2D 把它转成"该格不可见".
-        const fn = this._makeFn2D(xMin, xMax, yMin, yMax, result);
+        // 采样网格在带外为 NaN,makeFn2D 把它转成"该格不可见".
+        const fn = makeFn2D(xMin, xMax, yMin, yMax, result);
         this._visualize2DColumns(
             task,
             source,
@@ -422,7 +465,15 @@ export class DslIntegralRenderer {
             return;
         }
         const n = result.n ?? task.segments;
-        if (n === 0 || !Number.isFinite(result.xa) || !Number.isFinite(result.za)) return;
+        if (n === 0) return;
+        // 六个世界外接盒边界必须一次性全部有限:缺失/非有限会被
+        // visualize3DSolid 用来算 hx/hy/hz 与实例矩阵,产生 NaN 位置/缩放,
+        // 而 three 不会报错(那批实例静默异常).
+        const bounds = [result.xa, result.xb, result.ya, result.yb, result.za, result.zb];
+        if (!bounds.every((bound) => Number.isFinite(bound))) return;
+        const [xa, xb, ya, yb, za, zb] = bounds as [
+            number, number, number, number, number, number,
+        ];
         const visual = clampIntegral3DVisualization(n);
         if (visual.decimated) {
             diagnostics(
@@ -434,84 +485,14 @@ export class DslIntegralRenderer {
             source,
             n,
             result.samples,
-            result.xa!,
-            result.xb!,
-            result.ya!,
-            result.yb!,
-            result.za!,
-            result.zb!,
+            xa,
+            xb,
+            ya,
+            yb,
+            za,
+            zb,
             visual.segments,
             task.name,
         );
-    }
-
-    // ============================================================
-    // 采样网格 -> 连续函数映射(数值与可视化同源)
-    // ============================================================
-
-    private _makeFn1D(
-        a: number,
-        b: number,
-        result: IntegralResult,
-    ): (x: number) => number {
-        const samples = result.samples;
-        if (!samples) return () => NaN;
-
-        if (result.sampleShape === '1d-mid') {
-            const n = samples.length;
-            const h = (b - a) / n;
-            return (x: number) => {
-                const idx = Math.max(0, Math.min(n - 1, Math.round((x - a) / h - 0.5)));
-                return samples[idx] ?? NaN;
-            };
-        }
-
-        const n = samples.length - 1;
-        const h = (b - a) / n;
-        return (x: number) => {
-            const idx = Math.max(0, Math.min(n, Math.round((x - a) / h)));
-            return samples[idx] ?? NaN;
-        };
-    }
-
-    /**
-     * 二维网格 -> 单元函数.
-     *
-     * 约定:对矩形(rectangle)与区域(region)域,数值采样与可视化都把每个
-     * 网格单元看成一个"柱":单元采样端(左/右/中,由方法决定)在带内时该
-     * 柱可见,柱高 = 采样端被积值.`fn` 按单元左下角定位单元,返回该单元的
-     * 采样端值(带外/非有限为 NaN,可视化跳过).
-     */
-    private _makeFn2D(
-        xMin: number,
-        xMax: number,
-        yMin: number,
-        yMax: number,
-        result: IntegralResult,
-    ): (x: number, y: number) => number {
-        const samples = result.samples;
-        const n = result.n ?? 0;
-        const m = result.m ?? n;
-        if (!samples || n === 0 || m === 0) return () => NaN;
-
-        // (n+1)×(m+1) 全网格采样(trapezoid/simpson 的网格样本).
-        if (result.sampleShape === '2d-grid') {
-            const hx = (xMax - xMin) / n;
-            const hy = (yMax - yMin) / m;
-            return (x: number, y: number) => {
-                const i = Math.max(0, Math.min(n, Math.round((x - xMin) / hx)));
-                const j = Math.max(0, Math.min(m, Math.round((y - yMin) / hy)));
-                return samples[j * (n + 1) + i] ?? NaN;
-            };
-        }
-
-        // 单元采样(左/右/中端):每个单元一个样本值,按 floor 定位单元.
-        const hx = (xMax - xMin) / n;
-        const hy = (yMax - yMin) / m;
-        return (x: number, y: number) => {
-            const i = Math.max(0, Math.min(n - 1, Math.floor((x - xMin) / hx)));
-            const j = Math.max(0, Math.min(m - 1, Math.floor((y - yMin) / hy)));
-            return samples[j * n + i] ?? NaN;
-        };
     }
 }

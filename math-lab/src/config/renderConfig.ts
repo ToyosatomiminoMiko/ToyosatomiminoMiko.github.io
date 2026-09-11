@@ -131,9 +131,9 @@ export const RENDER_CONFIG = {
         },
         // 点(场景 point 对象 + 分析测量点共用同一定义):全局渲染样式,
         // 大小(可设置具体值)/比例缩放/可见性,由右侧"点"面板统一控制.
+        // 比例只是半径的另一种显示方式(默认 1 即 100%),没有独立的配置项.
         point: {
             radius: 0.2,
-            scale: 1,
             visible: true,
         },
         labelCanvasSize: 64,

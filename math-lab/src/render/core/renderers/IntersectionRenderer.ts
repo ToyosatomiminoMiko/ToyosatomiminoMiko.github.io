@@ -87,9 +87,11 @@ export class IntersectionRenderer {
             }
 
             const input = buildIntersectionInput(task, objects, transforms);
+            // 指纹只放几何/参数:颜色不是求交输入,混进来会让"纯换色"触发
+            // 一次完整重算(并让结果短暂闪空).换色走 _showCached 的轻路径.
             const key = input
-                ? JSON.stringify([input, task.color])
-                : `disabled:${task.name}:${task.color}`;
+                ? JSON.stringify(input)
+                : `disabled:${task.name}`;
 
             if (
                 force
@@ -128,11 +130,18 @@ export class IntersectionRenderer {
 
     private _showCached(task: IntersectionTask): void {
         const output = this.outputs.get(task.name);
-        if (!output || (output.points.length === 0 && output.curves.length === 0)) {
-            return;
-        }
+        if (!output) return;
         const existing = this.visuals.get(task.name);
         if (!existing) {
+            if (output.points.length === 0 && output.curves.length === 0) {
+                return;
+            }
+            this._buildVisual(task.name, task.color, output);
+            return;
+        }
+        // 指纹未变但颜色变了:只按缓存结果重建可视对象(不再发求交请求).
+        if (existing.userData.color !== task.color) {
+            this._disposeVisual(task.name);
             this._buildVisual(task.name, task.color, output);
         }
     }
@@ -227,6 +236,8 @@ export class IntersectionRenderer {
             child.add(this._buildCurve(curve, color));
         }
         this.group.add(child);
+        // 记住当前颜色,供 _showCached 判断"只是换色"时轻量重建
+        child.userData.color = color;
         this.visuals.set(name, child);
     }
 

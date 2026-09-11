@@ -16,6 +16,10 @@ export class RotationLockController {
             this.rotationLocked = this.toggle?.checked ?? false;
             this.eventBus.emit('camera:rotationLock', { locked: this.rotationLocked });
         }, { signal: this._abortController.signal });
+
+        // 启动时按 DOM 状态同步一次(与同目录其他控制器一致):浏览器软重载
+        // 会恢复表单控件的勾选态,若不 emit,锁定态就与 OrbitControls 脱钩.
+        this.eventBus.emit('camera:rotationLock', { locked: this.rotationLocked });
     }
 
     /** 当前是否锁定旋转,供切换向上轴重建 OrbitControls 后恢复. */

@@ -109,12 +109,22 @@ export class IntegralVisualizer {
         this.scene.remove(this.group);
     }
 
-    /** 把无状态构建结果挂入场景并登记缓存. */
+    /**
+     * 把无状态构建结果挂入场景并登记缓存.
+     *
+     * 同一键被再次登记时先释放旧 group:当前调用方都会先 clear(),属防御性
+     * 处理,避免将来漏清时旧 group 既留在场景里又丢掉引用(无法再释放).
+     */
     private _register(
         group: THREE.Group,
         cacheType: string,
         cacheKey: number | string,
     ): void {
+        const existing = this.cache.get(cacheKey);
+        if (existing) {
+            this.group.remove(existing.objects);
+            disposeObjectGroup(existing.objects);
+        }
         this.group.add(group);
         this.cache.set(cacheKey, { type: cacheType, objects: group });
     }

@@ -3,11 +3,6 @@ pub mod surface_utils;
 
 use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen]
-pub fn generate_full_indices(cols: u32, rows: u32) -> Vec<u32> {
-    surface_utils::generate_full_indices(cols as usize, rows as usize)
-}
-
 /// 曲面打包结果的头部字节数(小端,与 JS DataView littleEndian=true 一致):
 ///   [0..4)    positions 元素个数(u32)
 ///   [4..8)    normals   元素个数(u32)

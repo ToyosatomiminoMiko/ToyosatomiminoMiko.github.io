@@ -2,6 +2,11 @@ import { EventBus } from '../../service/EventBus';
 import type { MathLabEvents } from '../../types';
 import { RENDER_CONFIG, type UpAxis } from '../../config/renderConfig';
 
+/** 运行时校验:HTML 的 data-* 是字符串,非法值不能直接当 UpAxis 用. */
+function isUpAxis(value: unknown): value is UpAxis {
+    return value === 'x' || value === 'y' || value === 'z';
+}
+
 /**
  * 坐标轴"向上"方向控制.
  *
@@ -21,9 +26,9 @@ export class AxisUpController {
 
         const signal = this._abortController.signal;
         this.buttons.forEach((button) => {
-            const axis = button.dataset.axisUp as UpAxis | undefined;
+            const axis = button.dataset.axisUp;
             button.addEventListener('click', () => {
-                if (!axis || axis === this.axis) return;
+                if (!isUpAxis(axis) || axis === this.axis) return;
                 this.axis = axis;
                 this._syncUI();
                 this._emit();

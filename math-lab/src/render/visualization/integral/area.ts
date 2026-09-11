@@ -2,18 +2,14 @@
 // integral/area.ts - 一维面积(梯形 / 辛普森)的可视化几何
 //
 // 把被积曲线下的有向面积建成实体棱柱:先按符号把每个区间拆成不跨零的
-// 简单多边形(signedAreaPolygons),再挤出合并为单块几何(createPrismAreaGroup).
+// 简单多边形(signedAreaPolygons),再一次性挤出为单块几何(createPrismAreaGroup).
 // Simpson 需要的抛物线细分点由 quadraticPoints(拉格朗日插值)给出.
-// wrapSolidGroup 是"实体 mesh + 30° 线框"的公共收尾,grids.ts 也复用它.
+// 实体与线框的收尾统一走 solidPrimitives 的 wrapSolid,grids.ts 也复用它.
 // 本文件不触碰场景与缓存,构建结果返回 null 表示无可绘制内容.
 // ============================================================
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RENDER_CONFIG } from '../../../config/renderConfig';
-import {
-    createSolidEdgeMaterial,
-    createSolidMaterial,
-} from '../solidPrimitives';
+import { wrapSolid } from '../solidPrimitives';
 
 const { depth2D: DEPTH_2D } = RENDER_CONFIG.integralVisualizer;
 
@@ -23,25 +19,6 @@ export interface Segment2D {
     x1: number;
     y0: number;
     y1: number;
-}
-
-/**
- * 给一块 BufferGeometry 组装"实体 mesh + 30° 阈值线框"的标准收尾.
- * 梯形柱阵/辛普森曲面/挤出棱柱共用,消除三处重复的材质与挂载样板.
- */
-export function wrapSolidGroup(
-    geometry: THREE.BufferGeometry,
-    color: THREE.Color,
-    opacity: number,
-    edgeOpacity: number,
-): THREE.Group {
-    const group = new THREE.Group();
-    group.add(new THREE.Mesh(geometry, createSolidMaterial(color, opacity)));
-    group.add(new THREE.LineSegments(
-        new THREE.EdgesGeometry(geometry, 30),
-        createSolidEdgeMaterial(color, edgeOpacity),
-    ));
-    return group;
 }
 
 /** 把单个梯形区间拆成不跨零的简单多边形. */
@@ -93,7 +70,8 @@ export function quadraticPoints(
 
 /**
  * 生成一维面积的挤出棱柱组(梯形/辛普森可视化的实体柱).
- * 区间按符号拆成不跨零的多边形再逐个挤出,合并为单块几何.
+ * 区间按符号拆成不跨零的多边形,汇总后一次性挤出为单块几何,避免逐块
+ * 挤出再合并带来的大量临时几何分配.
  * 返回 null 表示没有可绘制面积(调用方不应登记缓存).
  */
 export function createPrismAreaGroup(
@@ -101,24 +79,20 @@ export function createPrismAreaGroup(
     color: THREE.Color,
     opacity: number,
 ): THREE.Group | null {
-    const geometries: THREE.BufferGeometry[] = [];
+    const shapes: THREE.Shape[] = [];
 
     for (const segment of segments) {
         for (const polygon of signedAreaPolygons(segment)) {
-            const shape = new THREE.Shape(polygon.map(([x, y]) => new THREE.Vector2(x, y)));
-            const geometry = new THREE.ExtrudeGeometry(shape, {
-                depth: DEPTH_2D,
-                bevelEnabled: false,
-            });
-            geometry.translate(0, 0, -DEPTH_2D / 2);
-            geometries.push(geometry);
+            shapes.push(new THREE.Shape(polygon.map(([x, y]) => new THREE.Vector2(x, y))));
         }
     }
 
-    if (geometries.length === 0) return null;
-    const merged = mergeGeometries(geometries);
-    geometries.forEach((geometry) => geometry.dispose());
-    if (!merged) return null;
+    if (shapes.length === 0) return null;
+    const geometry = new THREE.ExtrudeGeometry(shapes, {
+        depth: DEPTH_2D,
+        bevelEnabled: false,
+    });
+    geometry.translate(0, 0, -DEPTH_2D / 2);
 
-    return wrapSolidGroup(merged, color, opacity, 0.35);
+    return wrapSolid(geometry, color, opacity, 0.35);
 }
