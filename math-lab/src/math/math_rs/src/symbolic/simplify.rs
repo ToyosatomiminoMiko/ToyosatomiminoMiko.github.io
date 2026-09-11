@@ -7,7 +7,16 @@
 //!   这是**能力边界而不是 bug**:求导链式法则的输出保持可读的最小化简,
 //!   真正的多项式正规化需要新的数据结构,不要在这里零敲碎打地加特例;
 //! - 化简结果对实数语义**不等价变换要谨慎**:只在 `is_finite()` 时才折叠
-//!   常量(`1/0`,`0/0` 保持原样,交给消费方按掩码/报错语义处理).
+//!   常量(`1/0`,`0/0` 保持原样,交给消费方按掩码/报错语义处理);
+//! - 在"最小化简"之上另有四条**形状**规则,只为把求导链式法则的产物收成
+//!   人能读的一行(202609 新增,`d/dx (x^3 + 7/x^4 - 2/x)` 需要它):
+//!   1) `(x^a)^b -> x^(a*b)`,仅当外层指数 b 是整数(实数语义下唯一安全的);
+//!   2) 同底数幂相除/相乘 `x^m / x^n -> x^(m-n)`,`x^m * x^n -> x^(m+n)`,
+//!      指数必须是常数;
+//!   3) 数值系数并进分数分子 `c * (u / v) -> (c*u) / v`(单个分数因子);
+//!   4) `A + (-c)X -> A - cX`,`A - (-c)X -> A + cX`.
+//!
+//!   这四条仍然不是多项式正规化:没有同类项合并,也没有通分/因式分解.
 //!
 //! 编码注意:
 //! - `pi`/`e` 等符号常量在表达式归一化阶段(rewrite_aliases)已被折叠成 Num,
@@ -102,6 +111,10 @@ fn simplify_binary(op: BinOp, left: Expr, right: Expr) -> Expr {
             if is_zero(&right) {
                 return left;
             }
+            // `A + (-c)X -> A - cX`,把负号提到运算符上,避免 `... + -28 / x^5`.
+            if let Some(positive) = positive_lead(&right) {
+                return Expr::Binary(BinOp::Sub, Box::new(left), Box::new(positive));
+            }
         }
         BinOp::Sub => {
             if is_zero(&right) {
@@ -109,6 +122,10 @@ fn simplify_binary(op: BinOp, left: Expr, right: Expr) -> Expr {
             }
             if is_zero(&left) {
                 return Expr::Unary(UnaryOp::Neg, Box::new(right));
+            }
+            // `A - (-c)X -> A + cX`,避免 `... - -2 / x^2`.
+            if let Some(positive) = positive_lead(&right) {
+                return Expr::Binary(BinOp::Add, Box::new(left), Box::new(positive));
             }
         }
         BinOp::Mul => {
@@ -121,7 +138,7 @@ fn simplify_binary(op: BinOp, left: Expr, right: Expr) -> Expr {
             if is_one(&right) {
                 return left;
             }
-            return simplify_mul(left, right);
+            return merge_coefficient_into_quotient(simplify_mul(left, right));
         }
         BinOp::Div => {
             if is_zero(&left) {
@@ -129,6 +146,9 @@ fn simplify_binary(op: BinOp, left: Expr, right: Expr) -> Expr {
             }
             if is_one(&right) {
                 return left;
+            }
+            if let Some(combined) = combine_power_quotient(&left, &right) {
+                return combined;
             }
         }
         BinOp::Pow => {
@@ -138,10 +158,166 @@ fn simplify_binary(op: BinOp, left: Expr, right: Expr) -> Expr {
             if is_one(&right) {
                 return left;
             }
+            if let Some(folded) = fold_integer_power_of_power(&left, &right) {
+                return folded;
+            }
         }
     }
 
     Expr::Binary(op, Box::new(left), Box::new(right))
+}
+
+/// `(x^a)^b -> x^(a*b)`,仅当外层指数 b 是整数.
+///
+/// 实数语义下 `(x^a)^b = x^(a*b)` 只在 b 为整数时普遍成立
+/// (`((-1)^2)^(1/2) = 1`,而 `(-1)^(2*1/2) = -1`),非整数外层指数保持原样.
+/// 这条规则同时也是"打平嵌套幂"的兜底:打印器虽然已给 `(x ^ a) ^ b` 补括号,
+/// 但能用指数直接算出来的就不要再留一层括号.
+fn fold_integer_power_of_power(left: &Expr, right: &Expr) -> Option<Expr> {
+    let Expr::Num(outer) = right else {
+        return None;
+    };
+    if !outer.is_finite() || outer.fract() != 0.0 {
+        return None;
+    }
+    let Expr::Binary(BinOp::Pow, base, inner) = left else {
+        return None;
+    };
+    let exponent = simplify(Expr::Binary(
+        BinOp::Mul,
+        inner.clone(),
+        Box::new(Expr::Num(*outer)),
+    ));
+    Some(simplify_binary(BinOp::Pow, base.as_ref().clone(), exponent))
+}
+
+/// 同底数幂相除:`x^3 / x^8 -> 1 / x^5`,`x^8 / x^3 -> x^5`,`x^3 / x^3 -> 1`.
+///
+/// 分子最左侧的数值系数一起收进结果的分子,所以
+/// `(-7) * (4 x^3 / x^8)` 会先并成 `(-28 x^3) / x^8` 再收成 `-28 / x^5`.
+/// 指数必须是常数:`x^m / x^n = x^(m-n)` 在符号指数下只在 x > 0 成立.
+fn combine_power_quotient(left: &Expr, right: &Expr) -> Option<Expr> {
+    let Expr::Binary(BinOp::Pow, right_base, right_exponent) = right else {
+        return None;
+    };
+    let Expr::Num(right_exponent) = right_exponent.as_ref() else {
+        return None;
+    };
+    let (coefficient, core) = split_number_coefficient(left);
+    let Expr::Binary(BinOp::Pow, left_base, left_exponent) = &core else {
+        return None;
+    };
+    let Expr::Num(left_exponent) = left_exponent.as_ref() else {
+        return None;
+    };
+    if left_base != right_base {
+        return None;
+    }
+
+    let exponent = left_exponent - right_exponent;
+    let combined = if exponent == 0.0 {
+        Expr::Num(1.0)
+    } else if exponent > 0.0 {
+        Expr::Binary(BinOp::Pow, left_base.clone(), Box::new(Expr::Num(exponent)))
+    } else {
+        Expr::Binary(
+            BinOp::Div,
+            Box::new(Expr::Num(1.0)),
+            Box::new(Expr::Binary(
+                BinOp::Pow,
+                left_base.clone(),
+                Box::new(Expr::Num(-exponent)),
+            )),
+        )
+    };
+    Some(attach_number_coefficient(coefficient, combined))
+}
+
+/// `c * (u / v) -> (c * u) / v`(c 是数值常数),只在乘积恰好只有一个分数
+/// 因子时合并.
+///
+/// 目的是让 `-7 * (4 x^3 / x^8)` 的数字因子与分数分子先并成 `-28 x^3 / x^8`,
+/// 后续同底数幂规则才能把它收成 `-28 / x^5`;不碰 `a * (b / c)` 这类通分.
+fn merge_coefficient_into_quotient(expr: Expr) -> Expr {
+    let Expr::Binary(BinOp::Mul, left, right) = &expr else {
+        return expr;
+    };
+    let Expr::Num(coefficient) = left.as_ref() else {
+        return expr;
+    };
+    let Expr::Binary(BinOp::Div, numerator, denominator) = right.as_ref() else {
+        return expr;
+    };
+    simplify(Expr::Binary(
+        BinOp::Div,
+        Box::new(Expr::Binary(
+            BinOp::Mul,
+            Box::new(Expr::Num(*coefficient)),
+            numerator.clone(),
+        )),
+        denominator.clone(),
+    ))
+}
+
+/// 拆出乘积最左侧的数值系数(化简把系数固定放在最左边);没有则为 1.
+fn split_number_coefficient(expr: &Expr) -> (f64, Expr) {
+    if let Expr::Binary(BinOp::Mul, left, right) = expr {
+        if let Expr::Num(value) = left.as_ref() {
+            return (*value, right.as_ref().clone());
+        }
+    }
+    (1.0, expr.clone())
+}
+
+/// 把数值系数并回化简结果:优先并进分式分子,保持 `-28 / x^5` 这种单一分式.
+fn attach_number_coefficient(coefficient: f64, expr: Expr) -> Expr {
+    if coefficient == 1.0 {
+        return expr;
+    }
+    match expr {
+        Expr::Binary(BinOp::Div, numerator, denominator) => simplify(Expr::Binary(
+            BinOp::Div,
+            Box::new(Expr::Binary(
+                BinOp::Mul,
+                Box::new(Expr::Num(coefficient)),
+                numerator,
+            )),
+            denominator,
+        )),
+        other => simplify(Expr::Binary(
+            BinOp::Mul,
+            Box::new(Expr::Num(coefficient)),
+            Box::new(other),
+        )),
+    }
+}
+
+/// 若首项数值系数为负,返回把该负号翻正后的等价表达式.
+///
+/// 只认化简自身会产出的三种形态:`Num`,`数值系数 * X`,`数值分子 / Y`
+/// (系数总是被 `simplify_mul` 固定在最左边).用于把
+/// `3x^2 + (-28/x^5) - (-2/x^2)` 收敛成 `3x^2 - 28/x^5 + 2/x^2`.
+fn positive_lead(expr: &Expr) -> Option<Expr> {
+    match expr {
+        Expr::Num(value) if *value < 0.0 => Some(Expr::Num(-value)),
+        Expr::Binary(BinOp::Mul, left, right) => match left.as_ref() {
+            Expr::Num(value) if *value < 0.0 => Some(Expr::Binary(
+                BinOp::Mul,
+                Box::new(Expr::Num(-value)),
+                right.clone(),
+            )),
+            _ => None,
+        },
+        Expr::Binary(BinOp::Div, numerator, denominator) => match numerator.as_ref() {
+            Expr::Num(value) if *value < 0.0 => Some(Expr::Binary(
+                BinOp::Div,
+                Box::new(Expr::Num(-value)),
+                denominator.clone(),
+            )),
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 fn simplify_call(name: &str, args: Vec<Expr>) -> Expr {
@@ -195,6 +371,7 @@ fn simplify_mul(left: Expr, right: Expr) -> Expr {
     if coefficient == 0.0 {
         return Expr::Num(0.0);
     }
+    let mut terms = merge_power_factors(terms);
 
     let mut product: Expr = if coefficient == 1.0 && !terms.is_empty() {
         terms.remove(0)
@@ -209,6 +386,63 @@ fn simplify_mul(left: Expr, right: Expr) -> Expr {
         product = Expr::Unary(UnaryOp::Neg, Box::new(product));
     }
     product
+}
+
+/// 同底数幂相乘:`x^m * x^n -> x^(m+n)`,指数必须是常数.
+///
+/// 与同底数幂相除(`combine_power_quotient`)成对:两者把幂法则/商法则留下的
+/// `x^3 * x^4` 与 `x^3 / x^8` 收成一个幂,所以 `d/dx 7/(x^4)^2` 得到
+/// `-56 / x^9` 而不是 `-56 * x^3 * x^4 / x^16`.符号指数不动:
+/// `x^m * x^n = x^(m+n)` 只在 x > 0 时无条件成立.
+fn merge_power_factors(terms: Vec<Expr>) -> Vec<Expr> {
+    let mut merged: Vec<Expr> = Vec::new();
+    for term in terms {
+        let Expr::Binary(BinOp::Pow, base, exponent) = &term else {
+            merged.push(term);
+            continue;
+        };
+        let Expr::Num(exponent) = exponent.as_ref() else {
+            merged.push(term);
+            continue;
+        };
+
+        let mut combined = false;
+        for existing in merged.iter_mut() {
+            let replacement = match existing {
+                Expr::Binary(BinOp::Pow, existing_base, existing_exponent)
+                    if existing_base == base =>
+                {
+                    match existing_exponent.as_ref() {
+                        Expr::Num(value) => {
+                            let total = value + exponent;
+                            if total == 1.0 {
+                                Some(base.as_ref().clone())
+                            } else if total == 0.0 {
+                                Some(Expr::Num(1.0))
+                            } else {
+                                Some(Expr::Binary(
+                                    BinOp::Pow,
+                                    Box::new(base.as_ref().clone()),
+                                    Box::new(Expr::Num(total)),
+                                ))
+                            }
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
+            };
+            if let Some(replacement) = replacement {
+                *existing = replacement;
+                combined = true;
+                break;
+            }
+        }
+        if !combined {
+            merged.push(term);
+        }
+    }
+    merged
 }
 
 fn collect_mul_factors(expr: Expr, out: &mut Vec<Expr>) {

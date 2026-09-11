@@ -107,10 +107,19 @@ fn expr_prec(expr: &Expr) -> u8 {
 
 fn binary_child(expr: &Expr, mode: PrintMode, op: BinOp, is_right: bool) -> String {
     let child_prec = expr_prec(expr);
+    // 同优先级子节点是否要括号取决于结合性:
+    // - `-` / `/` 左结合,只有右侧同级子节点需要(a - (b - c),a / (b / c));
+    // - `^` 右结合,**底数(左侧)同级也要括号**:`(x ^ 2) ^ 3` 少写括号会
+    //   重读成 `x ^ (2 ^ 3)`(= x^8,值从 x^6 变成 x^8).202609 修复前
+    //   Text 模式漏了这个括号,`7 / x ^ 4` 求导得到的分母被打印成
+    //   `x ^ 4 ^ 2`,回读后从 x^8 变成 x^16.
     let needs_parentheses = child_prec < op.prec()
-        || (is_right
-            && child_prec == op.prec()
-            && matches!(op, BinOp::Sub | BinOp::Div | BinOp::Pow));
+        || (child_prec == op.prec()
+            && match op {
+                BinOp::Sub | BinOp::Div => is_right,
+                BinOp::Pow => true,
+                _ => false,
+            });
     parenthesize(&format_expr(expr, mode, 0), needs_parentheses)
 }
 

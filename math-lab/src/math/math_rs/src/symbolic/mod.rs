@@ -656,6 +656,62 @@ mod tests {
         assert_eq!(symbolic_derivative("2 * 3 * x", "x").unwrap(), "6");
     }
 
+    /// 打印器必须给幂底数补括号:`(x^2)^3` 与 `x^(2^3)` 值不同(202609).
+    ///
+    /// 修复前 Text 模式只给幂的**右侧**同级子树补括号,`(x^4)^2` 打成
+    /// `x ^ 4 ^ 2`,回读(右结合)后从 x^8 变成 x^16,`7/x^4` 的导数被静默算错.
+    #[test]
+    fn printer_parenthesizes_power_base() {
+        fn evaluate(source: &str) -> Option<f64> {
+            let node = compile_runtime_expr(source).unwrap();
+            evaluate_runtime_expr(&node, &std::collections::HashMap::new()).unwrap()
+        }
+        assert_eq!(normalize_expression("(x ^ 2) ^ 3").unwrap(), "(x ^ 2) ^ 3");
+        assert_eq!(normalize_expression("x ^ (2 ^ 3)").unwrap(), "x ^ (2 ^ 3)");
+        // 回读语义:((2)^2)^3 = 64,而不是 2^(2^3) = 256.
+        assert_eq!(
+            evaluate(&normalize_expression("(2 ^ 2) ^ 3").unwrap()),
+            Some(64.0)
+        );
+        assert_eq!(
+            evaluate(&normalize_expression("2 ^ 2 ^ 3").unwrap()),
+            Some(256.0)
+        );
+        assert_eq!(latex_expression("(x^2)^3").unwrap(), "(x^{2})^{3}");
+    }
+
+    /// 求导结果收敛成可读的一行(202609):数字系数并进分子,同底数幂相除,
+    /// 负号提到运算符上.这是修复 `x^{4^{2}}` 打印 bug 后真正正确的化简结果
+    /// (d/dx 7/x^4 = -28/x^5,d/dx 2/x = -2/x^2).
+    #[test]
+    fn derivative_simplifies_quotient_powers_and_signs() {
+        assert_eq!(
+            symbolic_derivative("x^3 + 7/x^4 - 2/x", "x").unwrap(),
+            "3 * x ^ 2 - 28 / x ^ 5 + 2 / x ^ 2"
+        );
+        // 同底数幂相乘同样要合并,否则嵌套幂的导数会留下 `x^3 * x^4`.
+        assert_eq!(
+            symbolic_derivative("7/(x^4)^2", "x").unwrap(),
+            "-56 / x ^ 9"
+        );
+    }
+
+    /// 教科书例题[2-2.2.1]:`d/dx (x^3 + 7/x^4 - 2/x + 12) = 3x^2 - 28/x^5 + 2/x^2`.
+    ///
+    /// 两个都要守住:常数项 12 的导数折成 0 后不能在结果里留下尾部 `+ 0`,
+    /// 商法则留下的分数要收成同底数幂相除.
+    #[test]
+    fn derivative_of_textbook_example() {
+        assert_eq!(
+            symbolic_derivative("x^3+7/x^4-2/x+12", "x").unwrap(),
+            "3 * x ^ 2 - 28 / x ^ 5 + 2 / x ^ 2"
+        );
+        assert_eq!(
+            latex_expression(&symbolic_derivative("x^3+7/x^4-2/x+12", "x").unwrap()).unwrap(),
+            "3\\,x^{2} - \\frac{28}{x^{5}} + \\frac{2}{x^{2}}"
+        );
+    }
+
     /// 递归下降解析器的深度护栏:超深括号链报错而不是栈溢出.
     #[test]
     fn deeply_nested_expression_is_rejected_not_stack_overflow() {

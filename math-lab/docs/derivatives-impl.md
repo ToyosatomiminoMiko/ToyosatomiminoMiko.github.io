@@ -55,6 +55,13 @@ IR AnalysisResult { point, vector, tangent, scalar, show, enabled }
   一元负/二元运算/函数调用),乘积,商,幂 `f^g`,链式法则展开后交给
   `simplify`;`builtins.rs` 的 `derivative_unary` 表登记每个内置函数的
   导数;别名 `log/pow/sec/csc/cot/deg` 在 `rewrite_aliases` 阶段展开.
+  - `printing.rs` 的文本打印器必须给幂的**底数**补括号:`(x^2)^3` 少写
+    括号会重读成 `x^(2^3)`(x^6 变 x^8);`7/x^4` 的导数曾因此从
+    `-28/x^5` 静默变成 `-28/x^13`.LaTeX 打印器只做展示,不弥补 Text 的语义;
+  - `simplify.rs` 会把商/幂法则留下的分数收成人能读的一行:数字系数并进
+    分子,同底数幂相乘/相除合并,负号提到运算符上,例如
+    `d/dx (x^3 + 7/x^4 - 2/x) = 3x^2 - 28/x^5 + 2/x^2`(仍然不做同类项
+    合并/通分/因式分解,边界见 `simplify.rs` 顶部契约).
 
 ## 3. 与 gradient 的耦合(设计取舍)
 
