@@ -1477,9 +1477,10 @@ describe('derivative 求导语句', () => {
         expect(deriv.range).toEqual([-8, 8]);
         expect(deriv.segments).toBe(128);
         expect(deriv.id).toBe(2);
-        // 进入对象列表公式:微分算子 + 源函数(latex mock 原样返回表达式).
+        // 进入对象列表公式:微分算子 + 源函数 + 求出的导函数(缺一不可);
+        // latex mock 原样返回表达式.
         expect(scene.objectFormulas[2]).toBe(
-            'y=\\frac{\\mathrm{d}}{\\mathrm{d}x}\\left(sin(x * a)\\right)',
+            'y=\\frac{\\mathrm{d}}{\\mathrm{d}x}\\left(sin(x * a)\\right)=a * cos(x * a)',
         );
     });
 
@@ -1501,9 +1502,9 @@ describe('derivative 求导语句', () => {
         expect(surface.kind).toBe('surface');
         expect(surface.expr).toBe('cos(y) * cos(x)');
         expect(surface.coefficients).toEqual([]);
-        // 曲面偏导用 ∂/∂x,括号里同样是源函数.
+        // 曲面偏导用 ∂/∂x,括号里同样是源函数,后面接 ∂f/∂x 的结果.
         expect(scene.objectFormulas[2]).toBe(
-            'z=\\frac{\\partial}{\\partial x}\\left(sin(x) * cos(y)\\right)',
+            'z=\\frac{\\partial}{\\partial x}\\left(sin(x) * cos(y)\\right)=cos(y) * cos(x)',
         );
     });
 
@@ -1517,7 +1518,7 @@ describe('derivative 求导语句', () => {
         const scene = compileScene(derivAst);
 
         expect(scene.objectFormulas[2]).toBe(
-            'z=\\frac{\\partial}{\\partial y}\\left(sin(x) * cos(y)\\right)',
+            'z=\\frac{\\partial}{\\partial y}\\left(sin(x) * cos(y)\\right)=-(sin(x) * sin(y))',
         );
     });
 
@@ -1536,6 +1537,13 @@ describe('derivative 求导语句', () => {
         // mock 对未知表达式返回 '1'(对 'a * cos(x * a)' 再求 x 导).
         expect(d2.kind).toBe('curve');
         expect(d2.expr).toBe('1');
+        // 高阶导数公式同样两边都在:算子括号里是上一阶导函数,等号右侧是本阶结果.
+        expect(scene.objectFormulas[2]).toBe(
+            'y=\\frac{\\mathrm{d}}{\\mathrm{d}x}\\left(sin(x * a)\\right)=a * cos(x * a)',
+        );
+        expect(scene.objectFormulas[3]).toBe(
+            'y=\\frac{\\mathrm{d}}{\\mathrm{d}x}\\left(a * cos(x * a)\\right)=1',
+        );
     });
 
     it('rejects derivative of a non-curve/surface source', () => {

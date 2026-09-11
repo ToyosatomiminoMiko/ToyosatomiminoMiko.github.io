@@ -31,7 +31,8 @@ export type Coefficient = ParamDeclaration;
  * 求导来源:只有 `derivative` 语句生成的 curve/surface 才携带.
  *
  * 存在意义:产物在数值/渲染上与手写对象完全同构,但公式展示要保留微分算子,
- * 且括号里放**源函数**(数学上是 d/dx(f),不是"对导函数再求一次导").
+ * 括号里放**源函数**(数学上是 d/dx(f),不是"对导函数再求一次导"),再由公式层
+ * 把对象自身的 expr(真正求出的导函数)接在等号右侧.
  * 渲染/求值路径不读这个字段,它只服务于 sceneObjectLatex 的公式拼装.
  */
 export interface DerivativeOrigin {

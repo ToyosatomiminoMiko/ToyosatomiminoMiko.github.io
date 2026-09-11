@@ -89,8 +89,8 @@ type DerivativeSource = { kind: 'curve' | 'surface'; expr: string };
  *       transform/animation 刻意不继承--导数应是独立函数图形,与源对象的
  *       平移/动画无关,允许项见同文件顶部的 DERIVATIVE_OPTION_NAMES);
  *       唯一例外是 derivativeOrigin 这块展示元数据:公式要写成
- *       d/dx(源函数) 而不是看不出求导的 y=f(x)(见 dsl/latex.ts),数值与
- *       渲染路径不读它.
+ *       d/dx(源函数)=导函数,而不是看不出求导的 y=f(x)(见 dsl/latex.ts),
+ *       数值与渲染路径不读它.
  * ──────────────────────────────────────────────────────────────
  */
 function buildDerivativeObjectBlueprint(
@@ -157,7 +157,7 @@ function buildDerivativeObjectBlueprint(
     }
 
     // 只挂展示元数据:导出的对象本身仍是普通 curve/surface,数值/渲染不变;
-    // 公式层据此写成 d/dx(源函数) 或 ∂/∂y(源函数).
+    // 公式层据此写成 d/dx(源函数)=导函数 或 ∂/∂y(源函数)=导函数.
     if (blueprint.kind === 'curve' || blueprint.kind === 'surface') {
         blueprint.derivativeOrigin = {
             sourceExpr: sourceInfo.expr,
