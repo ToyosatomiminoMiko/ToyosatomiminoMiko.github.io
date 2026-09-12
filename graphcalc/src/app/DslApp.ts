@@ -80,10 +80,6 @@ export class DslApp {
             analysisList,
             integralList,
             intersectionList,
-            (id) => this._toggleObject(id),
-            (name) => this._toggleAnalysis(name),
-            (name) => this._toggleIntegral(name),
-            (name) => this._toggleIntersection(name),
         );
         this.paramPanelController = new ParamPanelController(
             paramsPanel,
@@ -226,41 +222,5 @@ export class DslApp {
 
         this.renderController.applyScene(scene, changedParams);
         return scene;
-    }
-
-    private _toggleObject(id: number): void {
-        const object = this.store.findObject(id);
-        if (!object) {
-            const nextVisible = !this.store.isEntityHidden(id);
-            this.store.setEntityHidden(id, !nextVisible);
-            this.objectListController.setEntityVisible(id, nextVisible);
-            return;
-        }
-
-        this.renderController.toggleObject(object);
-    }
-
-    private _toggleAnalysis(name: string): void {
-        const scene = this.compileController.toggleAnalysis(
-            name,
-            this.paramPanelController.getValues(),
-        );
-        if (scene) this.renderController.commitSceneWithoutRedraw(scene);
-    }
-
-    private _toggleIntegral(name: string): void {
-        const scene = this.compileController.toggleIntegral(
-            name,
-            this.paramPanelController.getValues(),
-        );
-        if (scene) this.renderController.commitSceneWithoutRedraw(scene);
-    }
-
-    private _toggleIntersection(name: string): void {
-        const scene = this.compileController.toggleIntersection(
-            name,
-            this.paramPanelController.getValues(),
-        );
-        if (scene) this.renderController.commitSceneWithoutRedraw(scene);
     }
 }

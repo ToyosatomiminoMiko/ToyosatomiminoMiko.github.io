@@ -33,9 +33,12 @@ vi.mock('../../wasm/math_rs/math_rs', () => ({
     symbolic_derivative: vi.fn((expr: string, variable: string) => {
         switch (expr) {
             case 'sin(x * a)':
-                return variable === 'x' ? 'a * cos(x * a)' : '1';
+                return variable === 'x' ? 'a * cos(x * a)' : '0';
             case 'sin(x) * cos(y)':
-                return variable === 'x' ? 'cos(y) * cos(x)' : '-(sin(x) * sin(y))';
+                // 曲面是 f(x,y):对 z 求偏导恒为 0(真实 Rust 引擎同样返回 0).
+                if (variable === 'x') return 'cos(y) * cos(x)';
+                if (variable === 'y') return '-(sin(x) * sin(y))';
+                return '0';
             case '-x':
                 return variable === 'x' ? '-1' : '0';
             case 'y':
@@ -655,6 +658,11 @@ describe('compileScene', () => {
         // 曲面偏导没有唯一"切线",默认 show 不含 tangent,切向为 null.
         expect(scene.analyses[0].show).toEqual(['point', 'normal']);
         expect(scene.analyses[0].tangent).toBeNull();
+        // 算子符号定义(列表展开的中间步骤):∇f = (f_x, f_y, f_z),
+        // 系数保持符号,由 Rust 符号引擎对声明级表达式求偏导.
+        expect(scene.analyses[0].symbolic).toBe(
+            '\\nabla f=\\left(cos(y) * cos(x),\\ -(sin(x) * sin(y)),\\ 0\\right)',
+        );
     });
 
     it('computes surface gradients from both partial derivatives', () => {

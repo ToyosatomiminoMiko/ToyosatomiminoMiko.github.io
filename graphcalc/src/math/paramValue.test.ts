@@ -5,6 +5,7 @@
  * 普通参数仍夹取,循环参数回绕到半开区间 [min, max),非法值报错.
  */
 import { describe, expect, it } from 'vitest';
+import { latexResultNumber } from './latexNumber';
 import { normalizeParamValue } from './paramValue';
 
 const ordinary = { name: 'a', min: -2, max: 2 };
@@ -41,5 +42,28 @@ describe('normalizeParamValue', () => {
     it('非有限值报错而不是静默产出 NaN', () => {
         expect(() => normalizeParamValue(NaN, cyclic)).toThrow(/有限数/);
         expect(() => normalizeParamValue(Infinity, ordinary)).toThrow(/有限数/);
+    });
+});
+
+describe('latexResultNumber', () => {
+    it('常规数值去掉多余小数 0', () => {
+        expect(latexResultNumber(2)).toBe('2');
+        expect(latexResultNumber(1.5)).toBe('1.5');
+        expect(latexResultNumber(-0.25)).toBe('-0.25');
+    });
+
+    it('科学计数法转成 KaTeX 可排版的 \\times10^{n}', () => {
+        // 直接写 2.775558e-17 会被 KaTeX 排成斜体 e,必须显式转写.
+        expect(latexResultNumber(2.775558e-17))
+            .toBe('2.775558\\times10^{-17}');
+        expect(latexResultNumber(-2.775558e-17))
+            .toBe('-2.775558\\times10^{-17}');
+        expect(latexResultNumber(1.25e20)).toBe('1.25\\times10^{20}');
+    });
+
+    it('0 与非常规量级各自有可读写法', () => {
+        expect(latexResultNumber(0)).toBe('0');
+        // 常规量级用定点(1e-4 不写成科学计数法).
+        expect(latexResultNumber(0.0001)).toBe('0.0001');
     });
 });

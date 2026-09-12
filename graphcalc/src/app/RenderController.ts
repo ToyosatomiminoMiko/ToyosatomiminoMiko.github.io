@@ -296,27 +296,6 @@ export class RenderController {
         this._syncOverlays(scene, null, false, undefined, true);
     }
 
-    toggleObject(object: SceneObject): void {
-        const nextVisible = !object.enabled;
-        object.enabled = nextVisible;
-        this.store.setEntityHidden(object.id, !nextVisible);
-
-        const objectsByName = new Map<string, SceneObject>();
-        for (const candidate of this.store.compiledObjects) {
-            if (candidate.name !== undefined) {
-                objectsByName.set(candidate.name, candidate);
-            }
-        }
-        if (nextVisible) {
-            this.plotter.updateObject(object, true, objectsByName);
-            this._applyObjectTransform(object.id);
-        } else {
-            this.plotter.setVisible(object.id, false);
-        }
-
-        this.objectListController.setEntityVisible(object.id, nextVisible);
-    }
-
     dispose(): void {
         this.stopSamplingFailureListener();
         this.cameraManager.detachControls();

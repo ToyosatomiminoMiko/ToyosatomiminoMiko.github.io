@@ -14,10 +14,9 @@ import {
     intersectionLatexDetails,
     intersectionLatexSummary,
 } from '../compiler/dsl/evaluationLatex';
+import { latexResultNumber } from '../math/latexNumber';
 import { createFormulaElement } from './FormulaView';
 
-type ToggleEntityHandler = (id: number) => void;
-type ToggleEvaluationHandler = (name: string) => void;
 
 const ENTITY_KIND_LABELS: Record<SceneObject['kind'], string> = {
     curve: '曲线',
@@ -30,12 +29,6 @@ const ENTITY_KIND_LABELS: Record<SceneObject['kind'], string> = {
     conic: '旋转体',
     region: '区域',
     implicit: '隐式场',
-};
-
-const ANALYSIS_KIND_LABELS: Record<AnalysisResult['op'], string> = {
-    gradient: '梯度',
-    divergence: '散度',
-    curl: '旋度',
 };
 
 const INTEGRAL_METHOD_LABELS: Record<IntegralTask['method'], string> = {
@@ -126,24 +119,6 @@ function sceneObjectKindLabel(object: SceneObject): string {
     return '圆台';
 }
 
-function analysisSummary(analysis: AnalysisResult): string {
-    const point = `P=${formatVector(analysis.point)}`;
-    switch (analysis.op) {
-        case 'gradient': {
-            // 隐式场/球体的分析点额外回显球坐标 [r, θ, φ](相对世界原点,
-            // θ/φ 约定见 numericConfig.analysis.sphericalAngleConvention).
-            const spherical = analysis.pointSpherical
-                ? ` · (r,θ,φ)=${formatVector(analysis.pointSpherical)}`
-                : '';
-            return `${point} · f(P)=${formatNumber(analysis.scalar ?? NaN)} · ∇f=${formatVector(analysis.vector)}${spherical}`;
-        }
-        case 'divergence':
-            return `${point} · ∇·F(P)=${formatNumber(analysis.scalar ?? NaN)}`;
-        case 'curl':
-            return `${point} · ∇×F(P)=${formatVector(analysis.vector)}`;
-    }
-}
-
 function integralTaskKey(task: IntegralTask): string {
     return JSON.stringify([
         task.name,
@@ -212,11 +187,11 @@ function integralSourceLabel(
  * 展开细节:每行一段 KaTeX,一行排不下时由 CSS 横向滚动承接.
  *
  * 为什么要折叠:求值条目的完整信息(P,∇f 逐分量,球坐标回显,积分域与
- * 方法)远比一行宽,折叠态只留摘要行,列表才扫得动;细节默认收起由
- * `<details>` 原生实现,不引入第二份 JS 状态.
+ * 方法)远比一行宽,折叠态只留摘要行,列表才扫得动;默认收起由
+ * `<details open=false>` 实现,开合只认显式按钮.
  */
 function createDetailLines(lines: readonly string[]): HTMLElement {
-    const container = createElement('div', 'eval-detail');
+    const container = createElement('div', 'eval-details');
     for (const line of lines) {
         container.append(createFormulaElement(line, 'eval-detail-line'));
     }
@@ -224,26 +199,41 @@ function createDetailLines(lines: readonly string[]): HTMLElement {
 }
 
 /**
- * 求值条目的三段结构:
- * - `summary`(`<summary>`):默认可见的摘要行 = 显隐按钮 + 类型徽章 + 名称 + 摘要公式;
- * - `details`(`<details>`):折叠容器,展开后显示 `detail`;
- * - `result`(`.eval-result`):结果一行,始终可见(异步回填的数值/错误).
+ * 积分条目的 DOM 缓存项.
  *
- * 结果放在 `<details>` 外面:折叠只是为了收纳推导,数值本身是条目的主产出,
- * 不该跟着一起被藏起来.
+ * `result` 可能为 null(纯公式条目没有独立结果行),`bodyLatex` 是积分式本体
+ * (不含 `=`),数值回填后按它把结果行与展开细节里的等式一起刷新.
+ */
+interface IntegralRow {
+    row: HTMLElement;
+    result: HTMLElement | null;
+    bodyLatex: string | null;
+}
+
+/**
+ * 求值条目的三段结构:
+ * - `summary`(`<summary>`):折叠态可见 = 一段 KaTeX 公式.开合完全交给
+ *   `<details>` 的原生行为(点摘要行即开合),不额外放按钮;
+ * - `details`(`<details>`):折叠容器,展开后显示 `detail`,默认收起;
+ * - `result`(`.eval-result`):结果一行,**放在 `<details>` 里面**的最后,
+ *   跟着一起开合--折叠时整条只剩摘要行,展开才给完整过程与数值.
+ *
+ * 显隐按钮已整体移除:求值对象是否参与计算没有 UI 开关,`enabled` 只由
+ * 编译侧(隐藏集合)决定.
  */
 function createEvaluationShell(
     summary: HTMLElement,
     detail: HTMLElement | null,
-    result: HTMLElement,
-): { row: HTMLElement; details: HTMLDetailsElement | null } {
+    result: HTMLElement | null,
+): HTMLElement {
     const row = createElement('article', 'object-row evaluation-row');
     const main = createElement('div', 'object-main');
 
     if (detail === null) {
-        main.append(summary, result);
+        main.append(summary);
+        if (result !== null) main.append(result);
         row.append(main);
-        return { row, details: null };
+        return row;
     }
 
     const details = document.createElement('details');
@@ -251,22 +241,10 @@ function createEvaluationShell(
     // 默认折叠:全部条目在首次渲染时都是收起状态.
     details.open = false;
     details.append(summary, detail);
-    main.append(details, result);
+    if (result !== null) details.append(result);
+    main.append(details);
     row.append(main);
-    return { row, details };
-}
-
-function createVisibilityButton(
-    enabled: boolean,
-    onToggle: () => void,
-): HTMLButtonElement {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'entity-visibility-btn';
-    button.textContent = enabled ? '隐藏' : '显示';
-    button.setAttribute('aria-pressed', String(enabled));
-    button.addEventListener('click', onToggle);
-    return button;
+    return row;
 }
 
 /**
@@ -275,8 +253,8 @@ function createVisibilityButton(
  * 左栏展示场景实体对象,右栏展示分析与积分等求值结果.
  * 控制器只负责 DOM,真正的可见性与数值计算由 DslApp 回调驱动.
  *
- * 求值条目(分析/积分/求交)统一是"摘要行 + 可折叠 KaTeX 细节 + 结果行":
- * 摘要行折叠时也渲染公式(关键量仍在),细节展开才排版完整推导.
+ * 求值条目(分析/积分/求交)统一是"显式展开按钮 + KaTeX 摘要公式 + 可折叠
+ * KaTeX 细节 + 结果行":摘要行只排版公式,细节展开才给中间步骤与逐分量数值.
  */
 export class ObjectListController {
     /**
@@ -294,19 +272,10 @@ export class ObjectListController {
     /**
      * @cache
      * 缓存目的:复用积分列表 DOM 行,只更新结果文本,避免每次 sync 重建整棵树.
-     * 键/失效策略:积分名 -> { row, result, key, summaryLatex };任务消失或任务参数变化时替换.
+     * 键/失效策略:积分名 -> { row, result, key, bodyLatex };任务消失或任务参数变化时替换.
      * 生命周期:跟随 ObjectListController 实例.
      */
-    private readonly integralRows = new Map<
-        string,
-        {
-            row: HTMLElement;
-            result: HTMLElement;
-            key: string;
-            /** 摘要公式的 LaTeX(`...=`),result 元素按它把数值拼成完整等式. */
-            summaryLatex: string | null;
-        }
-    >();
+    private readonly integralRows = new Map<string, IntegralRow & { key: string }>();
 
     /**
      * @cache
@@ -324,15 +293,20 @@ export class ObjectListController {
         }
     >();
 
+    /**
+     * @cache
+     * 缓存目的:保存每个积分的最新数值.展开细节里的等式与结果行必须同源,
+     * 而细节行是异步结果回来之前就建好的,只能靠这份缓存回填.
+     * 键/失效策略:积分名 -> 数值;任务消失时随行缓存一起清理,出错时删除.
+     * 生命周期:跟随 ObjectListController 实例.
+     */
+    private readonly integralResults = new Map<string, number>();
+
     constructor(
         private readonly entityList: HTMLElement,
         private readonly analysisList: HTMLElement,
         private readonly integralList: HTMLElement,
         private readonly intersectionList: HTMLElement,
-        private readonly onToggleEntity: ToggleEntityHandler,
-        private readonly onToggleAnalysis: ToggleEvaluationHandler,
-        private readonly onToggleIntegral: ToggleEvaluationHandler,
-        private readonly onToggleIntersection: ToggleEvaluationHandler,
     ) {}
 
     renderScene(scene: SceneIR): void {
@@ -342,39 +316,17 @@ export class ObjectListController {
         this._renderIntersections(scene.intersections);
     }
 
-    setEntityVisible(id: number, visible: boolean): void {
-        const row = this.entityList.querySelector<HTMLElement>(`[data-entity-id="${id}"]`);
-        if (!row) return;
-
-        row.classList.toggle('is-hidden', !visible);
-        const button = row.querySelector<HTMLButtonElement>('.entity-visibility-btn');
-        if (!button) return;
-        button.textContent = visible ? '隐藏' : '显示';
-        button.setAttribute('aria-pressed', String(visible));
-    }
-
     /**
      * @cache_access
-     * 命中积分 DOM 行缓存:把数值接在摘要公式的 `=` 后面(公式可排版时),
-     * 否则退化为纯文本.
+     * 命中积分 DOM 行缓存:结果行排成完整等式 `∫f dx = 数值`,并把展开细节里
+     * 那条等式的右端一起刷新(两处必须同源,否则展开前后数值不一致).
      */
     setIntegralResult(name: string, value: number): void {
         const item = this.integralRows.get(name);
         if (!item) return;
 
-        // 一维是面积/长度,二维是面积/二重积分,三维是体积/三重积分,
-        // 不带 S/V 前缀,由公式行给出语义.
-        if (item.summaryLatex !== null) {
-            item.result.replaceChildren(
-                createFormulaElement(
-                    `${item.summaryLatex}${formatNumber(value)}`,
-                    'eval-result is-ready',
-                ),
-            );
-        } else {
-            item.result.textContent = `${formatNumber(value)}`;
-        }
-        item.result.className = 'eval-result is-ready';
+        this.integralResults.set(name, value);
+        this._renderIntegralResult(item, value);
         item.row.classList.remove('has-error');
     }
 
@@ -386,6 +338,10 @@ export class ObjectListController {
         const item = this.integralRows.get(name);
         if (!item) return;
 
+        // 出错后不留旧数值:细节里的等式退回"没有结果"的形态.
+        this.integralResults.delete(name);
+        this._replaceIntegralEquation(item, null);
+        if (!item.result) return;
         item.result.replaceChildren(document.createTextNode(message));
         item.result.className = 'eval-result is-error';
         item.row.classList.add('has-error');
@@ -435,6 +391,60 @@ export class ObjectListController {
         this.clear();
     }
 
+    /** 取积分最新数值(未回填/已出错时为 null). */
+    private _integralResult(name: string): number | null {
+        return this.integralResults.get(name) ?? null;
+    }
+
+    /**
+     * 刷新积分结果行:排成完整等式 `∫f dx = 数值`;积分式不可排版时只给数值.
+     *
+     * 结果行与展开细节的第一行是同一个公式,这里同时更新两处,避免展开前后
+     * 看到两个不同版本的数值.
+     */
+    private _renderIntegralResult(item: IntegralRow, value: number): void {
+        if (item.result === null) return;
+        if (item.bodyLatex === null) {
+            // 积分式排不出来时只给数值文本.
+            item.result.replaceChildren(
+                document.createTextNode(formatNumber(value)),
+            );
+            item.result.className = 'eval-result is-ready';
+        } else {
+            // 公式元素由 createFormulaElement 统一带上类名,结果行自身只挂
+            // 基础类,避免出现两层 `eval-result`.
+            item.result.replaceChildren(
+                createFormulaElement(
+                    `${item.bodyLatex}=${latexResultNumber(value)}`,
+                    'eval-result is-ready',
+                ),
+            );
+            item.result.className = '';
+        }
+        this._replaceIntegralEquation(item, value);
+    }
+
+    /**
+     * 把展开细节里的积分等式换成 `∫f dx = 数值`;`value = null` 时退回不带
+     * 右端的积分式(出错/尚未算出).
+     */
+    private _replaceIntegralEquation(item: IntegralRow, value: number | null): void {
+        if (item.bodyLatex === null) return;
+        // 细节容器是 row > details > .eval-details,首个子元素就是积分等式那一行.
+        const container = item.row.querySelector<HTMLElement>('.eval-details > .eval-details');
+        const line = container?.firstElementChild;
+        if (!container || !line) return;
+
+        const latex = value === null
+            ? item.bodyLatex
+            : `${item.bodyLatex}=${latexResultNumber(value)}`;
+        const rest = [...container.children].slice(1);
+        container.replaceChildren(
+            createFormulaElement(latex, 'eval-detail-line'),
+            ...rest,
+        );
+    }
+
     private _renderEntities(
         objects: SceneObject[],
         objectFormulas: Record<number, string | null>,
@@ -445,10 +455,6 @@ export class ObjectListController {
             const row = createElement('article', 'object-row entity-row');
             row.dataset.entityId = String(object.id);
             row.classList.toggle('is-hidden', !object.enabled);
-
-            const button = createVisibilityButton(object.enabled, () =>
-                this.onToggleEntity(object.id),
-            );
 
             const badge = createElement(
                 'span',
@@ -468,7 +474,7 @@ export class ObjectListController {
                 );
             main.append(name, expression);
 
-            row.append(button, badge, main);
+            row.append(badge, main);
             fragment.append(row);
         }
 
@@ -506,33 +512,22 @@ export class ObjectListController {
     }
 
     private _createAnalysisRow(analysis: AnalysisResult): HTMLElement {
-        const button = createVisibilityButton(analysis.enabled, () =>
-            this.onToggleAnalysis(analysis.name),
-        );
-        const badge = createElement(
-            'span',
-            `kind-badge kind-analysis kind-analysis-${analysis.op}`,
-            ANALYSIS_KIND_LABELS[analysis.op],
-        );
-        const name = createElement('strong', 'object-name', analysis.name);
-
-        // 摘要行折叠时也排版:关键量(算子在 P 点的结果)必须一眼可见.
+        // 折叠态只排一行 KaTeX 公式(类型徽章/名称/纯文本摘要都与公式重复,
+        // 名字留在源码与诊断里).
         const summaryLine = createFormulaElement(
             analysisLatexSummary(analysis),
             'eval-summary-formula',
         );
-        const summary = createElement('summary', 'eval-summary');
-        summary.append(button, badge, name, summaryLine);
+        const summary = document.createElement('summary');
+        summary.className = 'eval-summary';
+        summary.append(summaryLine);
 
-        const detail = analysis.enabled
+        // 展开细节里先给算子的符号展开,再给该点的数值结果.
+        const details = analysis.enabled
             ? createDetailLines(analysisLatexDetails(analysis))
             : null;
-        const result = createElement(
-            'code',
-            analysis.enabled ? 'eval-result is-ready' : 'eval-result is-disabled',
-            analysis.enabled ? analysisSummary(analysis) : '已隐藏,不参与计算',
-        );
-        const { row } = createEvaluationShell(summary, detail, result);
+
+        const row = createEvaluationShell(summary, details, null);
         row.classList.toggle('is-hidden', !analysis.enabled);
         return row;
     }
@@ -566,51 +561,47 @@ export class ObjectListController {
 
             const created = this._createIntegralRow(task, objects);
             this.integralList.append(created.row);
-            this.integralRows.set(task.name, {
-                row: created.row,
-                result: created.row.querySelector<HTMLElement>('.eval-result')!,
-                key,
-                summaryLatex: created.summaryLatex,
-            });
+            this.integralRows.set(task.name, { ...created, key });
         }
     }
 
-    private _createIntegralRow(
-        task: IntegralTask,
-        objects: SceneObject[],
-    ): { row: HTMLElement; summaryLatex: string | null } {
-        const button = createVisibilityButton(task.enabled, () =>
-            this.onToggleIntegral(task.name),
-        );
-        const badge = createElement('span', 'kind-badge kind-integral', '积分');
-        const name = createElement('strong', 'object-name', task.name);
-
-        // 摘要公式 = 积分式本体 + `=`,数值稍后由 setIntegralResult 接上;
-        // 展不开公式(null,例如被积对象已删除)时退回纯文本摘要,不编造公式.
-        const summaryLatex = integralLatexSummary(task, objects);
-        const summaryLine: HTMLElement = summaryLatex === null
+    private _createIntegralRow(task: IntegralTask, objects: SceneObject[]): IntegralRow {
+        // 摘要公式 = 积分式本体(不接 `=`):与梯度条目同一条约定--折叠态只给
+        // 算子的书写形式,数值由 setIntegralResult 排版成完整等式.展不开公式
+        // (null,例如被积对象已删除)时退回纯文本,不编造公式.
+        const bodyLatex = integralLatexSummary(task, objects);
+        const summaryLine: HTMLElement = bodyLatex === null
             ? createElement('code', 'object-expr', integralSourceLabel(task, objects))
-            : createFormulaElement(summaryLatex, 'eval-summary-formula');
-        const summary = createElement('summary', 'eval-summary');
-        summary.append(button, badge, name, summaryLine);
+            : createFormulaElement(bodyLatex, 'eval-summary-formula');
+        const summary = document.createElement('summary');
+        summary.className = 'eval-summary';
+        summary.append(summaryLine);
 
-        const detail = task.enabled
-            ? createDetailLines(
-                integralLatexDetails(
-                    task,
-                    objects,
-                    INTEGRAL_METHOD_LABELS[task.method],
-                ),
-            )
+        const cachedResult = this._integralResult(task.name);
+        // 展开细节第一行就是完整等式 `∫f dx = 数值`;数值尚未回填时省略右端.
+        const details = task.enabled
+            ? createDetailLines(integralLatexDetails(
+                task,
+                objects,
+                INTEGRAL_METHOD_LABELS[task.method],
+                cachedResult,
+            ))
             : null;
-        const result = createElement(
-            'code',
-            task.enabled ? 'eval-result is-pending' : 'eval-result is-disabled',
-            task.enabled ? '计算中...' : '已隐藏,不参与计算',
-        );
-        const { row } = createEvaluationShell(summary, detail, result);
+        const result = cachedResult === null
+            ? createElement(
+                'code',
+                task.enabled ? 'eval-result is-pending' : 'eval-result is-disabled',
+                task.enabled ? '计算中...' : '已隐藏,不参与计算',
+            )
+            : createElement('code', 'eval-result is-ready', '');
+        const row = createEvaluationShell(summary, details, result);
         row.classList.toggle('is-hidden', !task.enabled);
-        return { row, summaryLatex };
+        const created: IntegralRow = { row, result, bodyLatex };
+        // 已有数值时把结果行与细节等式一起排好(缓存跨了行重建).
+        if (cachedResult !== null) {
+            this._renderIntegralResult(created, cachedResult);
+        }
+        return created;
     }
 
     /**
@@ -649,19 +640,16 @@ export class ObjectListController {
     }
 
     private _createIntersectionRow(task: IntersectionTask): HTMLElement {
-        const button = createVisibilityButton(task.enabled, () =>
-            this.onToggleIntersection(task.name),
-        );
-        const badge = createElement('span', 'kind-badge kind-intersection', '求交');
-        const name = createElement('strong', 'object-name', task.name);
-
         const summaryLine = createFormulaElement(
             intersectionLatexSummary(task),
             'eval-summary-formula',
         );
-        const summary = createElement('summary', 'eval-summary');
-        summary.append(button, badge, name, summaryLine);
+        const summary = document.createElement('summary');
+        summary.className = 'eval-summary';
+        summary.append(summaryLine);
 
+        // 求交是异步任务:交点/交线数量由 Worker 回填到结果行,展开细节给
+        // 两个源对象与采样分段.
         const detail = task.enabled
             ? createDetailLines(intersectionLatexDetails(task))
             : null;
@@ -670,7 +658,7 @@ export class ObjectListController {
             task.enabled ? 'eval-result is-pending' : 'eval-result is-disabled',
             task.enabled ? '计算中...' : '已隐藏,不参与计算',
         );
-        const { row } = createEvaluationShell(summary, detail, result);
+        const row = createEvaluationShell(summary, detail, result);
         row.classList.toggle('is-hidden', !task.enabled);
         return row;
     }

@@ -28,6 +28,14 @@ import { cachedDerivativeExpression, evaluateExpressionAt } from './expression';
 /** 隐式场的点求值器;返回 null 表示该点不可求值(定义域外/符号未声明). */
 export interface ImplicitField {
     name: string;
+    /**
+     * 隐式方程左端的标量场表达式 f(x,y[,z]).
+     *
+     * 数值路径只用 `value`/`gradient`;分析结果列表拿它做一次符号求导,把
+     * 算子展开式 `∇f = (f_x, f_y, f_z)` 作为中间步骤展示(与 curve/surface
+     * 的 `symbolic` 同源,见 dsl/analyses.ts).
+     */
+    expr: string;
     /** 2 = f(x,y)=level;3 = f(x,y,z)=level. */
     dim: 2 | 3;
     /** 等值面的水平值,投影目标即 f = level. */
@@ -82,6 +90,7 @@ export function implicitFieldOf(object: ImplicitObject): ImplicitField {
 
     return {
         name: object.name,
+        expr: object.expr,
         dim: object.dim,
         level: object.level,
         value: (x, y, z) => evaluateExpressionAt(object.expr, scope, x, y, z),
@@ -108,6 +117,12 @@ export function sphereImplicitField(object: SphereObject): ImplicitField {
 
     return {
         name: object.name,
+        // 球体在物化阶段中心/半径已是数值,隐式方程由这些数值直接构造;
+        // 表达式供列表做 ∇f 的符号展开(数值路径不解析它).
+        expr: sphereImplicitExpression(
+            [String(cx), String(cy), String(cz)],
+            String(radius),
+        ),
         dim: 3,
         level: 0,
         value: (x, y, z) => (

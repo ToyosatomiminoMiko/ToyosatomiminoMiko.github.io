@@ -65,12 +65,11 @@ export class ParamPanelController {
         row.classList.toggle('is-cyclic', param.cyclic);
 
         const label = document.createElement('label');
-        // 循环参数在名字后加 ↻:让"这个量在圆周上"在面板里可见,
-        // 而不是只能回到源码里看 `in cyclic [...]`.
+        // 循环参数在名字后加 ↻:让"这个量在圆周上"在面板里可见.
+        // 不挂 title/aria-label:多数浏览器会把它们画成 hover 浮层,同一行
+        // 会凭空多出一段文字(求值列表的展开按钮踩过同一个坑);区间与周期
+        // 由数字输入的 min/max/step 本身表达.
         label.textContent = param.cyclic ? `${param.name} ↻` : param.name;
-        if (param.cyclic) {
-            label.title = `循环参数:取值范围 [${param.min}, ${param.max}],越界输入按 ${param.max - param.min} 回绕`;
-        }
 
         const slider = document.createElement('input');
         slider.type = 'range';

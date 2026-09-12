@@ -76,9 +76,12 @@ function integral(overrides: Partial<IntegralTask> = {}): IntegralTask {
 }
 
 describe('analysisLatexSummary', () => {
-    it('折叠态即给出算子,作用点与结果', () => {
-        expect(analysisLatexSummary(analysis())).toContain('\\nabla f');
-        expect(analysisLatexSummary(analysis())).toContain('\\left(1,\\ 2,\\ 3\\right)');
+    it('折叠态只给"算子在哪个点",数值留给展开细节', () => {
+        const summary = analysisLatexSummary(analysis());
+        expect(summary).toContain('\\nabla f');
+        expect(summary).toContain('\\left(1,\\ 2,\\ 3\\right)');
+        // 同一行不重复出现算子与数值结果.
+        expect(summary).not.toContain('=');
     });
 
     it('散度/旋度用各自算子', () => {
@@ -90,18 +93,25 @@ describe('analysisLatexSummary', () => {
 });
 
 describe('analysisLatexDetails', () => {
-    it('梯度细节包含点,场值,梯度与球坐标回显', () => {
+    const symbolic = '\\nabla f=\\left(2 x,\\ 2 y,\\ 2 z\\right)';
+
+    it('梯度先展开算子的符号定义,再给该点的数值结果', () => {
         const lines = analysisLatexDetails(
-            analysis({ pointSpherical: [3.741657, 0.640522, 1.107149] }),
+            analysis({ symbolic, pointSpherical: [3.741657, 0.640522, 1.107149] }),
         );
-        expect(lines[0]).toBe('P=\\left(1,\\ 2,\\ 3\\right)');
-        expect(lines[1]).toContain('\\left(r,\\theta,\\varphi\\right)');
+        // 中间步骤:符号定义在前,数值结果紧随其后.
+        expect(lines[0]).toBe(symbolic);
+        expect(lines[1]).toBe(
+            '\\nabla f\\left(P\\right)=\\left(0.267261,\\ 0.534522,\\ 0.801784\\right)',
+        );
+        expect(lines[2]).toBe('P=\\left(1,\\ 2,\\ 3\\right)');
+        expect(lines.some((line) => line.includes('\\left(r,\\theta,\\varphi\\right)'))).toBe(true);
         expect(lines.some((line) => line.includes('f\\left(P\\right)=4'))).toBe(true);
-        expect(lines.some((line) => line.includes('\\nabla f\\left(P\\right)'))).toBe(true);
     });
 
-    it('没有球坐标结果时不出球坐标行', () => {
+    it('没有符号定义时不编造中间步骤', () => {
         const lines = analysisLatexDetails(analysis());
+        expect(lines[0]).toContain('\\nabla f\\left(P\\right)=');
         expect(lines.some((line) => line.includes('\\varphi'))).toBe(false);
     });
 
@@ -112,21 +122,31 @@ describe('analysisLatexDetails', () => {
 });
 
 describe('integralLatex', () => {
-    it('摘要给出积分式并以等号结尾,等待数值拼接', () => {
+    it('摘要只给积分式本身,不接等号(数值在结果行/细节里排成完整等式)', () => {
         expect(integralLatexSummary(integral(), [curve]))
-            .toBe('\\int_{-4}^{4} x^2 \\mathrm{d}x=');
+            .toBe('\\int_{-4}^{4} x^2 \\mathrm{d}x');
     });
 
     it('找不到被积对象时返回 null', () => {
         expect(integralLatexSummary(integral({ objectId: 9 }), [curve])).toBeNull();
     });
 
-    it('细节包含积分式,域,方法与分段分层', () => {
-        const lines = integralLatexDetails(integral(), [curve], '黎曼和(左端点)');
-        expect(lines[0]).toContain('\\int_{-4}^{4}');
-        expect(lines[1]).toContain('域');
-        expect(lines[1]).toContain('黎曼和(左端点)');
-        expect(lines[2]).toContain('分段');
+    it('细节第一行是完整等式,数值由调用方回填', () => {
+        const pending = integralLatexDetails(integral(), [curve], '黎曼和(左端点)');
+        expect(pending[0]).toBe('\\int_{-4}^{4} x^2 \\mathrm{d}x');
+        expect(pending[1]).toContain('域');
+        expect(pending[1]).toContain('黎曼和(左端点)');
+        expect(pending[2]).toContain('分段');
+
+        const ready = integralLatexDetails(
+            integral(),
+            [curve],
+            '黎曼和(左端点)',
+            -2.775558e-17,
+        );
+        expect(ready[0]).toBe(
+            '\\int_{-4}^{4} x^2 \\mathrm{d}x=-2.775558\\times10^{-17}',
+        );
     });
 });
 

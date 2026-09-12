@@ -70,9 +70,9 @@ function normalizeVector(vector: [number, number, number]): [number, number, num
  * 标量场的梯度算子符号式 `∇f = (f_x, f_y, f_z)`(LaTeX).
  *
  * 与求导对象的展示契约一致:先给算子作用在源函数上的公式,再给数值结果.
- * 分量由 Rust 符号引擎对**声明级表达式**求偏导(带缓存),系数保持符号;
- * curve 只有 x 一个自由变量,后两个分量按 0 记(与
- * `cachedDerivativeExpression(object.expr, 'y')` 的既有口径一致).
+ * 分量由 Rust 符号引擎对**声明级表达式**求偏导(带缓存),系数保持符号.
+ * `dim = 2` 用于一元 curve(只有 x 一个自由变量,f_y 记 0);`dim = 3` 用于
+ * 曲面与隐式场(曲面不含 z,对 z 求偏导自然得 0,与真实引擎口径一致).
  *
  * 由 `cachedLatexExpression` 负责表达式 -> LaTeX,与实体对象公式同源.
  */
@@ -311,8 +311,7 @@ function compileAnalysisStatement(
             op: 'gradient',
             point: projected.point,
             // 算子符号式:列表先展开 ∇f,再给该点的数值结果.
-            symbolic: symbolicGradientLatex(field.expr, field.dim),
-            // 隐式场/球体的分析点是三维空间点,结果列表同时给出球坐标
+            symbolic: symbolicGradientLatex(field.expr, field.dim),            // 隐式场/球体的分析点是三维空间点,结果列表同时给出球坐标
             // [r, θ, φ](相对世界原点);由坐标系类换算,约定与 at spherical
             // 共用同一份全局配置.
             pointSpherical: analysisSphericalSystem().fromCartesian(projected.point),
