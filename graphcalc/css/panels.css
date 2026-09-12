@@ -83,12 +83,13 @@
     border-radius: 8px;
 }
 
-/* 行号槽:固定宽度,内容超出时裁剪,靠 translate 跟随滚动 */
+/* 行号槽:宽度随字体与行数变化,内容超出时裁剪,靠 translate 跟随滚动 */
 #dsl-editor-gutter {
     flex: 0 0 auto;
     box-sizing: border-box;
-    /* 宽度不适多调整 */
-    width: 32px;
+    /* 由 EditorLineNumbers 按 "最大行号位数 x 实际字体数字宽 + 内边距/边框"
+       写入,写死宽度会在 3 位行号或更大的字号下裁掉行号 */
+    width: var(--code-gutter-width, 32px);
     padding: 11px 0 11px 8px; /* 顶部 11px = 外框 border 1px + 编辑区 padding 10px */
     overflow: hidden;
     background: #0a0e1c;
@@ -98,12 +99,12 @@
     -webkit-user-select: none;
 }
 
-/* 行号本体:与 textarea 同一字族/字号/行高;transform 由 TS 同步 */
+/* 行号本体:与 textarea 同一字族/字号/行高(全部来自 UI_CONFIG);transform 由 TS 同步 */
 #dsl-editor-lines {
     margin: 0;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 13px;
-    line-height: 1.5;
+    font-family: var(--code-font-family);
+    font-size: var(--code-font-size);
+    line-height: var(--code-line-height);
     white-space: pre;
     text-align: right;
     padding-right: 6px;
@@ -121,12 +122,12 @@
     border: 0;
     outline: none;
     padding: 10px 12px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 13px;
-    line-height: 1.5;
+    font-family: var(--code-font-family);
+    font-size: var(--code-font-size);
+    line-height: var(--code-line-height);
     white-space: pre;
     overflow-wrap: normal;
-    tab-size: 4;
+    tab-size: var(--code-tab-size, 4);
 }
 
 /* ==========================================================================
@@ -342,10 +343,10 @@
     overflow-wrap: anywhere;
 }
 
-/* KaTeX 生成的公式继承对象列表配色,不套用代码字体. */
+/* KaTeX 生成的公式继承对象列表配色,不套用代码字体;字号由 UI_CONFIG 控制. */
 .object-expr .katex {
     color: inherit;
-    font-size: 1em;
+    font-size: var(--katex-font-size, 1em);
 }
 
 /* 可复制公式:光标与悬停色表达"可点",提示文案不放在这里. */

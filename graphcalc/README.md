@@ -60,6 +60,21 @@ GraphCalc 的当前入口是 `index.html`,它加载 `src/main.ts`,再由
 相机状态不进入 DSL:透视/正交与旋转锁定由右侧 UI 开关控制,
 `camera:view` 按钮只负责预设视角.
 
+## 界面样式配置
+
+代码区字体与 KaTeX 字号**不做运行时设置界面**,也不落 localStorage:
+唯一真相源是 `src/config/uiConfig.ts`,启动时由 `src/ui/applyUiConfig.ts`
+写成 `:root` 上的 CSS 变量,再由 `css/panels.css` 的 `var()` 消费.
+
+- `UI_CONFIG.editor`:`fontFamily`/`fontSize`/`lineHeight`/`tabSize`,
+  作用于左面板源码编辑区(textarea 与行号栏共用同一组值);
+- `UI_CONFIG.formula.katexFontSize`:底部对象列表里 KaTeX 公式的字号,
+  单位 em,基准是 `.object-expr` 的 16px.
+
+改完刷新页面即可.`css/base.css` 的 `:root` 里有同名兜底变量,只负责
+脚本执行前的首帧,必须与 `UI_CONFIG` 保持一致.行号槽宽不写死:
+`EditorLineNumbers` 按当前字体与最大行号位数动态写入 `--code-gutter-width`.
+
 ## 求交
 
 语法:

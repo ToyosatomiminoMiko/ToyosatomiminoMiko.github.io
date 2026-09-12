@@ -12,12 +12,26 @@
  *    translateY(-scrollTop) 跟随,并在 scroll / input / 容器尺寸变化
  *    (面板折叠,拖宽拖高)时重同步.
  *
- * 三件事由 CSS 与 HTML 结构约束住之后,这里的逻辑只剩两条:
- * 按 \n 计数重绘行号 + 按 scrollTop 反向平移.
+ * 三件事由 CSS 与 HTML 结构约束住之后,这里的逻辑只剩三条:
+ * 按 \n 计数重绘行号 + 按 scrollTop 反向平移 + 按字体/行数重算 gutter 宽度.
+ *
+ * 为什么宽度要动态算:字号与字族来自 `UI_CONFIG`,不再是写死的 13px/32px;
+ * 不同字体的数字宽度不同,固定宽度会在 3 位行号或较大字号下把行号裁掉,
+ * 所以每次重绘行号时顺带量一次.
  */
+
+/** gutter 里除数字本身之外的固定宽度:左 padding 8 + 行号右 padding 6 + 边框 1,与 panels.css 对应. */
+const GUTTER_CHROME_PX = 15;
+
+/** 槽宽下限,与 base.css 里 --code-gutter-width 的兜底值一致. */
+const GUTTER_MIN_WIDTH_PX = 32;
+
 export class EditorLineNumbers {
+    private readonly gutter: HTMLDivElement;
     private readonly numbers: HTMLPreElement;
     private readonly resizeObserver: ResizeObserver;
+    /** 度量数字宽度用的离屏 2D context;取不到时为 null,保持 CSS 兜底宽度 */
+    private readonly measureContext: CanvasRenderingContext2D | null;
     private disposed = false;
 
     constructor(private readonly editor: HTMLTextAreaElement) {
@@ -27,7 +41,9 @@ export class EditorLineNumbers {
         if (!gutter || !numbers) {
             throw new Error('EditorLineNumbers 缺少 #dsl-editor-gutter / #dsl-editor-lines 结构');
         }
+        this.gutter = gutter;
         this.numbers = numbers;
+        this.measureContext = document.createElement('canvas').getContext('2d');
 
         // 输入(含粘贴/撤销/IME 组字)只改行数,重绘行号;
         // 内部滚动只改偏移,平移即可.
@@ -42,14 +58,37 @@ export class EditorLineNumbers {
         this.update();
     }
 
-    /** input / 初始化:按 \n 重算行数并重绘,再校准一次平移. */
+    /** input / 初始化:按 \n 重算行数并重绘,同步槽宽,再校准一次平移. */
     private readonly update = (): void => {
         const lineCount = this.editor.value.split('\n').length;
         const buffer: string[] = [];
         for (let i = 1; i <= lineCount; i += 1) buffer.push(String(i));
         this.numbers.textContent = buffer.join('\n');
+        this._syncGutterWidth(lineCount);
         this.sync();
     };
+
+    /**
+     * 按"最大行号位数 x 当前字体下的数字宽 + gutter 内边距/边框"重算槽宽.
+     *
+     * 字体取自编辑器自身的计算样式,不读 `UI_CONFIG`:这样 CSS 兜底值与
+     * applyUiConfig 覆盖两条路径都能自动对齐,少一处需要手工同步的常量.
+     */
+    private _syncGutterWidth(lineCount: number): void {
+        const context = this.measureContext;
+        if (!context) return;
+
+        const style = getComputedStyle(this.editor);
+        context.font = `${style.fontSize} ${style.fontFamily}`;
+        // 至少按 2 位数留宽,避免个位数行数时槽宽跳变.
+        const digits = Math.max(2, String(lineCount).length);
+        const digitWidth = context.measureText('0'.repeat(digits)).width;
+        const width = Math.max(
+            GUTTER_MIN_WIDTH_PX,
+            Math.ceil(digitWidth + GUTTER_CHROME_PX),
+        );
+        this.gutter.style.setProperty('--code-gutter-width', `${width}px`);
+    }
 
     /** scroll / 尺寸变化:textarea 内部滚了多少,行号就反向平移多少. */
     private readonly sync = (): void => {

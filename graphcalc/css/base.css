@@ -14,6 +14,25 @@
     box-sizing: border-box;
 }
 
+/* --------------------------------------------------------------------------
+ * 界面样式变量(代码字体 / KaTeX 字号).
+ *
+ * 唯一真相源是 src/config/uiConfig.ts,启动时由 src/ui/applyUiConfig.ts
+ * 写到 :root 上并覆盖这里的值.下面这些只是"脚本执行前"的兜底,
+ * 必须与 UI_CONFIG 保持一致,否则首帧会闪一下旧样式.
+ *
+ * --code-gutter-width 是例外:它由 EditorLineNumbers 按实际字体与行数
+ * 动态写入,这里只给一个保守初值.
+ * -------------------------------------------------------------------------- */
+:root {
+    --code-font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --code-font-size: 13px;
+    --code-line-height: 1.5;
+    --code-tab-size: 4;
+    --katex-font-size: 1em;
+    --code-gutter-width: 32px;
+}
+
 /* 页面根容器:铺满视口,并统一基础视觉风格 */
 html,
 body {
