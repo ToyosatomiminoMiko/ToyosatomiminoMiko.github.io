@@ -258,7 +258,17 @@
 }
 
 .object-row.is-hidden {
-    opacity: 0.48;
+    opacity: 0.6;
+}
+
+/* 显隐状态文字:透明度之外的第二条线索(色觉/低对比度用户). */
+.row-state {
+    align-self: flex-start;
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-size: 10px;
+    color: #ffd38f;
+    background: rgba(255, 211, 143, 0.12);
 }
 
 .object-row.has-error {
@@ -293,9 +303,44 @@
     background: #ffd38f;
 }
 
+/* 体积/场类实体:与曲线/曲面的既有配色同一套饱和度,保证一栏里能按色相区分. */
+.kind-sphere {
+    background: #7ee0c8;
+}
+
+.kind-box {
+    background: #ff9f6b;
+}
+
+.kind-conic {
+    background: #d08cff;
+}
+
+.kind-region {
+    background: #a9e07b;
+}
+
+.kind-implicit {
+    background: #9fb3ff;
+}
+
 .kind-analysis {
     color: #dbe4ff;
     background: rgba(109, 213, 255, 0.16);
+}
+
+/* 算子维度:梯度/散度/旋度同属"分析"的深色底浅色字体系,只微调色相,
+   既一眼归为同类,又能把三个算子区分开. */
+.kind-analysis-gradient {
+    background: rgba(109, 213, 255, 0.16);
+}
+
+.kind-analysis-divergence {
+    background: rgba(142, 230, 165, 0.16);
+}
+
+.kind-analysis-curl {
+    background: rgba(255, 194, 109, 0.18);
 }
 
 .kind-integral {

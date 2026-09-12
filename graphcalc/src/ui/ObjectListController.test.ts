@@ -58,7 +58,19 @@ class StubClassList {
 }
 
 class StubText {
+    /** 真 DOM 的文本节点也参与树结构,克隆/搬运时同样要摘除旧父节点. */
+    parent: StubElement | null = null;
+
     constructor(readonly data: string) {}
+}
+
+/** 真 DOM 语义:节点只有一个父节点;插进新位置前先从旧父节点摘除. */
+function detachNode(node: StubElement | StubText): void {
+    const parent = node.parent;
+    if (parent === null) return;
+    const index = parent.children.indexOf(node);
+    if (index >= 0) parent.children.splice(index, 1);
+    node.parent = null;
 }
 
 class StubElement {
@@ -71,8 +83,12 @@ class StubElement {
     }
 
     set textContent(value: string) {
-        this.children.length = 0;
-        if (value !== '') this.children.push(new StubText(value));
+        for (const child of [...this.children]) detachNode(child);
+        if (value !== '') {
+            const text = new StubText(value);
+            text.parent = this;
+            this.children.push(text);
+        }
     }
 
     title = '';
@@ -88,17 +104,31 @@ class StubElement {
 
     constructor(readonly tagName: string) {}
 
+    /**
+     * 真 DOM 语义:节点只有一个父节点,插入前先从旧父节点摘除.
+     * 桩原先只 push 不摘除,于是"把模板子节点搬进目标元素"这种写法
+     * 在桩里永远搬不空模板,把 FormulaView 的缓存回归整条遮住了.
+     */
     append(...nodes: Array<StubElement | StubText | null>): void {
         for (const node of nodes) {
             if (node === null) continue;
-            if (node instanceof StubElement) node.parent = this;
+            // DocumentFragment 插入的是它的子节点,不是 fragment 自己.
+            if (node instanceof StubElement && node.tagName === '#fragment') {
+                const inner = [...node.children];
+                for (const child of inner) detachNode(child);
+                this.append(...inner);
+                continue;
+            }
+            detachNode(node);
+            node.parent = this;
             this.children.push(node);
         }
     }
 
     prepend(...nodes: Array<StubElement | StubText>): void {
         for (const node of nodes) {
-            if (node instanceof StubElement) node.parent = this;
+            detachNode(node);
+            node.parent = this;
         }
         this.children.unshift(...nodes);
     }
@@ -110,7 +140,8 @@ class StubElement {
         const index = parent.children.indexOf(this);
         if (index < 0) return;
         for (const node of nodes) {
-            if (node instanceof StubElement) node.parent = parent;
+            detachNode(node);
+            node.parent = parent;
         }
         parent.children.splice(index, 1, ...nodes);
         this.parent = null;
@@ -122,7 +153,7 @@ class StubElement {
     }
 
     replaceChildren(...nodes: Array<StubElement | StubText>): void {
-        this.children.length = 0;
+        for (const child of [...this.children]) detachNode(child);
         this.append(...nodes);
     }
 
@@ -176,9 +207,18 @@ class StubElement {
         Object.assign(copy.dataset, this.dataset);
         for (const [name, value] of this.attributes) copy.setAttribute(name, value);
         if (deep) {
-            copy.children.push(...this.children.map((child) => (
-                child instanceof StubElement ? child.cloneNode(true) : child
-            )));
+            for (const child of this.children) {
+                if (child instanceof StubElement) {
+                    const childCopy = child.cloneNode(true);
+                    childCopy.parent = copy;
+                    copy.children.push(childCopy);
+                } else {
+                    // 真 DOM 克隆会生成新的文本节点,而不是复用同一个.
+                    const textCopy = new StubText(child.data);
+                    textCopy.parent = copy;
+                    copy.children.push(textCopy);
+                }
+            }
         }
         // 真 DOM 里 textContent 与子节点是同一份数据;桩里若两者都写会翻倍,
         // 所以只在没有子节点时补文本.
@@ -186,7 +226,9 @@ class StubElement {
         return copy;
     }
 
-    remove(): void {}
+    remove(): void {
+        detachNode(this);
+    }
 }
 
 beforeEach(() => {
@@ -261,11 +303,13 @@ const scene = {
 } as unknown as SceneIR;
 
 function createController(): {
+    entityList: StubElement;
     analysisList: StubElement;
     integralList: StubElement;
     intersectionList: StubElement;
     controller: ObjectListController;
-} {    const entityList = new StubElement('div');
+} {
+    const entityList = new StubElement('div');
     const analysisList = new StubElement('div');
     const integralList = new StubElement('div');
     const intersectionList = new StubElement('div');
@@ -275,7 +319,7 @@ function createController(): {
         integralList as unknown as HTMLElement,
         intersectionList as unknown as HTMLElement,
     );
-    return { analysisList, integralList, intersectionList, controller };
+    return { entityList, analysisList, integralList, intersectionList, controller };
 }
 
 describe('求值条目的折叠结构', () => {
@@ -382,5 +426,142 @@ describe('求值条目的折叠结构', () => {
         const summary = details.children[0] as StubElement;
         expect(summary.tagName).toBe('summary');
         expect(summary.querySelectorAll<StubElement>('.eval-detail-body')).toHaveLength(0);
+    });
+});
+
+describe('列表缓存:内容不变就复用,顺序/展开态/数值都不串', () => {
+    it('同一串公式出现两次仍有内容(模板必须 clone,不能搬运)', () => {
+        const { entityList, controller } = createController();
+        const first: SceneObject = { ...curve, id: 1, name: 'c1' };
+        const second: SceneObject = { ...curve, id: 2, name: 'c2' };
+        const twoCurves = {
+            ...scene,
+            objects: [first, second],
+            objectFormulas: { 1: 'y=1', 2: 'y=1' },
+        } as SceneIR;
+
+        const expressions = (): Array<string | undefined> => entityList
+            .querySelectorAll<StubElement>('.object-expr')
+            .map((node) => node.textContent);
+
+        // 搬运模板子节点会让第二条空白:缓存模板被第一条搬空了.
+        controller.renderScene(twoCurves);
+        expect(expressions()).toEqual(['y=1', 'y=1']);
+
+        // 第二次 renderScene:内容变化触发重建,公式必须还能排版出来.
+        controller.renderScene({
+            ...twoCurves,
+            objects: [{ ...first, enabled: false }, second],
+        } as SceneIR);
+        expect(expressions()).toEqual(['y=1', 'y=1']);
+    });
+
+    it('列表顺序跟随场景数组,部分条目重建也不跳位', () => {
+        const { analysisList, controller } = createController();
+        const first = { ...analysis, name: 'first' };
+        const second = { ...analysis, name: 'second' };
+        controller.renderScene({ ...scene, analyses: [first, second] } as SceneIR);
+
+        // 只有 first 的内容变化 -> 行被替换;它必须还在 second 前面.
+        controller.renderScene({
+            ...scene,
+            analyses: [{ ...first, scalar: 99 }, second],
+        } as SceneIR);
+
+        const names = analysisList
+            .querySelectorAll<StubElement>('.object-name')
+            .map((node) => node.textContent);
+        expect(names).toEqual(['first', 'second']);
+    });
+
+    it('条目内容变化导致重建时,<details> 展开态保留', () => {
+        const { analysisList, controller } = createController();
+        controller.renderScene(scene);
+        const before = analysisList.querySelector<StubElement>('details')!;
+        before.open = true;
+
+        controller.renderScene({
+            ...scene,
+            analyses: [{ ...analysis, scalar: 7 }],
+        } as SceneIR);
+
+        const after = analysisList.querySelector<StubElement>('details')!;
+        expect(after).not.toBe(before);
+        expect(after.open).toBe(true);
+    });
+
+    it('积分任务被改写后不沿用上一次的数值', () => {
+        const { integralList, controller } = createController();
+        controller.renderScene(scene);
+        controller.setIntegralResult('I', 1.5);
+
+        controller.renderScene({
+            ...scene,
+            integrals: [{ ...scene.integrals[0], range: [0, 1] as [number, number] }],
+        } as SceneIR);
+
+        expect(integralList.querySelector<StubElement>('.eval-result')!.textContent)
+            .toBe('计算中...');
+    });
+
+    it('禁用的积分显示"已隐藏"而不是旧数值', () => {
+        const { integralList, controller } = createController();
+        controller.renderScene(scene);
+        controller.setIntegralResult('I', 1.5);
+
+        controller.renderScene({
+            ...scene,
+            integrals: [{ ...scene.integrals[0], enabled: false }],
+        } as SceneIR);
+
+        expect(integralList.querySelector<StubElement>('.eval-result')!.textContent)
+            .toBe('已隐藏,不参与计算');
+    });
+
+    it('结果行转成错误态时清掉 data-tex,不会复制到旧等式', () => {
+        const { integralList, controller } = createController();
+        controller.renderScene(scene);
+        controller.setIntegralResult('I', 1.5);
+        const result = integralList.querySelector<StubElement>('.eval-result')!;
+        expect(result.dataset.tex).toBeDefined();
+
+        controller.setIntegralError('I', '计算失败');
+        expect(result.dataset.tex).toBeUndefined();
+        expect(result.textContent).toBe('计算失败');
+    });
+
+    it('clear() 连同数值缓存一起清掉,同名任务重建不继承旧值', () => {
+        const { integralList, controller } = createController();
+        controller.renderScene(scene);
+        controller.setIntegralResult('I', 1.5);
+
+        controller.clear();
+        controller.renderScene(scene);
+
+        expect(integralList.querySelector<StubElement>('.eval-result')!.textContent)
+            .toBe('计算中...');
+    });
+
+    it('求交结果同时报出交点与交线', () => {
+        const { intersectionList, controller } = createController();
+        controller.renderScene(scene);
+        controller.setIntersectionResult('X', {
+            points: [{ x: 0, y: 0, z: 0 }],
+            curves: [[{ x: 0, y: 0, z: 0 }, { x: 1, y: 1, z: 1 }]],
+        });
+
+        expect(intersectionList.querySelector<StubElement>('.eval-result')!.textContent)
+            .toBe('c1 ∩ c2 · 交点 1 个 · 交线 1 条');
+    });
+
+    it('列表容器与条目带列表语义', () => {
+        const { analysisList, controller } = createController();
+        controller.renderScene(scene);
+        expect(analysisList.getAttribute('role')).toBe('list');
+        expect(
+            analysisList
+                .querySelector<StubElement>('.evaluation-row')!
+                .getAttribute('role'),
+        ).toBe('listitem');
     });
 });
