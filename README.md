@@ -13,6 +13,6 @@
 
 读取字符串生成红黑树
 
-## math-lab
+## GraphCalc
 
-详见`math-lab/README.md`
+详见`graphcalc/README.md`

@@ -8,7 +8,7 @@ export default defineConfig({
         rollupOptions: {
             input: {
                 main: resolve(import.meta.dirname, 'index.html'),
-                'math-lab': resolve(import.meta.dirname, 'math-lab/index.html'),
+                'graphcalc': resolve(import.meta.dirname, 'graphcalc/index.html'),
             },
         },
     },
@@ -33,7 +33,7 @@ export default defineConfig({
             manifest: {
                 name: 'ToyosatomiminoMiko',
                 short_name: 'Miko',
-                description: 'ToyosatomiminoMiko 的个人主页与 Math-Lab',
+                description: 'ToyosatomiminoMiko 的个人主页与 GraphCalc',
                 lang: 'zh-CN',
                 theme_color: '#0d0d0d',
                 background_color: '#0d0d0d',
@@ -63,9 +63,9 @@ export default defineConfig({
             workbox: {
                 globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,gif,woff2}'],
                 cleanupOutdatedCaches: true,
-                // 根站点使用 SPA 回退;math-lab 是独立页面,避免被回退到根 index.html.
+                // 根站点使用 SPA 回退;graphcalc 是独立页面,避免被回退到根 index.html.
                 navigateFallback: '/index.html',
-                navigateFallbackDenylist: [/^\/math-lab(\/|$)/],
+                navigateFallbackDenylist: [/^\/graphcalc(\/|$)/],
                 maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
             },
         }),

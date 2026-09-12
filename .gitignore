@@ -1,7 +1,7 @@
 node_modules/
 target/
-math-lab/src/wasm/
-math-lab/target/
+graphcalc/src/wasm/
+graphcalc/target/
 dist/
 .vscode
 /prompt
