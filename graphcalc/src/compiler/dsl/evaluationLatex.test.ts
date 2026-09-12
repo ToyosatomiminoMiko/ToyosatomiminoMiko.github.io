@@ -29,6 +29,7 @@ import {
     integralLatexSummary,
     intersectionLatexDetails,
     intersectionLatexSummary,
+    type EvaluationDetailLine,
 } from './evaluationLatex';
 
 function analysis(overrides: Partial<AnalysisResult> = {}): AnalysisResult {
@@ -92,13 +93,18 @@ describe('analysisLatexSummary', () => {
     });
 });
 
+/** 细节行 -> LaTeX 文本数组;公式行取 latex,文本行原样取 text. */
+function detailTexts(lines: EvaluationDetailLine[]): string[] {
+    return lines.map((line) => (line.kind === 'latex' ? line.latex : line.text));
+}
+
 describe('analysisLatexDetails', () => {
     const symbolic = '\\nabla f=\\left(2 x,\\ 2 y,\\ 2 z\\right)';
 
     it('梯度先展开算子的符号定义,再给该点的数值结果', () => {
-        const lines = analysisLatexDetails(
+        const lines = detailTexts(analysisLatexDetails(
             analysis({ symbolic, pointSpherical: [3.741657, 0.640522, 1.107149] }),
-        );
+        ));
         // 中间步骤:符号定义在前,数值结果紧随其后.
         expect(lines[0]).toBe(symbolic);
         expect(lines[1]).toBe(
@@ -110,13 +116,13 @@ describe('analysisLatexDetails', () => {
     });
 
     it('没有符号定义时不编造中间步骤', () => {
-        const lines = analysisLatexDetails(analysis());
+        const lines = detailTexts(analysisLatexDetails(analysis()));
         expect(lines[0]).toContain('\\nabla f\\left(P\\right)=');
         expect(lines.some((line) => line.includes('\\varphi'))).toBe(false);
     });
 
     it('切线只在有值时出', () => {
-        const withTangent = analysisLatexDetails(analysis({ tangent: [1, 2, 0] }));
+        const withTangent = detailTexts(analysisLatexDetails(analysis({ tangent: [1, 2, 0] })));
         expect(withTangent.some((line) => line.startsWith('\\mathbf{T}='))).toBe(true);
     });
 });
@@ -131,12 +137,17 @@ describe('integralLatex', () => {
         expect(integralLatexSummary(integral({ objectId: 9 }), [curve])).toBeNull();
     });
 
-    it('细节第一行是完整等式,数值由调用方回填', () => {
+    it('细节第一行是完整等式,域/方法/分段/分层是纯文本', () => {
         const pending = integralLatexDetails(integral(), [curve], '黎曼和(左端点)');
-        expect(pending[0]).toBe('\\int_{-4}^{4} x^2 \\mathrm{d}x');
-        expect(pending[1]).toContain('域');
-        expect(pending[1]).toContain('黎曼和(左端点)');
-        expect(pending[2]).toContain('分段');
+        expect(pending[0]).toEqual({
+            kind: 'latex',
+            latex: '\\int_{-4}^{4} x^2 \\mathrm{d}x',
+        });
+        // 元信息不走 KaTeX:整行是纯文本,没有 `\\text{}` 包裹.
+        expect(pending[1]).toMatchObject({ kind: 'text' });
+        expect((pending[1] as { text: string }).text).toBe('域: c · 方法: 黎曼和(左端点)');
+        expect((pending[1] as { text: string }).text).not.toContain('\\text');
+        expect((pending[2] as { text: string }).text).toBe('分段: 32 · 分层: 8');
 
         const ready = integralLatexDetails(
             integral(),
@@ -144,9 +155,10 @@ describe('integralLatex', () => {
             '黎曼和(左端点)',
             -2.775558e-17,
         );
-        expect(ready[0]).toBe(
-            '\\int_{-4}^{4} x^2 \\mathrm{d}x=-2.775558\\times10^{-17}',
-        );
+        expect(ready[0]).toEqual({
+            kind: 'latex',
+            latex: '\\int_{-4}^{4} x^2 \\mathrm{d}x=-2.775558\\times10^{-17}',
+        });
     });
 });
 
@@ -164,10 +176,12 @@ describe('intersectionLatex', () => {
         expect(intersectionLatexSummary(task)).toBe('c1\\cap s1');
     });
 
-    it('细节给出对象 id 与采样分段', () => {
+    it('细节给出对象 id(公式)与采样分段(纯文本)', () => {
         const lines = intersectionLatexDetails(task);
-        expect(lines[0]).toContain('\\#1');
-        expect(lines[0]).toContain('\\#2');
-        expect(lines[1]).toContain('128');
+        expect(lines[0]).toEqual({
+            kind: 'latex',
+            latex: 'A=c1\\ \\left(\\#1\\right)\\quad B=s1\\ \\left(\\#2\\right)',
+        });
+        expect(lines[1]).toEqual({ kind: 'text', text: '采样分段: 128' });
     });
 });

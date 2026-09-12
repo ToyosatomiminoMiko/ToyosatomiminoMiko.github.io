@@ -60,7 +60,7 @@ export function analysisLatexSummary(analysis: AnalysisResult): LatexLine {
  * 散度/旋度没有逐分量符号表达式(IR 不保存向量场分量的符号式),因此只给
  * 数值结果行,不编造中间步骤.
  */
-export function analysisLatexDetails(analysis: AnalysisResult): LatexLine[] {
+export function analysisLatexDetails(analysis: AnalysisResult): EvaluationDetailLine[] {
     const lines: LatexLine[] = [];
 
     if (analysis.symbolic) {
@@ -97,7 +97,7 @@ export function analysisLatexDetails(analysis: AnalysisResult): LatexLine[] {
         }
     }
 
-    return lines;
+    return lines.map((latex) => ({ kind: 'latex', latex }));
 }
 
 /**
@@ -117,30 +117,40 @@ export function integralLatexSummary(
 }
 
 /**
+ * 求值细节的一行:要么是可 KaTeX 排版的公式,要么是**纯文本**元信息.
+ *
+ * 域/方法/分段/分层这类键值元信息不需要公式排版(KaTeX 里还要套 `\text{}`,
+ * 又长又难读),由 UI 直接当文本渲染.
+ */
+export type EvaluationDetailLine =
+    | { kind: 'latex'; latex: LatexLine }
+    | { kind: 'text'; text: string };
+
+/**
  * 积分结果细节:展开后逐行排版.
  *
- * 第一行是**完整等式**(积分式 = 数值),与结果行同一个公式;数值尚未回填时
- * 省略等号右侧.其后是域对象,方法,分段/分层等编译期元信息.
+ * - 第一行是**完整等式**(积分式 = 数值),与结果行同一个公式;数值尚未回填时
+ *   省略等号右侧;
+ * - 其后的域对象 / 方法 / 分段 / 分层是纯文本元信息,不走 KaTeX.
  */
 export function integralLatexDetails(
     task: IntegralTask,
     objects: SceneObject[],
     methodLabel: string,
     result: number | null = null,
-): LatexLine[] {
-    const lines: LatexLine[] = [];
+): EvaluationDetailLine[] {
+    const lines: EvaluationDetailLine[] = [];
     const body = integralBodyLatex(task, objects);
     if (body !== null) {
-        lines.push(result === null ? body : `${body}=${latexResultNumber(result)}`);
+        lines.push({
+            kind: 'latex',
+            latex: result === null ? body : `${body}=${latexResultNumber(result)}`,
+        });
     }
     const source = objects.find((object) => object.id === task.objectId);
-    lines.push(
-        `\\text{域}: ${source ? source.name : `\\#${task.objectId}`}`
-        + `\\quad \\text{方法}: ${methodLabel}`,
-    );
-    lines.push(
-        `\\text{分段}: ${task.segments}\\quad \\text{分层}: ${task.layers}`,
-    );
+    const domain = source ? source.name : `#${task.objectId}`;
+    lines.push({ kind: 'text', text: `域: ${domain} · 方法: ${methodLabel}` });
+    lines.push({ kind: 'text', text: `分段: ${task.segments} · 分层: ${task.layers}` });
     return lines;
 }
 
@@ -171,10 +181,13 @@ export function intersectionLatexSummary(task: IntersectionTaskLike): LatexLine 
 }
 
 /** 求交细节行:对象,分辨率与输出形态. */
-export function intersectionLatexDetails(task: IntersectionTaskLike): LatexLine[] {
+export function intersectionLatexDetails(task: IntersectionTaskLike): EvaluationDetailLine[] {
     return [
-        `A=${task.aName}\\ \\left(\\#${task.aId}\\right)`
-        + `\\quad B=${task.bName}\\ \\left(\\#${task.bId}\\right)`,
-        `\\text{采样分段}: ${task.segments}`,
+        {
+            kind: 'latex',
+            latex: `A=${task.aName}\\ \\left(\\#${task.aId}\\right)`
+                + `\\quad B=${task.bName}\\ \\left(\\#${task.bId}\\right)`,
+        },
+        { kind: 'text', text: `采样分段: ${task.segments}` },
     ];
 }

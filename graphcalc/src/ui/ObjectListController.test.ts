@@ -78,6 +78,8 @@ class StubElement {
     title = '';
     /** <details> 的开合状态;普通元素上无意义. */
     open = false;
+    /** 父元素;append/prepend/replaceChildren 时维护,replaceWith 需要它. */
+    parent: StubElement | null = null;
     readonly classList = new StubClassList(this);
     readonly children: Array<StubElement | StubText> = [];
     readonly listeners = new Map<string, Array<() => void>>();
@@ -88,12 +90,35 @@ class StubElement {
 
     append(...nodes: Array<StubElement | StubText | null>): void {
         for (const node of nodes) {
-            if (node !== null) this.children.push(node);
+            if (node === null) continue;
+            if (node instanceof StubElement) node.parent = this;
+            this.children.push(node);
         }
     }
 
     prepend(...nodes: Array<StubElement | StubText>): void {
+        for (const node of nodes) {
+            if (node instanceof StubElement) node.parent = this;
+        }
         this.children.unshift(...nodes);
+    }
+
+    /** 真 DOM 的 replaceWith:用新节点顶替自己在父节点中的位置. */
+    replaceWith(...nodes: Array<StubElement | StubText>): void {
+        const parent = this.parent;
+        if (!parent) return;
+        const index = parent.children.indexOf(this);
+        if (index < 0) return;
+        for (const node of nodes) {
+            if (node instanceof StubElement) node.parent = parent;
+        }
+        parent.children.splice(index, 1, ...nodes);
+        this.parent = null;
+    }
+
+    /** 真 DOM 的 childNodes 含文本节点;桩里直接暴露同一个 children 数组. */
+    get childNodes(): Array<StubElement | StubText> {
+        return this.children;
     }
 
     replaceChildren(...nodes: Array<StubElement | StubText>): void {
@@ -254,17 +279,25 @@ function createController(): {
 }
 
 describe('求值条目的折叠结构', () => {
-    it('折叠态只有一行 KaTeX 公式,行内没有任何按钮', () => {
+    it('折叠态:彩色标签 + 变量名 + 一行 KaTeX,摘要在 <details> 外层不可复制', () => {
         const { analysisList, controller } = createController();
         controller.renderScene(scene);
 
         // 开合交给 <details>/<summary> 原生行为:摘要行就是 <summary>.
         expect(analysisList.querySelectorAll('summary')).toHaveLength(1);
-        // 行内不许出现任何自建按钮.这里只断言"没有任何 <button>",不点名
-        // eval-toggle-btn / entity-visibility-btn--那两个类已从代码里删掉,
-        // 保留旧类名断言只会是永远成立的噪音,盖不住新写的按钮.
+        // 行内不许出现任何自建按钮(不点名已删除的旧类名,否则是恒真断言).
         expect(analysisList.querySelectorAll('button')).toHaveLength(0);
-        expect(analysisList.querySelectorAll('.eval-summary-formula')).toHaveLength(1);
+
+        const summary = analysisList.querySelector<StubElement>('.eval-summary')!;
+        // 彩色类型标签 + 变量名回来了.
+        const badge = summary.querySelector<StubElement>('.kind-badge')!;
+        expect(badge.className).toBe('kind-badge kind-analysis kind-analysis-gradient');
+        expect(badge.textContent).toBe('梯度');
+        expect(summary.querySelector<StubElement>('.object-name')!.textContent).toBe('g');
+
+        // 摘要公式不带 data-tex:点摘要行只开合,不复制 TeX.
+        const summaryFormula = summary.querySelector<StubElement>('.eval-summary-formula')!;
+        expect(summaryFormula.dataset.tex).toBeUndefined();
     });
 
     it('摘要行是 <summary>:点它由浏览器开合,行内没有自建热区', () => {
@@ -282,30 +315,72 @@ describe('求值条目的折叠结构', () => {
         expect(details.open).toBe(true);
     });
 
-    it('展开细节逐行分块:每行一个 .eval-detail-line,不挤成一行', () => {
+    it('元信息是纯文本块,且在公式块之外;结果行自身承载完整等式', () => {
+        const { integralList, controller } = createController();
+        controller.renderScene(scene);
+        controller.setIntegralResult('I', 1.5);
+
+        const details = integralList.querySelector<StubElement>('.eval-details')!;
+        // 公式块与元信息块是同级兄弟,元信息**不在**公式块里.
+        const formulaBlock = details.querySelector<StubElement>('.eval-detail-body')!;
+        const metaBlock = details.querySelector<StubElement>('.eval-detail-meta-block')!;
+        expect(formulaBlock).toBeDefined();
+        expect(metaBlock).toBeDefined();
+        expect(formulaBlock.querySelectorAll<StubElement>('.eval-detail-meta')).toHaveLength(0);
+
+        const metas = metaBlock.querySelectorAll<StubElement>('.eval-detail-meta');
+        expect(metas.length).toBe(2);
+        expect(metas[0].textContent).toContain('域: c1');
+        expect(metas[0].textContent).toContain('黎曼和(中点)');
+        expect(metas[0].textContent).not.toContain('\\text');
+        expect(metas[0].dataset.tex).toBeUndefined();
+        expect(metas[1].textContent).toBe('分段: 32 · 分层: 32');
+
+        // 结果行在公式块内部:公式行与结果行同属数学内容,共用同一条竖线.
+        const result = formulaBlock.querySelector<StubElement>('.eval-result')!;
+        expect(result).toBeDefined();
+        expect(result.className).toBe('eval-result is-ready');
+        expect(result.textContent).toContain('=1.5');
+        // 结果行的 <code> 自身就是公式根节点:内部只有 KaTeX 生成的 .katex,
+        // 不再出现"两层 eval-result"的 span.
+        expect(result.querySelectorAll<StubElement>('.eval-result')).toHaveLength(0);
+        expect(details.querySelectorAll<StubElement>('.eval-result')).toHaveLength(1);
+    });
+
+    it('展开细节的公式行集中在 .eval-detail-body,逐行且可点击复制', () => {
         const { analysisList, controller } = createController();
         controller.renderScene(scene);
 
-        const outer = analysisList.querySelector<StubElement>('.eval-details')!;
-        const container = outer.querySelector<StubElement>('.eval-details')!;
-        const lines = container.querySelectorAll<StubElement>('.eval-detail-line');
+        const body = analysisList.querySelector<StubElement>('.eval-detail-body')!;
+        const lines = body.querySelectorAll<StubElement>('.eval-detail-line');
         // 梯度:符号展开 / ∇f(P) / P / f(P) 至少 4 行.
         expect(lines.length).toBeGreaterThanOrEqual(4);
         expect(lines[0].textContent).toContain('\\nabla f');
+        // 复制只认公式行:每行都带 data-tex(摘要行不带).
+        for (const line of lines) {
+            expect(line.dataset.tex).toBeDefined();
+        }
+        // 分析条目没有纯文本元信息,不该凭空出现元信息块.
+        expect(analysisList.querySelectorAll<StubElement>('.eval-detail-meta')).toHaveLength(0);
     });
 
-    it('积分结果行在 <details> 内:折叠时整条只剩摘要公式', () => {
+    it('结果行与元信息都在 <details> 内:折叠时整条只剩摘要公式', () => {
         const { integralList, controller } = createController();
         controller.renderScene(scene);
         controller.setIntegralResult('I', 2.775558e-17);
 
         const details = integralList.querySelector<StubElement>('.eval-details')!;
-        // 结果行是 details 的后代:跟着一起开合.
-        const result = details.querySelector<StubElement>('.eval-result')!;
+        const body = details.querySelector<StubElement>('.eval-detail-body')!;
+        // 结果行是公式块的子元素(<code> 放进 <div class="eval-detail-body">).
+        const result = body.querySelector<StubElement>('.eval-result')!;
+        expect(result).toBeDefined();
         expect(result.textContent).toContain('\\mathrm{d}x=');
         expect(result.textContent).toContain('\\times10^{-17}');
         expect(result.textContent).not.toContain('e-17');
-        // 结果行位于 <details> 子树内:折叠时随细节一起隐藏.
         expect(details.querySelectorAll<StubElement>('.eval-result')).toHaveLength(1);
+        // 折叠态可见的只有 summary 里的那一行公式.
+        const summary = details.children[0] as StubElement;
+        expect(summary.tagName).toBe('summary');
+        expect(summary.querySelectorAll<StubElement>('.eval-detail-body')).toHaveLength(0);
     });
 });

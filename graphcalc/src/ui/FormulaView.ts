@@ -28,21 +28,46 @@ export function renderLatex(
     });
 }
 
+/**
+ * LaTeX -> 公式 DOM.
+ *
+ * `copyable` 控制是否挂 `data-tex`(FormulaCopyController 的点击复制钩子):
+ * - 实体对象公式,展开细节里的公式:可复制(缺省);
+ * - 求值条目的**摘要行**公式:不可复制--摘要行本身是 `<details>` 的原生开合
+ *   热区,点它是"展开/收起",不该顺手把 TeX 写进剪贴板(用户明确要求
+ *   只有细节行才能点击复制).
+ */
 export function createFormulaElement(
     latex: string,
     className?: string,
+    copyable = true,
 ): HTMLElement {
+    const element = document.createElement('span');
+    if (className) element.className = className;
+    renderLatexInto(latex, element, copyable);
+    return element;
+}
+
+/**
+ * 把公式直接渲染进**已有元素**(元素自身就是公式根节点).
+ *
+ * 用在积分结果行:结果是 `<code class="eval-result is-ready">` 自己承载 KaTeX
+ * 输出,而不是再套一层 span--过去那里会同时出现 `class="eval-result is-ready"`
+ * 的外层和带 `katex` 类的内层,类名看着重复.
+ *
+ * 仍复用模块级模板缓存:命中就把模板子节点搬进来,否则渲染一次再缓存.
+ */
+export function renderLatexInto(
+    latex: string,
+    element: HTMLElement,
+    copyable = true,
+): void {
     let template = formulaTemplateCache.get(latex);
     if (!template) {
         template = document.createElement('span');
         renderLatex(latex, template);
         formulaTemplateCache.set(latex, template);
     }
-
-    const element = template.cloneNode(true) as HTMLElement;
-    if (className) element.className = className;
-    // 原始 TeX 挂在 data-tex 上:FormulaCopyController 直接读这个属性,
-    // 不必反解 KaTeX 生成的 MathML annotation,模板缓存也能继续复用.
-    element.dataset.tex = latex;
-    return element;
+    element.replaceChildren(...[...template.childNodes]);
+    if (copyable) element.dataset.tex = latex;
 }

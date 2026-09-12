@@ -13,9 +13,10 @@ import {
     integralLatexSummary,
     intersectionLatexDetails,
     intersectionLatexSummary,
+    type EvaluationDetailLine,
 } from '../compiler/dsl/evaluationLatex';
 import { latexResultNumber } from '../math/latexNumber';
-import { createFormulaElement } from './FormulaView';
+import { createFormulaElement, renderLatexInto } from './FormulaView';
 
 
 const ENTITY_KIND_LABELS: Record<SceneObject['kind'], string> = {
@@ -31,8 +32,14 @@ const ENTITY_KIND_LABELS: Record<SceneObject['kind'], string> = {
     implicit: '隐式场',
 };
 
-const INTEGRAL_METHOD_LABELS: Record<IntegralTask['method'], string> = {
-    trapezoid: '梯形法',
+/** 分析条目的彩色类型标签文案(算子维度). */
+const ANALYSIS_KIND_LABELS: Record<AnalysisResult['op'], string> = {
+    gradient: '梯度',
+    divergence: '散度',
+    curl: '旋度',
+};
+
+const INTEGRAL_METHOD_LABELS: Record<IntegralTask['method'], string> = {    trapezoid: '梯形法',
     simpson: '辛普森法',
     'riemann:left': '黎曼和(左端点)',
     'riemann:right': '黎曼和(右端点)',
@@ -184,18 +191,51 @@ function integralSourceLabel(
 }
 
 /**
- * 展开细节:每行一段 KaTeX,一行排不下时由 CSS 横向滚动承接.
+ * 展开细节里的两组行:公式块与纯文本元信息块.
  *
- * 为什么要折叠:求值条目的完整信息(P,∇f 逐分量,球坐标回显,积分域与
- * 方法)远比一行宽,折叠态只留摘要行,列表才扫得动;默认收起由
- * `<details open=false>` 实现,开合只认显式按钮.
+ * `createEvaluationShell` 按 `summary -> 公式块(内含结果行) -> 元信息块` 的
+ * 顺序插进 `<details>`:
+ * - `formulas`(`.eval-detail-body`):KaTeX 公式行(带 `data-tex`,可点击复制)
+ *   与**结果行** `.eval-result`,共用左侧高亮竖线与底色--它们都是数学内容;
+ * - `metadata`(`.eval-detail-meta` 若干行):域/方法/分段/分层这类键值对,
+ *   不套 `\text{}`,也不进公式块--它们是说明文字,不是数学内容.
  */
-function createDetailLines(lines: readonly string[]): HTMLElement {
-    const container = createElement('div', 'eval-details');
+interface EvaluationDetailSections {
+    formulas: HTMLElement | null;
+    metadata: HTMLElement | null;
+}
+
+/**
+ * 把细节行拆成"公式块 + 元信息块".
+ *
+ * 行类型由 `EvaluationDetailLine` 表达(见 dsl/evaluationLatex.ts):
+ * - `kind: 'latex'` -> 公式行;
+ * - `kind: 'text'` -> 纯文本元信息行.
+ * 为什么要折叠:求值条目的完整信息(P,∇f 逐分量,球坐标回显,积分等式)远比
+ * 一行宽,折叠态只留摘要行,列表才扫得动;默认收起由 `<details open=false>`
+ * 实现,开合只认点摘要行.
+ */
+function createDetailSections(
+    lines: readonly EvaluationDetailLine[],
+): EvaluationDetailSections {
+    let formulas: HTMLElement | null = null;
+    let metadata: HTMLElement | null = null;
+
     for (const line of lines) {
-        container.append(createFormulaElement(line, 'eval-detail-line'));
+        if (line.kind === 'latex') {
+            if (formulas === null) {
+                formulas = createElement('div', 'eval-detail-body');
+            }
+            formulas.append(createFormulaElement(line.latex, 'eval-detail-line'));
+        } else {
+            if (metadata === null) {
+                metadata = createElement('div', 'eval-detail-meta-block');
+            }
+            metadata.append(createElement('div', 'eval-detail-meta', line.text));
+        }
     }
-    return container;
+
+    return { formulas, metadata };
 }
 
 /**
@@ -211,19 +251,20 @@ interface IntegralRow {
 }
 
 /**
- * 求值条目的三段结构:
- * - `summary`(`<summary>`):折叠态可见 = 一段 KaTeX 公式.开合完全交给
- *   `<details>` 的原生行为(点摘要行即开合),不额外放按钮;
- * - `details`(`<details>`):折叠容器,展开后显示 `detail`,默认收起;
- * - `result`(`.eval-result`):结果一行,**放在 `<details>` 里面**的最后,
- *   跟着一起开合--折叠时整条只剩摘要行,展开才给完整过程与数值.
+ * 求值条目的结构:
+ * - `summary`(`<summary>`):折叠态可见 = 彩色标签 + 变量名 + 一行 KaTeX 公式.
+ *   开合完全交给 `<details>` 的原生行为(点摘要行即开合),不额外放按钮;
+ * - `details`(`<details>`):折叠容器,默认收起,展开后依次放:
+ *   1. `detail.formulas`(`.eval-detail-body`):公式块,`result` 作为它的最后一个
+ *      子元素一起放在里面--结果行与公式行同为数学内容,共用同一条高亮竖线;
+ *   2. `detail.metadata`:纯文本元信息(域/方法/分段/分层),在公式块**之外**.
  *
  * 显隐按钮已整体移除:求值对象是否参与计算没有 UI 开关,`enabled` 只由
  * 编译侧(隐藏集合)决定.
  */
 function createEvaluationShell(
     summary: HTMLElement,
-    detail: HTMLElement | null,
+    detail: EvaluationDetailSections | null,
     result: HTMLElement | null,
 ): HTMLElement {
     const row = createElement('article', 'object-row evaluation-row');
@@ -236,15 +277,51 @@ function createEvaluationShell(
         return row;
     }
 
+    // 结果行进公式块内部(末尾);积分式排不出来时公式块为 null,此时为结果
+    // 单独建一个块,保证结果行不会掉出折叠区.
+    if (result !== null) {
+        if (detail.formulas === null) {
+            detail.formulas = createElement('div', 'eval-detail-body');
+        }
+        detail.formulas.append(result);
+    }
+
     const details = document.createElement('details');
     details.className = 'eval-details';
     // 默认折叠:全部条目在首次渲染时都是收起状态.
     details.open = false;
-    details.append(summary, detail);
-    if (result !== null) details.append(result);
+    details.append(summary);
+    if (detail.formulas !== null) details.append(detail.formulas);
+    if (detail.metadata !== null) details.append(detail.metadata);
     main.append(details);
     row.append(main);
     return row;
+}
+
+/**
+ * 摘要行(折叠态可见):彩色类型标签 + 变量名 + 一行 KaTeX 公式.
+ *
+ * 三项各司其职,不再放宽:
+ * - `kind-badge`:彩色标签给出"这是哪一类求值对象"(梯度/散度/旋度/积分/求交),
+ *   配色沿用左栏实体徽章的同一套视觉语言;
+ * - `object-name`:DSL 里声明的变量名(如 `g`,`I`,`X`),同名多条时靠它区分;
+ * - 公式:该条目的算子形式,`copyable = false`--摘要行是 `<details>` 的原生
+ *   开合热区,点它只开合,不复制 TeX(复制只在展开细节行上生效).
+ */
+function createEvaluationSummary(
+    badgeClass: string,
+    badgeLabel: string,
+    name: string,
+    formula: HTMLElement,
+): HTMLElement {
+    const summary = document.createElement('summary');
+    summary.className = 'eval-summary';
+    summary.append(
+        createElement('span', `kind-badge ${badgeClass}`, badgeLabel),
+        createElement('strong', 'object-name', name),
+        formula,
+    );
+    return summary;
 }
 
 /**
@@ -399,8 +476,10 @@ export class ObjectListController {
     /**
      * 刷新积分结果行:排成完整等式 `∫f dx = 数值`;积分式不可排版时只给数值.
      *
-     * 结果行与展开细节的第一行是同一个公式,这里同时更新两处,避免展开前后
-     * 看到两个不同版本的数值.
+     * 结果行的 `<code>` 自身就是公式根节点(`class="eval-result is-ready"`),
+     * 不再在它里面套一层同名类名的 span;KaTeX 生成的 `.katex` 直接挂在 `<code>`
+     * 下,由 CSS `.eval-result .katex` 继承配色与字号.
+     * 结果行与展开细节里的等式同时刷新,避免展开前后两个版本.
      */
     private _renderIntegralResult(item: IntegralRow, value: number): void {
         if (item.result === null) return;
@@ -411,15 +490,13 @@ export class ObjectListController {
             );
             item.result.className = 'eval-result is-ready';
         } else {
-            // 公式元素由 createFormulaElement 统一带上类名,结果行自身只挂
-            // 基础类,避免出现两层 `eval-result`.
-            item.result.replaceChildren(
-                createFormulaElement(
-                    `${item.bodyLatex}=${latexResultNumber(value)}`,
-                    'eval-result is-ready',
-                ),
+            renderLatexInto(
+                `${item.bodyLatex}=${latexResultNumber(value)}`,
+                item.result,
             );
-            item.result.className = '';
+            // 结果行的 <code> 自身承载状态与公式;类名只挂一次,内部只有
+            // KaTeX 生成的 .katex,不再出现同名类名的嵌套 span.
+            item.result.className = 'eval-result is-ready';
         }
         this._replaceIntegralEquation(item, value);
     }
@@ -427,22 +504,25 @@ export class ObjectListController {
     /**
      * 把展开细节里的积分等式换成 `∫f dx = 数值`;`value = null` 时退回不带
      * 右端的积分式(出错/尚未算出).
+     *
+     * 公式块(`.eval-detail-body`)只放公式行;积分式排不出来时该块不存在,
+     * 这时结果行仍然只由 `<code class="eval-result">` 承担,不去动元信息块.
      */
     private _replaceIntegralEquation(item: IntegralRow, value: number | null): void {
         if (item.bodyLatex === null) return;
-        // 细节容器是 row > details > .eval-details,首个子元素就是积分等式那一行.
-        const container = item.row.querySelector<HTMLElement>('.eval-details > .eval-details');
-        const line = container?.firstElementChild;
-        if (!container || !line) return;
+        const container = item.row.querySelector<HTMLElement>('.eval-detail-body');
+        if (!container) return;
 
         const latex = value === null
             ? item.bodyLatex
             : `${item.bodyLatex}=${latexResultNumber(value)}`;
-        const rest = [...container.children].slice(1);
-        container.replaceChildren(
-            createFormulaElement(latex, 'eval-detail-line'),
-            ...rest,
-        );
+        const equation = createFormulaElement(latex, 'eval-detail-line');
+        const existing = container.querySelector<HTMLElement>('.eval-detail-line');
+        if (existing) {
+            existing.replaceWith(equation);
+        } else {
+            container.prepend(equation);
+        }
     }
 
     private _renderEntities(
@@ -512,19 +592,22 @@ export class ObjectListController {
     }
 
     private _createAnalysisRow(analysis: AnalysisResult): HTMLElement {
-        // 折叠态只排一行 KaTeX 公式(类型徽章/名称/纯文本摘要都与公式重复,
-        // 名字留在源码与诊断里).
+        // 折叠态:彩色算子标签 + 变量名 + 一行 KaTeX 公式(摘要公式不可复制).
         const summaryLine = createFormulaElement(
             analysisLatexSummary(analysis),
             'eval-summary-formula',
+            false,
         );
-        const summary = document.createElement('summary');
-        summary.className = 'eval-summary';
-        summary.append(summaryLine);
+        const summary = createEvaluationSummary(
+            `kind-analysis kind-analysis-${analysis.op}`,
+            ANALYSIS_KIND_LABELS[analysis.op],
+            analysis.name,
+            summaryLine,
+        );
 
         // 展开细节里先给算子的符号展开,再给该点的数值结果.
         const details = analysis.enabled
-            ? createDetailLines(analysisLatexDetails(analysis))
+            ? createDetailSections(analysisLatexDetails(analysis))
             : null;
 
         const row = createEvaluationShell(summary, details, null);
@@ -572,15 +655,18 @@ export class ObjectListController {
         const bodyLatex = integralLatexSummary(task, objects);
         const summaryLine: HTMLElement = bodyLatex === null
             ? createElement('code', 'object-expr', integralSourceLabel(task, objects))
-            : createFormulaElement(bodyLatex, 'eval-summary-formula');
-        const summary = document.createElement('summary');
-        summary.className = 'eval-summary';
-        summary.append(summaryLine);
+            : createFormulaElement(bodyLatex, 'eval-summary-formula', false);
+        const summary = createEvaluationSummary(
+            'kind-integral',
+            '积分',
+            task.name,
+            summaryLine,
+        );
 
         const cachedResult = this._integralResult(task.name);
         // 展开细节第一行就是完整等式 `∫f dx = 数值`;数值尚未回填时省略右端.
         const details = task.enabled
-            ? createDetailLines(integralLatexDetails(
+            ? createDetailSections(integralLatexDetails(
                 task,
                 objects,
                 INTEGRAL_METHOD_LABELS[task.method],
@@ -643,15 +729,19 @@ export class ObjectListController {
         const summaryLine = createFormulaElement(
             intersectionLatexSummary(task),
             'eval-summary-formula',
+            false,
         );
-        const summary = document.createElement('summary');
-        summary.className = 'eval-summary';
-        summary.append(summaryLine);
+        const summary = createEvaluationSummary(
+            'kind-intersection',
+            '求交',
+            task.name,
+            summaryLine,
+        );
 
         // 求交是异步任务:交点/交线数量由 Worker 回填到结果行,展开细节给
         // 两个源对象与采样分段.
         const detail = task.enabled
-            ? createDetailLines(intersectionLatexDetails(task))
+            ? createDetailSections(intersectionLatexDetails(task))
             : null;
         const result = createElement(
             'code',
