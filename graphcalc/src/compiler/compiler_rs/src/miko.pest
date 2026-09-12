@@ -37,7 +37,17 @@ stmt_end = { options ~ ";"? | ";" }
 analysis_op = { "gradient" | "divergence" | "curl" | "jacobian" | "laplacian" }
 op_call = { ident ~ "(" ~ op_arg ~ ")" ~ at? }
 op_arg = @{ (!")" ~ ANY)+ }
-at = { "at" ~ "[" ~ at_arg ~ ("," ~ at_arg)+ ~ "]" }
+// at 有两种显式形式,不隐式猜测语义:
+// - 笛卡尔:`at [x, y]` / `at [x, y, z]`;
+// - 球坐标:`at spherical(r, θ, φ)`(θ/φ 约定见 numericConfig,显式写
+//   spherical 关键字).三维球坐标允许省略 r:`at spherical(θ, φ)` 时 r 取
+//   源球体半径(源不是 sphere 时编译期报错).
+// at_expr 允许参数里嵌套括号(如 `asin(0.5)`,`sqrt(2)`),因此用自递归的
+// 平衡括号规则;at_arg 仍是"撞到 ] 才停"的简单片段(方向量 at 用).
+at = { "at" ~ (spherical_at | cartesian_at) }
+spherical_at = { "spherical" ~ "(" ~ at_expr ~ ("," ~ at_expr)+ ~ ")" }
+at_expr = @{ ( "(" ~ at_expr ~ ")" | !("," | ")") ~ ANY )+ }
+cartesian_at = { "[" ~ at_arg ~ ("," ~ at_arg)+ ~ "]" }
 at_arg = @{ (!( "," | "]") ~ ANY)+ }
 analysis_stmt = { analysis_op ~ ident ~ "=" ~ op_call ~ stmt_end }
 

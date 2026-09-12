@@ -2125,3 +2125,114 @@ describe('隐式场(implicit)与球体梯度', () => {
         })).toThrow('求导 dF 只能应用于 curve/surface/implicit/sphere 类型对象');
     });
 });
+
+describe('球坐标 at spherical', () => {
+    type Statement = AstProgram['statements'][number];
+    type OptionList = { name: string; value: string }[];
+
+    function sphereStatement(radius = '2'): Statement {
+        return {
+            type: 'object',
+            kind: 'sphere',
+            name: 'S',
+            expr: '[0, 0, 0]',
+            options: [{ name: 'radius', value: radius }],
+            span: { start: 0, end: 0 },
+        } as Statement;
+    }
+
+    function implicitStatement(name: string, expr: string): Statement {
+        return {
+            type: 'object',
+            kind: 'implicit',
+            name,
+            expr,
+            options: [],
+            span: { start: 0, end: 0 },
+        } as Statement;
+    }
+
+    /** 显式声明球坐标形式:atForm 由 Rust 解析器写进 AST,这里手工构造. */
+    function sphericalGradient(
+        name: string,
+        source: string,
+        at: string[],
+        options: OptionList = [],
+    ): Statement {
+        return {
+            type: 'analysis',
+            op: 'gradient',
+            name,
+            call: 'grad',
+            source,
+            at,
+            atForm: 'spherical',
+            options,
+            span: { start: 0, end: 0 },
+        } as Statement;
+    }
+
+    it('interprets three arguments as [r, θ, φ] (physics default)', () => {
+        const scene = compileScene({
+            statements: [
+                sphereStatement(),
+                sphericalGradient('g', 'S', ['2', 'pi / 2', '0']),
+            ],
+        });
+
+        const analysis = scene.analyses[0];
+        // physics:θ = π/2 是赤道,φ = 0 指向 +X,半径 2 -> (2, 0, 0).
+        expect(analysis.point[0]).toBeCloseTo(2, 9);
+        expect(analysis.point[1]).toBeCloseTo(0, 9);
+        expect(analysis.point[2]).toBeCloseTo(0, 9);
+        expect(analysis.vector[0]).toBeCloseTo(1, 9);
+        // 结果列表同时回显 [r, θ, φ].
+        expect(analysis.pointSpherical?.[0]).toBeCloseTo(2, 9);
+        expect(analysis.pointSpherical?.[1]).toBeCloseTo(Math.PI / 2, 9);
+        expect(analysis.pointSpherical?.[2]).toBeCloseTo(0, 9);
+    });
+
+    it('defaults r to the sphere radius when only (θ, φ) are given', () => {
+        const scene = compileScene({
+            statements: [
+                sphereStatement('2'),
+                sphericalGradient('g', 'S', ['pi / 2', '0']),
+            ],
+        });
+        expect(scene.analyses[0].point[0]).toBeCloseTo(2, 9);
+        expect(scene.analyses[0].point[1]).toBeCloseTo(0, 9);
+        expect(scene.analyses[0].point[2]).toBeCloseTo(0, 9);
+    });
+
+    it('measures the polar angle from +Z under the physics convention', () => {
+        const scene = compileScene({
+            statements: [
+                sphereStatement(),
+                sphericalGradient('g', 'S', ['2', '0', 'pi / 2']),
+            ],
+        });
+        // θ = 0 是 +Z 极点,方位角 φ 此时不改变结果.
+        expect(scene.analyses[0].point[0]).toBeCloseTo(0, 9);
+        expect(scene.analyses[0].point[1]).toBeCloseTo(0, 9);
+        expect(scene.analyses[0].point[2]).toBeCloseTo(2, 9);
+        expect(scene.analyses[0].vector[2]).toBeCloseTo(1, 9);
+    });
+
+    it('rejects the (θ, φ) shorthand when the source is not a sphere', () => {
+        expect(() => compileScene({
+            statements: [
+                implicitStatement('H', 'x^2 + y^2 + z^2 - 4'),
+                sphericalGradient('g', 'H', ['pi / 2', '0']),
+            ],
+        })).toThrow('省略 r 时源对象必须是 sphere');
+    });
+
+    it('rejects more than three spherical coordinates', () => {
+        expect(() => compileScene({
+            statements: [
+                sphereStatement(),
+                sphericalGradient('g', 'S', ['2', '0', '0', '0']),
+            ],
+        })).toThrow('最多 3 个坐标');
+    });
+});

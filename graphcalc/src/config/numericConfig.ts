@@ -3,6 +3,8 @@
  *
  * 这里只放"默认策略",不应包含类/DOM 或渲染逻辑.
  */
+import type { SphericalAngleConvention } from '../math/sphericalCoordinates';
+
 export const NUMERIC_CONFIG = {
     param: {
         defaultValue: 1,
@@ -54,6 +56,19 @@ export const NUMERIC_CONFIG = {
         lebesgueOversample2D: 4,
         lebesgueOversample3D: 2,
         showDefault: true,
+    },
+    analysis: {
+        /**
+         * `at spherical(r, θ, φ)` 的角度约定(唯一切换点).
+         *
+         * - 'physics'(默认,物理/ISO):θ 是从 +Z 轴量起的极角 ∈ [0, π],
+         *   φ 是 xy 平面内从 +X 轴逆时针量起的方位角 ∈ (-π, π];
+         * - 'math'(部分教材):θ 是方位角,φ 是极角,即与上一种的 θ/φ 互换.
+         *
+         * 两个约定都在 math/sphericalCoordinates.ts 实现并单测覆盖,这里只选
+         * DSL 编译默认值;结果列表把分析点换算回 [r, θ, φ] 展示时用同一约定.
+         */
+        sphericalAngleConvention: 'physics' as SphericalAngleConvention,
     },
     tolerance: {
         zero: 1e-12,

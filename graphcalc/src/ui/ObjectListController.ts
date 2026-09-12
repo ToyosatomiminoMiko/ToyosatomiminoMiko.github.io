@@ -121,8 +121,14 @@ function sceneObjectKindLabel(object: SceneObject): string {
 function analysisSummary(analysis: AnalysisResult): string {
     const point = `P=${formatVector(analysis.point)}`;
     switch (analysis.op) {
-        case 'gradient':
-            return `${point} · f(P)=${formatNumber(analysis.scalar ?? NaN)} · ∇f=${formatVector(analysis.vector)}`;
+        case 'gradient': {
+            // 隐式场/球体的分析点额外回显球坐标 [r, θ, φ](相对世界原点,
+            // θ/φ 约定见 numericConfig.analysis.sphericalAngleConvention).
+            const spherical = analysis.pointSpherical
+                ? ` · (r,θ,φ)=${formatVector(analysis.pointSpherical)}`
+                : '';
+            return `${point} · f(P)=${formatNumber(analysis.scalar ?? NaN)} · ∇f=${formatVector(analysis.vector)}${spherical}`;
+        }
         case 'divergence':
             return `${point} · ∇·F(P)=${formatNumber(analysis.scalar ?? NaN)}`;
         case 'curl':

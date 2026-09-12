@@ -34,6 +34,10 @@ import {
     evaluate_gradient_point as wasmEvaluateGradientPoint,
 } from '../../wasm/math_rs/math_rs';
 import { splitCoefficients } from '../../math/adapters/coefficientUtils';
+import {
+    cartesianToSpherical,
+    sphericalToCartesian,
+} from '../../math/sphericalCoordinates';
 import { withStatementSpan } from '../errors';
 import { assertKnownOptions, parseShowOption } from './options';
 import { buildParamScope } from './params';
@@ -59,6 +63,35 @@ function normalizeVector(vector: [number, number, number]): [number, number, num
     return length < NUMERIC_CONFIG.tolerance.zero
         ? [0, 0, 0]
         : [x / length, y / length, z / length];
+}
+
+/**
+ * 把 `at spherical(...)` 的参数换算成笛卡尔分析点.
+ *
+ * - 3 个参数按 `[r, θ, φ]` 解释;
+ * - 2 个参数按 `[θ, φ]` 解释,r 取源球体半径(源必须是 sphere).
+ *
+ * θ/φ 约定由 `NUMERIC_CONFIG.analysis.sphericalAngleConvention` 全局配置
+ * (physics 默认 / math),换算本身见 math/sphericalCoordinates.ts.
+ *
+ * 注意:球坐标是相对**世界原点**的坐标变换,不是"以球心为原点".球心不在
+ * 原点时,换出来的点会由后续 ∇f 投影落到球面上(与笛卡尔 at 同一条路径).
+ */
+function resolveSphericalAt(
+    statement: AnalysisStatement,
+    object: SceneObject,
+    values: readonly number[],
+): [number, number, number] {
+    const convention = NUMERIC_CONFIG.analysis.sphericalAngleConvention;
+    if (values.length === 3) {
+        return sphericalToCartesian(values[0], values[1], values[2], convention);
+    }
+    if (object.kind !== 'sphere') {
+        throw new Error(
+            `分析 ${statement.name} 的 at spherical 省略 r 时源对象必须是 sphere(当前为 ${object.kind})`,
+        );
+    }
+    return sphericalToCartesian(object.radius, values[0], values[1], convention);
 }
 
 export function compileAnalyses(
@@ -164,15 +197,24 @@ function compileAnalysisStatement(
     // (202609 review:见 params.ts 注释).
     const atScope = buildParamScope(params, paramOverrides);
     const rawAt = statement.at ?? [];
-    // 3D 隐式场/球体的 at 在语法上同样至少两个数,第三个缺省按 0 补全
+    const isSphericalAt = statement.atForm === 'spherical';
+    // 3D 隐式场/球体的笛卡尔 at 在语法上同样至少两个数,第三个缺省按 0 补全
     // (见 docs/derivatives-guide.md:建议写全 [x, y, z]).
-    const requiredAtCount = object.kind === 'vector_field'
+    // 球坐标形式的 2 个参数含义不同(θ, φ),r 取源球体半径,故下限同样是 2.
+    const requiredAtCount = object.kind === 'vector_field' && !isSphericalAt
         ? 3
         : object.kind === 'surface' || implicitDim !== null
             ? 2
-            : 1;
+            : isSphericalAt
+                ? 2
+                : 1;
     if (rawAt.length < requiredAtCount) {
         throw new Error(`分析 ${statement.name} 的 at 至少需要 ${requiredAtCount} 个坐标`);
+    }
+    if (isSphericalAt && rawAt.length > 3) {
+        throw new Error(
+            `分析 ${statement.name} 的 at spherical 最多 3 个坐标(r, θ, φ)`,
+        );
     }
 
     const atValues: number[] = [];
@@ -183,11 +225,13 @@ function compileAnalysisStatement(
         }
         atValues.push(value);
     }
-    const at: [number, number, number] = [
-        atValues[0] ?? 0,
-        atValues[1] ?? 0,
-        atValues[2] ?? 0,
-    ];
+    const at: [number, number, number] = isSphericalAt
+        ? resolveSphericalAt(statement, object, atValues)
+        : [
+            atValues[0] ?? 0,
+            atValues[1] ?? 0,
+            atValues[2] ?? 0,
+        ];
 
     // show 白名单也在隐藏前校验,避免隐藏项带着拼写错误的 show 静默存活.
     // 缺省项按源对象分派:一元 curve 求导与 2D 隐式曲线默认连同切线一起画,
@@ -227,6 +271,14 @@ function compileAnalysisStatement(
             name: statement.name,
             op: 'gradient',
             point: projected.point,
+            // 隐式场/球体的分析点是三维空间点,结果列表同时给出球坐标
+            // [r, θ, φ](相对世界原点),约定与 at spherical 共用一份配置.
+            pointSpherical: cartesianToSpherical(
+                projected.point[0],
+                projected.point[1],
+                projected.point[2],
+                NUMERIC_CONFIG.analysis.sphericalAngleConvention,
+            ),
             vector: projected.normal,
             tangent: projected.tangent,
             // 结果列表的 f(P) 取投影点处的场值(≈ level),与展示的点一致.

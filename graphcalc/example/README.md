@@ -15,7 +15,7 @@ DSL(`.miko` 语法)源码片段.文件扩展名沿用 `.scad`(项目里没有示
 | `partial_derivative_surface.scad` | 二元函数偏导:`gradient` 作用于 `surface` 求 ∂f/∂x,∂f/∂y,画法向与切平面(`tangent_plane`);含鞍面 fx=fy=0 处切平面水平的演示 |
 | `divergence_vector_field.scad` | 散度 `div(F)`:线性源/汇场 div = a+b+c 与刚体旋转场 div ≡ 0 的对照 |
 | `curl_vector_field.scad` | 旋度 `curl(F)`:刚体旋转场 curl = (0,0,2w) 与保守梯度场 curl = (0,0,0) 的对照 |
-| `sphere_gradient.scad` | 隐式场:球体 `derivative` -> ∇f 向量场,`gradient` 在空间点取 ∇f 并沿梯度投影到球面画点/法向/切平面;`implicit f(x,y,z)=0` 的通用写法 |
+| `sphere_gradient.scad` | 隐式场:球体 `derivative` -> ∇f 向量场,`gradient` 在空间点取 ∇f 并沿梯度投影到球面画点/法向/切平面;`at spherical(θ, φ)` 球坐标写法;`implicit f(x,y,z)=0` 的通用写法 |
 
 > 说明:DSL 层求导有两种形态--`derivative` 语句把符号导数画成整条函数
 > 曲线/曲面;`gradient` / `divergence` / `curl` 在指定点做点分析(切线/

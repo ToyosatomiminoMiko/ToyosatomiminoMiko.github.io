@@ -23,6 +23,13 @@
     但切平面只对等值面上的点有意义,故先沿 ∇f 牛顿投影到 `f = level`,
     再取该处法向;二维隐式曲线额外给出平面内切线(见
     `implicitField.ts::projectToLevelSet`);
+  - `at` 的坐标形式由语法显式给出:`at [x, y, z]` 是笛卡尔,
+    `at spherical(θ, φ)` / `at spherical(r, θ, φ)` 是球坐标(Rust 解析器
+    在 AST 上写 `atForm: 'spherical'`).换算在
+    `math/sphericalCoordinates.ts`,θ/φ 约定由
+    `numericConfig.analysis.sphericalAngleConvention` 全局配置
+    (physics 默认 / math);隐式场/球体的 gradient 结果额外携带
+    `pointSpherical` 供结果列表回显;
   - div/curl = `vector_field` 上的六个一阶偏导组合.
 - **求导本身在编译期完成(符号求导),数值求值在 WASM 内完成**,对象与
   分析结果都是"纯数据",拖动参数只重新求值,不重新求导(表达式级缓存).
@@ -126,6 +133,8 @@ f′ 曲线可视化,应在 DSL/IR 层增加显式语义(参考 §5 的未实现
 - 点分析只输出测量点的值;`at` 坐标个数不足时编译报错(curve 最少
   1 个,surface / implicit / sphere 2 个,vector_field 3 个;语法上 `at`
   至少两个数).三维隐式场/球体缺省的第三个坐标按 0 补全.
+  `at spherical(θ, φ)` 的两参数形式 `r` 取源球体半径,源不是 `sphere`
+  时编译报错;`at spherical` 最多三个参数,球坐标相对世界原点.
 - 隐式场 V1:`box`/`conic` 的隐式函数是 max 型分段函数,gradient/derivative
   暂不支持;`implicit` 本体(以及球体)不参与求交/积分;`implicit` 本体
   的 marching squares/cubes 采网渲染留到后续,当前只作为分析源.

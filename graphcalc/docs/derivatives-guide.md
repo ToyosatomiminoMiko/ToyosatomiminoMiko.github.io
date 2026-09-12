@@ -130,6 +130,31 @@ x/y 是二维等值线.
 
 示例:`graphcalc/example/sphere_gradient.scad`.
 
+### 球坐标写法:`at spherical(...)`
+
+球体这类"点天然用 `[r, θ, φ]` 描述"的对象,分析点可以显式用球坐标给出:
+
+```text
+gradient gs = grad(s) at spherical(θ, φ);      // r 省略,取球体半径
+gradient gs = grad(s) at spherical(r, θ, φ);   // 写全
+```
+
+- `spherical(...)` 是**显式声明**,不会隐式改变 `at [x, y, z]` 的笛卡尔
+  语义;参数允许嵌套括号(`at spherical(asin(0.5), pi / 4)`);
+- 省略 `r` 时源对象必须是 `sphere`(球坐标只有两个角度需要给);
+- θ/φ 的约定由 `src/config/numericConfig.ts` 的
+  `analysis.sphericalAngleConvention` **全局配置**(两个约定都已实现并单测
+  覆盖,改这一处即可切换):
+
+  | 约定 | θ | φ |
+  | --- | --- | --- |
+  | `physics`(默认,物理/ISO) | 从 +Z 轴量起的极角 ∈ [0, π] | xy 平面内从 +X 轴起的方位角 ∈ (−π, π] |
+  | `math`(部分教材) | 方位角 | 从 +Z 轴量起的极角 |
+
+- 球坐标相对**世界原点**(不是"以球心为原点");球心不在原点时,换出的点
+  仍会由 ∇f 投影落到球面上;
+- 结果列表会把分析点换算回 `[r, θ, φ]` 一并显示,用的是同一份约定配置.
+
 V1 边界:`box`/`cone`/`cylinder`/`frustum` 的隐式函数是 max 型分段函数,
 暂不支持(报"暂不支持 ... 体积对象");隐式场/球体的梯度分析在对象局部
 坐标里进行,不套用静态 `transform`(与 curve/surface 的既有分析一致).

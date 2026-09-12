@@ -114,6 +114,16 @@ export interface AnalysisStatement {
     source: string;
     /** 没有 `at [...]` 时 Rust 解析器会省略该字段. */
     at?: string[];
+    /**
+     * `at` 的坐标形式,由 Rust 解析器按语法显式给出:
+     * - 缺省(笛卡尔):`at [x, y]` / `at [x, y, z]`;
+     * - `'spherical'`:`at spherical(r, θ, φ)`,或省略 r 的 `at spherical(θ, φ)`
+     *   (r 取源球体半径,源不是 sphere 时编译期报错).
+     *
+     * θ/φ 约定由 `numericConfig.analysis.sphericalAngleConvention` 全局配置,
+     * 不由语法隐式决定(见 math/sphericalCoordinates.ts 与 docs).
+     */
+    atForm?: 'cartesian' | 'spherical';
     options: OptionPair[];
     span: SourceSpan;
 }

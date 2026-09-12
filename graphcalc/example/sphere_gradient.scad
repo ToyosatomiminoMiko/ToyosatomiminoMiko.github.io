@@ -17,18 +17,32 @@
 // [x, y, z].若点恰好落在 ∇f = 0 的地方(球心),法向没有定义,编译期
 // 直接报错而不是画一个错误的方向.
 //
+// 球坐标写法:对球体这种"点天然用 [r, θ, φ] 描述"的对象,可以显式写
+//     gradient gs = grad(s) at spherical(θ, φ);
+// (r 省略时取球体半径;也可写全 `at spherical(r, θ, φ)`).这是显式声明,
+// 不会隐式改变 `at [x, y, z]` 的笛卡尔语义.θ/φ 的约定由
+// `numericConfig.analysis.sphericalAngleConvention` 全局配置:
+// 默认 'physics'(θ 从 +Z 量起的极角,φ 是 xy 平面方位角),可选 'math'
+// (θ/φ 互换).结果列表会把分析点换算回 [r, θ, φ] 一并显示.
+//
 // 隐式对象 `implicit`:直接声明 f(x,y)=0(二维等值线)或 f(x,y,z)=0
 // (三维等值面),维度由表达式里出现的坐标变量推断.它自己不画网格
 // (本体采网渲染留到后续),但同样可以 gradient / derivative.
 //
-// 拖动 j/k/l 观察:球体不动,分析点沿 ∇f 在等值面上移动,切平面随之
-// 转动;灰色箭头是整片 ∇f 向量场.
+// 拖动 j/k/l 或 θ/φ 观察:球体不动,分析点沿 ∇f 在等值面上移动,切平面
+// 随之转动;灰色箭头是整片 ∇f 向量场.
 // =============================================================
 
 // 可调参数:分析点 (j, k, l)
 param j = 1 in [-2.5, 2.5, 0.05];
 param k = 1 in [-2.5, 2.5, 0.05];
 param l = 0 in [-2.5, 2.5, 0.05];
+
+// 可调参数:球坐标分析点(θ, φ),r 缺省取球体半径 2
+// 角度约定由 numericConfig.analysis.sphericalAngleConvention 全局配置:
+// 默认 physics(θ 从 +Z 量起的极角,φ 是 xy 平面方位角);改成 math 则 θ/φ 互换.
+param theta = 0.9 in [0, 3.14159, 0.01];
+param phi = 0.6 in [-3.14159, 3.14159, 0.01];
 
 // 球体:半径 2,半透明;它同时是下面 derivative / gradient 的隐式场来源
 sphere s = [0, 0, 0] {
@@ -48,6 +62,13 @@ derivative ds = derivative(s) {
 // point = 投影点(黄色),normal = 单位外法向(红色箭头),
 // tangent_plane = 该点切平面(半透明蓝色)
 gradient g = grad(s) at [j, k, l] {
+    show = [point, normal, tangent_plane];
+};
+
+// 同一件事的球坐标写法:at spherical(θ, φ) 显式声明按球坐标解释,
+// r 省略时取球体半径,点直接落在球面上(不需要投影来纠偏).
+// 结果列表会同时回显 [r, θ, φ].
+gradient gs = grad(s) at spherical(theta, phi) {
     show = [point, normal, tangent_plane];
 };
 

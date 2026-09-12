@@ -39,7 +39,10 @@ GraphCalc 的当前入口是 `index.html`,它加载 `src/main.ts`,再由
   (复用向量场的采样/渲染管线);`gradient g = grad(sphere|implicit) at
   [x, y, z]` 在空间点取 ∇f,先沿梯度牛顿投影到等值面再画点/法向/切平面
   (3D `at` 语法上至少两个坐标,第三个缺省按 0 补;∇f=0 处报错).
-  示例 `example/sphere_gradient.scad`
+  分析点也可显式写球坐标 `at spherical(θ, φ)`(r 取球体半径)或
+  `at spherical(r, θ, φ)`;θ/φ 约定由 `numericConfig.analysis.
+  sphericalAngleConvention` 全局配置(默认 physics:θ 从 +Z 量起;可切
+  math),结果列表同时回显 `[r, θ, φ]`.示例 `example/sphere_gradient.scad`
 - `gradient` / `divergence` / `curl`:点分析(求导/偏导经这些微分分析
   算子暴露:一元求导 = curve 的 gradient,偏导 = surface 的 gradient,
   div/curl = 向量场的一阶偏导组合;用户文档见 `docs/derivatives-guide.md`)

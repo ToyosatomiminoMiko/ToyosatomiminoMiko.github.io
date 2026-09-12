@@ -190,13 +190,15 @@ fn object_to_stmt(pair: &Pair<'_, Rule>) -> Value {
 
 /// 将分析语句(analysis_stmt)转换为 JSON AST 节点.
 /// 包含操作符(op),名称,调用(call),源(source),
-/// 可选的 at 参数,选项列表和位置.
+/// 可选的 at 参数及其形式(atForm,球坐标时显式给出),选项列表和位置.
 fn analysis_to_stmt(pair: &Pair<'_, Rule>) -> Value {
     let mut op = String::new();
     let mut name = String::new();
     let mut call = String::new();
     let mut source = String::new();
     let mut at: Option<Vec<String>> = None;
+    // `at spherical(...)` 才写 atForm;笛卡尔形式省略,TS 侧按缺省处理.
+    let mut at_form: Option<String> = None;
     let mut options: Vec<Value> = Vec::new();
 
     for child in pair.clone().into_inner() {
@@ -209,12 +211,30 @@ fn analysis_to_stmt(pair: &Pair<'_, Rule>) -> Value {
                         Rule::ident => call = inner.as_str().to_string(),
                         Rule::op_arg => source = inner.as_str().trim().to_string(),
                         Rule::at => {
-                            let args: Vec<String> = inner
-                                .into_inner()
-                                .filter(|n| n.as_rule() == Rule::at_arg)
-                                .map(|n| n.as_str().trim().to_string())
-                                .collect();
-                            at = Some(args);
+                            // at 的两种形式各带一个子规则:spherical_at / cartesian_at,
+                            // 参数规则也随形式不同(at_expr 支持嵌套括号,at_arg 不支持).
+                            for form in inner.into_inner() {
+                                match form.as_rule() {
+                                    Rule::spherical_at => {
+                                        at_form = Some("spherical".to_string());
+                                        at = Some(
+                                            form.into_inner()
+                                                .filter(|n| n.as_rule() == Rule::at_expr)
+                                                .map(|n| n.as_str().trim().to_string())
+                                                .collect(),
+                                        );
+                                    }
+                                    Rule::cartesian_at => {
+                                        at = Some(
+                                            form.into_inner()
+                                                .filter(|n| n.as_rule() == Rule::at_arg)
+                                                .map(|n| n.as_str().trim().to_string())
+                                                .collect(),
+                                        );
+                                    }
+                                    _ => {}
+                                }
+                            }
                         }
                         _ => {}
                     }
@@ -236,6 +256,9 @@ fn analysis_to_stmt(pair: &Pair<'_, Rule>) -> Value {
     });
     if let Some(at) = at {
         statement["at"] = json!(at);
+    }
+    if let Some(form) = at_form {
+        statement["atForm"] = json!(form);
     }
     statement
 }
@@ -577,6 +600,36 @@ gradient g = grad(S) at [j, k, l] {
             .find(|stmt| stmt["type"] == "analysis")
             .unwrap();
         assert_eq!(gradient["at"].as_array().unwrap().len(), 3);
+    }
+
+    #[test]
+    fn parses_spherical_at_with_nested_parentheses() {
+        // `at spherical(...)` 是显式球坐标形式;参数里的括号必须能嵌套
+        // (asin(0.5)),而笛卡尔 `at [...]` 仍不写 atForm.
+        let src = r##"
+sphere s = [0, 0, 0] { radius = 2; }
+gradient g = grad(s) at spherical(2, pi / 2, 0);
+gradient h = grad(s) at spherical(asin(0.5), pi / 4);
+gradient c = grad(s) at [1, 2, 3];
+"##;
+        let value: Value = serde_json::from_str(&parse_to_json(src).unwrap()).unwrap();
+        let statements = value["statements"].as_array().unwrap();
+        let analyses: Vec<&Value> = statements
+            .iter()
+            .filter(|stmt| stmt["type"] == "analysis")
+            .collect();
+        assert_eq!(analyses.len(), 3);
+
+        assert_eq!(analyses[0]["atForm"], "spherical");
+        assert_eq!(analyses[0]["at"], serde_json::json!(["2", "pi / 2", "0"]));
+        assert_eq!(analyses[1]["atForm"], "spherical");
+        assert_eq!(
+            analyses[1]["at"],
+            serde_json::json!(["asin(0.5)", "pi / 4"])
+        );
+
+        assert!(analyses[2].get("atForm").is_none());
+        assert_eq!(analyses[2]["at"], serde_json::json!(["1", "2", "3"]));
     }
 
     #[test]

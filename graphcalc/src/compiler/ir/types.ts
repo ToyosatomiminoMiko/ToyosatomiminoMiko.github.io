@@ -300,6 +300,15 @@ export interface AnalysisResult {
     name: string;
     op: AnalysisOp;
     point: [number, number, number];
+    /**
+     * 分析点相对世界原点的球坐标 `[r, θ, φ]`,供结果列表展示.
+     *
+     * 只对隐式场/球体的 gradient 给值(它们的 `at` 可以用球坐标显式声明,
+     * 结果也就用同一套坐标回显);θ/φ 约定见
+     * `math/sphericalCoordinates.ts` 与 `numericConfig.analysis.
+     * sphericalAngleConvention`.其余分析为 undefined.
+     */
+    pointSpherical?: [number, number, number];
     vector: [number, number, number];
     /**
      * 切线方向(未归一化,(1, f', 0),位于 z=0 曲线平面).
