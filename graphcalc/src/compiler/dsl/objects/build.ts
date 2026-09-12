@@ -1,5 +1,5 @@
 /**
- * 对象 blueprint 构建:ObjectStatement → 各对象 blueprint.
+ * 对象 blueprint 构建:ObjectStatement -> 各对象 blueprint.
  *
  * 表达式在进入 blueprint 前统一经 Rust 符号引擎归一化,因此后续
  * 采样/积分/分析和渲染都直接消费 Rust/evalexpr 可执行的字符串.
@@ -15,9 +15,9 @@
  * region 参与求交 / region 作为曲面底域)见 `compiler/ir/types.ts` 的
  * `RegionObject` 注释与 `prompt/feature.md`.
  *
- * 物化阶段(blueprint + 参数值 → 数值 IR)见同目录 ./materialize.ts;本文件与
+ * 物化阶段(blueprint + 参数值 -> 数值 IR)见同目录 ./materialize.ts;本文件与
  * 物化是对象子系统的两个独立 switch(各自按 9 种 kind 分派),只共享
- * ./types.ts 的 blueprint 类型。
+ * ./types.ts 的 blueprint 类型.
  */
 import { NUMERIC_CONFIG } from '../../../config/numericConfig';
 import { RENDER_CONFIG } from '../../../config/renderConfig';
@@ -62,6 +62,9 @@ const CONIC_OPTION_NAMES = [
 // "region" V1:只有外观/采样选项;transform/animation 由未知选项校验直接拒绝,
 // 后续规划(极坐标/y 型/多边界等)见文件头与 RegionObject 注释.
 const REGION_OPTION_NAMES = ['range', 'color', 'opacity', 'segments'] as const;
+// 隐式标量场:只有方程右端 level 与颜色.刻意不收 transform/animation--
+// 隐式方程写在世界坐标里,给它套变换需要把逆矩阵折进表达式,超出 V1 范围.
+const IMPLICIT_OPTION_NAMES = ['level', 'color'] as const;
 
 const REGION_REFERENCE_PATTERN = /^region\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)$/;
 
@@ -552,6 +555,38 @@ export function buildObjectBlueprint(
                 color,
                 opacity,
                 segments,
+            };
+        }
+
+        case 'implicit': {
+            assertKnownOptions(statement.options, IMPLICIT_OPTION_NAMES, `隐式场 ${statement.name}`);
+            const expr = normalizeExpression(statement.expr);
+            // 维度由表达式里实际出现的坐标变量推断:出现 z 即三维 level-set
+            // 曲面,否则是二维隐式曲线.不要求三个变量都出现(`z - 1 = 0` 也是
+            // 合法平面),但至少要有 x/y/z 之一,否则它根本不是等值面方程.
+            const symbols = new Set(extractSymbolNames(expr, new Set()));
+            const hasZ = symbols.has('z');
+            const hasPlanarCoordinate = symbols.has('x') || symbols.has('y');
+            if (!hasZ && !hasPlanarCoordinate) {
+                throw new Error(
+                    `隐式场 ${statement.name} 的表达式必须包含坐标变量 x/y/z`,
+                );
+            }
+            const levelExpr = findOption(statement.options, 'level') ?? '0';
+            return {
+                name: statement.name,
+                id,
+                kind: 'implicit',
+                expr,
+                dim: hasZ ? 3 : 2,
+                levelExpr,
+                // level 里也可能引用 param(如 `level = k`),与 f 的自由参数
+                // 一起进入系数集合,保证参数面板与增量刷新口径一致.
+                coefficientNames: extractCoefficientNames(
+                    [expr, levelExpr],
+                    new Set(['x', 'y', 'z']),
+                ),
+                color,
             };
         }
 

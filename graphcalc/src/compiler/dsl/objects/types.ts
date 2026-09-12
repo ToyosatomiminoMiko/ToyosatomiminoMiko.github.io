@@ -50,6 +50,8 @@ export type VectorFieldBlueprint = {
         z: [number, number];
     };
     glyphScale: number;
+    /** 梯度型求导产物专用:见 ir/types.ts 的 VectorFieldObject.gradientOrigin. */
+    gradientOrigin?: { sourceExpr: string };
 };
 
 export type PointBlueprint = {
@@ -133,6 +135,25 @@ export type RegionBlueprint = {
     segments: number;
 };
 
+/**
+ * 隐式标量场 blueprint:`f(x,y)=level` 或 `f(x,y,z)=level`.
+ *
+ * 与 curve/surface 的差别只在"没有显式左端":维度 dim 由表达式里出现的
+ * 坐标变量推断,dim=2 是隐式曲线,dim=3 是 level-set 曲面.表达式在
+ * build.ts 里已归一化并提取系数,物化只做 level 求值(见 materialize.ts).
+ */
+export type ImplicitBlueprint = {
+    name: string;
+    id: number;
+    kind: 'implicit';
+    expr: string;
+    dim: 2 | 3;
+    /** level 的表达式原文;物化时求值(支持 param). */
+    levelExpr: string;
+    coefficientNames: string[];
+    color: string;
+};
+
 export type ObjectBlueprint =
     | CurveBlueprint
     | SurfaceBlueprint
@@ -142,7 +163,8 @@ export type ObjectBlueprint =
     | SphereBlueprint
     | BoxBlueprint
     | ConicBlueprint
-    | RegionBlueprint;
+    | RegionBlueprint
+    | ImplicitBlueprint;
 
 export type CoefficientBlueprint = Exclude<
     ObjectBlueprint,

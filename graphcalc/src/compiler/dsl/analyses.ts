@@ -9,6 +9,11 @@
  * 只有 WASM 符号求值/数值核(以及为它准备的 payload)在隐藏时跳过,产出
  * enabled:false 的列表占位.分析名在 compileAnalyses 循环内查重,与
  * param/object/animation 的"重复声明"契约一致.
+ *
+ * 隐式场扩展(implicit / sphere):这两类源没有显式因变量,`at` 给的是空间点,
+ * 先沿 ∇f 牛顿投影到等值面再取法向,数学与失败语义都收在 ./implicitField.ts;
+ * 本文件只负责 kind × 算子分派,at 数量,show 缺省与结果落 IR.3D 场的
+ * `at` 语法上至少两个坐标,第三个缺省按 0 补全(与 docs 的说明一致).
  */
 import type {
     AnalysisCallName,
@@ -37,6 +42,7 @@ import {
     evaluateNumber,
     normalizeExpression,
 } from './expression';
+import { implicitFieldFor, projectToLevelSet } from './implicitField';
 
 /** 每个算子的规范函数名,解析出的 `call` 必须与之一致. */
 const ANALYSIS_CALL_NAMES: Record<AnalysisOpKind, AnalysisCallName> = {
@@ -122,22 +128,34 @@ function compileAnalysisStatement(
     }
 
     // ---- 校验面 1:对象 kind × 算子 可用矩阵 ----
-    // 粗 gate 只放行"能参与分析"的对象 kind;细 gate 校验算子与 kind 的组合.
-    // 两处都在 hidden 分支之前,保证隐藏项同样必须合法(见文件头结论).
-    if (
-        object.kind !== 'curve'
+    // 标量场源(curve/surface/implicit/球体)只支持 gradient;vector_field
+    // 只支持 divergence/curl.这里只读"隐式维度"这个声明级信息,真正的
+    // 隐式场闭包(含符号偏导)推迟到 hidden 分支之后再建,保证隐藏项不做
+    // WASM 符号求值(与文件头"先完整校验,后禁用"的契约一致).
+    const implicitDim: 2 | 3 | null = object.kind === 'implicit'
+        ? object.dim
+        : object.kind === 'sphere'
+            ? 3
+            : null;
+    if (statement.op === 'divergence' || statement.op === 'curl') {
+        if (object.kind !== 'vector_field') {
+            throw new Error(
+                `分析算子 ${statement.op} 不能应用于 ${object.kind} 类型对象`,
+            );
+        }
+    } else if (
+        implicitDim === null
+        && object.kind !== 'curve'
         && object.kind !== 'surface'
-        && object.kind !== 'vector_field'
     ) {
+        // 方块/旋转体的隐式函数是 max 型分段函数,梯度 V1 未支持;
+        // point/vector/region 本来就不是标量场,按普通"不可分析"报错.
+        if (object.kind === 'box' || object.kind === 'conic') {
+            throw new Error(
+                `分析 ${statement.name} 暂不支持 ${object.kind} 体积对象(当前仅支持 sphere 与 implicit)`,
+            );
+        }
         throw new Error(`分析 ${statement.name} 不能应用于 ${object.kind} 类型对象`);
-    }
-    const opMatchesKind = statement.op === 'gradient'
-        ? object.kind === 'curve' || object.kind === 'surface'
-        : object.kind === 'vector_field';
-    if (!opMatchesKind) {
-        throw new Error(
-            `分析算子 ${statement.op} 不能应用于 ${object.kind} 类型对象`,
-        );
     }
 
     // ---- 校验面 2:at 坐标 ----
@@ -146,10 +164,13 @@ function compileAnalysisStatement(
     // (202609 review:见 params.ts 注释).
     const atScope = buildParamScope(params, paramOverrides);
     const rawAt = statement.at ?? [];
-    const requiredAtCount =
-        statement.op === 'gradient' && object.kind === 'surface' ? 2
-            : object.kind === 'vector_field' ? 3
-                : 1;
+    // 3D 隐式场/球体的 at 在语法上同样至少两个数,第三个缺省按 0 补全
+    // (见 docs/derivatives-guide.md:建议写全 [x, y, z]).
+    const requiredAtCount = object.kind === 'vector_field'
+        ? 3
+        : object.kind === 'surface' || implicitDim !== null
+            ? 2
+            : 1;
     if (rawAt.length < requiredAtCount) {
         throw new Error(`分析 ${statement.name} 的 at 至少需要 ${requiredAtCount} 个坐标`);
     }
@@ -169,11 +190,13 @@ function compileAnalysisStatement(
     ];
 
     // show 白名单也在隐藏前校验,避免隐藏项带着拼写错误的 show 静默存活.
-    // 缺省项按源对象分派:一元 curve 求导(gradient)默认连同切线一起画,
-    // 让"求导要有切线"在没写 show 时也成立;曲面/向量场沿用 [point, normal].
-    const defaultShow = statement.op === 'gradient' && object.kind === 'curve'
-        ? (['point', 'normal', 'tangent'] as AnalysisShow[])
-        : (['point', 'normal'] as AnalysisShow[]);
+    // 缺省项按源对象分派:一元 curve 求导与 2D 隐式曲线默认连同切线一起画,
+    // 让"求导要有切线"在没写 show 时也成立;曲面/3D 隐式场/向量场沿用
+    // [point, normal].
+    const defaultShow: AnalysisShow[] = statement.op === 'gradient'
+        && (object.kind === 'curve' || implicitDim === 2)
+        ? ['point', 'normal', 'tangent']
+        : ['point', 'normal'];
     const show = parseShowOption(statement.options, defaultShow);
 
     // ---- 隐藏:仅保留列表项,不执行数值计算 ----
@@ -191,12 +214,34 @@ function compileAnalysisStatement(
         return;
     }
 
-    const { names: coeffNames, values: coeffValues } = splitCoefficients(
-        object.coefficients,
-    );
+    // ---- 隐式场(implicit / sphere):投影到等值面的点分析 ----
+    // 与 curve/surface 的差别:at 给的是空间点而不是"因变量已解出"的
+    // 自变量,∇f 在空间处处有定义,但"切平面/切向量"只对等值面上的点有
+    // 意义,因此先沿 ∇f 牛顿投影到 f = level,再取该处法向.
+    // 2D 隐式曲线额外给出平面内切线(与 curve 求导的 tangent 对位).
+    // 正式的场闭包(含符号偏导)只在没被隐藏时才建;系数由闭包自己持有.
+    const field = implicitFieldFor(object);
+    if (field !== null) {
+        const projected = projectToLevelSet(field, at, `分析 ${statement.name}`);
+        results.push({
+            name: statement.name,
+            op: 'gradient',
+            point: projected.point,
+            vector: projected.normal,
+            tangent: projected.tangent,
+            // 结果列表的 f(P) 取投影点处的场值(≈ level),与展示的点一致.
+            scalar: projected.valueAtPoint,
+            show,
+            enabled: true,
+        });
+        return;
+    }
 
     if (object.kind === 'curve' || object.kind === 'surface') {
         // 经过 op×kind gate,此处 statement.op 必为 gradient.
+        const { names: coeffNames, values: coeffValues } = splitCoefficients(
+            object.coefficients,
+        );
         const isCurve = object.kind === 'curve';
         const payload = JSON.stringify({
             surface_expr: normalizeExpression(object.expr),
@@ -236,6 +281,16 @@ function compileAnalysisStatement(
     }
 
     // vector_field:divergence / curl(经过 op×kind gate).
+    // 上面的标量场分派都已 return,这里显式收窄一次类型,同时兜住
+    // "算子与对象不匹配"的漏网情况.
+    if (object.kind !== 'vector_field') {
+        throw new Error(
+            `分析算子 ${statement.op} 不能应用于 ${object.kind} 类型对象`,
+        );
+    }
+    const { names: coeffNames, values: coeffValues } = splitCoefficients(
+        object.coefficients,
+    );
     const [pExpr, qExpr, rExpr] = object.components;
     if (statement.op === 'divergence') {
         const payload = JSON.stringify({

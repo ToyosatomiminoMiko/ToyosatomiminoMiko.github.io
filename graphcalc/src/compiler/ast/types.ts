@@ -86,7 +86,16 @@ export type ObjectKind =
     | 'cylinder'
     | 'cone'
     | 'frustum'
-    | 'region';
+    | 'region'
+    /**
+     * 隐式标量场:`f(x,y)=0` 或 `f(x,y,z)=0`.
+     *
+     * 维度不在语法里写死,由对象表达式实际出现的坐标变量推断(见
+     * `dsl/objects/build.ts` 的 implicit 分支):含 z 即三维 level-set
+     * 曲面,只含 x/y 即二维隐式曲线.它没有显式 `y=`/`z=` 左端,故与
+     * curve/surface 并列,不塞进它们的 expr.
+     */
+    | 'implicit';
 
 export interface ObjectStatement {
     type: 'object';

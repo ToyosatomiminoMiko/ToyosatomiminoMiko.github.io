@@ -7,6 +7,7 @@ import {
     evaluate_divergence_point,
     evaluate_gradient_point,
     evaluate_scalar,
+    symbolic_derivative,
 } from '../../wasm/math_rs/math_rs';
 import type { AstProgram } from '../ast/types';
 import { normalizeExpression } from './expression';
@@ -41,6 +42,15 @@ vi.mock('../../wasm/math_rs/math_rs', () => ({
                 return variable === 'y' ? '1' : '0';
             case '0':
                 return '0';
+            // 隐式场测试用表达式:只登记测试真正用到的偏导,保持 mock 简单.
+            case 'x^2 + y^2 - 1':
+                return variable === 'x' ? '2 * x' : variable === 'y' ? '2 * y' : '0';
+            case 'x^2 + y^2 + z^2 - 4':
+                return variable === 'x'
+                    ? '2 * x'
+                    : variable === 'y'
+                        ? '2 * y'
+                        : '2 * z';
             default:
                 return '1';
         }
@@ -75,6 +85,15 @@ vi.mock('../../wasm/math_rs/math_rs', () => ({
                 return '["0", "0", "-1"]';
             case '[2, 1, 1]':
                 return '["2", "1", "1"]';
+            case '[1, 1, 1]':
+                return '["1", "1", "1"]';
+            // 隐式场求导生成的 ∇f 分量(球体走解析式,implicit 走符号求导).
+            case '[2 * x, 2 * y, 2 * z]':
+                return '["2 * x", "2 * y", "2 * z"]';
+            case '[2 * x, 2 * y, 0]':
+                return '["2 * x", "2 * y", "0"]';
+            case '[2 * (x - (0)), 2 * (y - (0)), 2 * (z - (0))]':
+                return '["2 * (x - (0))", "2 * (y - (0))", "2 * (z - (0))"]';
             default:
                 return '[]';
         }
@@ -84,19 +103,24 @@ vi.mock('../../wasm/math_rs/math_rs', () => ({
         expr: string,
         names: string[],
         values: Float64Array,
-        _x: number,
-        _y: number,
-        _z: number,
+        x: number,
+        y: number,
+        z: number,
     ) => {
-        const scope: Record<string, number> = {};
+        // 坐标参与隐式场 f/∇f 的求值,必须真的绑定 x/y/z;参数/选项求值时
+        // 调用方传 NaN,表达式不引用坐标,结果不变.
+        const scope: Record<string, number> = { x, y, z };
         names.forEach((name, index) => {
             scope[name] = values[index];
         });
         scope.pi = Math.PI;
         scope.e = Math.E;
+        // DSL 的幂是 `^`(Rust 符号引擎语义),JS 的 `^` 是按位异或;mock 里
+        // 先换成 `**`,否则隐式场的 x^2 会算成 x XOR 2.
+        const jsExpr = expr.replace(/\^/g, '**');
         const fn = new Function(
             ...Object.keys(scope),
-            `return (${expr});`,
+            `return (${jsExpr});`,
         );
         return fn(...Object.values(scope));
     }),
@@ -1554,7 +1578,7 @@ describe('derivative 求导语句', () => {
             ],
         };
         expect(() => compileScene(badAst)).toThrow(
-            '求导 dF 只能应用于 curve/surface 类型对象',
+            '求导 dF 只能应用于 curve/surface/implicit/sphere 类型对象',
         );
     });
 
@@ -1739,8 +1763,8 @@ describe('review 修复回归测试', () => {
             statements: [
                 {
                     type: 'object',
-                    kind: 'sphere',
-                    name: 'S',
+                    kind: 'box',
+                    name: 'B',
                     expr: '[0, 0, 0]',
                     options: [],
                     span: { start: 0, end: 0 },
@@ -1750,8 +1774,8 @@ describe('review 修复回归测试', () => {
                     op: 'gradient',
                     name: 'g',
                     call: 'grad',
-                    source: 'S',
-                    at: ['0'],
+                    source: 'B',
+                    at: ['0', '0', '0'],
                     options: [],
                     span: { start: 0, end: 0 },
                 },
@@ -1761,7 +1785,7 @@ describe('review 修复回归测试', () => {
             badAst,
             {},
             { hiddenAnalysisNames: new Set(['g']) },
-        )).toThrow('分析 g 不能应用于 sphere 类型对象');
+        )).toThrow('分析 g 暂不支持 box 体积对象');
     });
 
     it('normalizes vector_field components at blueprint build like curve/surface exprs', () => {
@@ -1815,5 +1839,289 @@ describe('review 修复回归测试', () => {
             [0, 0, 1, 4],
             [0, 0, 0, 1],
         ]);
+    });
+});
+
+describe('隐式场(implicit)与球体梯度', () => {
+    type Statement = AstProgram['statements'][number];
+    type OptionList = { name: string; value: string }[];
+
+    function objectStatement(
+        kind: 'implicit' | 'sphere' | 'box',
+        name: string,
+        expr: string,
+        options: OptionList = [],
+    ): Statement {
+        return {
+            type: 'object',
+            kind,
+            name,
+            expr,
+            options,
+            span: { start: 0, end: 0 },
+        } as Statement;
+    }
+
+    function gradientStatement(
+        name: string,
+        source: string,
+        at: string[],
+        options: OptionList = [],
+    ): Statement {
+        return {
+            type: 'analysis',
+            op: 'gradient',
+            name,
+            call: 'grad',
+            source,
+            at,
+            options,
+            span: { start: 0, end: 0 },
+        } as Statement;
+    }
+
+    function derivativeStatement(
+        name: string,
+        source: string,
+        options: OptionList = [],
+    ): Statement {
+        return {
+            type: 'derivative',
+            name,
+            source,
+            options,
+            span: { start: 0, end: 0 },
+        } as Statement;
+    }
+
+    function implicitObject(scene: ReturnType<typeof compileScene>, name: string) {
+        const object = scene.objects.find((candidate) => candidate.name === name);
+        expect(object?.kind).toBe('implicit');
+        if (!object || object.kind !== 'implicit') throw new Error('不是隐式对象');
+        return object;
+    }
+
+    function vectorFieldObject(scene: ReturnType<typeof compileScene>, name: string) {
+        const object = scene.objects.find((candidate) => candidate.name === name);
+        expect(object?.kind).toBe('vector_field');
+        if (!object || object.kind !== 'vector_field') throw new Error('不是向量场');
+        return object;
+    }
+
+    it('infers implicit dimension from the coordinate variables and keeps level', () => {
+        const scene = compileScene({
+            statements: [
+                objectStatement('implicit', 'C', 'x^2 + y^2 - 1'),
+                objectStatement('implicit', 'S', 'x^2 + y^2 + z^2 - 4', [
+                    { name: 'level', value: '2' },
+                ]),
+            ],
+        });
+
+        const curve = implicitObject(scene, 'C');
+        expect(curve.dim).toBe(2);
+        expect(curve.level).toBe(0);
+
+        const surface = implicitObject(scene, 'S');
+        expect(surface.dim).toBe(3);
+        expect(surface.level).toBe(2);
+
+        // 隐式场本身就是方程,公式层不能套 curve/surface 的 y=/z=.
+        expect(scene.objectFormulas[curve.id]).toBe('x^2 + y^2 - 1=0');
+        expect(scene.objectFormulas[surface.id]).toBe('x^2 + y^2 + z^2 - 4=2');
+    });
+
+    it('rejects implicit fields without coordinate variables or with unknown options', () => {
+        expect(() => compileScene({
+            statements: [objectStatement('implicit', 'Z', '1')],
+        })).toThrow('隐式场 Z 的表达式必须包含坐标变量 x/y/z');
+
+        expect(() => compileScene({
+            statements: [
+                objectStatement('implicit', 'C', 'x^2 + y^2 - 1', [
+                    { name: 'colour', value: '"#fff"' },
+                ]),
+            ],
+        })).toThrow('隐式场 C 包含未知选项: colour');
+    });
+
+    it('projects a sphere gradient onto the surface (z of at defaults to 0)', () => {
+        const scene = compileScene({
+            statements: [
+                objectStatement('sphere', 'S', '[0, 0, 0]', [
+                    { name: 'radius', value: '2' },
+                ]),
+                // 语法上 at 至少要两个坐标;三维场缺省的第三个按 0 补全.
+                gradientStatement('g', 'S', ['1', '1']),
+            ],
+        });
+
+        const analysis = scene.analyses[0];
+        // 输入点 (1,1,0) 在球内,沿 ∇f 径向投影到 x²+y²=4 上的 (√2,√2,0).
+        expect(analysis.point[0]).toBeCloseTo(Math.SQRT2, 6);
+        expect(analysis.point[1]).toBeCloseTo(Math.SQRT2, 6);
+        expect(analysis.point[2]).toBeCloseTo(0, 6);
+        expect(analysis.vector[0]).toBeCloseTo(1 / Math.SQRT2, 6);
+        expect(analysis.vector[1]).toBeCloseTo(1 / Math.SQRT2, 6);
+        expect(analysis.vector[2]).toBeCloseTo(0, 6);
+        // 3D 等值面没有唯一切线,只提供切平面.
+        expect(analysis.tangent).toBeNull();
+        expect(analysis.show).toEqual(['point', 'normal']);
+        expect(analysis.scalar).toBeCloseTo(0, 6);
+    });
+
+    it('honours an explicit tangent_plane show on a sphere gradient', () => {
+        const scene = compileScene({
+            statements: [
+                objectStatement('sphere', 'S', '[0, 0, 0]', [
+                    { name: 'radius', value: '2' },
+                ]),
+                gradientStatement('g', 'S', ['1', '1'], [
+                    { name: 'show', value: '[point, normal, tangent_plane]' },
+                ]),
+            ],
+        });
+        expect(scene.analyses[0].show).toEqual(['point', 'normal', 'tangent_plane']);
+    });
+
+    it('rejects a sphere gradient at the centre where ∇f vanishes', () => {
+        expect(() => compileScene({
+            statements: [
+                objectStatement('sphere', 'S', '[0, 0, 0]', [
+                    { name: 'radius', value: '2' },
+                ]),
+                gradientStatement('g', 'S', ['0', '0']),
+            ],
+        })).toThrow('∇f = 0');
+    });
+
+    it('rejects gradient on box/conic with a roadmap error', () => {
+        expect(() => compileScene({
+            statements: [
+                objectStatement('box', 'B', '[0, 0, 0]'),
+                gradientStatement('g', 'B', ['1', '1', '1']),
+            ],
+        })).toThrow('分析 g 暂不支持 box 体积对象');
+    });
+
+    it('keeps hidden implicit analyses validated but uncomputed', () => {
+        vi.mocked(symbolic_derivative).mockClear();
+        const scene = compileScene(
+            {
+                statements: [
+                    objectStatement('sphere', 'S', '[0, 0, 0]', [
+                        { name: 'radius', value: '2' },
+                    ]),
+                    gradientStatement('g', 'S', ['1', '1'], [
+                        { name: 'show', value: '[point, tangent_plane]' },
+                    ]),
+                ],
+            },
+            {},
+            { hiddenAnalysisNames: new Set(['g']) },
+        );
+
+        expect(scene.analyses[0].enabled).toBe(false);
+        // show 仍在隐藏前完成校验与解析:隐藏项不能带着拼写错误静默存活.
+        expect(scene.analyses[0].show).toEqual(['point', 'tangent_plane']);
+        expect(scene.analyses[0].point).toEqual([0, 0, 0]);
+        // 隐藏 = 只保留列表占位:隐式场闭包(符号偏导)根本不建.
+        expect(vi.mocked(symbolic_derivative)).not.toHaveBeenCalled();
+    });
+
+    it('projects a 2D implicit gradient and gives an in-plane tangent', () => {
+        const scene = compileScene({
+            statements: [
+                objectStatement('implicit', 'C', 'x^2 + y^2 - 1'),
+                gradientStatement('g', 'C', ['2', '0']),
+            ],
+        });
+
+        const analysis = scene.analyses[0];
+        expect(analysis.point[0]).toBeCloseTo(1, 6);
+        expect(analysis.point[1]).toBeCloseTo(0, 6);
+        expect(analysis.point[2]).toBeCloseTo(0, 6);
+        expect(analysis.vector[0]).toBeCloseTo(1, 6);
+        expect(analysis.vector[1]).toBeCloseTo(0, 6);
+        // 2D 隐式曲线默认画切线:t = (−fy, fx, 0) 归一化 = (0, 1, 0).
+        expect(analysis.tangent?.[0]).toBeCloseTo(0, 6);
+        expect(analysis.tangent?.[1]).toBeCloseTo(1, 6);
+        expect(analysis.show).toEqual(['point', 'normal', 'tangent']);
+    });
+
+    it('projects a 3D implicit field onto its level set', () => {
+        const scene = compileScene({
+            statements: [
+                objectStatement('implicit', 'S', 'x^2 + y^2 + z^2 - 4'),
+                gradientStatement('g', 'S', ['0', '0', '3']),
+            ],
+        });
+
+        const analysis = scene.analyses[0];
+        expect(analysis.point[2]).toBeCloseTo(2, 6);
+        expect(analysis.vector[2]).toBeCloseTo(1, 6);
+    });
+
+    it('compiles derivative(sphere) into a ∇f vector field with its symbol source', () => {
+        const scene = compileScene({
+            statements: [
+                objectStatement('sphere', 'S', '[0, 0, 0]', [
+                    { name: 'radius', value: '2' },
+                ]),
+                derivativeStatement('dS', 'S'),
+            ],
+        });
+
+        const field = vectorFieldObject(scene, 'dS');
+        expect(field.components).toEqual([
+            '2 * (x - (0))',
+            '2 * (y - (0))',
+            '2 * (z - (0))',
+        ]);
+        // 公式要保留 ∇ 算子,括号里放源标量场 f = |p−c|²−r².
+        expect(field.gradientOrigin).toEqual({
+            sourceExpr: '(x - (0))^2 + (y - (0))^2 + (z - (0))^2 - (2)^2',
+        });
+        expect(scene.objectFormulas[field.id]).toContain('\\nabla');
+    });
+
+    it('compiles derivative(implicit) into ∇f (2D keeps a zero z component)', () => {
+        const scene = compileScene({
+            statements: [
+                objectStatement('implicit', 'S', 'x^2 + y^2 + z^2 - 4'),
+                derivativeStatement('dS', 'S', [{ name: 'grid', value: '[4, 4, 4]' }]),
+                objectStatement('implicit', 'C', 'x^2 + y^2 - 1'),
+                derivativeStatement('dC', 'C'),
+            ],
+        });
+
+        expect(vectorFieldObject(scene, 'dS').components).toEqual(['2 * x', '2 * y', '2 * z']);
+        expect(vectorFieldObject(scene, 'dS').gridSize).toEqual([4, 4, 4]);
+        expect(vectorFieldObject(scene, 'dC').components).toEqual(['2 * x', '2 * y', '0']);
+    });
+
+    it('rejects derivative options that do not belong to the ∇f vector field', () => {
+        expect(() => compileScene({
+            statements: [
+                objectStatement('implicit', 'S', 'x^2 + y^2 + z^2 - 4'),
+                derivativeStatement('dS', 'S', [{ name: 'segments', value: '64' }]),
+            ],
+        })).toThrow('求导 dS 包含未知选项: segments');
+    });
+
+    it('still rejects derivative of a vector field source after adding field sources', () => {
+        expect(() => compileScene({
+            statements: [
+                {
+                    type: 'object',
+                    kind: 'vector_field',
+                    name: 'F',
+                    expr: '[y, -x, 0]',
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+                derivativeStatement('dF', 'F'),
+            ],
+        })).toThrow('求导 dF 只能应用于 curve/surface/implicit/sphere 类型对象');
     });
 });

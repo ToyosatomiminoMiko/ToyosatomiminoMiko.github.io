@@ -24,7 +24,10 @@ tensor_stmt = { tensor_kind ~ ident ~ "=" ~ expr ~ ";" }
 
 animation_stmt = { "animation" ~ ident ~ "=" ~ expr ~ stmt_end }
 
-object_kind = { "curve" | "surface" | "vector_field" | "point" | "vector" | "sphere" | "box" | "cylinder" | "cone" | "frustum" | "region" }
+// `implicit` 是隐式标量场声明:`f(x,y)=0`(二维等值线)或 `f(x,y,z)=0`
+// (三维等值面),维度由表达式里出现的坐标变量推断(见 objects/build.ts).
+// 它只有隐式方程本身,没有显式的 y=/z= 左端,因此与 curve/surface 并列.
+object_kind = { "curve" | "surface" | "vector_field" | "point" | "vector" | "sphere" | "box" | "cylinder" | "cone" | "frustum" | "region" | "implicit" }
 object_stmt = { object_kind ~ ident ~ "=" ~ expr ~ stmt_end }
 options = { "{" ~ option* ~ "}" }
 option = { ident ~ "=" ~ value ~ ";" }

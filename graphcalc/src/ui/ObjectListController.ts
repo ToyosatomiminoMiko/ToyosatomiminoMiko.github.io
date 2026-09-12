@@ -21,6 +21,7 @@ const ENTITY_KIND_LABELS: Record<SceneObject['kind'], string> = {
     box: '方块',
     conic: '旋转体',
     region: '区域',
+    implicit: '隐式场',
 };
 
 const ANALYSIS_KIND_LABELS: Record<AnalysisResult['op'], string> = {
@@ -97,6 +98,9 @@ function sceneObjectExpression(object: SceneObject): string {
             return `中心=${formatVector([object.position.x, object.position.y, object.position.z])} · base=${formatNumber(object.baseRadius)} · top=${formatNumber(object.topRadius)} · h=${formatNumber(object.height)}`;
         case 'region':
             return `边界=${object.curveAName}, ${object.curveBName} · x∈[${formatNumber(object.range[0])}, ${formatNumber(object.range[1])}]`;
+        case 'implicit':
+            // V1 只有方程本体,没有自有网格;摘要直接给 `f = level`.
+            return `${object.expr} = ${formatNumber(object.level)} · ${object.dim}D`;
     }
 }
 

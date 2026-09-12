@@ -91,6 +91,44 @@ export interface VectorFieldObject {
     };
     gridSize: [number, number, number];
     glyphScale: number;
+    /**
+     * 该向量场由 `derivative` 对隐式场/球体求梯度得到时给出源函数.
+     *
+     * 存在意义与 `DerivativeOrigin` 相同:产物在数值/渲染上与手写
+     * vector_field 完全同构,但公式展示要保留梯度算子 ∇,括号里放源标量场
+     * (数学上是 ∇f,不是"对向量场再求导"),再由公式层把三分量接在等号右侧.
+     * 渲染/求值路径不读这个字段,它只服务于 sceneObjectLatex 的公式拼装.
+     */
+    gradientOrigin?: { sourceExpr: string };
+}
+
+/**
+ * 隐式标量场对象:`f(x,y) = level`(二维隐式曲线)或 `f(x,y,z) = level`
+ * (三维 level-set 曲面).
+ *
+ * 语义边界(V1):
+ * - 它只声明"哪个水平集",**不携带自己的网格几何**;本体的 marching
+ *   squares/cubes 采网渲染留到后续(见 prompt/roadmap),当前作为
+ *   `gradient` / `derivative` 的分析源参与编译;
+ * - `dim` 由表达式里出现的坐标变量推断(含 z 为 3,否则为 2),不在语法里
+ *   写死;`level` 是把方程写成 `f = level` 的右端(缺省 0);
+ * - 与 `curve`/`surface` 一样,表达式先经 Rust 符号引擎归一化,符号偏导
+ *   与数值求值全部走既有 WASM 管线,不新增数值内核.
+ */
+export interface ImplicitObject {
+    kind: 'implicit';
+    id: number;
+    name: string;
+    /** 归一化后的标量场表达式 f(x,y[,z]). */
+    expr: string;
+    /** 2 = f(x,y)=level 隐式曲线;3 = f(x,y,z)=level 等值面. */
+    dim: 2 | 3;
+    /** 等值面/等值线的水平值 level(缺省 0). */
+    level: number;
+    /** 表达式里引用的自由参数,供参数面板与增量刷新使用. */
+    coefficients: Coefficient[];
+    color: string;
+    enabled: boolean;
 }
 
 /** 空间点(暂未接入 DSL,但保留为可渲染对象). */
@@ -240,7 +278,8 @@ export type SceneObject =
     | SphereObject
     | BoxObject
     | ConicSolidObject
-    | RegionObject;
+    | RegionObject
+    | ImplicitObject;
 
 /**
  * 微分分析结果(纯数值结果).

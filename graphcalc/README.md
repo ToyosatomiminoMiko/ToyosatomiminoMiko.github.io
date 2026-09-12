@@ -30,13 +30,24 @@ GraphCalc 的当前入口是 `index.html`,它加载 `src/main.ts`,再由
   函数曲线/曲面(curve -> curve 求 x 导,surface -> surface 求 x/y 偏导);
   语法 `derivative 名称 = derivative(源对象 [, 变量])`,函数名用全名不缩写;
   示例 `example/derivative_graph.scad`
+- `implicit`:`f(x,y)=0`(二维等值线)或 `f(x,y,z)=0`(三维等值面)的隐式
+  标量场,dim 由表达式里出现的坐标变量推断,`level` 选项给出方程右端
+  (缺省 0).V1 只有方程本体参与 `gradient` / `derivative` 分析,本体的
+  marching squares/cubes 采网渲染留到后续
+- 隐式场求导:体积对象(`sphere`)与 `implicit` 对象没有解出因变量,
+  `derivative(sphere|implicit)` 求的是梯度 ∇f,产物是一个 `vector_field`
+  (复用向量场的采样/渲染管线);`gradient g = grad(sphere|implicit) at
+  [x, y, z]` 在空间点取 ∇f,先沿梯度牛顿投影到等值面再画点/法向/切平面
+  (3D `at` 语法上至少两个坐标,第三个缺省按 0 补;∇f=0 处报错).
+  示例 `example/sphere_gradient.scad`
 - `gradient` / `divergence` / `curl`:点分析(求导/偏导经这些微分分析
   算子暴露:一元求导 = curve 的 gradient,偏导 = surface 的 gradient,
   div/curl = 向量场的一阶偏导组合;用户文档见 `docs/derivatives-guide.md`)
-- `gradient` 的 `show` 元素:通用 `point`/`normal`;曲面(偏导)可加
-  `tangent_plane` 画切平面,一元曲线(求导)可加 `tangent` 画切线;
-  曲线求导不写 `show` 时默认画 `[point, normal, tangent]`,让切线
-  始终可见,其余分析默认 `[point, normal]`.示例集见 `example/README.md`:
+- `gradient` 的 `show` 元素:通用 `point`/`normal`;曲面(偏导)与三维
+  隐式场/球体可加 `tangent_plane` 画切平面,一元曲线与二维隐式曲线可加
+  `tangent` 画切线;曲线求导与二维隐式曲线不写 `show` 时默认画
+  `[point, normal, tangent]`,让切线始终可见,其余分析默认
+  `[point, normal]`.示例集见 `example/README.md`:
   一元求导 `example/derivative_curve.scad` 与求导法则对照
   `example/derivative_rules.scad`,偏导 `example/partial_derivative_surface.scad`,
   散度/旋度 `example/divergence_vector_field.scad` 与 `example/curl_vector_field.scad`
@@ -143,6 +154,13 @@ XZ/XY/YZ 三个坐标平面,各有独立开关,同一行排列.
   体积域 `integral(S)` 不接受 `range` 选项(域 = 渲染出的世界实体)
 - `region` 边界曲线带静态 `transform` 或 `animation`:编译期报错
 - `region` 区域本体 V1 不支持变换/动画,不接受未知选项
+- `box`/`cone`/`cylinder`/`frustum` 的 `gradient`/`derivative`:隐式函数是
+  max 型分段函数,暂未支持(报"暂不支持 ... 体积对象");当前隐式场源只有
+  `sphere` 与 `implicit`
+- `implicit` 对象不接受 `transform`/`animation`(方程写在世界坐标里),
+  本体也不参与求交/积分(V1 只有方程,没有自己的网格)
+- 隐式场梯度分析里的静态 `transform`:与 curve/surface 的既有分析一致,
+  分析在对象局部坐标里进行,不套用对象的静态变换
 
 ## 构建
 

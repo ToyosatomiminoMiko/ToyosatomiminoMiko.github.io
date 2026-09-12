@@ -83,6 +83,17 @@ export function sceneObjectLatex(
                 const components = object.components
                     .map((component) => cachedLatexExpression(component))
                     .join(',\\ ');
+                // 由隐式场求导得到的向量场是 ∇f:公式要保留梯度算子,括号里
+                // 放源标量场,等号右侧是三分量(与 derivativeLatex 同款契约).
+                if (object.gradientOrigin) {
+                    return [
+                        '\\mathbf{F}=\\nabla\\left(',
+                        cachedLatexExpression(object.gradientOrigin.sourceExpr),
+                        '\\right)=\\left(',
+                        components,
+                        '\\right)',
+                    ].join('');
+                }
                 return `\\mathbf{F}\\left(x,y,z\\right)=\\left(${components}\\right)`;
             }
             case 'point':
@@ -107,6 +118,10 @@ export function sceneObjectLatex(
                     `,\\quad ${latexNumber(a)}\\le x\\le ${latexNumber(b)}`,
                 ].join(' ');
             }
+            case 'implicit':
+                // 隐式场本身就是方程:`f(x,y,z) = level`,左端没有因变量,
+                // 不能套 curve/surface 的 `y=` / `z=`.
+                return `${cachedLatexExpression(object.expr)}=${latexNumber(object.level)}`;
             case 'sphere':
             case 'box':
             case 'conic':

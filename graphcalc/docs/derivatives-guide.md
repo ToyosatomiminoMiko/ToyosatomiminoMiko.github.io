@@ -100,6 +100,40 @@ fx = ∂f/∂x ,  fy = ∂f/∂y
 示例:`graphcalc/example/partial_derivative_surface.scad`(正弦波面 +
 鞍面,并演示 fx=fy=0 时切平面水平的直观情形).
 
+## 3.1 隐式场:球体与 implicit 对象的梯度
+
+`curve`(`y=f(x)`)与 `surface`(`z=f(x,y)`)都已经解出因变量,`at` 给的是
+自变量.球体与 `implicit` 对象没有因变量,它们的方程是隐式的:
+
+```text
+sphere s = [cx, cy, cz] { radius = r; };   // f = |p − c|² − r² = 0
+implicit H = f 表达式 { level = c; };       // f = c,缺省 c = 0
+```
+
+`implicit` 的维度由表达式里出现的坐标变量推断:含 z 是三维等值面,只含
+x/y 是二维等值线.
+
+- `derivative(s)` / `derivative(H)`:**对隐式场求导 = 梯度 ∇f**,产物是
+  一个 `vector_field`(不是 curve/surface),分量是 f 对 x/y/z 的偏导;
+  公式区写成 `∇(f) = (f_x, f_y, f_z)`;
+- `gradient g = grad(s) at [x, y, z]` / `grad(H) at [...]`:在空间点取
+  ∇f.该点一般不在等值面上,因此编译期沿 ∇f 做牛顿投影,把它落到
+  `f = level` 上再画:
+  - **point**:投影到等值面上的点;
+  - **normal**:该点单位法向 `∇f/|∇f|`;
+  - **tangent_plane**:过该点,以法向为法线的切平面(三维);
+  - **tangent**:二维隐式曲线的平面内切线 `(−f_y, f_x, 0)`.
+
+`at` 语法上至少两个坐标,三维场的第三个缺省按 0 补全(建议写全
+`[x, y, z]`).若点落在 ∇f = 0 的临界点(例如球心),法向没有定义,编译期
+直接报错,而不是画一个错误方向.
+
+示例:`graphcalc/example/sphere_gradient.scad`.
+
+V1 边界:`box`/`cone`/`cylinder`/`frustum` 的隐式函数是 max 型分段函数,
+暂不支持(报"暂不支持 ... 体积对象");隐式场/球体的梯度分析在对象局部
+坐标里进行,不套用静态 `transform`(与 curve/surface 的既有分析一致).
+
 ## 4. 向量场的散度与旋度:div / curl
 
 语法(`vector_field F = [P, Q, R]`,变量为 x/y/z):
@@ -125,8 +159,12 @@ curl      名称 = curl(F) at [px, py, pz];
 | --- | --- | --- | --- |
 | `gradient grad(...)` | `curve`(一元求导) | 点/切线/法向 | 1 个数(语法上写 2 个,如 `[px, 0]`) |
 | `gradient grad(...)` | `surface`(偏导) | 点/法向/切平面 | 2 个数 |
+| `gradient grad(...)` | `implicit`(二维) | 点/切线/法向 | 2 个数 |
+| `gradient grad(...)` | `implicit`(三维)/`sphere` | 点/法向/切平面 | 2 个数(第三个缺省 0) |
 | `divergence div(...)` | `vector_field` | 标量 | 3 个数 |
 | `curl curl(...)` | `vector_field` | 向量 | 3 个数 |
+| `derivative` | `implicit`/`sphere` | ∇f 向量场(`vector_field`) | - |
+| `derivative` | `box`/`conic` | 暂未支持(报错) | - |
 
 编译期会做全套声明级校验并给出语句级错误(定位到行/列):
 
@@ -146,6 +184,8 @@ curl      名称 = curl(F) at [px, py, pz];
 | --- | --- |
 | curve 的 gradient(一元求导) | `[point, normal, tangent]` |
 | surface 的 gradient(偏导) | `[point, normal]` |
+| `implicit`(二维)的 gradient | `[point, normal, tangent]` |
+| `implicit`(三维)/`sphere` 的 gradient | `[point, normal]` |
 | divergence / curl | `[point, normal]` |
 
 其中 `point` 测量点(黄色圆点)与场景 `point` 对象**共用同一个点的

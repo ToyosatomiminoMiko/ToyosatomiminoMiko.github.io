@@ -76,6 +76,41 @@ export function evaluateNumber(
     return evaluateRustScalar(normalizeExpression(raw), scope ?? {});
 }
 
+/**
+ * 在世界坐标 (x, y, z) 处求值一个标量表达式.
+ *
+ * `evaluateNumber` 把 x/y/z 都置为 NaN,只适合"坐标不参与"的参数/选项
+ * 求值;一维/二维/三维隐式场的 f 与 ∇f 求值需要真实坐标,因此单独给一个
+ * 入口.表达式必须先归一化(调用方保证,或这里就地归一化),scope 里的名字
+ * 不能与 x/y/z 冲突(与采样侧 build_base_context 的约定一致).
+ *
+ * 求值仍走 Rust/WASM 的 `evaluate_scalar`,失败或非有限值返回 null,
+ * 由调用方给出与自身语义相关的错误文案.
+ */
+export function evaluateExpressionAt(
+    expr: string,
+    scope: Record<string, number>,
+    x: number,
+    y: number,
+    z: number,
+): number | null {
+    const names = Object.keys(scope);
+    const values = new Float64Array(names.map((name) => scope[name]));
+    try {
+        const value = wasmEvaluateScalar(
+            normalizeExpression(expr),
+            names,
+            values,
+            x,
+            y,
+            z,
+        );
+        return typeof value === 'number' && Number.isFinite(value) ? value : null;
+    } catch {
+        return null;
+    }
+}
+
 export function evaluateRequiredNumber(
     raw: string,
     scope: Record<string, number>,

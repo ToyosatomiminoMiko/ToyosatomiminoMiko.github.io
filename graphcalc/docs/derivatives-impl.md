@@ -9,11 +9,20 @@
   (curve -> curve 求 x 导,surface -> surface 求 x/y 偏导).对象与手写
   curve/surface 完全同构,复用同一 blueprint/物化/渲染管线;语法见
   [derivatives-guide.md](derivatives-guide.md) §1.
+- **隐式场求导**:`sphere`(内置隐式场 `|p−c|²−r²`)与 `implicit`
+  (`f(x,y)=0` / `f(x,y,z)=0`)没有解出因变量,`derivative` 对它们求的是
+  梯度 ∇f,产物是 `vector_field`(复用向量场管线,公式层用
+  `VectorFieldObject.gradientOrigin` 保留 ∇ 算子).实现见
+  `dsl/implicitField.ts` 与 `staticScene.ts` 的 `buildFieldDerivativeBlueprint`.
 - **"微分分析"算子**在指定点做点分析(与"梯度"功能耦合):
   - 一元导数 = `curve` 上的 `gradient`(等价的数学说法:对隐式曲线
     `y − f(x) = 0` 求梯度 ∇ = (−f′, 1, 0),切线方向即 (1, f′, 0));
   - 偏导 = `surface` 上的 `gradient`(fx = ∂f/∂x,fy = ∂f/∂y,法向
     (−fx, −fy, 1),切平面);
+  - 隐式场 = `sphere` / `implicit` 上的 `gradient`:∇f 在空间处处有定义,
+    但切平面只对等值面上的点有意义,故先沿 ∇f 牛顿投影到 `f = level`,
+    再取该处法向;二维隐式曲线额外给出平面内切线(见
+    `implicitField.ts::projectToLevelSet`);
   - div/curl = `vector_field` 上的六个一阶偏导组合.
 - **求导本身在编译期完成(符号求导),数值求值在 WASM 内完成**,对象与
   分析结果都是"纯数据",拖动参数只重新求值,不重新求导(表达式级缓存).
@@ -37,6 +46,10 @@ AST AnalysisStatement { op, call, source, at[], options[] }
       cachedDerivativeExpression(expr, 'x' | 'y')   compiler/dsl/expression.ts
         │ wasm symbolic_derivative(expr, variable)   math_rs/src/lib.rs
         │   └─ symbolic/derivative.rs + builtins.rs(法则/函数表)
+· 隐式场/球体(梯度):implicitFieldFor(object) -> f 与 ∇f 的点求值闭包
+      implicitField.ts::projectToLevelSet 沿 ∇f 牛顿投影到 f = level
+        │ 数值求值 evaluateExpressionAt -> wasm evaluate_scalar
+        │ (球体的 f/∇f 是解析式,不再走符号引擎)
         ▼
 JSON payload -> evaluate_gradient_point / evaluate_divergence_point /
               evaluate_curl_point(lib.rs) -> field_core.rs 数值求值
@@ -107,9 +120,17 @@ f′ 曲线可视化,应在 DSL/IR 层增加显式语义(参考 §5 的未实现
 - 高阶/混合偏导没有独立语句,但可用 `derivative` 链式求导得到:每步把
   上一步的导数对象当源对象即可(如 `derivative(d = derivative(s, x))` 得
   ∂²f/∂x²,`derivative(dy = derivative(d, y))` 得 ∂²f/∂y∂x).
-- 对数组/向量表达式求导:未支持(`derivative` 源只能是 curve/surface).
+- 对数组/向量表达式求导:未支持(`derivative` 源只能是
+  curve/surface/implicit/sphere;对 vector_field 求导会报"只能应用于
+  curve/surface/implicit/sphere 类型对象").
 - 点分析只输出测量点的值;`at` 坐标个数不足时编译报错(curve 最少
-  1 个,surface 2 个,vector_field 3 个;语法上 `at` 至少两个数).
+  1 个,surface / implicit / sphere 2 个,vector_field 3 个;语法上 `at`
+  至少两个数).三维隐式场/球体缺省的第三个坐标按 0 补全.
+- 隐式场 V1:`box`/`conic` 的隐式函数是 max 型分段函数,gradient/derivative
+  暂不支持;`implicit` 本体(以及球体)不参与求交/积分;`implicit` 本体
+  的 marching squares/cubes 采网渲染留到后续,当前只作为分析源.
+- 隐式场梯度分析在对象局部坐标里进行,不套用静态 `transform`(与
+  curve/surface 的既有分析一致,是既有边界而非本次新增).
 - 隐藏语义:被隐藏的分析先完整校验再置 `enabled: false` 占位,不执行
   WASM 求值(与求交/积分统一,见 analyses.ts 文件头).
 - 数值侧对不可导点(abs/sign 在 0 处等)返回 NaN;符号侧 abs 用 sign

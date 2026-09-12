@@ -215,6 +215,11 @@ export class Plotter {
                 if (redraw) this._drawRegion(obj, objectsByName);
                 else this._updateRef(obj, objectsByName);
                 break;
+            case 'implicit':
+                // 隐式场的本体采网渲染(marching squares/cubes)尚未实现:
+                // V1 只作为 gradient / derivative 的分析源,不挂任何几何.
+                // 这里显式留一个空分支,避免 switch 漏 kind 时被误当成新对象.
+                break;
         }
     }
 

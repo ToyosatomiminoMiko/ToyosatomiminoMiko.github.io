@@ -10,4 +10,4 @@
 配套示例见 [`../example/README.md`](../example/README.md)(求导/偏导
 示例为 `derivative_curve.scad`,`derivative_rules.scad`,
 `partial_derivative_surface.scad`,`divergence_vector_field.scad`,
-`curl_vector_field.scad`).
+`curl_vector_field.scad`;隐式场梯度为 `sphere_gradient.scad`).

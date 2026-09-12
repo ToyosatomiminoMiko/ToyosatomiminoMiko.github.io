@@ -12,6 +12,7 @@ import type {
     BoxObject,
     ConicSolidObject,
     CurveObject,
+    ImplicitObject,
     ParamDeclaration,
     PointObject,
     RegionObject,
@@ -139,6 +140,8 @@ export function materializeObject(
                 gridSize: blueprint.gridSize,
                 range: blueprint.range,
                 glyphScale: blueprint.glyphScale,
+                // 纯展示元数据:只有隐式场求导产物有,直接透传给公式层.
+                gradientOrigin: blueprint.gradientOrigin,
             } satisfies VectorFieldObject;
         }
 
@@ -299,6 +302,28 @@ export function materializeObject(
                 segments: blueprint.segments,
                 enabled: true,
             } satisfies RegionObject;
+        }
+
+        case 'implicit': {
+            // dim 与 expr 是声明级数据;唯一需要在参数刷新时重算的是 level
+            // (它允许引用 param),系数与 curve/surface 走同一份物化路径.
+            const scope = buildParamScope(params, overrides);
+            const level = evaluateRequiredNumber(
+                blueprint.levelExpr,
+                scope,
+                `隐式场 ${blueprint.name} 的 level`,
+            );
+            return {
+                kind: 'implicit',
+                id: blueprint.id,
+                name: blueprint.name,
+                expr: blueprint.expr,
+                dim: blueprint.dim,
+                level,
+                coefficients: blueprint.coefficientNames.map((name) => materializeCoefficient(name, params, overrides)),
+                color: blueprint.color,
+                enabled: true,
+            } satisfies ImplicitObject;
         }
     }
 }

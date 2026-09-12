@@ -540,6 +540,46 @@ derivative dsy = derivative(s, y);
     }
 
     #[test]
+    fn parses_implicit_field_statements() {
+        // 隐式对象与 curve/surface 一样走 object_stmt,只是 kind 为 implicit;
+        // 维度由编译器按表达式里的坐标变量推断,Rust 侧不做数学判断.
+        let src = r##"
+implicit C = x^2 + y^2 - 1 {
+    color = "#6dd5ff";
+}
+implicit S = x^2 + y^2 + z^2 - 4 {
+    level = 0;
+}
+derivative dS = derivative(S);
+gradient g = grad(S) at [j, k, l] {
+    show = [point, normal, tangent_plane];
+}
+"##;
+        let value: Value = serde_json::from_str(&parse_to_json(src).unwrap()).unwrap();
+        let statements = value["statements"].as_array().unwrap();
+        let implicits: Vec<&Value> = statements
+            .iter()
+            .filter(|stmt| stmt["type"] == "object" && stmt["kind"] == "implicit")
+            .collect();
+        assert_eq!(implicits.len(), 2);
+        assert_eq!(implicits[0]["name"], "C");
+        assert_eq!(implicits[0]["expr"], "x^2 + y^2 - 1");
+        assert_eq!(implicits[1]["name"], "S");
+        assert_eq!(implicits[1]["options"][0]["name"], "level");
+
+        let derivative = statements
+            .iter()
+            .find(|stmt| stmt["type"] == "derivative")
+            .unwrap();
+        assert_eq!(derivative["source"], "S");
+        let gradient = statements
+            .iter()
+            .find(|stmt| stmt["type"] == "analysis")
+            .unwrap();
+        assert_eq!(gradient["at"].as_array().unwrap().len(), 3);
+    }
+
+    #[test]
     fn rejects_unknown_statement_rules_instead_of_dropping_them() {
         let pair = MikoParser::parse(Rule::number, "1")
             .unwrap()
