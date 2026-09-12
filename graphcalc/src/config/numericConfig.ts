@@ -3,7 +3,7 @@
  *
  * 这里只放"默认策略",不应包含类/DOM 或渲染逻辑.
  */
-import type { SphericalAngleConvention } from '../math/sphericalCoordinates';
+import type { SphericalAngleConvention } from '../math/CoordinateSystem';
 
 export const NUMERIC_CONFIG = {
     param: {
@@ -65,7 +65,7 @@ export const NUMERIC_CONFIG = {
          *   φ 是 xy 平面内从 +X 轴逆时针量起的方位角 ∈ (-π, π];
          * - 'math'(部分教材):θ 是方位角,φ 是极角,即与上一种的 θ/φ 互换.
          *
-         * 两个约定都在 math/sphericalCoordinates.ts 实现并单测覆盖,这里只选
+         * 两个约定都在 math/CoordinateSystem.ts 实现并单测覆盖,这里只选
          * DSL 编译默认值;结果列表把分析点换算回 [r, θ, φ] 展示时用同一约定.
          */
         sphericalAngleConvention: 'physics' as SphericalAngleConvention,

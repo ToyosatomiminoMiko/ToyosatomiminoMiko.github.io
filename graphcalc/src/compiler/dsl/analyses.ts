@@ -35,9 +35,9 @@ import {
 } from '../../wasm/math_rs/math_rs';
 import { splitCoefficients } from '../../math/adapters/coefficientUtils';
 import {
-    cartesianToSpherical,
-    sphericalToCartesian,
-} from '../../math/sphericalCoordinates';
+    CoordinateSystem,
+    type CoordinateTriple,
+} from '../../math/CoordinateSystem';
 import { withStatementSpan } from '../errors';
 import { assertKnownOptions, parseShowOption } from './options';
 import { buildParamScope } from './params';
@@ -66,13 +66,26 @@ function normalizeVector(vector: [number, number, number]): [number, number, num
 }
 
 /**
+ * DSL 分析用的三维球坐标系:角度约定来自全局配置
+ * (`numericConfig.analysis.sphericalAngleConvention`).
+ *
+ * 每次现建一个不可变的小对象即可(无内部状态,无缓存);这样约定切换只有
+ * 一个来源,不会出现"编译期一个约定,展示期另一个约定"的漂移.
+ */
+function analysisSphericalSystem(): CoordinateSystem {
+    return CoordinateSystem.spherical(
+        3,
+        NUMERIC_CONFIG.analysis.sphericalAngleConvention,
+    );
+}
+
+/**
  * 把 `at spherical(...)` 的参数换算成笛卡尔分析点.
  *
  * - 3 个参数按 `[r, θ, φ]` 解释;
  * - 2 个参数按 `[θ, φ]` 解释,r 取源球体半径(源必须是 sphere).
  *
- * θ/φ 约定由 `NUMERIC_CONFIG.analysis.sphericalAngleConvention` 全局配置
- * (physics 默认 / math),换算本身见 math/sphericalCoordinates.ts.
+ * 换算由 {@link CoordinateSystem} 完成,这里只负责 DSL 侧的"省略 r"约定.
  *
  * 注意:球坐标是相对**世界原点**的坐标变换,不是"以球心为原点".球心不在
  * 原点时,换出来的点会由后续 ∇f 投影落到球面上(与笛卡尔 at 同一条路径).
@@ -81,17 +94,17 @@ function resolveSphericalAt(
     statement: AnalysisStatement,
     object: SceneObject,
     values: readonly number[],
-): [number, number, number] {
-    const convention = NUMERIC_CONFIG.analysis.sphericalAngleConvention;
+): CoordinateTriple {
+    const system = analysisSphericalSystem();
     if (values.length === 3) {
-        return sphericalToCartesian(values[0], values[1], values[2], convention);
+        return system.toCartesian(values);
     }
     if (object.kind !== 'sphere') {
         throw new Error(
             `分析 ${statement.name} 的 at spherical 省略 r 时源对象必须是 sphere(当前为 ${object.kind})`,
         );
     }
-    return sphericalToCartesian(object.radius, values[0], values[1], convention);
+    return system.toCartesian([object.radius, values[0], values[1]]);
 }
 
 export function compileAnalyses(
@@ -225,13 +238,10 @@ function compileAnalysisStatement(
         }
         atValues.push(value);
     }
-    const at: [number, number, number] = isSphericalAt
+    // 笛卡尔形式也经坐标系类解释(缺省分量自动补 0),两条 at 路径同源.
+    const at: CoordinateTriple = isSphericalAt
         ? resolveSphericalAt(statement, object, atValues)
-        : [
-            atValues[0] ?? 0,
-            atValues[1] ?? 0,
-            atValues[2] ?? 0,
-        ];
+        : CoordinateSystem.cartesian(3).toCartesian(atValues);
 
     // show 白名单也在隐藏前校验,避免隐藏项带着拼写错误的 show 静默存活.
     // 缺省项按源对象分派:一元 curve 求导与 2D 隐式曲线默认连同切线一起画,
@@ -272,13 +282,9 @@ function compileAnalysisStatement(
             op: 'gradient',
             point: projected.point,
             // 隐式场/球体的分析点是三维空间点,结果列表同时给出球坐标
-            // [r, θ, φ](相对世界原点),约定与 at spherical 共用一份配置.
-            pointSpherical: cartesianToSpherical(
-                projected.point[0],
-                projected.point[1],
-                projected.point[2],
-                NUMERIC_CONFIG.analysis.sphericalAngleConvention,
-            ),
+            // [r, θ, φ](相对世界原点);由坐标系类换算,约定与 at spherical
+            // 共用同一份全局配置.
+            pointSpherical: analysisSphericalSystem().fromCartesian(projected.point),
             vector: projected.normal,
             tangent: projected.tangent,
             // 结果列表的 f(P) 取投影点处的场值(≈ level),与展示的点一致.

@@ -25,9 +25,10 @@
     `implicitField.ts::projectToLevelSet`);
   - `at` 的坐标形式由语法显式给出:`at [x, y, z]` 是笛卡尔,
     `at spherical(θ, φ)` / `at spherical(r, θ, φ)` 是球坐标(Rust 解析器
-    在 AST 上写 `atForm: 'spherical'`).换算在
-    `math/sphericalCoordinates.ts`,θ/φ 约定由
-    `numericConfig.analysis.sphericalAngleConvention` 全局配置
+    在 AST 上写 `atForm: 'spherical'`).换算收在坐标系类
+    `math/CoordinateSystem.ts`(`CoordinateSystem.cartesian/spherical`,
+    `toCartesian`/`fromCartesian`/`convertTo`;二维球坐标自动退化为极坐标),
+    θ/φ 约定由 `numericConfig.analysis.sphericalAngleConvention` 全局配置
     (physics 默认 / math);隐式场/球体的 gradient 结果额外携带
     `pointSpherical` 供结果列表回显;
   - div/curl = `vector_field` 上的六个一阶偏导组合.

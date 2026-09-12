@@ -121,7 +121,7 @@ export interface AnalysisStatement {
      *   (r 取源球体半径,源不是 sphere 时编译期报错).
      *
      * θ/φ 约定由 `numericConfig.analysis.sphericalAngleConvention` 全局配置,
-     * 不由语法隐式决定(见 math/sphericalCoordinates.ts 与 docs).
+     * 不由语法隐式决定(见 math/CoordinateSystem.ts 与 docs).
      */
     atForm?: 'cartesian' | 'spherical';
     options: OptionPair[];

@@ -305,7 +305,7 @@ export interface AnalysisResult {
      *
      * 只对隐式场/球体的 gradient 给值(它们的 `at` 可以用球坐标显式声明,
      * 结果也就用同一套坐标回显);θ/φ 约定见
-     * `math/sphericalCoordinates.ts` 与 `numericConfig.analysis.
+     * `math/CoordinateSystem.ts` 与 `numericConfig.analysis.
      * sphericalAngleConvention`.其余分析为 undefined.
      */
     pointSpherical?: [number, number, number];
