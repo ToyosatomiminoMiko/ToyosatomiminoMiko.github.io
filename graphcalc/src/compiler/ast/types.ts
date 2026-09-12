@@ -54,6 +54,16 @@ export interface ParamStatement {
     value: string;
     /** 没有 `in [min, max, step]` 时 Rust 解析器会省略该字段. */
     ui?: { min: string; max: string; step: string };
+    /**
+     * 循环类系数:显式写了 `in cyclic [min, max, step]` 时为 true
+     * (不写时 Rust 解析器省略该字段,等价于 false).
+     *
+     * 语义只影响取值口径:越界值按区间长度取模回绕到 `[min, max)`,而不是
+     * 普通参数那样夹到端点.球坐标方位角 φ ∈ (-π, π] 这类量用它表达
+     * "±π 是同一个点";是否循环必须在声明处写清楚,编译器不做任何隐式
+     * 周期猜测(见 compiler/dsl/params.ts 与 math/CoordinateSystem.ts).
+     */
+    cyclic?: boolean;
     span: SourceSpan;
 }
 

@@ -16,6 +16,9 @@
         "isolatedModules": true,
         "allowJs": false,
         "checkJs": false,
+        "types": [
+            "node"
+        ],
         "paths": {
             "@/*": [
                 "./src/*"

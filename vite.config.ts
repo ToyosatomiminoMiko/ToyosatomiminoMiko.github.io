@@ -20,6 +20,14 @@ export default defineConfig({
     optimizeDeps: {
         include: ['three'],
     },
+    test: {
+        // 解析器集成测试要跑真正的 Rust/WASM 解析器;wasm-bindgen 的默认
+        // 初始化在 Node 里走 `fetch(new URL(..., import.meta.url))`,Node 的
+        // fetch 不认 file://,会直接 "fetch failed".setup 文件用 initSync
+        // 从磁盘读 .wasm 字节先完成初始化,后续 ensureWasmReady 的懒加载
+        // 见到实例已存在就跳过(见 runtime/wasmRuntime.ts).
+        setupFiles: ['./graphcalc/src/test/setupWasm.ts'],
+    },
     plugins: [
         VitePWA({
             registerType: 'autoUpdate',

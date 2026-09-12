@@ -14,10 +14,24 @@ expr = @{ (!(";" | "{" | "}") ~ ANY)+ }
 
 // param 的取值需要在 `in [...]` 前截断,这里用前置空白保证
 // 不会误伤 `sin(...)` 这类标识符里的 "in".
-param_value = @{ (!( " in" ~ (" " | "\t")* ~ "[" | ";" | "{" | "}") ~ ANY)+ }
+// `in cyclic [...]`(循环类系数)由 Rust 侧在 param_value 文本上显式切分,
+// 见 parser_wasm.rs 的 split_cyclic_param_value:语法层继续只认"值到 in 为止",
+// 这样 `a in[...]` / `1in[0,1,1]` / `2sin(x)` 等既有边界行为一字不改.
+// 第二个前瞻 `" in" ~ 空白+ ~ "cyclic"` 是为循环类系数准备的:让
+// `param_value` 在 `in cyclic` 前停下,后面交给 param_ui 里的 cyclic 规则.
+// 这里必须有空白,in 与 cyclic 才不会粘成一个标识符(incyclic);
+// 循环写法本就写作 `in cyclic [...]`,不牺牲任何既有写法.
+param_value = @{ (!( " in" ~ (" " | "\t")* ~ "[" | " in" ~ (" " | "\t")+ ~ "cyclic" | ";" | "{" | "}") ~ ANY)+ }
 
 param_stmt = { "param" ~ ident ~ "=" ~ param_value ~ param_ui? ~ ";" }
-param_ui = { "in" ~ "[" ~ number ~ "," ~ number ~ "," ~ number ~ "]" }
+// param_ui:参数 UI 区间,可选前置 `cyclic` 显式声明"循环类系数".
+// 循环参数(球坐标方位角 φ ∈ (-π, π] 这类)的取值在 min/max 两端相接:
+// 越界值按区间长度取模回绕,而不是像普通参数一样被夹到端点.它是**显式**
+// 声明--不写 cyclic 的参数永远是普通参数,不做任何隐式周期猜测;
+// 也必须在 `in [...]` 里写(没有区间的循环参数没有意义,pest 直接拒绝).
+// JSON 里仅当写了 cyclic 才带 "cyclic": true 字段(见 parser_wasm.rs).
+param_ui = { "in" ~ cyclic? ~ "[" ~ number ~ "," ~ number ~ "," ~ number ~ "]" }
+cyclic = @{ "cyclic" }
 
 tensor_kind = { "scalar" | "vector" | "matrix" | "transform" }
 tensor_stmt = { tensor_kind ~ ident ~ "=" ~ expr ~ ";" }

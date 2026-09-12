@@ -17,6 +17,19 @@ export interface ParamDeclaration {
     min: number;
     max: number;
     step: number;
+    /**
+     * 循环类系数:DSL 写 `param φ = 0 in cyclic [min, max, step]` 时为 true.
+     *
+     * 循环量的取值域是**圆周**而不是线段:min 与 max 是同一点(球坐标方位角
+     * φ 的 `[-π, π]`,经度 `[-180, 180]` 都是这个形状),所以越界值按区间
+     * 长度取模回绕到 `[min, max)`,而不是普通参数那样夹到端点.归一化只在
+     * `compiler/dsl/params.ts` 一处发生(声明校验/覆盖/scope 共用),
+     * 下游(物化,分析,积分,渲染)读到的永远已经是回绕后的值.
+     *
+     * 是否循环必须由 DSL **显式声明**,不从范围/名字推断:普通参数哪怕区间
+     * 恰好是 `[-π, π]` 也照旧夹取,避免静默改变既有场景语义.
+     */
+    cyclic: boolean;
 }
 
 /**
@@ -301,6 +314,19 @@ export interface AnalysisResult {
     op: AnalysisOp;
     point: [number, number, number];
     /**
+     * 算子的**符号定义**在分析点处的展开(LaTeX),供结果列表做"中间步骤".
+     *
+     * 与求导对象(见 `DerivativeOrigin`)同一套展示契约:先把算子作用在源函数
+     * 上写成公式,再给数值结果,读者才看得出数值是怎么来的.梯度写作
+     * `∇f = (f_x, f_y, f_z)`(curve 的 f_y 记 0),系数保持符号(如 `a`),
+     * 由 `cachedDerivativeExpression` 在声明级做一次符号求导得到.
+     *
+     * 标量场源(curve/surface/implicit/球体)的 gradient 给值;divergence/curl
+     * 的定义需要向量场分量,IR 里没有逐分量符号表达式,故为 undefined,
+     * 列表此时只给数值.渲染/数值路径不读这个字段.
+     */
+    symbolic?: string;
+    /**
      * 分析点相对世界原点的球坐标 `[r, θ, φ]`,供结果列表展示.
      *
      * 只对隐式场/球体的 gradient 给值(它们的 `at` 可以用球坐标显式声明,
@@ -466,9 +492,12 @@ export interface SceneIR {
      */
     objectFormulas: Record<number, string | null>;
     /**
-     * 积分任务展示公式:任务名 -> LaTeX 字符串.
+     * 积分任务展示公式:任务名 -> LaTeX 字符串(积分式本体,不含方法名).
      *
-     * 找不到被积对象时值为 null,UI 回退到文字摘要.
+     * 找不到被积对象时值为 null.它是 IR 的展示元数据,供任意消费者读取;
+     * 求值对象列表(ui/ObjectListController)现在直接调用
+     * `dsl/evaluationLatex.ts` 的 `integralLatexSummary` 生成同样的公式
+     * (两处同源于 `latex.ts` 的 `integralBodyLatex`),不再依赖本字段.
      */
     integralFormulas: Record<string, string | null>;
     /**

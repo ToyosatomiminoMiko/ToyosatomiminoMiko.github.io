@@ -1,10 +1,17 @@
 /**
  * 参数收集/覆盖与求值 scope 辅助函数.
  * 从 DslCompiler 拆出,保持参数相关逻辑集中管理.
+ *
+ * 循环类系数(`param φ = 0 in cyclic [...]`)的取值归一化(普通参数夹取 /
+ * 循环参数按区间取模回绕)实现在 `math/paramValue.ts`:参数面板也要用同一条
+ * 口径,所以不放在编译侧.本文件是它在编译期的三个落点--声明校验
+ * (`collectParams`),系数物化(`coefficientFromDeclaration`),求值 scope
+ * (`buildParamScope`)--保证三者永远给出同一个值.
  */
 import type { AstProgram } from '../ast/types';
 import type { Coefficient, ParamDeclaration } from '../ir/types';
 import { NUMERIC_CONFIG } from '../../config/numericConfig';
+import { normalizeParamValue } from '../../math/paramValue';
 import { withStatementSpan } from '../errors';
 import { toFiniteNumber } from './options';
 
@@ -16,6 +23,8 @@ export function createDefaultParam(name: string): ParamDeclaration {
         min: NUMERIC_CONFIG.param.defaultMin,
         max: NUMERIC_CONFIG.param.defaultMax,
         step: NUMERIC_CONFIG.param.defaultStep,
+        // 隐式参数没有声明处,也就没有"显式声明为循环"的机会:一律普通参数.
+        cyclic: false,
     };
 }
 
@@ -36,10 +45,13 @@ function coefficientFromDeclaration(
 ): Coefficient {
     return {
         name,
-        value: overrides[name] ?? declared.value,
+        // 覆盖值同样过归一化:循环参数在圆周上是多值的,先回绕再交给下游,
+        // 下游(含把系数发给 WASM 的调用方)拿到的永远是主值.
+        value: normalizeParamValue(overrides[name] ?? declared.value, declared),
         min: declared.min,
         max: declared.max,
         step: declared.step,
+        cyclic: declared.cyclic,
     };
 }
 
@@ -92,6 +104,8 @@ export function collectParams(ast: AstProgram): Map<string, ParamDeclaration> {
                 declaration.max = toFiniteNumber(statement.ui.max, `参数 ${statement.name} 的 max`);
                 declaration.step = toFiniteNumber(statement.ui.step, `参数 ${statement.name} 的 step`);
             }
+            // 循环类系数:DSL 里显式写了 `in cyclic [...]` 才为 true.
+            declaration.cyclic = statement.cyclic === true;
 
             // 参数 UI 的范围是后续滑块的契约;不在这里校验,
             // 后续会生成反直觉甚至无法使用的滑块.
@@ -102,10 +116,16 @@ export function collectParams(ast: AstProgram): Map<string, ParamDeclaration> {
                 throw new Error(`参数 ${statement.name} 的 step 必须大于 0`);
             }
             if (declaration.value < declaration.min || declaration.value > declaration.max) {
-                throw new Error(
-                    `参数 ${statement.name} 的初始值 ${declaration.value} `
-                    + `不在 [${declaration.min}, ${declaration.max}] 内`,
-                );
+                // 循环参数的初始值允许落在域外(它会被回绕到 [min, max)),
+                // 普通参数仍要求初始值在区间内.
+                if (declaration.cyclic) {
+                    declaration.value = normalizeParamValue(declaration.value, declaration);
+                } else {
+                    throw new Error(
+                        `参数 ${statement.name} 的初始值 ${declaration.value} `
+                        + `不在 [${declaration.min}, ${declaration.max}] 内`,
+                    );
+                }
             }
 
             params.set(statement.name, declaration);
@@ -122,6 +142,9 @@ export function collectParams(ast: AstProgram): Map<string, ParamDeclaration> {
  * materializeCoefficient / requireDeclaredCoefficient 读取 overrides,
  * 不要依赖"先改 map 再读 map"的副作用通道(202609 review:回写 map 与
  * 逐处读 overrides 是双轨口径,已收敛为后者唯一来源).
+ *
+ * 回写同样过 normalizeParamValue:面板要拿到回绕后的主值,否则循环参数
+ * 的滑块会停在域外位置而与实际求值不一致.
  */
 export function applyParamOverrides(
     params: Map<string, ParamDeclaration>,
@@ -129,7 +152,7 @@ export function applyParamOverrides(
 ): void {
     for (const [name, value] of Object.entries(overrides)) {
         const param = params.get(name);
-        if (param) param.value = value;
+        if (param) param.value = normalizeParamValue(value, param);
     }
 }
 
@@ -139,7 +162,9 @@ export function buildParamScope(
 ): Record<string, number> {
     const scope: Record<string, number> = {};
     for (const [name, param] of params) {
-        scope[name] = overrides[name] ?? param.value;
+        // scope 是表达式求值的唯一入口,循环参数在这里完成回绕;
+        // 覆盖值来自参数面板/调用方,可能是域外的等价角(如 φ = 7).
+        scope[name] = normalizeParamValue(overrides[name] ?? param.value, param);
     }
     return scope;
 }

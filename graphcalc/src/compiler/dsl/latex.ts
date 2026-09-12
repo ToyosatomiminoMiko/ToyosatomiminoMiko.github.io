@@ -15,6 +15,11 @@ function latexNumber(value: number): string {
     return String(value);
 }
 
+/** 数值 -> LaTeX 数字(供求值结果公式复用;与 latexNumber 同口径). */
+export function latexNumberText(value: number): string {
+    return latexNumber(value);
+}
+
 /**
  * 求导算子:curve 用常导 d/dx,surface 用偏导 ∂/∂x 或 ∂/∂y.
  *
@@ -134,13 +139,27 @@ export function sceneObjectLatex(
 }
 
 /**
- * 积分任务对应的积分式(不含方法名,方法名由 UI 拼在公式后面).
+ * 积分任务的积分式(不含方法名,方法名由 UI 拼在公式后面).
  *
  * 只返回 LaTeX 正文;找不到被积对象/域种类异常时返回 null,由 UI 回退到
  * 文字摘要.域维度与形状由 task 的显式 `dim`/`domainKind` 决定,不再靠
  * range 长度猜测.
  */
 export function integralLatex(
+    task: IntegralTask,
+    objects: SceneObject[],
+): string | null {
+    return integralBodyLatex(task, objects);
+}
+
+/**
+ * 积分式本体(``∫_a^b f dx`` 这类),供两处复用:
+ * - 实体列表的积分条目公式(本文件 `integralLatex`);
+ * - 求值对象的列表条目(ui/ObjectListController 展开细节里的完整公式).
+ *
+ * 两处必须同源,否则展开前后会给出两个不同版本的积分式.
+ */
+export function integralBodyLatex(
     task: IntegralTask,
     objects: SceneObject[],
 ): string | null {

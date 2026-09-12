@@ -212,6 +212,7 @@ describe('compileScene', () => {
             fx: 2,
             fy: 7,
             free: () => {},
+            [Symbol.dispose]: () => {},
         });
         const scene = compileScene(ast);
 
@@ -257,6 +258,7 @@ describe('compileScene', () => {
             fx: 3,
             fy: 0,
             free: () => {},
+            [Symbol.dispose]: () => {},
         });
         const curveGradientAst: AstProgram = {
             statements: [
@@ -287,6 +289,7 @@ describe('compileScene', () => {
             fx: 3,
             fy: 0,
             free: () => {},
+            [Symbol.dispose]: () => {},
         });
         const curveGradientAst: AstProgram = {
             statements: [
@@ -660,6 +663,7 @@ describe('compileScene', () => {
             fx: 3,
             fy: 4,
             free: () => {},
+            [Symbol.dispose]: () => {},
         });
         const surfaceAst: AstProgram = {
             statements: [
@@ -738,6 +742,98 @@ describe('compileScene', () => {
         };
 
         expect(() => compileScene(badParamAst)).toThrow('参数 a 的 value 不是有效数字: not-a-number');
+    });
+
+    it('wraps cyclic coefficients onto [min, max) instead of clamping', () => {
+        // 循环类系数(球坐标方位角 φ ∈ (-π, π])的覆盖值可能在域外,
+        // 编译期统一回绕成主值;系数与参数 scope 必须给同一个值.
+        const cyclicAst: AstProgram = {
+            statements: [
+                {
+                    type: 'param',
+                    name: 'phi',
+                    value: '0',
+                    ui: {
+                        min: '-3.141592653589793',
+                        max: '3.141592653589793',
+                        step: '0.01',
+                    },
+                    cyclic: true,
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'object',
+                    kind: 'curve',
+                    name: 'c',
+                    expr: 'sin(x * phi)',
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+        const tau = 2 * Math.PI;
+
+        const scene = compileScene(cyclicAst, { phi: Math.PI + 1 });
+        expect(scene.params[0].cyclic).toBe(true);
+        expect(scene.params[0].value).toBeCloseTo(Math.PI + 1 - tau, 9);
+        const curve = scene.objects[0];
+        if (curve.kind !== 'curve') throw new Error('期望 curve 对象');
+        const [coefficient] = curve.coefficients;
+        expect(coefficient.value).toBeCloseTo(Math.PI + 1 - tau, 9);
+        expect(coefficient.cyclic).toBe(true);
+
+        // 多圈同样回绕(2π 的整数倍等价于 0).
+        const multiple = compileScene(cyclicAst, { phi: 3 * tau });
+        expect(multiple.params[0].value).toBeCloseTo(0, 9);
+    });
+
+    it('still clamps ordinary coefficients at the declared bounds', () => {
+        // 同一区间,不写 cyclic 时必须保持夹取:是否循环只能靠显式声明.
+        const ordinaryAst: AstProgram = {
+            statements: [
+                {
+                    type: 'param',
+                    name: 'phi',
+                    value: '0',
+                    ui: { min: '-3.14', max: '3.14', step: '0.01' },
+                    span: { start: 0, end: 0 },
+                },
+                {
+                    type: 'object',
+                    kind: 'curve',
+                    name: 'c',
+                    expr: 'sin(x * phi)',
+                    options: [],
+                    span: { start: 0, end: 0 },
+                },
+            ],
+        };
+
+        const scene = compileScene(ordinaryAst, { phi: 7 });
+        expect(scene.params[0].cyclic).toBe(false);
+        expect(scene.params[0].value).toBe(3.14);
+        const curve = scene.objects[0];
+        if (curve.kind !== 'curve') throw new Error('期望 curve 对象');
+        expect(curve.coefficients[0].value).toBe(3.14);
+    });
+
+    it('wraps an out-of-range initial value of a cyclic param instead of rejecting it', () => {
+        const cyclicAst: AstProgram = {
+            statements: [
+                {
+                    type: 'param',
+                    name: 'phi',
+                    value: '7',
+                    ui: { min: '-3', max: '3', step: '0.01' },
+                    cyclic: true,
+                    span: { start: 0, end: 0 },
+                },
+                ast.statements[2],
+            ],
+        };
+
+        const scene = compileScene(cyclicAst);
+        expect(scene.params[0].value).toBeCloseTo(1, 9);
     });
 
     it('rejects fractional or non-positive object segments instead of passing them through', () => {

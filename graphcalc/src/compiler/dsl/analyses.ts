@@ -43,6 +43,7 @@ import { assertKnownOptions, parseShowOption } from './options';
 import { buildParamScope } from './params';
 import {
     cachedDerivativeExpression,
+    cachedLatexExpression,
     evaluateNumber,
     normalizeExpression,
 } from './expression';
@@ -63,6 +64,34 @@ function normalizeVector(vector: [number, number, number]): [number, number, num
     return length < NUMERIC_CONFIG.tolerance.zero
         ? [0, 0, 0]
         : [x / length, y / length, z / length];
+}
+
+/**
+ * 标量场的梯度算子符号式 `∇f = (f_x, f_y, f_z)`(LaTeX).
+ *
+ * 与求导对象的展示契约一致:先给算子作用在源函数上的公式,再给数值结果.
+ * 分量由 Rust 符号引擎对**声明级表达式**求偏导(带缓存),系数保持符号;
+ * curve 只有 x 一个自由变量,后两个分量按 0 记(与
+ * `cachedDerivativeExpression(object.expr, 'y')` 的既有口径一致).
+ *
+ * 由 `cachedLatexExpression` 负责表达式 -> LaTeX,与实体对象公式同源.
+ */
+function symbolicGradientLatex(expr: string, dim: 2 | 3): string {
+    const [fx, fy, fz] = dim === 2
+        ? [
+            cachedDerivativeExpression(expr, 'x'),
+            cachedDerivativeExpression(expr, 'y'),
+            '0',
+        ]
+        : [
+            cachedDerivativeExpression(expr, 'x'),
+            cachedDerivativeExpression(expr, 'y'),
+            cachedDerivativeExpression(expr, 'z'),
+        ];
+    const components = [fx, fy, fz]
+        .map((component) => cachedLatexExpression(component))
+        .join(',\\ ');
+    return `\\nabla f=\\left(${components}\\right)`;
 }
 
 /**
@@ -281,6 +310,8 @@ function compileAnalysisStatement(
             name: statement.name,
             op: 'gradient',
             point: projected.point,
+            // 算子符号式:列表先展开 ∇f,再给该点的数值结果.
+            symbolic: symbolicGradientLatex(field.expr, field.dim),
             // 隐式场/球体的分析点是三维空间点,结果列表同时给出球坐标
             // [r, θ, φ](相对世界原点);由坐标系类换算,约定与 at spherical
             // 共用同一份全局配置.
@@ -329,6 +360,8 @@ function compileAnalysisStatement(
             name: statement.name,
             op: 'gradient',
             point,
+            // 一元曲线只有 x 一个自由变量;曲面两个分量都是符号偏导.
+            symbolic: symbolicGradientLatex(object.expr, isCurve ? 2 : 3),
             vector,
             tangent,
             scalar: f0,

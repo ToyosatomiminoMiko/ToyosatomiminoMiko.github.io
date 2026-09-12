@@ -2,8 +2,15 @@
  * 参数面板控制器.
  * 从 DslApp 拆出,负责根据 ParamDeclaration 生成滑块与数字输入,
  * 并维护当前参数值.
+ *
+ * 循环类系数(`param φ = 0 in cyclic [...]`)的取值在圆周上,越界输入按
+ * 区间长度回绕到 `[min, max)`,而不是像普通参数那样夹到端点;回绕口径与
+ * 编译期共用 math/paramValue.ts 的 normalizeParamValue,避免"滑块显示 0,
+ * 表达式按 2π 求值"的漂移.标签上的 ↻ 只是**显式声明**的可视提示,
+ * 不改变任何取值语义.
  */
 import type { ParamDeclaration } from '../compiler/ir/types';
+import { normalizeParamValue } from '../math/paramValue';
 
 export type ParamChangeHandler = (name: string, value: number) => void;
 
@@ -55,9 +62,15 @@ export class ParamPanelController {
     private _createParamRow(param: ParamDeclaration): HTMLElement {
         const row = document.createElement('div');
         row.className = 'param-row';
+        row.classList.toggle('is-cyclic', param.cyclic);
 
         const label = document.createElement('label');
-        label.textContent = param.name;
+        // 循环参数在名字后加 ↻:让"这个量在圆周上"在面板里可见,
+        // 而不是只能回到源码里看 `in cyclic [...]`.
+        label.textContent = param.cyclic ? `${param.name} ↻` : param.name;
+        if (param.cyclic) {
+            label.title = `循环参数:取值范围 [${param.min}, ${param.max}],越界输入按 ${param.max - param.min} 回绕`;
+        }
 
         const slider = document.createElement('input');
         slider.type = 'range';
@@ -83,11 +96,12 @@ export class ParamPanelController {
         const syncFromNumber = (): void => {
             const raw = Number(numberInput.value);
             if (!Number.isFinite(raw)) return;
-            const clamped = Math.min(param.max, Math.max(param.min, raw));
-            slider.value = String(clamped);
-            numberInput.value = String(clamped);
-            this.values.set(param.name, clamped);
-            this.onChange(param.name, clamped);
+            // 普通参数夹到端点,循环参数回绕到 [min, max)(见文件头注释).
+            const next = normalizeParamValue(raw, param);
+            slider.value = String(next);
+            numberInput.value = String(next);
+            this.values.set(param.name, next);
+            this.onChange(param.name, next);
         };
 
         slider.addEventListener('input', syncFromSlider);

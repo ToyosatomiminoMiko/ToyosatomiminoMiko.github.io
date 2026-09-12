@@ -6,6 +6,14 @@ import type {
     SceneIR,
     SceneObject,
 } from '../compiler/ir/types';
+import {
+    analysisLatexDetails,
+    analysisLatexSummary,
+    integralLatexDetails,
+    integralLatexSummary,
+    intersectionLatexDetails,
+    intersectionLatexSummary,
+} from '../compiler/dsl/evaluationLatex';
 import { createFormulaElement } from './FormulaView';
 
 type ToggleEntityHandler = (id: number) => void;
@@ -167,6 +175,21 @@ function intersectionTaskKey(task: IntersectionTask): string {
     ]);
 }
 
+/** 分析条目 key:公式内容全部由这些字段决定;不变就复用 DOM(含展开态). */
+function analysisTaskKey(analysis: AnalysisResult): string {
+    return JSON.stringify([
+        analysis.name,
+        analysis.op,
+        analysis.point,
+        analysis.pointSpherical,
+        analysis.vector,
+        analysis.tangent,
+        analysis.scalar,
+        analysis.show,
+        analysis.enabled,
+    ]);
+}
+
 function integralSourceLabel(
     task: IntegralTask,
     objects: SceneObject[],
@@ -186,32 +209,119 @@ function integralSourceLabel(
 }
 
 /**
+ * 展开细节:每行一段 KaTeX,一行排不下时由 CSS 横向滚动承接.
+ *
+ * 为什么要折叠:求值条目的完整信息(P,∇f 逐分量,球坐标回显,积分域与
+ * 方法)远比一行宽,折叠态只留摘要行,列表才扫得动;细节默认收起由
+ * `<details>` 原生实现,不引入第二份 JS 状态.
+ */
+function createDetailLines(lines: readonly string[]): HTMLElement {
+    const container = createElement('div', 'eval-detail');
+    for (const line of lines) {
+        container.append(createFormulaElement(line, 'eval-detail-line'));
+    }
+    return container;
+}
+
+/**
+ * 求值条目的三段结构:
+ * - `summary`(`<summary>`):默认可见的摘要行 = 显隐按钮 + 类型徽章 + 名称 + 摘要公式;
+ * - `details`(`<details>`):折叠容器,展开后显示 `detail`;
+ * - `result`(`.eval-result`):结果一行,始终可见(异步回填的数值/错误).
+ *
+ * 结果放在 `<details>` 外面:折叠只是为了收纳推导,数值本身是条目的主产出,
+ * 不该跟着一起被藏起来.
+ */
+function createEvaluationShell(
+    summary: HTMLElement,
+    detail: HTMLElement | null,
+    result: HTMLElement,
+): { row: HTMLElement; details: HTMLDetailsElement | null } {
+    const row = createElement('article', 'object-row evaluation-row');
+    const main = createElement('div', 'object-main');
+
+    if (detail === null) {
+        main.append(summary, result);
+        row.append(main);
+        return { row, details: null };
+    }
+
+    const details = document.createElement('details');
+    details.className = 'eval-details';
+    // 默认折叠:全部条目在首次渲染时都是收起状态.
+    details.open = false;
+    details.append(summary, detail);
+    main.append(details, result);
+    row.append(main);
+    return { row, details };
+}
+
+function createVisibilityButton(
+    enabled: boolean,
+    onToggle: () => void,
+): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'entity-visibility-btn';
+    button.textContent = enabled ? '隐藏' : '显示';
+    button.setAttribute('aria-pressed', String(enabled));
+    button.addEventListener('click', onToggle);
+    return button;
+}
+
+/**
  * footer 对象列表控制器.
  *
  * 左栏展示场景实体对象,右栏展示分析与积分等求值结果.
  * 控制器只负责 DOM,真正的可见性与数值计算由 DslApp 回调驱动.
+ *
+ * 求值条目(分析/积分/求交)统一是"摘要行 + 可折叠 KaTeX 细节 + 结果行":
+ * 摘要行折叠时也渲染公式(关键量仍在),细节展开才排版完整推导.
  */
 export class ObjectListController {
     /**
      * @cache
+     * 缓存目的:复用分析列表 DOM 行--参数拖动时 renderScene 每帧重跑,
+     * 重建会把用户展开的细节重新收起,KaTeX 也要重排.
+     * 键/失效策略:分析名 -> { row, key };内容 key 变化时替换.
+     * 生命周期:跟随 ObjectListController 实例.
+     */
+    private readonly analysisRows = new Map<
+        string,
+        { row: HTMLElement; key: string }
+    >();
+
+    /**
+     * @cache
      * 缓存目的:复用积分列表 DOM 行,只更新结果文本,避免每次 sync 重建整棵树.
-     * 键/失效策略:积分名 -> { row, result, key };任务消失或任务参数变化时替换.
+     * 键/失效策略:积分名 -> { row, result, key, summaryLatex };任务消失或任务参数变化时替换.
      * 生命周期:跟随 ObjectListController 实例.
      */
     private readonly integralRows = new Map<
         string,
-        { row: HTMLElement; result: HTMLElement; key: string }
+        {
+            row: HTMLElement;
+            result: HTMLElement;
+            key: string;
+            /** 摘要公式的 LaTeX(`...=`),result 元素按它把数值拼成完整等式. */
+            summaryLatex: string | null;
+        }
     >();
 
     /**
      * @cache
      * 缓存目的:复用求交列表 DOM 行,Worker 结果回来后只更新结果文本.
-     * 键/失效策略:求交名 -> { row, result, key };任务消失或任务参数变化时替换.
+     * 键/失效策略:求交名 -> { row, result, key, task };任务消失或任务参数变化时替换.
      * 生命周期:跟随 ObjectListController 实例.
      */
     private readonly intersectionRows = new Map<
         string,
-        { row: HTMLElement; result: HTMLElement; key: string; task: IntersectionTask }
+        {
+            row: HTMLElement;
+            result: HTMLElement;
+            key: string;
+            task: IntersectionTask;
+        }
     >();
 
     constructor(
@@ -228,11 +338,7 @@ export class ObjectListController {
     renderScene(scene: SceneIR): void {
         this._renderEntities(scene.objects, scene.objectFormulas);
         this._renderAnalyses(scene.analyses);
-        this._renderIntegrals(
-            scene.integrals,
-            scene.objects,
-            scene.integralFormulas,
-        );
+        this._renderIntegrals(scene.integrals, scene.objects);
         this._renderIntersections(scene.intersections);
     }
 
@@ -249,7 +355,8 @@ export class ObjectListController {
 
     /**
      * @cache_access
-     * 命中积分 DOM 行缓存并更新结果文本.
+     * 命中积分 DOM 行缓存:把数值接在摘要公式的 `=` 后面(公式可排版时),
+     * 否则退化为纯文本.
      */
     setIntegralResult(name: string, value: number): void {
         const item = this.integralRows.get(name);
@@ -257,7 +364,16 @@ export class ObjectListController {
 
         // 一维是面积/长度,二维是面积/二重积分,三维是体积/三重积分,
         // 不带 S/V 前缀,由公式行给出语义.
-        item.result.textContent = `${formatNumber(value)}`;
+        if (item.summaryLatex !== null) {
+            item.result.replaceChildren(
+                createFormulaElement(
+                    `${item.summaryLatex}${formatNumber(value)}`,
+                    'eval-result is-ready',
+                ),
+            );
+        } else {
+            item.result.textContent = `${formatNumber(value)}`;
+        }
         item.result.className = 'eval-result is-ready';
         item.row.classList.remove('has-error');
     }
@@ -270,7 +386,7 @@ export class ObjectListController {
         const item = this.integralRows.get(name);
         if (!item) return;
 
-        item.result.textContent = message;
+        item.result.replaceChildren(document.createTextNode(message));
         item.result.className = 'eval-result is-error';
         item.row.classList.add('has-error');
     }
@@ -310,6 +426,7 @@ export class ObjectListController {
         this.analysisList.replaceChildren();
         this.integralList.replaceChildren();
         this.intersectionList.replaceChildren();
+        this.analysisRows.clear();
         this.integralRows.clear();
         this.intersectionRows.clear();
     }
@@ -329,12 +446,9 @@ export class ObjectListController {
             row.dataset.entityId = String(object.id);
             row.classList.toggle('is-hidden', !object.enabled);
 
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'entity-visibility-btn';
-            button.textContent = object.enabled ? '隐藏' : '显示';
-            button.setAttribute('aria-pressed', String(object.enabled));
-            button.addEventListener('click', () => this.onToggleEntity(object.id));
+            const button = createVisibilityButton(object.enabled, () =>
+                this.onToggleEntity(object.id),
+            );
 
             const badge = createElement(
                 'span',
@@ -361,38 +475,66 @@ export class ObjectListController {
         this.entityList.replaceChildren(fragment);
     }
 
+    /**
+     * @cache_access
+     * 根据分析结果 key 复用或替换分析 DOM 行缓存.
+     */
     private _renderAnalyses(analyses: AnalysisResult[]): void {
-        const fragment = document.createDocumentFragment();
+        const nextNames = new Set(analyses.map((analysis) => analysis.name));
 
-        for (const analysis of analyses) {
-            const row = createElement('article', 'object-row evaluation-row');
-            row.classList.toggle('is-hidden', !analysis.enabled);
-
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'entity-visibility-btn';
-            button.textContent = analysis.enabled ? '隐藏' : '显示';
-            button.setAttribute('aria-pressed', String(analysis.enabled));
-            button.addEventListener('click', () => this.onToggleAnalysis(analysis.name));
-
-            const badge = createElement(
-                'span',
-                `kind-badge kind-analysis kind-analysis-${analysis.op}`,
-                ANALYSIS_KIND_LABELS[analysis.op],
-            );
-            const main = createElement('div', 'object-main');
-            const name = createElement('strong', 'object-name', analysis.name);
-            const result = createElement(
-                'code',
-                analysis.enabled ? 'eval-result is-ready' : 'eval-result is-disabled',
-                analysis.enabled ? analysisSummary(analysis) : '已隐藏,不参与计算',
-            );
-            main.append(name, result);
-            row.append(button, badge, main);
-            fragment.append(row);
+        for (const [name, item] of this.analysisRows) {
+            if (!nextNames.has(name)) {
+                item.row.remove();
+                this.analysisRows.delete(name);
+            }
         }
 
-        this.analysisList.replaceChildren(fragment);
+        for (const analysis of analyses) {
+            const key = analysisTaskKey(analysis);
+            const existing = this.analysisRows.get(analysis.name);
+            if (existing && existing.key === key) continue;
+
+            if (existing) {
+                existing.row.remove();
+                this.analysisRows.delete(analysis.name);
+            }
+
+            const row = this._createAnalysisRow(analysis);
+            this.analysisList.append(row);
+            this.analysisRows.set(analysis.name, { row, key });
+        }
+    }
+
+    private _createAnalysisRow(analysis: AnalysisResult): HTMLElement {
+        const button = createVisibilityButton(analysis.enabled, () =>
+            this.onToggleAnalysis(analysis.name),
+        );
+        const badge = createElement(
+            'span',
+            `kind-badge kind-analysis kind-analysis-${analysis.op}`,
+            ANALYSIS_KIND_LABELS[analysis.op],
+        );
+        const name = createElement('strong', 'object-name', analysis.name);
+
+        // 摘要行折叠时也排版:关键量(算子在 P 点的结果)必须一眼可见.
+        const summaryLine = createFormulaElement(
+            analysisLatexSummary(analysis),
+            'eval-summary-formula',
+        );
+        const summary = createElement('summary', 'eval-summary');
+        summary.append(button, badge, name, summaryLine);
+
+        const detail = analysis.enabled
+            ? createDetailLines(analysisLatexDetails(analysis))
+            : null;
+        const result = createElement(
+            'code',
+            analysis.enabled ? 'eval-result is-ready' : 'eval-result is-disabled',
+            analysis.enabled ? analysisSummary(analysis) : '已隐藏,不参与计算',
+        );
+        const { row } = createEvaluationShell(summary, detail, result);
+        row.classList.toggle('is-hidden', !analysis.enabled);
+        return row;
     }
 
     /**
@@ -402,7 +544,6 @@ export class ObjectListController {
     private _renderIntegrals(
         tasks: IntegralTask[],
         objects: SceneObject[],
-        integralFormulas: Record<string, string | null>,
     ): void {
         const nextNames = new Set(tasks.map((task) => task.name));
 
@@ -423,13 +564,13 @@ export class ObjectListController {
                 this.integralRows.delete(task.name);
             }
 
-            const formula = integralFormulas[task.name] ?? null;
-            const row = this._createIntegralRow(task, objects, formula);
-            this.integralList.append(row);
+            const created = this._createIntegralRow(task, objects);
+            this.integralList.append(created.row);
             this.integralRows.set(task.name, {
-                row,
-                result: row.querySelector<HTMLElement>('.eval-result')!,
+                row: created.row,
+                result: created.row.querySelector<HTMLElement>('.eval-result')!,
                 key,
+                summaryLatex: created.summaryLatex,
             });
         }
     }
@@ -437,43 +578,39 @@ export class ObjectListController {
     private _createIntegralRow(
         task: IntegralTask,
         objects: SceneObject[],
-        formula: string | null,
-    ): HTMLElement {
-        const row = createElement('article', 'object-row evaluation-row');
-        row.classList.toggle('is-hidden', !task.enabled);
-
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'entity-visibility-btn';
-        button.textContent = task.enabled ? '隐藏' : '显示';
-        button.setAttribute('aria-pressed', String(task.enabled));
-        button.addEventListener('click', () => this.onToggleIntegral(task.name));
-
-        const badge = createElement(
-            'span',
-            'kind-badge kind-integral',
-            '积分',
+    ): { row: HTMLElement; summaryLatex: string | null } {
+        const button = createVisibilityButton(task.enabled, () =>
+            this.onToggleIntegral(task.name),
         );
-        const main = createElement('div', 'object-main');
+        const badge = createElement('span', 'kind-badge kind-integral', '积分');
         const name = createElement('strong', 'object-name', task.name);
-        const meta = formula
-            ? createFormulaElement(
-                `${formula}\\quad\\text{${INTEGRAL_METHOD_LABELS[task.method]}}`,
-                'object-expr',
+
+        // 摘要公式 = 积分式本体 + `=`,数值稍后由 setIntegralResult 接上;
+        // 展不开公式(null,例如被积对象已删除)时退回纯文本摘要,不编造公式.
+        const summaryLatex = integralLatexSummary(task, objects);
+        const summaryLine: HTMLElement = summaryLatex === null
+            ? createElement('code', 'object-expr', integralSourceLabel(task, objects))
+            : createFormulaElement(summaryLatex, 'eval-summary-formula');
+        const summary = createElement('summary', 'eval-summary');
+        summary.append(button, badge, name, summaryLine);
+
+        const detail = task.enabled
+            ? createDetailLines(
+                integralLatexDetails(
+                    task,
+                    objects,
+                    INTEGRAL_METHOD_LABELS[task.method],
+                ),
             )
-            : createElement(
-                'code',
-                'object-expr',
-                integralSourceLabel(task, objects),
-            );
+            : null;
         const result = createElement(
             'code',
             task.enabled ? 'eval-result is-pending' : 'eval-result is-disabled',
             task.enabled ? '计算中...' : '已隐藏,不参与计算',
         );
-        main.append(name, meta, result);
-        row.append(button, badge, main);
-        return row;
+        const { row } = createEvaluationShell(summary, detail, result);
+        row.classList.toggle('is-hidden', !task.enabled);
+        return { row, summaryLatex };
     }
 
     /**
@@ -512,32 +649,29 @@ export class ObjectListController {
     }
 
     private _createIntersectionRow(task: IntersectionTask): HTMLElement {
-        const row = createElement('article', 'object-row evaluation-row');
-        row.classList.toggle('is-hidden', !task.enabled);
-
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'entity-visibility-btn';
-        button.textContent = task.enabled ? '隐藏' : '显示';
-        button.setAttribute('aria-pressed', String(task.enabled));
-        button.addEventListener('click', () =>
+        const button = createVisibilityButton(task.enabled, () =>
             this.onToggleIntersection(task.name),
         );
-
-        const badge = createElement(
-            'span',
-            'kind-badge kind-intersection',
-            '求交',
-        );
-        const main = createElement('div', 'object-main');
+        const badge = createElement('span', 'kind-badge kind-intersection', '求交');
         const name = createElement('strong', 'object-name', task.name);
+
+        const summaryLine = createFormulaElement(
+            intersectionLatexSummary(task),
+            'eval-summary-formula',
+        );
+        const summary = createElement('summary', 'eval-summary');
+        summary.append(button, badge, name, summaryLine);
+
+        const detail = task.enabled
+            ? createDetailLines(intersectionLatexDetails(task))
+            : null;
         const result = createElement(
             'code',
             task.enabled ? 'eval-result is-pending' : 'eval-result is-disabled',
             task.enabled ? '计算中...' : '已隐藏,不参与计算',
         );
-        main.append(name, result);
-        row.append(button, badge, main);
+        const { row } = createEvaluationShell(summary, detail, result);
+        row.classList.toggle('is-hidden', !task.enabled);
         return row;
     }
 }

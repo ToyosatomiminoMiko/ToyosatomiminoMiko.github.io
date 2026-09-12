@@ -168,6 +168,12 @@
     font-size: 12px;
 }
 
+/* 循环类系数(DSL 显式写 in cyclic [...]):名字后的 ↻ 说明取值在圆周上,
+   越界输入会回绕而不是夹到端点.只做提示,不改变取值语义. */
+.param-row.is-cyclic label {
+    color: #6dd5ff;
+}
+
 /* ==========================================================================
  * 底部对象列表面板
  * ========================================================================== */
@@ -373,4 +379,68 @@
 .eval-result.is-disabled {
     color: #7b8bb8;
     opacity: 0.75;
+}
+
+/* ==========================================================================
+ * 求值条目的折叠细节(分析/积分/求交)
+ *
+ * 条目 = 摘要行(<summary>,默认可见,一行 KaTeX)+ 折叠细节(<details>,
+ * 默认收起,展开后每行一段 KaTeX)+ 结果行(.eval-result,始终可见).
+ * 细节里的公式一行排不下时不换行(KaTeX 换行会破坏公式语义),由横向滚动承接.
+ * ========================================================================== */
+
+.eval-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 4px 8px;
+    cursor: pointer;
+    list-style-position: inside;
+}
+
+.eval-summary:hover .object-name {
+    color: #9fd4ff;
+}
+
+/* KaTeX 生成的公式继承列表配色;字号与实体对象公式一致(见 uiConfig). */
+.eval-summary-formula,
+.eval-detail-line {
+    min-width: 0;
+    color: #9fd4ff;
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-width: 100%;
+}
+
+.eval-summary-formula .katex,
+.eval-detail-line .katex,
+.eval-result .katex {
+    color: inherit;
+    font-size: var(--katex-font-size, 1em);
+}
+
+/* 可复制公式:与实体对象公式同一套交互(FormulaCopyController 事件委托). */
+.eval-summary-formula[data-tex],
+.eval-detail-line[data-tex] {
+    cursor: pointer;
+}
+
+.eval-summary-formula[data-tex]:hover,
+.eval-detail-line[data-tex]:hover {
+    color: #dbe4ff;
+}
+
+.eval-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin: 4px 0 2px;
+    padding: 6px 8px;
+    border-left: 2px solid rgba(109, 213, 255, 0.25);
+    border-radius: 0 6px 6px 0;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.eval-detail-line {
+    color: #8e9fc7;
 }
