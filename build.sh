@@ -33,14 +33,12 @@ trap 'err "build failed at line ${LINENO}"' ERR
 
 require_command node
 require_command npm
-require_command cargo
-require_command wasm-pack
 
 log "installing pinned dependencies from package-lock.json"
 npm ci --no-audit --no-fund
 
-# 流水线 = lint:rs -> clean -> build:wasm -> test -> build:app(内含 typecheck + vite build)
-log "running full build pipeline (lint -> clean -> wasm -> test -> app)"
+# 流水线 = clean -> test -> build:app(内含 typecheck + vite build)
+log "running full build pipeline (clean -> test -> app)"
 npm run build:all
 
 log "build succeeded"

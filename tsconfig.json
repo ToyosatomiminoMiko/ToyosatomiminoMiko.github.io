@@ -18,18 +18,11 @@
         "checkJs": false,
         "types": [
             "node"
-        ],
-        "paths": {
-            "@/*": [
-                "./src/*"
-            ]
-        }
+        ]
     },
     "include": [
         "src/**/*.ts",
-        "src/**/*.d.ts",
-        "graphcalc/**/*.ts",
-        "graphcalc/**/*.d.ts"
+        "src/**/*.d.ts"
     ],
     "exclude": [
         "node_modules",
