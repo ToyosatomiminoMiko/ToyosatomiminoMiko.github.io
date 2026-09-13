@@ -27,12 +27,17 @@ import type { KeyedRowHandles } from '../keyedRowList';
 /**
  * 渲染求值条目时的场景上下文.
  *
- * 目前只有域对象解析(积分条目要把 `objectId` 还原成对象名)需要它;
- * 以后有别的跨条目依赖(如求交的源对象标签)也走这里,不再往 spec 里
- * 塞全局状态.
+ * - `objects`:目前只有域对象解析(积分条目要把 `objectId` 还原成对象名)需要它;
+ *   以后有别的跨条目依赖(如求交的源对象标签)也走这里,不再往 spec 里
+ *   塞全局状态;
+ * - `toggleHidden`:行首显隐按钮的回调,由控制器按子列表绑定到对应的
+ *   `toggleAnalysis/toggleIntegral/toggleIntersection`.spec 只负责把按钮
+ *   建出来并接上它,不关心"隐藏后要重新编译"这些流程.
  */
 export interface EvaluationContext {
     readonly objects: readonly SceneObject[];
+    /** 点击该条目的显隐按钮:切换隐藏态(不渲染 + 不参与计算). */
+    readonly toggleHidden: (name: string) => void;
 }
 
 /**

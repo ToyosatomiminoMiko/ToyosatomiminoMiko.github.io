@@ -15,8 +15,11 @@
  *    数值缓存/异步回填入口的统一实现);
  * 3. 对外转发渲染层的异步结果回调(`setIntegralResult` 等).
  *
- * 行内**没有任何自建按钮**:开合交给 `<details>/<summary>` 原生行为
- * (摘要行就是 `<summary>`,点它由浏览器开合).
+ * 行内**没有自建的开合按钮**:开合交给 `<details>/<summary>` 原生行为
+ * (摘要行就是 `<summary>`,点它由浏览器开合).行首的**显隐按钮**是另一回事:
+ * 它是业务动作(不渲染 + 不参与计算),点它走 {@link ObjectListHandlers}
+ * 回调,由 DslApp 决定的编译/渲染流程处理;按钮是 `.object-main` 的兄弟,
+ * 不在 `<summary>` 里,所以不会连带开合细节.
  */
 import type {
     AnalysisResult,
@@ -41,6 +44,7 @@ import {
 } from './evaluation/intersectionRow';
 import {
     createElement,
+    createVisibilityButton,
 } from './evaluation/rowDom';
 import type { EvaluationRowHandles } from './evaluation/rowTypes';
 import { KeyedRowList, type KeyedRowHandles } from './keyedRowList';
@@ -132,6 +136,20 @@ export interface ObjectListContainers {
     readonly intersection: HTMLElement;
 }
 
+/**
+ * 行首显隐按钮的回调:控制器只负责"用户点了哪一条",隐藏的语义
+ * (不渲染 + 不参与计算)由应用层实现.
+ *
+ * - 实体:直接切换场景对象的可见性,不重新编译;
+ * - 分析/积分/求交:切隐藏集合后按当前参数重新编译,让数值计算被跳过.
+ */
+export interface ObjectListHandlers {
+    toggleEntity(id: number): void;
+    toggleAnalysis(name: string): void;
+    toggleIntegral(name: string): void;
+    toggleIntersection(name: string): void;
+}
+
 export class ObjectListController {
     /**
      * @cache
@@ -165,7 +183,10 @@ export class ObjectListController {
         IntersectionRowHandles
     >;
 
-    constructor(containers: ObjectListContainers) {
+    constructor(
+        containers: ObjectListContainers,
+        private readonly handlers: ObjectListHandlers,
+    ) {
         // 四个容器在 DOM 里只是普通 <div>;各 Section/KeyedRowList 构造时显式给
         // 列表语义,读屏才会报"列表/列表项",而不是把每条读成孤立的一段.
         this.entityRows = new KeyedRowList(containers.entity);
@@ -185,10 +206,20 @@ export class ObjectListController {
 
     renderScene(scene: SceneIR): void {
         this._renderEntities(scene.objects, scene.objectFormulas);
-        const context = { objects: scene.objects };
-        this.analysisSection.render(scene.analyses, context);
-        this.integralSection.render(scene.integrals, context);
-        this.intersectionSection.render(scene.intersections, context);
+        // 三个子列表的显隐回调各自绑定到对应的切换入口:spec 只管把按钮
+        // 接上 `context.toggleHidden`,不关心重新编译的流程.
+        this.analysisSection.render(scene.analyses, {
+            objects: scene.objects,
+            toggleHidden: (name) => this.handlers.toggleAnalysis(name),
+        });
+        this.integralSection.render(scene.integrals, {
+            objects: scene.objects,
+            toggleHidden: (name) => this.handlers.toggleIntegral(name),
+        });
+        this.intersectionSection.render(scene.intersections, {
+            objects: scene.objects,
+            toggleHidden: (name) => this.handlers.toggleIntersection(name),
+        });
     }
 
     /**
@@ -289,7 +320,15 @@ export class ObjectListController {
             main.append(createElement('span', 'row-state', '已隐藏'));
         }
 
-        row.append(badge, main);
+        // 行首显隐按钮:点它切换该实体是否参与渲染与计算.按钮与 main 平级,
+        // 不在任何 <summary> 里,不会与列表开合互相干扰.
+        const toggle = createVisibilityButton(
+            object.enabled,
+            object.name ?? `#${object.id}`,
+            () => this.handlers.toggleEntity(object.id),
+        );
+
+        row.append(toggle, badge, main);
         return row;
     }
 }

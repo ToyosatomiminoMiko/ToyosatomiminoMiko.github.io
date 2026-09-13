@@ -20,6 +20,7 @@ import {
     createEvaluationRow,
     createEvaluationSummary,
     createResultRow,
+    createVisibilityButton,
 } from './rowDom';
 import type {
     EvaluationKindSpec,
@@ -73,7 +74,7 @@ export const intersectionRowSpec: EvaluationKindSpec<
     kind: 'intersection',
     name: (task) => task.name,
     cacheKey: (task) => intersectionRowKey(task),
-    build(task) {
+    build(task, context) {
         const summary = createEvaluationSummary(
             {
                 badgeClass: 'kind-intersection',
@@ -95,7 +96,15 @@ export const intersectionRowSpec: EvaluationKindSpec<
             text: task.enabled ? '计算中...' : '已隐藏,不参与计算',
         });
 
-        const row = createEvaluationRow(summary, detail, result);
+        // 显隐按钮:隐藏后不进入求交计算队列(列表保留占位),
+        // 按钮不在 summary 内,点它不会开合细节.
+        const toggle = createVisibilityButton(
+            task.enabled,
+            task.name,
+            () => context.toggleHidden(task.name),
+        );
+
+        const row = createEvaluationRow(summary, detail, result, toggle);
         row.classList.toggle('is-hidden', !task.enabled);
         return { row, result };
     },

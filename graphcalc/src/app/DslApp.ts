@@ -80,12 +80,22 @@ export class DslApp {
 
         this.compileController = new CompileController(this.store);
         this.diagnosticsController = new DiagnosticsController(diagnostics);
-        this.objectListController = new ObjectListController({
-            entity: entityList,
-            analysis: analysisList,
-            integral: integralList,
-            intersection: intersectionList,
-        });
+        this.objectListController = new ObjectListController(
+            {
+                entity: entityList,
+                analysis: analysisList,
+                integral: integralList,
+                intersection: intersectionList,
+            },
+            {
+                // 实体显隐不重新编译,直接改 Plotter 可见性;求值对象显隐要
+                // 重新编译,数值计算才会被真正跳过.
+                toggleEntity: (id) => this.renderController.toggleObject(id),
+                toggleAnalysis: (name) => this._toggleAnalysis(name),
+                toggleIntegral: (name) => this._toggleIntegral(name),
+                toggleIntersection: (name) => this._toggleIntersection(name),
+            },
+        );
         this.paramPanelController = new ParamPanelController(
             paramsPanel,
             (name) => this._scheduleRefresh(name),
@@ -227,5 +237,36 @@ export class DslApp {
 
         this.renderController.applyScene(scene, changedParams);
         return scene;
+    }
+
+    /**
+     * 切换求值对象的显隐:先写入 SceneStore 的隐藏集合,再按当前参数重新
+     * 编译--隐藏 = 列表保留占位但不再调度数值计算(语义见 DslCompiler 文件头),
+     * 所以场景必须重算一遍,不能只改 DOM.
+     *
+     * `commitSceneWithoutRedraw` 只同步 overlay 与对象列表,不重新采样几何.
+     */
+    private _toggleAnalysis(name: string): void {
+        const scene = this.compileController.toggleAnalysis(
+            name,
+            this.paramPanelController.getValues(),
+        );
+        if (scene) this.renderController.commitSceneWithoutRedraw(scene);
+    }
+
+    private _toggleIntegral(name: string): void {
+        const scene = this.compileController.toggleIntegral(
+            name,
+            this.paramPanelController.getValues(),
+        );
+        if (scene) this.renderController.commitSceneWithoutRedraw(scene);
+    }
+
+    private _toggleIntersection(name: string): void {
+        const scene = this.compileController.toggleIntersection(
+            name,
+            this.paramPanelController.getValues(),
+        );
+        if (scene) this.renderController.commitSceneWithoutRedraw(scene);
     }
 }

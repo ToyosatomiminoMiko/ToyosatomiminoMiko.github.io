@@ -71,6 +71,15 @@ export class RenderController {
      */
     private previousObjects: SceneObject[] = [];
 
+    /**
+     * @cache
+     * 缓存目的:保存最近一次应用的完整 SceneIR,供"只改显隐,不重新编译"
+     * 的交互(实体显隐切换)重建对象列表.
+     * 键/失效策略:applyScene/commitSceneWithoutRedraw 后整体替换.
+     * 生命周期:跟随 RenderController 实例.
+     */
+    private currentScene: SceneIR | null = null;
+
     constructor(
         viewport: HTMLElement,
         private readonly store: SceneStore,
@@ -220,6 +229,7 @@ export class RenderController {
         changedParams?: ReadonlySet<string>,
     ): void {
         this.animationPlayer.configure(this.store.matrixOps);
+        this.currentScene = scene;
 
         const nextIds = new Set(scene.objects.map((object) => object.id));
 
@@ -283,6 +293,7 @@ export class RenderController {
      */
     commitSceneWithoutRedraw(scene: SceneIR): void {
         this.animationPlayer.configure(this.store.matrixOps);
+        this.currentScene = scene;
         this.store.setScene(scene);
         this.animationPlayer.setScene(
             scene.objectTransforms,
@@ -295,6 +306,46 @@ export class RenderController {
         this._syncPlotterRefs(scene);
         // overlayOnly:切换某一"分析/积分/求交"显隐时,其他积分不该被销毁重算.
         this._syncOverlays(scene, null, false, undefined, true);
+    }
+
+    /**
+     * 切换单个实体的显隐:隐藏 = 不渲染(Three.js 里 group.visible=false)
+     * + 不参与计算(跳过采样/变换,区域类还会让对应积分停算).
+     *
+     * 实体显隐**不需要重新编译**:状态写回 SceneStore(下次 `applyScene` 会
+     * 据此覆盖 IR 里的 enabled),再直接更新 Plotter 与对象列表.
+     *
+     * 重新显示必须走 `redraw = true`:隐藏期间 `applyScene` 会跳过该对象
+     * (`setVisible(false)` 后 continue),renderer 可能根本没建出来,
+     * 只同步引用(`_updateRef`)不会补画.这也是它不能直接复用
+     * `commitSceneWithoutRedraw` 的原因.
+     */
+    toggleObject(id: number): void {
+        const object = this.store.findObject(id);
+        if (!object) return;
+
+        const visible = !object.enabled;
+        object.enabled = visible;
+        this.store.setEntityHidden(id, !visible);
+
+        if (visible) {
+            const objectsByName = new Map<string, SceneObject>();
+            for (const candidate of this.store.compiledObjects) {
+                if (candidate.name !== undefined) {
+                    objectsByName.set(candidate.name, candidate);
+                }
+            }
+            this.plotter.updateObject(object, true, objectsByName);
+            this._applyObjectTransform(object.id);
+        } else {
+            this.plotter.setVisible(object.id, false);
+        }
+
+        // 列表行按新的 enabled 重建(键里含 enabled):显隐按钮文案,
+        // `is-hidden` 与"已隐藏"状态芯片都从 IR 推导,不在这里手改 DOM.
+        if (this.currentScene !== null) {
+            this.objectListController.renderScene(this.currentScene);
+        }
     }
 
     dispose(): void {

@@ -6,6 +6,7 @@
  *
  * ```text
  * <article class="object-row evaluation-row" role="listitem">
+ *   <button class="row-visibility-btn">隐藏/显示</button>  ← 显隐(不在 summary 里)
  *   <div class="object-main">
  *     <summary class="eval-summary">...badge + 变量名 + 一行公式...</summary>
  *     │  (无展开细节时 summary 直接放在 main 里)
@@ -26,6 +27,12 @@
  * 行类型由 `EvaluationDetailLine` 判别:`latex` -> 公式行(可点击复制),
  * `text` -> 元信息行.哪些行走公式,哪些行走元信息完全由各类型的细节
  * 生成函数决定(`dsl/evaluationLatex.ts`).
+ *
+ * 两类按钮分工明确,不要混在一起:
+ * - **开合**由 `<details>/<summary>` 原生行为承担,行里没有自建开合按钮;
+ * - **显隐切换**是业务动作(不渲染 + 不参与计算),由 {@link createVisibilityButton}
+ *   生成的按钮承担,并且挂在行(`<article>`)上,是 `.object-main` 的兄弟,
+ *   **不在 `<summary>` 里**--点它不会连带开合细节,也不需要 stopPropagation.
  */
 import { createFormulaElement } from '../FormulaView';
 import type { EvaluationDetailLine } from '../../compiler/dsl/evaluationLatex';
@@ -44,6 +51,30 @@ export function createElement(
     if (className) element.className = className;
     if (text !== undefined) element.textContent = text;
     return element;
+}
+
+/**
+ * 行首显隐按钮:切换该对象"是否参与三维渲染与数值计算".
+ *
+ * 这不是折叠按钮(开合交给 `<summary>`),点它的语义是业务动作:
+ * - 文案给**下一步动作**(可见时"隐藏",已隐藏时"显示"),状态本身由行上的
+ *   `is-hidden` 与"已隐藏"文字承担;
+ * - `aria-label` 带上对象名,读屏不必靠上下文猜操作的是哪一条;
+ * - 挂在行(`<article>`)上,与 `.object-main` 平级,不在 `<summary>` 里,
+ *   因此点按钮只切换显隐,不会顺手开合细节.
+ */
+export function createVisibilityButton(
+    enabled: boolean,
+    label: string,
+    onToggle: () => void,
+): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'row-visibility-btn';
+    button.textContent = enabled ? '隐藏' : '显示';
+    button.setAttribute('aria-label', `${enabled ? '隐藏' : '显示'} ${label}`);
+    button.addEventListener('click', onToggle);
+    return button;
 }
 
 /**
@@ -139,16 +170,19 @@ export function createResultRow(spec: EvaluationResultSpec): HTMLElement {
  *   出来时公式块为 null,此时为结果行单独建块,保证它不会掉出折叠区.
  *
  * 返回的就是传进来的 `result` 节点(可能已被搬进公式块);调用方自己持有
- * 引用,以便后续异步回填.行里**没有任何自建按钮**:开合完全交给
- * `<details>/<summary>` 原生行为.
+ * 引用,以便后续异步回填.开合完全交给 `<details>/<summary>` 原生行为;
+ * `toggle` 是行首的显隐按钮(可为 null),它是 `.object-main` 的**兄弟**,
+ * 不在 `<summary>` 内,所以点它只切换显隐,不开合细节.
  */
 export function createEvaluationRow(
     summary: HTMLElement,
     detail: EvaluationDetailSections | null,
     result: HTMLElement | null,
+    toggle: HTMLElement | null = null,
 ): HTMLElement {
     const row = createElement('article', 'object-row evaluation-row');
     row.setAttribute('role', 'listitem');
+    if (toggle !== null) row.append(toggle);
     const main = createElement('div', 'object-main');
 
     if (detail === null) {

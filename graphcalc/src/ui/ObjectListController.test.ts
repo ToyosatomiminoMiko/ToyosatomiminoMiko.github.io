@@ -2,11 +2,13 @@
  * 求值列表条目结构单测(最小 DOM 桩,见 test/domStub.ts,不引入 jsdom).
  *
  * 锁的是几条来自实际反馈的约束:
- * 1. 求值行里**没有任何自建按钮**:开合交给 <details>/<summary> 原生行为
- *    (摘要行就是 <summary>,点它由浏览器开合),`eval-toggle-btn` 与
- *    `entity-visibility-btn` 及其行为已整体移除;
- * 2. 折叠态只有一行 KaTeX 公式;
- * 3. 展开细节逐行分块(.eval-details 下每行一个 .eval-detail-line),不是
+ * 1. 行里**没有自建的开合按钮**:开合交给 <details>/<summary> 原生行为
+ *    (摘要行就是 <summary>,点它由浏览器开合);
+ * 2. 行首有**显隐按钮**(`.row-visibility-btn`):它是业务动作(隐藏 =
+ *    不渲染 + 不参与计算),回调给应用层;按钮挂在行上,不在 <summary> 内,
+ *    点它不会开合细节;
+ * 3. 折叠态只有一行 KaTeX 公式;
+ * 4. 展开细节逐行分块(.eval-details 下每行一个 .eval-detail-line),不是
  *    一堆 inline 公式挤成一行;结果行在 <details> 内,跟着一起开合.
  *
  * DOM 桩与其它 ui 控制器测试共用一份(`test/domStub.ts`);KaTeX 用
@@ -97,24 +99,54 @@ const scene = {
     ],
 } as unknown as SceneIR;
 
+/** 显隐按钮回调的落点:测试只关心"点了哪一条",不模拟重新编译. */
+interface ToggleCalls {
+    entity: number[];
+    analysis: string[];
+    integral: string[];
+    intersection: string[];
+}
+
 function createController(): {
     entityList: StubElement;
     analysisList: StubElement;
     integralList: StubElement;
     intersectionList: StubElement;
+    calls: ToggleCalls;
     controller: ObjectListController;
 } {
     const entityList = new StubElement('div');
     const analysisList = new StubElement('div');
     const integralList = new StubElement('div');
     const intersectionList = new StubElement('div');
-    const controller = new ObjectListController({
-        entity: entityList as unknown as HTMLElement,
-        analysis: analysisList as unknown as HTMLElement,
-        integral: integralList as unknown as HTMLElement,
-        intersection: intersectionList as unknown as HTMLElement,
-    });
-    return { entityList, analysisList, integralList, intersectionList, controller };
+    const calls: ToggleCalls = {
+        entity: [],
+        analysis: [],
+        integral: [],
+        intersection: [],
+    };
+    const controller = new ObjectListController(
+        {
+            entity: entityList as unknown as HTMLElement,
+            analysis: analysisList as unknown as HTMLElement,
+            integral: integralList as unknown as HTMLElement,
+            intersection: intersectionList as unknown as HTMLElement,
+        },
+        {
+            toggleEntity: (id) => calls.entity.push(id),
+            toggleAnalysis: (name) => calls.analysis.push(name),
+            toggleIntegral: (name) => calls.integral.push(name),
+            toggleIntersection: (name) => calls.intersection.push(name),
+        },
+    );
+    return {
+        entityList,
+        analysisList,
+        integralList,
+        intersectionList,
+        calls,
+        controller,
+    };
 }
 
 describe('求值条目的折叠结构', () => {
@@ -122,12 +154,16 @@ describe('求值条目的折叠结构', () => {
         const { analysisList, controller } = createController();
         controller.renderScene(scene);
 
+        const summary = analysisList.querySelector<StubElement>('.eval-summary')!;
         // 开合交给 <details>/<summary> 原生行为:摘要行就是 <summary>.
         expect(analysisList.querySelectorAll('summary')).toHaveLength(1);
-        // 行内不许出现任何自建按钮(不点名已删除的旧类名,否则是恒真断言).
-        expect(analysisList.querySelectorAll('button')).toHaveLength(0);
+        // 行里唯一一个按钮是行首显隐按钮,且它**不在** summary 内:
+        // 点 summary 只开合,点按钮只切换显隐,两者不互相触发.
+        const buttons = analysisList.querySelectorAll<StubElement>('button');
+        expect(buttons).toHaveLength(1);
+        expect(buttons[0].className).toBe('row-visibility-btn');
+        expect(summary.querySelectorAll<StubElement>('.row-visibility-btn')).toHaveLength(0);
 
-        const summary = analysisList.querySelector<StubElement>('.eval-summary')!;
         // 彩色类型标签 + 变量名回来了.
         const badge = summary.querySelector<StubElement>('.kind-badge')!;
         expect(badge.className).toBe('kind-badge kind-analysis kind-analysis-gradient');
@@ -217,6 +253,82 @@ describe('求值条目的折叠结构', () => {
         const summary = details.children[0] as StubElement;
         expect(summary.tagName).toBe('summary');
         expect(summary.querySelectorAll<StubElement>('.eval-detail-body')).toHaveLength(0);
+    });
+});
+
+describe('行首显隐按钮:隐藏 = 不渲染 + 不参与计算', () => {
+    it('实体按钮把 toggleEntity(id) 回调出去,文案是动作', () => {
+        const { entityList, calls, controller } = createController();
+        controller.renderScene(scene);
+
+        const button = entityList.querySelector<StubElement>('.row-visibility-btn')!;
+        expect(button.textContent).toBe('隐藏');
+        expect(button.getAttribute('aria-label')).toBe('隐藏 c1');
+
+        button.dispatch('click');
+        expect(calls.entity).toEqual([1]);
+    });
+
+    it('隐藏的实体:按钮变"显示",行加 is-hidden 并给出状态芯片', () => {
+        const { entityList, controller } = createController();
+        controller.renderScene({
+            ...scene,
+            objects: [{ ...curve, enabled: false }],
+        } as SceneIR);
+
+        const row = entityList.querySelector<StubElement>('.entity-row')!;
+        expect(row.classList.contains('is-hidden')).toBe(true);
+        expect(row.querySelector<StubElement>('.row-state')!.textContent).toBe('已隐藏');
+        expect(row.querySelector<StubElement>('.row-visibility-btn')!.textContent).toBe('显示');
+    });
+
+    it('三类求值对象各自绑到对应的切换入口', () => {
+        const {
+            analysisList,
+            integralList,
+            intersectionList,
+            calls,
+            controller,
+        } = createController();
+        controller.renderScene(scene);
+
+        analysisList.querySelector<StubElement>('.row-visibility-btn')!.dispatch('click');
+        integralList.querySelector<StubElement>('.row-visibility-btn')!.dispatch('click');
+        intersectionList.querySelector<StubElement>('.row-visibility-btn')!.dispatch('click');
+
+        expect(calls.analysis).toEqual(['g']);
+        expect(calls.integral).toEqual(['I']);
+        expect(calls.intersection).toEqual(['X']);
+    });
+
+    it('按钮是行的直接子节点,不在 <summary> 内,点它不开合细节', () => {
+        const { integralList, controller } = createController();
+        controller.renderScene(scene);
+
+        const row = integralList.querySelector<StubElement>('.evaluation-row')!;
+        const summary = row.querySelector<StubElement>('.eval-summary')!;
+        const button = row.querySelector<StubElement>('.row-visibility-btn')!;
+        expect(summary.tagName).toBe('summary');
+        expect(summary.querySelectorAll<StubElement>('.row-visibility-btn')).toHaveLength(0);
+        // 按钮是行的直接子节点(与 .object-main 平级),不是 summary 的子节点.
+        expect(button.parent).toBe(row);
+        // 行里没有监听 click 的自建开合按钮:开合只认 <summary> 原生行为.
+        expect(summary.listeners.get('click')).toBeUndefined();
+    });
+
+    it('隐藏的求值条目:按钮变"显示",行加 is-hidden,并给出明文状态', () => {
+        const { analysisList, controller } = createController();
+        controller.renderScene({
+            ...scene,
+            analyses: [{ ...analysis, enabled: false }],
+        } as SceneIR);
+
+        const row = analysisList.querySelector<StubElement>('.evaluation-row')!;
+        expect(row.classList.contains('is-hidden')).toBe(true);
+        expect(row.querySelector<StubElement>('.row-visibility-btn')!.textContent).toBe('显示');
+        // 隐藏项没有可展开细节,状态行直接可见:不靠透明度传达"不参与计算".
+        expect(row.querySelector<StubElement>('.eval-result')!.textContent)
+            .toBe('已隐藏,不参与计算');
     });
 });
 

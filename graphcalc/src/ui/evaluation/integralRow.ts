@@ -28,6 +28,7 @@ import {
     createEvaluationRow,
     createEvaluationSummary,
     createResultRow,
+    createVisibilityButton,
 } from './rowDom';
 import type {
     EvaluationContext,
@@ -237,7 +238,15 @@ export const integralRowSpec: EvaluationKindSpec<
             status = null;
         }
 
-        const row = createEvaluationRow(summary, details, status);
+        // 显隐按钮:隐藏后不再调度数值计算(状态行给"已隐藏,不参与计算"),
+        // 按钮不在 summary 内,点它不会开合细节.
+        const toggle = createVisibilityButton(
+            task.enabled,
+            task.name,
+            () => context.toggleHidden(task.name),
+        );
+
+        const row = createEvaluationRow(summary, details, status, toggle);
         row.classList.toggle('is-hidden', !task.enabled);
 
         const handles: IntegralRowHandles = { row, result: status, bodyLatex };

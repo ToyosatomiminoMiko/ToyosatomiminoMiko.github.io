@@ -5,7 +5,10 @@
  * 完成三件事:
  * 1. `run(source)`:解析新源码并生成一份完整 SceneIR;
  * 2. `refresh(paramOverrides)`:复用当前 AST,只按新参数重新编译;
- * 3. `toggleAnalysis/toggleIntegral`:切换求值对象显隐后重新编译.
+ * 3. `toggleAnalysis/toggleIntegral/toggleIntersection`:切换求值对象显隐后重新编译.
+ *
+ * 实体显隐不经过这里:它只改 Plotter 可见性,不需要重新编译
+ * (见 RenderController.toggleObject).
  *
  * 真正的编译细节仍由 compiler/dsl 下的 DslCompiler 和静态场景缓存负责.
  */
