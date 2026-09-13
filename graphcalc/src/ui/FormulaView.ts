@@ -26,6 +26,9 @@ const formulaTemplateCache = new Map<string, HTMLElement>();
  */
 const FORMULA_TEMPLATE_CACHE_LIMIT = 512;
 
+/** 可复制公式的屏幕阅读器名称(`aria-label` 不画 hover 浮层,标题类提示才画). */
+const COPY_FORMULA_LABEL = '复制公式 TeX';
+
 function cacheTemplate(latex: string, template: HTMLElement): void {
     if (formulaTemplateCache.size >= FORMULA_TEMPLATE_CACHE_LIMIT) {
         const oldest = formulaTemplateCache.keys().next().value;
@@ -34,7 +37,8 @@ function cacheTemplate(latex: string, template: HTMLElement): void {
     formulaTemplateCache.set(latex, template);
 }
 
-export function renderLatex(
+/** LaTeX -> 排版结果,写进传入元素.`throwOnError: false` 让排不出来的公式退化成源码文本. */
+function renderLatex(
     latex: string,
     element: HTMLElement,
     displayMode = false,
@@ -47,44 +51,17 @@ export function renderLatex(
 }
 
 /**
- * LaTeX -> 公式 DOM.
- *
- * `copyable` 控制是否挂 `data-tex`(FormulaCopyController 的点击复制钩子):
- * - 实体对象公式,展开细节里的公式:可复制(缺省);
- * - 求值条目的**摘要行**公式:不可复制--摘要行本身是 `<details>` 的原生开合
- *   热区,点它是"展开/收起",不该顺手把 TeX 写进剪贴板(用户明确要求
- *   只有细节行才能点击复制).
- */
-export function createFormulaElement(
-    latex: string,
-    className?: string,
-    copyable = true,
-): HTMLElement {
-    const element = document.createElement('span');
-    if (className) element.className = className;
-    renderLatexInto(latex, element, copyable);
-    return element;
-}
-
-/**
  * 把公式直接渲染进**已有元素**(元素自身就是公式根节点).
  *
- * 用在积分结果行:结果是 `<code class="eval-result is-ready">` 自己承载 KaTeX
- * 输出,而不是再套一层 span--过去那里会同时出现 `class="eval-result is-ready"`
- * 的外层和带 `katex` 类的内层,类名看着重复.
+ * 用在公式行/结果行:元素自己承载 KaTeX 输出,而不是再套一层 span--
+ * 过去那里会同时出现 `class="eval-result is-ready"` 的外层和带 `katex` 类的
+ * 内层,类名看着重复.
  *
  * 模板必须 **clone 而不是搬运**:`replaceChildren` 会把已经有父节点的子节点
  * 先从旧父节点摘除再插入,直接传 `template.childNodes` 会把缓存模板搬空,
  * 同一串 LaTeX 第二次渲染就是空白(实体/分析/积分公式全线命中).
- *
- * `copyable = false` 时必须**删掉** `data-tex`:元素可能带着上一次的可复制
- * 状态复用(如积分结果行从成功态转成错误态),残留属性会让点击复制到旧公式.
  */
-export function renderLatexInto(
-    latex: string,
-    element: HTMLElement,
-    copyable = true,
-): void {
+function renderLatexInto(latex: string, element: HTMLElement): void {
     let template = formulaTemplateCache.get(latex);
     if (!template) {
         template = document.createElement('span');
@@ -93,6 +70,35 @@ export function renderLatexInto(
     }
     const clone = template.cloneNode(true) as HTMLElement;
     element.replaceChildren(...clone.childNodes);
-    if (copyable) element.dataset.tex = latex;
-    else delete element.dataset.tex;
+}
+
+/**
+ * LaTeX -> 公式 DOM.
+ *
+ * `copyable` 控制是否挂 `data-tex`(FormulaCopyController 的复制钩子):
+ * - 实体对象公式,展开细节里的公式:可复制(缺省);
+ * - 求值条目的**摘要行**公式:不可复制--摘要行本身是 `<details>` 的原生开合
+ *   热区,点它是"展开/收起",不该顺手把 TeX 写进剪贴板.
+ *
+ * 可复制 = 可聚焦(UI-P3.6):除 `data-tex` 外补 `tabindex="0"` 与 `role`/
+ * `aria-label`,复制因此有键盘入口(FormulaCopyController 同时监听 Enter/Space).
+ * 不可复制时这些属性一个都不加:摘要行里的公式处在 `<summary>` 内部,再塞一个
+ * 可聚焦控件会造成嵌套交互元素.
+ */
+export function createFormulaElement(
+    latex: string,
+    className?: string,
+    copyable = true,
+): HTMLElement {
+    const element = document.createElement('span');
+    if (className) element.className = className;
+    renderLatexInto(latex, element);
+
+    if (copyable) {
+        element.dataset.tex = latex;
+        element.tabIndex = 0;
+        element.setAttribute('role', 'button');
+        element.setAttribute('aria-label', COPY_FORMULA_LABEL);
+    }
+    return element;
 }

@@ -18,7 +18,13 @@ export const UI_CONFIG = {
      * (见 `src/ui/EditorLineNumbers.ts` 的行号对齐说明).
      */
     editor: {
-        fontFamily: 'JetBrains-Mono-Slashed, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+        /**
+         * 字体栈:首选族与根站点(`public/css/index.css`)的拼写保持一致,都写成
+         * 带空格的族名并加引号.本仓库不随产物提供该字体(没有 @font-face/字体
+         * 文件),系统没装时按后面的 `ui-monospace` 等回退--这是刻意的兜底,
+         * 不要再写成 `JetBrains-Mono-Slashed` 那种连字符族名(见 UI-P3.15).
+         */
+        fontFamily: "'JetBrains Mono Slashed', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
         /** 字号,单位 px */
         fontSize: 16,
         /** 无单位行高,行号栏与输入框共用 */

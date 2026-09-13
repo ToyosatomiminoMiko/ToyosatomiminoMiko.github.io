@@ -1,6 +1,24 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { UI_CONFIG } from '../config/uiConfig';
 import { applyUiConfig, uiConfigCssVariables } from './applyUiConfig';
+
+/**
+ * 解析 css/base.css 里 `:root {...}` 的 CSS 变量声明.
+ *
+ * 只支持"扁平的 变量名: 值"块(base.css 的 :root 正是如此);目的是把
+ * "兜底值必须与 UI_CONFIG 一致"这条注释变成一条会失败的断言(UI-P3.14).
+ */
+function readRootCssVariables(css: string): Record<string, string> {
+    const block = /:root\s*\{([\s\S]*?)\}/.exec(css);
+    if (!block) throw new Error('base.css 里找不到 :root 变量块');
+    const variables: Record<string, string> = {};
+    for (const declaration of block[1].split(';')) {
+        const match = /^\s*(--[\w-]+)\s*:\s*(.+?)\s*$/.exec(declaration);
+        if (match) variables[match[1]] = match[2];
+    }
+    return variables;
+}
 
 describe('uiConfigCssVariables', () => {
     it('把 UI_CONFIG 映射到约定好的 CSS 变量名', () => {
@@ -50,5 +68,18 @@ describe('applyUiConfig', () => {
 
         expect(written.size).toBe(5);
         expect(written.get('--code-font-size')).toBe(`${UI_CONFIG.editor.fontSize}px`);
+    });
+});
+
+describe('base.css 的 :root 兜底(UI-P3.14)', () => {
+    it('五个变量与 UI_CONFIG 映射出的值逐字一致', () => {
+        const css = readFileSync(
+            new URL('../../css/base.css', import.meta.url),
+            'utf8',
+        );
+        const fallbacks = readRootCssVariables(css);
+
+        // 兜底只负责脚本执行前的首帧;值不一致就会闪一下旧字号/旧行高.
+        expect(fallbacks).toMatchObject(uiConfigCssVariables());
     });
 });

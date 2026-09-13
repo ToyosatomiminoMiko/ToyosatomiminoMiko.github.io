@@ -18,26 +18,40 @@
  * 为什么宽度要动态算:字号与字族来自 `UI_CONFIG`,不再是写死的 13px/32px;
  * 不同字体的数字宽度不同,固定宽度会在 3 位行号或较大字号下把行号裁掉,
  * 所以每次重绘行号时顺带量一次.
+ *
+ * 为什么 gutter/行号由**构造参数**传入(而不是在编辑器父节点里查 id):
+ * 那会把"两者必须是同一父元素下的特定 id"这条结构约束藏进实现里,
+ * 装配层改 HTML 时只会看到运行期 throw(见 UI-P3.10).现在由 DslApp 显式
+ * 取节点并传进来,缺结构时同样立刻报错,但依赖是可见的.
+ *
+ * 为什么对外要暴露 `refresh()`:`input` 事件只覆盖用户键入;若将来有代码
+ * 程序化写 `editor.value`(载入示例/撤销到某版本),行号不会自己更新.
  */
-
 /** gutter 里除数字本身之外的固定宽度:左 padding 8 + 行号右 padding 6 + 边框 1,与 panels.css 对应. */
 const GUTTER_CHROME_PX = 15;
 
 /** 槽宽下限,与 base.css 里 --code-gutter-width 的兜底值一致. */
 const GUTTER_MIN_WIDTH_PX = 32;
 
+/** 行号栏依赖的两个兄弟节点;由装配层取好传入(取不到时构造即报错). */
+export interface EditorLineNumberElements {
+    readonly gutter: HTMLElement | null;
+    readonly numbers: HTMLElement | null;
+}
+
 export class EditorLineNumbers {
-    private readonly gutter: HTMLDivElement;
-    private readonly numbers: HTMLPreElement;
+    private readonly gutter: HTMLElement;
+    private readonly numbers: HTMLElement;
     private readonly resizeObserver: ResizeObserver;
     /** 度量数字宽度用的离屏 2D context;取不到时为 null,保持 CSS 兜底宽度 */
     private readonly measureContext: CanvasRenderingContext2D | null;
     private disposed = false;
 
-    constructor(private readonly editor: HTMLTextAreaElement) {
-        const box = editor.parentElement as HTMLElement;
-        const gutter = box.querySelector<HTMLDivElement>('#dsl-editor-gutter');
-        const numbers = box.querySelector<HTMLPreElement>('#dsl-editor-lines');
+    constructor(
+        private readonly editor: HTMLTextAreaElement,
+        elements: EditorLineNumberElements,
+    ) {
+        const { gutter, numbers } = elements;
         if (!gutter || !numbers) {
             throw new Error('EditorLineNumbers 缺少 #dsl-editor-gutter / #dsl-editor-lines 结构');
         }
@@ -50,11 +64,19 @@ export class EditorLineNumbers {
         editor.addEventListener('input', this.update);
         editor.addEventListener('scroll', this.sync, { passive: true });
 
-        // 面板折叠/展开,拖宽会改变容器尺寸:行号内容只取决于文本,
+        // 面板折叠/展开,拖宽会改变编辑器尺寸:行号内容只取决于文本,
         // 尺寸变化不重算行数,只需校准一次平移(scrollTop 可能被重置).
+        // 观察编辑器自己而不是父节点:编辑器随面板一起伸缩,父节点的额外尺寸
+        // 与行号无关,少一层结构假设.
         this.resizeObserver = new ResizeObserver(() => this.sync());
-        this.resizeObserver.observe(box);
+        this.resizeObserver.observe(editor);
 
+        this.update();
+    }
+
+    /** 外部程序化改写 `editor.value` 后调用:重算行数,槽宽并校准平移. */
+    refresh(): void {
+        if (this.disposed) return;
         this.update();
     }
 

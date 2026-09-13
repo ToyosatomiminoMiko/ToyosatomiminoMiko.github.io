@@ -147,7 +147,7 @@ export function sceneObjectLatex(
  */
 export function integralLatex(
     task: IntegralTask,
-    objects: SceneObject[],
+    objects: readonly SceneObject[],
 ): string | null {
     return integralBodyLatex(task, objects);
 }
@@ -161,7 +161,7 @@ export function integralLatex(
  */
 export function integralBodyLatex(
     task: IntegralTask,
-    objects: SceneObject[],
+    objects: readonly SceneObject[],
 ): string | null {
     try {
         const source = objects.find((object) => object.id === task.objectId);

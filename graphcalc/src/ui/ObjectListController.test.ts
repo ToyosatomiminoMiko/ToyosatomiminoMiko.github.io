@@ -1,5 +1,5 @@
 /**
- * 求值列表条目结构单测(纯 DOM 桩,不引入 jsdom).
+ * 求值列表条目结构单测(最小 DOM 桩,见 test/domStub.ts,不引入 jsdom).
  *
  * 锁的是几条来自实际反馈的约束:
  * 1. 求值行里**没有任何自建按钮**:开合交给 <details>/<summary> 原生行为
@@ -9,11 +9,13 @@
  * 3. 展开细节逐行分块(.eval-details 下每行一个 .eval-detail-line),不是
  *    一堆 inline 公式挤成一行;结果行在 <details> 内,跟着一起开合.
  *
- * DOM 桩只实现 ObjectListController 用到的 API;KaTeX 用 render(tex, el)
- * 写回 textContent 的假实现,断言只看结构与 LaTeX 文本,不看排版.
+ * DOM 桩与其它 ui 控制器测试共用一份(`test/domStub.ts`);KaTeX 用
+ * render(tex, el) 写回 textContent 的假实现,断言只看结构与 LaTeX 文本,
+ * 不看排版.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnalysisResult, SceneIR, SceneObject } from '../compiler/ir/types';
+import { installDomStub, StubElement } from '../test/domStub';
 
 vi.mock('katex', () => ({
     default: {
@@ -28,215 +30,8 @@ vi.mock('katex/dist/katex.min.css', () => ({}));
 
 import { ObjectListController } from './ObjectListController';
 
-class StubClassList {
-    constructor(private readonly element: StubElement) {}
-
-    private names(): Set<string> {
-        return new Set(this.element.className.split(/\s+/).filter(Boolean));
-    }
-
-    contains(name: string): boolean {
-        return this.names().has(name);
-    }
-
-    toggle(name: string, force?: boolean): boolean {
-        const next = this.names();
-        const on = force ?? !next.has(name);
-        if (on) next.add(name);
-        else next.delete(name);
-        this.element.className = [...next].join(' ');
-        return on;
-    }
-
-    add(name: string): void {
-        this.toggle(name, true);
-    }
-
-    remove(name: string): void {
-        this.toggle(name, false);
-    }
-}
-
-class StubText {
-    /** 真 DOM 的文本节点也参与树结构,克隆/搬运时同样要摘除旧父节点. */
-    parent: StubElement | null = null;
-
-    constructor(readonly data: string) {}
-}
-
-/** 真 DOM 语义:节点只有一个父节点;插进新位置前先从旧父节点摘除. */
-function detachNode(node: StubElement | StubText): void {
-    const parent = node.parent;
-    if (parent === null) return;
-    const index = parent.children.indexOf(node);
-    if (index >= 0) parent.children.splice(index, 1);
-    node.parent = null;
-}
-
-class StubElement {
-    className = '';
-    /** 桩的 textContent 是真 DOM 语义:取值时拼接全部子文本节点. */
-    get textContent(): string {
-        return this.children
-            .map((child) => (child instanceof StubText ? child.data : child.textContent))
-            .join('');
-    }
-
-    set textContent(value: string) {
-        for (const child of [...this.children]) detachNode(child);
-        if (value !== '') {
-            const text = new StubText(value);
-            text.parent = this;
-            this.children.push(text);
-        }
-    }
-
-    title = '';
-    /** <details> 的开合状态;普通元素上无意义. */
-    open = false;
-    /** 父元素;append/prepend/replaceChildren 时维护,replaceWith 需要它. */
-    parent: StubElement | null = null;
-    readonly classList = new StubClassList(this);
-    readonly children: Array<StubElement | StubText> = [];
-    readonly listeners = new Map<string, Array<() => void>>();
-    readonly dataset: Record<string, string> = {};
-    private readonly attributes = new Map<string, string>();
-
-    constructor(readonly tagName: string) {}
-
-    /**
-     * 真 DOM 语义:节点只有一个父节点,插入前先从旧父节点摘除.
-     * 桩原先只 push 不摘除,于是"把模板子节点搬进目标元素"这种写法
-     * 在桩里永远搬不空模板,把 FormulaView 的缓存回归整条遮住了.
-     */
-    append(...nodes: Array<StubElement | StubText | null>): void {
-        for (const node of nodes) {
-            if (node === null) continue;
-            // DocumentFragment 插入的是它的子节点,不是 fragment 自己.
-            if (node instanceof StubElement && node.tagName === '#fragment') {
-                const inner = [...node.children];
-                for (const child of inner) detachNode(child);
-                this.append(...inner);
-                continue;
-            }
-            detachNode(node);
-            node.parent = this;
-            this.children.push(node);
-        }
-    }
-
-    prepend(...nodes: Array<StubElement | StubText>): void {
-        for (const node of nodes) {
-            detachNode(node);
-            node.parent = this;
-        }
-        this.children.unshift(...nodes);
-    }
-
-    /** 真 DOM 的 replaceWith:用新节点顶替自己在父节点中的位置. */
-    replaceWith(...nodes: Array<StubElement | StubText>): void {
-        const parent = this.parent;
-        if (!parent) return;
-        const index = parent.children.indexOf(this);
-        if (index < 0) return;
-        for (const node of nodes) {
-            detachNode(node);
-            node.parent = parent;
-        }
-        parent.children.splice(index, 1, ...nodes);
-        this.parent = null;
-    }
-
-    /** 真 DOM 的 childNodes 含文本节点;桩里直接暴露同一个 children 数组. */
-    get childNodes(): Array<StubElement | StubText> {
-        return this.children;
-    }
-
-    replaceChildren(...nodes: Array<StubElement | StubText>): void {
-        for (const child of [...this.children]) detachNode(child);
-        this.append(...nodes);
-    }
-
-    querySelector<T>(selector: string): T | null {
-        return (this.querySelectorAll<T>(selector)[0] ?? null) as T | null;
-    }
-
-    querySelectorAll<T>(selector: string): T[] {
-        // 只支持单段选择器:`tag` / `.class` / `tag.class`.
-        const [, tag, className] = /^([a-zA-Z]*)(?:\.(.+))?$/.exec(selector.trim()) ?? [];
-        const found: StubElement[] = [];
-        const walk = (node: StubElement): void => {
-            const tagOk = !tag || node.tagName === tag;
-            const classOk = !className || node.classList.contains(className);
-            if (tagOk && classOk) found.push(node);
-            for (const child of node.children) {
-                if (child instanceof StubElement) walk(child);
-            }
-        };
-        for (const child of this.children) {
-            if (child instanceof StubElement) walk(child);
-        }
-        return found as unknown as T[];
-    }
-
-    addEventListener(type: string, handler: () => void): void {
-        const list = this.listeners.get(type) ?? [];
-        list.push(handler);
-        this.listeners.set(type, list);
-    }
-
-    /** 只触发本元素上的监听(不冒泡),用来验证"点行不开合". */
-    dispatch(type: string): void {
-        for (const handler of this.listeners.get(type) ?? []) handler();
-    }
-
-    setAttribute(name: string, value: string): void {
-        this.attributes.set(name, value);
-    }
-
-    getAttribute(name: string): string | null {
-        return this.attributes.get(name) ?? null;
-    }
-
-    /** FormulaView 的模板缓存靠 cloneNode 复制模板,桩里做一次浅+深拷贝. */
-    cloneNode(deep?: boolean): StubElement {
-        const copy = new StubElement(this.tagName);
-        copy.className = this.className;
-        copy.title = this.title;
-        copy.open = this.open;
-        Object.assign(copy.dataset, this.dataset);
-        for (const [name, value] of this.attributes) copy.setAttribute(name, value);
-        if (deep) {
-            for (const child of this.children) {
-                if (child instanceof StubElement) {
-                    const childCopy = child.cloneNode(true);
-                    childCopy.parent = copy;
-                    copy.children.push(childCopy);
-                } else {
-                    // 真 DOM 克隆会生成新的文本节点,而不是复用同一个.
-                    const textCopy = new StubText(child.data);
-                    textCopy.parent = copy;
-                    copy.children.push(textCopy);
-                }
-            }
-        }
-        // 真 DOM 里 textContent 与子节点是同一份数据;桩里若两者都写会翻倍,
-        // 所以只在没有子节点时补文本.
-        if (copy.children.length === 0) copy.textContent = this.textContent;
-        return copy;
-    }
-
-    remove(): void {
-        detachNode(this);
-    }
-}
-
 beforeEach(() => {
-    (globalThis as unknown as { document: unknown }).document = {
-        createElement: (tag: string) => new StubElement(tag),
-        createTextNode: (text: string) => new StubText(text),
-        createDocumentFragment: () => new StubElement('#fragment'),
-    };
+    installDomStub();
 });
 
 const analysis: AnalysisResult = {
@@ -313,12 +108,12 @@ function createController(): {
     const analysisList = new StubElement('div');
     const integralList = new StubElement('div');
     const intersectionList = new StubElement('div');
-    const controller = new ObjectListController(
-        entityList as unknown as HTMLElement,
-        analysisList as unknown as HTMLElement,
-        integralList as unknown as HTMLElement,
-        intersectionList as unknown as HTMLElement,
-    );
+    const controller = new ObjectListController({
+        entity: entityList as unknown as HTMLElement,
+        analysis: analysisList as unknown as HTMLElement,
+        integral: integralList as unknown as HTMLElement,
+        intersection: intersectionList as unknown as HTMLElement,
+    });
     return { entityList, analysisList, integralList, intersectionList, controller };
 }
 
@@ -359,7 +154,7 @@ describe('求值条目的折叠结构', () => {
         expect(details.open).toBe(true);
     });
 
-    it('元信息是纯文本块,且在公式块之外;结果行自身承载完整等式', () => {
+    it('元信息是纯文本块且在公式块之外;就绪后等式只由细节行承载', () => {
         const { integralList, controller } = createController();
         controller.renderScene(scene);
         controller.setIntegralResult('I', 1.5);
@@ -380,15 +175,12 @@ describe('求值条目的折叠结构', () => {
         expect(metas[0].dataset.tex).toBeUndefined();
         expect(metas[1].textContent).toBe('分段: 32 · 分层: 32');
 
-        // 结果行在公式块内部:公式行与结果行同属数学内容,共用同一条竖线.
-        const result = formulaBlock.querySelector<StubElement>('.eval-result')!;
-        expect(result).toBeDefined();
-        expect(result.className).toBe('eval-result is-ready');
-        expect(result.textContent).toContain('=1.5');
-        // 结果行的 <code> 自身就是公式根节点:内部只有 KaTeX 生成的 .katex,
-        // 不再出现"两层 eval-result"的 span.
-        expect(result.querySelectorAll<StubElement>('.eval-result')).toHaveLength(0);
-        expect(details.querySelectorAll<StubElement>('.eval-result')).toHaveLength(1);
+        // 就绪后等式只由细节行承载:公式块里只有一条 `.eval-detail-line`,
+        // 不再额外挂一条内容相同的 `.eval-result is-ready`(重复行).
+        expect(details.querySelectorAll<StubElement>('.eval-result')).toHaveLength(0);
+        const equation = formulaBlock.querySelector<StubElement>('.eval-detail-line')!;
+        expect(equation.textContent).toContain('=1.5');
+        expect(equation.dataset.tex).toBeDefined();
     });
 
     it('展开细节的公式行集中在 .eval-detail-body,逐行且可点击复制', () => {
@@ -408,20 +200,19 @@ describe('求值条目的折叠结构', () => {
         expect(analysisList.querySelectorAll<StubElement>('.eval-detail-meta')).toHaveLength(0);
     });
 
-    it('结果行与元信息都在 <details> 内:折叠时整条只剩摘要公式', () => {
+    it('等式与元信息都在 <details> 内,且公式块里没有重复结果行', () => {
         const { integralList, controller } = createController();
         controller.renderScene(scene);
         controller.setIntegralResult('I', 2.775558e-17);
 
         const details = integralList.querySelector<StubElement>('.eval-details')!;
         const body = details.querySelector<StubElement>('.eval-detail-body')!;
-        // 结果行是公式块的子元素(<code> 放进 <div class="eval-detail-body">).
-        const result = body.querySelector<StubElement>('.eval-result')!;
-        expect(result).toBeDefined();
-        expect(result.textContent).toContain('\\mathrm{d}x=');
-        expect(result.textContent).toContain('\\times10^{-17}');
-        expect(result.textContent).not.toContain('e-17');
-        expect(details.querySelectorAll<StubElement>('.eval-result')).toHaveLength(1);
+        // 数值等式挂在细节行上;`.eval-result` 就绪态不该再出现一份.
+        const equation = body.querySelector<StubElement>('.eval-detail-line')!;
+        expect(equation.textContent).toContain('\\mathrm{d}x=');
+        expect(equation.textContent).toContain('\\times10^{-17}');
+        expect(equation.textContent).not.toContain('e-17');
+        expect(body.querySelectorAll<StubElement>('.eval-result')).toHaveLength(0);
         // 折叠态可见的只有 summary 里的那一行公式.
         const summary = details.children[0] as StubElement;
         expect(summary.tagName).toBe('summary');
@@ -518,16 +309,35 @@ describe('列表缓存:内容不变就复用,顺序/展开态/数值都不串', 
             .toBe('已隐藏,不参与计算');
     });
 
-    it('结果行转成错误态时清掉 data-tex,不会复制到旧等式', () => {
+    it('就绪的积分不再产生重复的 .eval-result is-ready', () => {
         const { integralList, controller } = createController();
         controller.renderScene(scene);
         controller.setIntegralResult('I', 1.5);
-        const result = integralList.querySelector<StubElement>('.eval-result')!;
-        expect(result.dataset.tex).toBeDefined();
+
+        const details = integralList.querySelector<StubElement>('.eval-details')!;
+        // 公式块里只有一条等式,来自细节行.
+        expect(details.querySelectorAll<StubElement>('.eval-detail-line')).toHaveLength(1);
+        expect(details.querySelectorAll<StubElement>('.eval-result')).toHaveLength(0);
+        expect(details.querySelector<StubElement>('.eval-detail-line')!.textContent)
+            .toContain('=1.5');
+    });
+
+    it('数值出错时状态行重新挂回公式块,且清掉 data-tex', () => {
+        const { integralList, controller } = createController();
+        controller.renderScene(scene);
+        controller.setIntegralResult('I', 1.5);
+        // 就绪后状态行已被摘掉:错误路径必须自己把它建回来.
+        expect(integralList.querySelector<StubElement>('.eval-result')).toBeNull();
 
         controller.setIntegralError('I', '计算失败');
-        expect(result.dataset.tex).toBeUndefined();
+
+        const result = integralList.querySelector<StubElement>('.eval-result')!;
+        expect(result.className).toBe('eval-result is-error');
         expect(result.textContent).toBe('计算失败');
+        expect(result.dataset.tex).toBeUndefined();
+        // 等式退回不带右端的形态,错误文本与等式不再重复同一条公式.
+        const equation = integralList.querySelector<StubElement>('.eval-detail-line')!;
+        expect(equation.textContent).not.toContain('=1.5');
     });
 
     it('clear() 连同数值缓存一起清掉,同名任务重建不继承旧值', () => {

@@ -32,6 +32,7 @@ import { EventBus } from '../service/EventBus';
 import { onSamplingFailure } from '../render/core/samplingErrors';
 import { SceneStore } from './SceneStore';
 import { DiagnosticsController } from '../ui/DiagnosticsController';
+import type { DiagnosticEntry } from '../ui/DiagnosticsController';
 import { ObjectListController } from '../ui/ObjectListController';
 import { disposeCurveComputeClient } from '../math/compute/workers/CurveComputeClient';
 import { disposeSurfaceComputeClient } from '../math/compute/workers/SurfaceComputeClient';
@@ -375,17 +376,20 @@ export class RenderController {
         changedParams: ReadonlySet<string> | undefined = undefined,
         overlayOnly = false,
     ): void {
-        this.diagnosticsController.clear();
+        // 本轮诊断先收集,最后一次性交给控制器:诊断区是 aria-live 区域,
+        // 逐条 clear()+add() 会让读屏在拖参数时每帧重放同一批警告(UI-P3.7);
+        // DiagnosticsController.render 在内容不变时一次 DOM 操作都不做.
+        const diagnostics: DiagnosticEntry[] = [];
         this.objectListController.renderScene(scene);
         this.analysisRenderer.render(
             scene.analyses.filter((analysis) => analysis.enabled),
         );
-        this._syncIntersections(scene, forceIntersections);
+        this._syncIntersections(scene, forceIntersections, diagnostics);
         this.integralRenderer.sync(
             scene.integrals,
             scene.objects,
             scene.objectTransforms,
-            (level, message) => this.diagnosticsController.add(level, message),
+            (level, message) => diagnostics.push({ level, message }),
             dirtyObjectIds,
             changedParams ?? null,
             (name, value) =>
@@ -394,9 +398,14 @@ export class RenderController {
                 this.objectListController.setIntegralError(name, message),
             overlayOnly,
         );
+        this.diagnosticsController.render(diagnostics);
     }
 
-    private _syncIntersections(scene: SceneIR, force: boolean): void {
+    private _syncIntersections(
+        scene: SceneIR,
+        force: boolean,
+        diagnostics: DiagnosticEntry[],
+    ): void {
         this.intersectionRenderer.sync(
             scene.intersections,
             scene.objects,
@@ -406,10 +415,10 @@ export class RenderController {
                 this.objectListController.setIntersectionResult(name, output),
             (name, message) => {
                 this.objectListController.setIntersectionError(name, message);
-                this.diagnosticsController.add(
-                    'error',
-                    `求交 ${name} 失败: ${message}`,
-                );
+                diagnostics.push({
+                    level: 'error',
+                    message: `求交 ${name} 失败: ${message}`,
+                });
             },
         );
     }

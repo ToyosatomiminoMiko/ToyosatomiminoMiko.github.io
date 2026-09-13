@@ -2,7 +2,7 @@
  * 公式复制控制器.
  *
  * 场景里的公式是 KaTeX 排版出来的展示元素,本身不可选中.这里做一层事件委托:
- * 点任意一个带 `data-tex` 的公式,就把它的原始 TeX 写进剪贴板.
+ * 点/键盘激活任意一个带 `data-tex` 的公式,就把它的原始 TeX 写进剪贴板.
  *
  * 为什么用委托而不是逐个绑定:
  * 公式 DOM 由 ObjectListController 在每次 sync 时整体重建
@@ -10,7 +10,11 @@
  *
  * 为什么提示只有一处:
  * "可复制"的文案只在底部"实体对象"标题旁出现,复制成功/失败也改那一处回显;
- * 公式本身只用 cursor 表达可点,不在每行挂 tooltip,避免列表被提示文字淹没.
+ * 公式本身只用 cursor / focus 样式表达可操作,不在每行挂 tooltip,避免列表被
+ * 提示文字淹没.
+ *
+ * 键盘入口(见 UI-P3.6):可复制公式由 FormulaView 加了 `tabindex="0"` 与
+ * `role="button"`,这里同时监听 Enter/Space,复制不再只有鼠标一条路径.
  */
 
 const HINT_RESET_DELAY = 1200;
@@ -71,9 +75,11 @@ export class FormulaCopyController {
     bind(root: HTMLElement): void {
         this.abortController?.abort();
         this.abortController = new AbortController();
-        root.addEventListener('click', this.onClick, {
-            signal: this.abortController.signal,
-        });
+        const options = { signal: this.abortController.signal };
+        root.addEventListener('click', this.onClick, options);
+        // 键盘入口与点击走同一个委托根:公式本身可聚焦(见 FormulaView),
+        // 但 KaTeX 内部节点也可能成为事件目标,所以仍然从 target 往上找.
+        root.addEventListener('keydown', this.onKeyDown, options);
     }
 
     dispose(): void {
@@ -88,15 +94,32 @@ export class FormulaCopyController {
     }
 
     private readonly onClick = (event: MouseEvent): void => {
-        const target = event.target;
-        if (!(target instanceof Element)) return;
-
-        const formula = target.closest<HTMLElement>('[data-tex]');
-        const tex = formula?.dataset.tex;
-        if (!tex) return;
-
+        const tex = this._texFrom(event.target);
+        if (tex === null) return;
         void this._copy(tex);
     };
+
+    /**
+     * Enter/Space 激活可复制公式(与原生 button 的键盘行为一致).
+     *
+     * `preventDefault` 是必需的:Space 默认会滚动页面.
+     */
+    private readonly onKeyDown = (event: KeyboardEvent): void => {
+        if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') {
+            return;
+        }
+        const tex = this._texFrom(event.target);
+        if (tex === null) return;
+        event.preventDefault();
+        void this._copy(tex);
+    };
+
+    /** 事件目标(或祖先)里可复制公式的 TeX;找不到或为空时返回 null. */
+    private _texFrom(target: EventTarget | null): string | null {
+        if (!(target instanceof Element)) return null;
+        const tex = target.closest<HTMLElement>('[data-tex]')?.dataset.tex;
+        return tex ? tex : null;
+    }
 
     private async _copy(tex: string): Promise<void> {
         const copied = await writeClipboardText(tex);

@@ -71,16 +71,21 @@ export class DslApp {
 
         this.editor = document.getElementById('dsl-editor') as HTMLTextAreaElement;
         this.runButton = document.getElementById('run-btn') as HTMLButtonElement;
-        this.lineNumbers = new EditorLineNumbers(this.editor);
+        // 行号栏的两个兄弟节点在这里取好传进去:EditorLineNumbers 不再自己
+        // 往父节点里按 id 查(依赖可见,缺结构时构造期报错,见 UI-P3.10).
+        this.lineNumbers = new EditorLineNumbers(this.editor, {
+            gutter: document.getElementById('dsl-editor-gutter'),
+            numbers: document.getElementById('dsl-editor-lines'),
+        });
 
         this.compileController = new CompileController(this.store);
         this.diagnosticsController = new DiagnosticsController(diagnostics);
-        this.objectListController = new ObjectListController(
-            entityList,
-            analysisList,
-            integralList,
-            intersectionList,
-        );
+        this.objectListController = new ObjectListController({
+            entity: entityList,
+            analysis: analysisList,
+            integral: integralList,
+            intersection: intersectionList,
+        });
         this.paramPanelController = new ParamPanelController(
             paramsPanel,
             (name) => this._scheduleRefresh(name),

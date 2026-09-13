@@ -39,7 +39,8 @@
 
 /* 折叠时隐藏标题和左侧"运行"按钮,仅保留展开按钮 */
 .panel.collapsed .panel-title,
-.panel.collapsed #run-btn {
+.panel.collapsed #run-btn,
+.panel.collapsed .object-list-hint {
     display: none;
 }
 
@@ -469,6 +470,16 @@
 
 .eval-summary-formula[data-tex]:hover,
 .eval-detail-line[data-tex]:hover {
+    color: #dbe4ff;
+}
+
+/* 可复制公式可聚焦(键盘入口,见 UI-P3.6):焦点环是"当前焦点在公式上"的
+   唯一线索,不能只靠 :hover 表达可操作. */
+.object-expr[data-tex]:focus-visible,
+.eval-detail-line[data-tex]:focus-visible {
+    outline: 1px solid rgba(109, 213, 255, 0.65);
+    outline-offset: 2px;
+    border-radius: 3px;
     color: #dbe4ff;
 }
 

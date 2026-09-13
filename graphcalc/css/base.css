@@ -25,11 +25,11 @@
  * 动态写入,这里只给一个保守初值.
  * -------------------------------------------------------------------------- */
 :root {
-    --code-font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    --code-font-size: 13px;
-    --code-line-height: 1.5;
+    --code-font-family: 'JetBrains Mono Slashed', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --code-font-size: 16px;
+    --code-line-height: 1.2;
     --code-tab-size: 4;
-    --katex-font-size: 1em;
+    --katex-font-size: 1.5em;
     --code-gutter-width: 32px;
 }
 

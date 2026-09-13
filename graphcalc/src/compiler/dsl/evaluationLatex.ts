@@ -11,6 +11,11 @@
  * (ui/ObjectListController)只负责把字符串交给 KaTeX.细节行按"一行一条"
  * 返回,列表里一行排不下时由 CSS 横向滚动承接(KaTeX 不换行,这是屏上
  * 唯一不破坏公式语义的溢出处理).
+ *
+ * 折叠态是否给数值是**有意按算子区分**的(见 UI-P3.13):需要展开才能读到
+ * 推导过程的(梯度,积分)只给算子/积分式的书写形式,数值留在细节行;
+ * 没有中间步骤可看的(散度,旋度)直接把结果排进摘要.同一列表里两类条目
+ * 折叠态的信息量因此不同,这是设计选择而不是漏排.
  */
 import type { AnalysisResult, IntegralTask, SceneObject } from '../ir/types';
 import { latexResultNumber } from '../../math/latexNumber';
@@ -111,7 +116,7 @@ export function analysisLatexDetails(analysis: AnalysisResult): EvaluationDetail
  */
 export function integralLatexSummary(
     task: IntegralTask,
-    objects: SceneObject[],
+    objects: readonly SceneObject[],
 ): LatexLine | null {
     return integralBodyLatex(task, objects);
 }
@@ -135,7 +140,7 @@ export type EvaluationDetailLine =
  */
 export function integralLatexDetails(
     task: IntegralTask,
-    objects: SceneObject[],
+    objects: readonly SceneObject[],
     methodLabel: string,
     result: number | null = null,
 ): EvaluationDetailLine[] {
@@ -173,8 +178,8 @@ export interface IntersectionTaskLike {
  * 求交结果摘要:默认可见的一行.
  *
  * 求交是异步任务,首次渲染时还没有交点/交线数量,所以摘要只给"谁与谁求交";
- * 数量摘要沿用既有纯文本(见 ObjectListController.intersectionSummary),
- * 细节行给出两个源对象,采样分段与输出形态.
+ * 数量摘要沿用既有纯文本(见 ui/evaluation/intersectionRow.ts 的
+ * `intersectionSummary`),细节行给出两个源对象,采样分段与输出形态.
  */
 export function intersectionLatexSummary(task: IntersectionTaskLike): LatexLine {
     return `${task.aName}\\cap ${task.bName}`;
