@@ -1,7 +1,0 @@
-[workspace]
-members = [
-    "graphcalc/src/math/math_rs",
-    "graphcalc/src/compiler/compiler_rs",
-    "graphcalc/src/render/render_rs",
-]
-resolver = "2"
