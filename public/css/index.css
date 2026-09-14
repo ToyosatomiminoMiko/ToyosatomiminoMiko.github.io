@@ -26,9 +26,6 @@ body {
 
 .nav {
     position: relative;
-    left: 0px;
-    right: 0px;
-    top: 0px;
     /* 导航栏高度 */
     height: 42px;
 }
@@ -137,7 +134,6 @@ canvas#pixelCanvas {
     margin: 10px;
     background-color: #001fab9f;
     padding: 5px;
-    border-style: none;
 }
 
 .bgimg {
@@ -186,5 +182,6 @@ canvas#pixelCanvas {
     margin-bottom: 10px;
     resize: vertical;
     min-height: 100px;
+    /* 保留显式声明 */
     white-space: pre-wrap;
 }

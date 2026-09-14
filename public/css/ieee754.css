@@ -36,7 +36,6 @@
     line-height: 2;
     user-select: none;
     white-space: nowrap;
-    overflow-x: auto;
 }
 
 .ieee-bit-group {
@@ -61,10 +60,6 @@
     background: #0f172a;
     color: #7dd3fc;
     cursor: pointer;
-}
-
-.ieee-bit:hover {
-    background: #1e293b;
 }
 
 .ieee-bit.on {
@@ -132,6 +127,7 @@
     padding: 6px 0;
 }
 
+/* .katex-display运行时注入 */
 .ieee-formula .katex-display {
     margin: 0;
 }

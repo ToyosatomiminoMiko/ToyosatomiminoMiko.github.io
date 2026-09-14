@@ -16,5 +16,6 @@
 ## GraphCalc
 
 已拆分为独立仓库:
-- 站点: https://toyosatomiminomiko.github.io/miko_graphcalc/
-- 源码: https://github.com/ToyosatomiminoMiko/miko_graphcalc
+
+- 站点: <https://toyosatomiminomiko.github.io/miko_graphcalc/>
+- 源码: <https://github.com/ToyosatomiminoMiko/miko_graphcalc>
