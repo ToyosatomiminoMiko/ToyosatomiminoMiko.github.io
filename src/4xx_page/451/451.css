@@ -10,7 +10,6 @@
 @import '@fontsource/inter/latin-900.css';
 @import '@fontsource/space-mono/latin-400.css';
 @import '@fontsource/space-mono/latin-700.css';
-@import '../shared/icon.css';
 
 * {
     margin: 0;
@@ -179,11 +178,6 @@ body {
     gap: 10px;
 }
 
-.badge .icon {
-    font-size: 1.1rem;
-    color: #ff7a2f;
-}
-
 /* 引语 & 核心文本 */
 .tagline {
     font-size: clamp(1rem, 4vw, 1.5rem);
@@ -243,44 +237,6 @@ body {
     margin-top: 6px;
     color: #cc9f70;
     letter-spacing: 1px;
-}
-
-/* 火焰装饰脚标 */
-.flame-icon {
-    display: flex;
-    justify-content: center;
-    gap: 12px;
-    margin-top: 2rem;
-    font-size: 1.4rem;
-    color: #ff7540;
-    opacity: 0.7;
-    transition: 0.3s;
-}
-
-.flame-icon .icon {
-    /* 投影改成静态的: 关键帧里动 filter 会让这三个 SVG 每帧重新栅格化 */
-    filter: drop-shadow(0 0 6px #ff4d1a);
-    animation: flickerFlame 1.2s infinite alternate;
-}
-
-.flame-icon .icon:nth-child(2) {
-    animation-delay: 0.4s;
-}
-
-.flame-icon .icon:nth-child(3) {
-    animation-delay: 0.8s;
-}
-
-@keyframes flickerFlame {
-    0% {
-        opacity: 0.6;
-        transform: scale(0.95);
-    }
-
-    100% {
-        opacity: 1;
-        transform: scale(1.1);
-    }
 }
 
 /* 响应式调整 */
@@ -368,16 +324,11 @@ body {
 @media (prefers-reduced-motion: reduce) {
 
     .card::before,
-    .temp-number,
-    .flame-icon .icon {
+    .temp-number {
         animation: none;
     }
 
     .card::before {
         opacity: 0.5;
-    }
-
-    .flame-icon .icon {
-        opacity: 0.85;
     }
 }

@@ -1,5 +1,6 @@
 /* 内联 SVG 图标 (取代 Font Awesome 字体图标): 尺寸跟随字号, 颜色跟随 currentColor.
-   418 / 451 共用 -- sprite 本身在各页 HTML 里(<symbol> + <use href="#i-...">). */
+   只有 418 页面还在用 -- sprite 写在该页 HTML 里(<symbol> + <use href="#i-...">).
+   451 的内联图标已全部换成 emoji, 因此不再引入本文件. */
 .icon {
     width: 1em;
     height: 1em;
