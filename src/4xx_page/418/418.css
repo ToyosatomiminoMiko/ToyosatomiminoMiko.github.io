@@ -1,0 +1,522 @@
+/* ------------------------------------------------------------------
+   字体: 由 @fontsource 自托管, 不再请求 Google Fonts CDN.
+   字重与原来 <link> 里请求的完全一致: Comic Neue 400/700, Quicksand 400/600/700.
+   只取 latin 子集 -- 这四款字体都没有 CJK 字形, 页面里的中文本来就落回系统字体.
+   ------------------------------------------------------------------ */
+@import '@fontsource/comic-neue/latin-400.css';
+@import '@fontsource/comic-neue/latin-700.css';
+@import '@fontsource/quicksand/latin-400.css';
+@import '@fontsource/quicksand/latin-600.css';
+@import '@fontsource/quicksand/latin-700.css';
+@import '../shared/icon.css';
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    min-height: 100vh;
+    background: linear-gradient(145deg, #fdf8f0 0%, #f5e6d3 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Quicksand', 'Comic Neue', sans-serif;
+    padding: 1.5rem;
+    position: relative;
+    overflow-x: hidden;
+}
+
+/* 背景装饰:飘浮的茶叶/咖啡豆 (幽默小点缀) */
+.bg-float {
+    position: absolute;
+    opacity: 0.08;
+    pointer-events: none;
+    font-size: 8rem;
+    user-select: none;
+    z-index: 0;
+}
+
+.float-tea1 {
+    top: 5%;
+    left: 2%;
+    transform: rotate(-15deg);
+}
+
+.float-tea2 {
+    bottom: 8%;
+    right: 3%;
+    transform: rotate(20deg);
+}
+
+.float-coffee {
+    top: 15%;
+    right: 8%;
+    opacity: 0.05;
+    font-size: 12rem;
+    color: #6f4e37;
+}
+
+/* 主卡片 -- 茶壶的尊严 */
+.card {
+    max-width: 750px;
+    width: 100%;
+    background: rgba(255, 251, 245, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 64px 24px 64px 24px;
+    box-shadow: 0 25px 40px -10px rgba(90, 50, 30, 0.25),
+        0 8px 20px rgba(0, 0, 0, 0.08),
+        inset 0 1px 4px rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(210, 160, 120, 0.25);
+    padding: 2.5rem 2rem 2.8rem;
+    text-align: center;
+    position: relative;
+    z-index: 10;
+    transition: transform 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+}
+
+/* 418 大标题 */
+.status-code {
+    font-size: 7.5rem;
+    font-weight: 700;
+    font-family: 'Comic Neue', cursive;
+    color: #7b4a2e;
+    text-shadow: 6px 6px 0 #f0d5b0, 2px 2px 0 rgba(180, 110, 70, 0.3);
+    letter-spacing: 6px;
+    line-height: 1.1;
+    margin-bottom: 0.5rem;
+    word-break: break-word;
+}
+
+.teapot-badge {
+    display: inline-block;
+    background: #d9b382;
+    padding: 0.25rem 1.2rem;
+    border-radius: 40px;
+    color: #2d1e12;
+    font-weight: 700;
+    font-size: 1.3rem;
+    letter-spacing: 2px;
+    box-shadow: inset 0 -2px 0 #a77b52, 0 4px 8px rgba(0, 0, 0, 0.05);
+    margin-bottom: 1.2rem;
+    border: 1px solid #ebc7a0;
+}
+
+/* ----- 幽默茶壶主角 (纯CSS绘制 + 表情) ----- */
+.teapot-container {
+    position: relative;
+    width: 260px;
+    height: 220px;
+    margin: 0 auto 1.5rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* 茶壶身体 */
+.teapot {
+    position: relative;
+    width: 190px;
+    height: 150px;
+    background: radial-gradient(circle at 30% 25%, #f3d4b1, #d9a06c);
+    border-radius: 45% 45% 40% 40% / 55% 55% 35% 35%;
+    box-shadow: 0 12px 0 #8b5e3c,
+        0 18px 20px -6px rgba(70, 40, 20, 0.3),
+        inset 0 -6px 6px rgba(0, 0, 0, 0.05),
+        inset 6px 6px 12px rgba(255, 245, 220, 0.7);
+    border: 2px solid #b57e54;
+    border-top: none;
+    transition: transform 0.2s;
+}
+
+/* 晃动动画 (幽默交互) */
+.teapot.wobble {
+    animation: teapotShake 0.4s ease-in-out;
+}
+
+@keyframes teapotShake {
+
+    0%,
+    100% {
+        transform: rotate(0deg);
+    }
+
+    25% {
+        transform: rotate(4deg);
+    }
+
+    50% {
+        transform: rotate(-4deg);
+    }
+
+    75% {
+        transform: rotate(2deg);
+    }
+}
+
+/* 壶盖 */
+.lid {
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90px;
+    height: 28px;
+    background: #c28b5e;
+    border-radius: 50% 50% 30% 30% / 60% 60% 20% 20%;
+    box-shadow: 0 6px 0 #7a4f2e, inset 0 4px 6px #eab88a;
+    border: 1.5px solid #a56e44;
+    z-index: 5;
+}
+
+.lid-knob {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 22px;
+    height: 18px;
+    background: #e6b381;
+    border-radius: 40% 40% 30% 30%;
+    box-shadow: 0 4px 0 #996b42, inset 0 2px 4px #ffefd6;
+    border: 1px solid #b47a4e;
+}
+
+/* 壶嘴 (傲娇的嘴) */
+.spout {
+    position: absolute;
+    right: -24px;
+    top: 45px;
+    width: 38px;
+    height: 52px;
+    background: #d9a06c;
+    border-radius: 0 60% 40% 0 / 20% 70% 30% 30%;
+    transform: rotate(18deg);
+    box-shadow: 6px 8px 0 #8b5e3c, inset 3px -2px 8px #efcaa2, inset -3px 0 4px rgba(0, 0, 0, 0.05);
+    border: 1.5px solid #b57e54;
+    border-left: none;
+    z-index: 2;
+}
+
+/* 把手 */
+.handle {
+    position: absolute;
+    left: -28px;
+    top: 35px;
+    width: 45px;
+    height: 70px;
+    border: 10px solid #c48a5c;
+    border-left-color: #ac7048;
+    border-top-color: #b47a52;
+    border-radius: 50% 30% 30% 50% / 40% 50% 50% 40%;
+    transform: rotate(-5deg);
+    box-shadow: 4px 8px 0 #7a4f2e, inset -4px -2px 6px #edc8a6;
+    border-right: 8px solid #b27a50;
+    z-index: 1;
+}
+
+/* 茶壶的幽默表情 -- 傲娇+厌世 */
+.face {
+    position: absolute;
+    top: 45%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 90px;
+    display: flex;
+    justify-content: space-around;
+    z-index: 8;
+}
+
+.eye {
+    width: 24px;
+    height: 28px;
+    background: #fef9e8;
+    border-radius: 50% 50% 40% 40%;
+    box-shadow: inset 0 -2px 4px #b0987a, 0 4px 0 #6b4a2e;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #966842;
+}
+
+.pupil {
+    width: 12px;
+    height: 16px;
+    background: #2e1c0e;
+    border-radius: 50%;
+    transition: all 0.15s;
+    box-shadow: inset 0 0 4px #4a2e1a, 0 0 0 2px #6f4a2b;
+}
+
+/* 傲娇眉毛 */
+.eyebrow {
+    position: absolute;
+    top: -8px;
+    width: 28px;
+    height: 6px;
+    background: #5a3b22;
+    border-radius: 6px;
+    transform: rotate(-8deg);
+}
+
+.left-eye .eyebrow {
+    left: 0;
+    transform: rotate(-12deg);
+}
+
+.right-eye .eyebrow {
+    right: 0;
+    transform: rotate(12deg);
+}
+
+/* 嘴巴 (不屑) */
+.mouth {
+    position: absolute;
+    bottom: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 42px;
+    height: 16px;
+    border-bottom: 5px solid #6b3e1e;
+    border-radius: 0 0 30% 30%;
+    z-index: 9;
+}
+
+/* 腮红 (害羞但倔强) */
+.blush {
+    position: absolute;
+    bottom: 15px;
+    width: 22px;
+    height: 12px;
+    background: #f5a3a3;
+    opacity: 0.5;
+    border-radius: 50%;
+    filter: blur(4px);
+    z-index: 7;
+}
+
+.blush-left {
+    left: 25px;
+}
+
+.blush-right {
+    right: 25px;
+}
+
+/* 蒸汽 (幽默动态) */
+.steam {
+    position: absolute;
+    top: -30px;
+    left: 30%;
+    display: flex;
+    gap: 10px;
+    z-index: 15;
+}
+
+.steam span {
+    display: block;
+    width: 10px;
+    height: 24px;
+    background: rgba(240, 230, 210, 0.7);
+    border-radius: 40% 40% 20% 20%;
+    filter: blur(4px);
+    animation: steamFloat 2.5s infinite ease-in-out;
+    opacity: 0;
+}
+
+.steam span:nth-child(2) {
+    animation-delay: 0.5s;
+    width: 13px;
+    height: 28px;
+}
+
+.steam span:nth-child(3) {
+    animation-delay: 1.2s;
+    width: 8px;
+    height: 18px;
+}
+
+@keyframes steamFloat {
+    0% {
+        opacity: 0;
+        transform: translateY(8px) scale(0.8);
+    }
+
+    30% {
+        opacity: 0.45;
+    }
+
+    70% {
+        opacity: 0.25;
+    }
+
+    100% {
+        opacity: 0;
+        transform: translateY(-35px) scale(1.4);
+    }
+}
+
+/* 咖啡禁令标志 (幽默点缀) */
+.coffee-ban {
+    margin: 0.5rem 0 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #5d3f28;
+}
+
+.coffee-ban .icon {
+    font-size: 2.4rem;
+    color: #a1582b;
+    filter: drop-shadow(0 4px 4px rgba(0, 0, 0, 0.1));
+}
+
+.ban-text {
+    background: #e7cfb5;
+    padding: 0.2rem 1.2rem;
+    border-radius: 40px;
+    font-size: 1.2rem;
+    font-weight: 600;
+    border: 1px dashed #9f6e48;
+    color: #3e2a1b;
+}
+
+/* 幽默文案 */
+.message {
+    font-size: 1.4rem;
+    font-weight: 600;
+    margin: 0.5rem 0 0.2rem;
+    color: #523f2e;
+    line-height: 1.4;
+}
+
+.sub-message {
+    color: #745f4b;
+    font-size: 1rem;
+    margin-bottom: 1.8rem;
+    padding: 0 0.5rem;
+    font-style: italic;
+}
+
+.rfc-quote {
+    background: #efe0d0;
+    border-radius: 30px;
+    padding: 0.7rem 1.2rem;
+    font-family: monospace;
+    font-size: 0.9rem;
+    color: #3b2b1e;
+    margin-bottom: 1.8rem;
+    border-left: 6px solid #b2835a;
+    box-shadow: inset 0 1px 4px #ccb094;
+    text-align: left;
+    max-width: 90%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* 按钮组 */
+.button-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    margin: 1.5rem 0 0.8rem;
+}
+
+.btn {
+    background: #efdac8;
+    border: 2px solid #ab7b58;
+    color: #412f21;
+    padding: 0.8rem 1.8rem;
+    font-weight: 700;
+    font-size: 1.1rem;
+    border-radius: 60px;
+    box-shadow: 0 6px 0 #8b6244, 0 4px 8px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    transition: all 0.1s;
+    font-family: 'Quicksand', sans-serif;
+    backdrop-filter: blur(4px);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn .icon {
+    font-size: 1.2rem;
+}
+
+.btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 9px 0 #8b6244, 0 6px 12px rgba(0, 0, 0, 0.1);
+    background: #f3e2d4;
+}
+
+.btn:active {
+    transform: translateY(3px);
+    box-shadow: 0 3px 0 #8b6244, 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.btn.coffee-btn {
+    background: #b58d70;
+    border-color: #624a38;
+    color: #fcf3e8;
+    box-shadow: 0 6px 0 #5a3f2d;
+}
+
+.btn.coffee-btn:hover {
+    background: #c9a185;
+}
+
+/* 日志/彩蛋计数器 */
+.counter-panel {
+    margin-top: 2rem;
+    font-size: 0.9rem;
+    color: #5b4637;
+    background: #eedbcb;
+    border-radius: 30px;
+    padding: 0.6rem 1.2rem;
+    display: inline-block;
+    border: 1px solid #cdad8f;
+    box-shadow: inset 0 1px 6px #ddc5b1;
+}
+
+.counter-panel .icon {
+    margin-right: 6px;
+    color: #aa6e44;
+}
+
+.toast-message {
+    margin-top: 12px;
+    min-height: 32px;
+    font-weight: 600;
+    color: #6b3f20;
+    transition: opacity 0.2s;
+}
+
+/* 响应式 */
+@media (max-width: 480px) {
+    .card {
+        padding: 1.8rem 1rem 2rem;
+    }
+
+    .status-code {
+        font-size: 5.5rem;
+    }
+
+    .teapot-container {
+        transform: scale(0.85);
+    }
+
+    .message {
+        font-size: 1.2rem;
+    }
+}

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>418 · 我是个茶壶</title>
+    <!-- 字体由 @fontsource 自托管 (见 418.css 顶部的 @import), 不再请求 Google Fonts -->
+    <link rel="stylesheet" href="./418/418.css">
+</head>
+
+<body>
+    <!--
+        图标 sprite: 这里只定义 <symbol>, 页面里用 <use href="#i-xxx"> 引用.
+        取代原来的 Font Awesome webfont (少一个 ~100KB 的 CSS + 一整套字体文件).
+        图标取自 Font Awesome Free 7.3.1 -- Icons: CC BY 4.0, https://fontawesome.com/license/free
+        注: 原来的 fa-mug-tea 在 Font Awesome 6.0.0-beta3 里并不存在(一直渲染为空白),
+        这里统一用 mug-saucer.
+    -->
+    <svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden"
+        aria-hidden="true" focusable="false">
+        <defs>
+            <symbol id="i-mug-saucer" viewBox="0 0 576 512"><path fill="currentColor" d="M64 64c0-17.7 14.3-32 32-32l352 0c70.7 0 128 57.3 128 128S518.7 288 448 288c0 53-43 96-96 96l-192 0c-53 0-96-43-96-96L64 64zm448 96c0-35.3-28.7-64-64-64l0 128c35.3 0 64-28.7 64-64zM64 448l384 0c17.7 0 32 14.3 32 32s-14.3 32-32 32L64 512c-17.7 0-32-14.3-32-32s14.3-32 32-32z"/></symbol>
+            <symbol id="i-mug-hot" viewBox="0 0 576 512"><path fill="currentColor" d="M152-16c-13.3 0-24 10.7-24 24 0 38.9 23.4 59.4 39.1 73.1l1.1 1c16.3 14.3 23.8 21.8 23.8 37.9 0 13.3 10.7 24 24 24s24-10.7 24-24c0-38.9-23.4-59.4-39.1-73.1l-1.1-1C183.5 31.7 176 24.1 176 8 176-5.3 165.3-16 152-16zM96 192c-17.7 0-32 14.3-32 32l0 192c0 53 43 96 96 96l192 0c41.8 0 77.4-26.7 90.5-64l5.5 0c70.7 0 128-57.3 128-128S518.7 192 448 192L96 192zM448 384l0-128c35.3 0 64 28.7 64 64s-28.7 64-64 64zM288 8c0-13.3-10.7-24-24-24S240-5.3 240 8c0 38.9 23.4 59.4 39.1 73.1l1.1 1c16.3 14.3 23.8 21.8 23.8 37.9 0 13.3 10.7 24 24 24s24-10.7 24-24c0-38.9-23.4-59.4-39.1-73.1l-1.1-1C295.5 31.7 288 24.1 288 8z"/></symbol>
+            <symbol id="i-ban" viewBox="0 0 512 512"><path fill="currentColor" d="M367.2 412.5L99.5 144.8c-22.4 31.4-35.5 69.8-35.5 111.2 0 106 86 192 192 192 41.5 0 79.9-13.1 111.2-35.5zm45.3-45.3c22.4-31.4 35.5-69.8 35.5-111.2 0-106-86-192-192-192-41.5 0-79.9 13.1-111.2 35.5L412.5 367.2zM0 256a256 256 0 1 1 512 0 256 256 0 1 1 -512 0z"/></symbol>
+            <symbol id="i-gavel" viewBox="0 0 576 512"><path fill="currentColor" d="M169.6 153.4l-18.7-18.7c-12.5-12.5-12.5-32.8 0-45.3L265.6-25.4c12.5-12.5 32.8-12.5 45.3 0L329.6-6.6c12.5 12.5 12.5 32.8 0 45.3L214.9 153.4c-12.5 12.5-32.8 12.5-45.3 0zM276 211.7l-31.4-31.4 112-112 119.4 119.4-112 112-31.4-31.4-232 232c-15.6 15.6-40.9 15.6-56.6 0s-15.6-40.9 0-56.6l232-232zM390.9 374.6c-12.5-12.5-12.5-32.8 0-45.3L505.6 214.6c12.5-12.5 32.8-12.5 45.3 0l18.7 18.7c12.5 12.5 12.5 32.8 0 45.3L454.9 393.4c-12.5 12.5-32.8 12.5-45.3 0l-18.7-18.7z"/></symbol>
+            <symbol id="i-leaf" viewBox="0 0 512 512"><path fill="currentColor" d="M471.3 6.7C477.7 .6 487-1.6 495.6 1.2 505.4 4.5 512 13.7 512 24l0 186.9c0 131.2-108.1 237.1-238.8 237.1-77 0-143.4-49.5-167.5-118.7-35.4 30.8-57.7 76.1-57.7 126.7 0 13.3-10.7 24-24 24S0 469.3 0 456C0 381.1 38.2 315.1 96.1 276.3 131.4 252.7 173.5 240 216 240l80 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-80 0c-39.7 0-77.3 8.8-111 24.5 23.3-70 89.2-120.5 167-120.5 66.4 0 115.8-22.1 148.7-44 19.2-12.8 35.5-28.1 50.7-45.3z"/></symbol>
+            <symbol id="i-message" viewBox="0 0 512 512"><path fill="currentColor" d="M203.7 512.9s0 0 0 0l-37.8 26.7c-7.3 5.2-16.9 5.8-24.9 1.7S128 529 128 520l0-72-32 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l320 0c53 0 96 43 96 96l0 224c0 53-43 96-96 96l-120.4 0-91.9 64.9zm64.3-104.1c8.1-5.7 17.8-8.8 27.7-8.8L416 400c26.5 0 48-21.5 48-48l0-224c0-26.5-21.5-48-48-48L96 80c-26.5 0-48 21.5-48 48l0 224c0 26.5 21.5 48 48 48l56 0c10.4 0 19.3 6.6 22.6 15.9 .9 2.5 1.4 5.2 1.4 8.1l0 49.7c32.7-23.1 63.3-44.7 91.9-64.9z"/></symbol>
+            <symbol id="i-circle-xmark" viewBox="0 0 512 512"><path fill="currentColor" d="M256 512a256 256 0 1 0 0-512 256 256 0 1 0 0 512zM167 167c9.4-9.4 24.6-9.4 33.9 0l55 55 55-55c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9l-55 55 55 55c9.4 9.4 9.4 24.6 0 33.9s-24.6 9.4-33.9 0l-55-55-55 55c-9.4 9.4-24.6 9.4-33.9 0s-9.4-24.6 0-33.9l55-55-55-55c-9.4-9.4-9.4-24.6 0-33.9z"/></symbol>
+            <symbol id="i-circle-exclamation" viewBox="0 0 512 512"><path fill="currentColor" d="M256 512a256 256 0 1 1 0-512 256 256 0 1 1 0 512zm0-192a32 32 0 1 0 0 64 32 32 0 1 0 0-64zm0-192c-18.2 0-32.7 15.5-31.4 33.7l7.4 104c.9 12.6 11.4 22.3 23.9 22.3 12.6 0 23-9.7 23.9-22.3l7.4-104c1.3-18.2-13.1-33.7-31.4-33.7z"/></symbol>
+            <symbol id="i-face-smile-wink" viewBox="0 0 512 512"><path fill="currentColor" d="M464 256a208 208 0 1 0 -416 0 208 208 0 1 0 416 0zM0 256a256 256 0 1 1 512 0 256 256 0 1 1 -512 0zm177.3 63.4C192.3 335 218.4 352 256 352s63.7-17 78.7-32.6c9.2-9.6 24.4-9.9 33.9-.7s9.9 24.4 .7 33.9c-22.1 23-60 47.4-113.3 47.4s-91.2-24.4-113.3-47.4c-9.2-9.6-8.9-24.8 .7-33.9s24.8-8.9 33.9 .7zM144 208a32 32 0 1 1 64 0 32 32 0 1 1 -64 0zm164 8c0 11-9 20-20 20s-20-9-20-20c0-33.1 26.9-60 60-60l16 0c33.1 0 60 26.9 60 60 0 11-9 20-20 20s-20-9-20-20-9-20-20-20l-16 0c-11 0-20 9-20 20z"/></symbol>
+            <symbol id="i-hand-peace" viewBox="0 0 448 512"><path fill="currentColor" d="M219 1.4c-35.2-3.7-66.6 21.8-70.3 57l-6.4 60.6-17.4-49.4C113.2 36.3 76.6 18.8 43.3 30.5S-7.6 78.8 4.1 112.1L56.9 262.2C41.7 276.7 32.2 297.3 32.2 320l0 24c0 92.8 75.2 168 168 168l48 0c92.8 0 168-75.2 168-168l0-120c0-35.3-28.7-64-64-64-7.9 0-15.4 1.4-22.4 4-10.4-21.3-32.3-36-57.6-36-.7 0-1.5 0-2.2 0l5.9-56.3c3.7-35.2-21.8-66.6-57-70.3zm-.2 155.4c-6.6 10.1-10.5 22.2-10.5 35.2l0 48c0 .7 0 1.4 0 2-5.1-1.3-10.5-2-16-2l-7.4 0-5.4-15.3 17-161.3c.9-8.8 8.8-15.2 17.6-14.2s15.2 8.8 14.2 17.6l-9.5 90.1zM79.6 85.6l54.3 154.4-21.7 0c-4 0-8 .3-11.9 .9L49.4 96.2c-2.9-8.3 1.5-17.5 9.8-20.4s17.5 1.5 20.4 9.8zM256.2 192c0-8.8 7.2-16 16-16s16 7.2 16 16l0 48c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-48zm38.4 108c10.4 21.3 32.3 36 57.6 36 5.5 0 10.9-.7 16-2l0 10c0 66.3-53.7 120-120 120l-48 0c-66.3 0-120-53.7-120-120l0-24c0-17.7 14.3-32 32-32l80 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-40 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l40 0c35.3 0 64-28.7 64-64 0-.7 0-1.4 0-2 5.1 1.3 10.5 2 16 2 7.9 0 15.4-1.4 22.4-4zm73.6-28c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-48c0-8.8 7.2-16 16-16s16 7.2 16 16l0 48z"/></symbol>
+        </defs>
+    </svg>
+
+    <!-- 背景漂浮元素 增加幽默气氛 -->
+    <div class="bg-float float-tea1">🍃</div>
+    <div class="bg-float float-tea2">🫖</div>
+    <div class="bg-float float-coffee">☕</div>
+
+    <div class="card">
+        <div class="status-code">418</div>
+        <div class="teapot-badge">
+            <svg class="icon" aria-hidden="true" focusable="false" style="margin-right: 8px;">
+                <use href="#i-mug-saucer"></use>
+            </svg> I'm a teapot
+        </div>
+
+        <!-- 茶壶主角 -->
+        <div class="teapot-container">
+            <div class="teapot" id="teapotMain">
+                <!-- 蒸汽 (默认可见,幽默) -->
+                <div class="steam">
+                    <span></span><span></span><span></span>
+                </div>
+                <!-- 盖子 -->
+                <div class="lid">
+                    <div class="lid-knob"></div>
+                </div>
+                <!-- 壶嘴 -->
+                <div class="spout"></div>
+                <!-- 把手 -->
+                <div class="handle"></div>
+
+                <!-- 表情部分 -->
+                <div class="face">
+                    <div class="eye left-eye">
+                        <div class="eyebrow"></div>
+                        <div class="pupil"></div>
+                    </div>
+                    <div class="eye right-eye">
+                        <div class="eyebrow"></div>
+                        <div class="pupil"></div>
+                    </div>
+                </div>
+                <div class="mouth"></div>
+                <div class="blush blush-left"></div>
+                <div class="blush blush-right"></div>
+            </div>
+        </div>
+
+        <!-- 咖啡禁令标志 (幽默核心) -->
+        <div class="coffee-ban">
+            <svg class="icon" aria-hidden="true" focusable="false">
+                <use href="#i-mug-hot"></use>
+            </svg>
+            <svg class="icon" aria-hidden="true" focusable="false" style="color: #b34e4e;">
+                <use href="#i-ban"></use>
+            </svg>
+            <span class="ban-text">咖啡? 恕不接待</span>
+            <svg class="icon" aria-hidden="true" focusable="false">
+                <use href="#i-mug-saucer"></use>
+            </svg>
+        </div>
+
+        <div class="message">
+            🫖 服务器:"我是一个茶壶,不是咖啡机!"
+        </div>
+        <div class="sub-message">
+            根据 RFC 2324 第2.3.2节,本实体拒绝冲泡咖啡.
+        </div>
+
+        <!-- RFC 搞笑引用 -->
+        <div class="rfc-quote">
+            <svg class="icon" aria-hidden="true" focusable="false" style="margin-right: 8px;">
+                <use href="#i-gavel"></use>
+            </svg>
+            Hyper Text Coffee Pot Control Protocol (HTCPCP/1.0)<br>
+            <span style="opacity:0.8;">"418 I'm a teapot -- 任何企图煮咖啡的请求都是对茶壶的侮辱."</span>
+        </div>
+
+        <!-- 互动按钮组 -->
+        <div class="button-group">
+            <button class="btn" id="makeTeaBtn">
+                <svg class="icon" aria-hidden="true" focusable="false">
+                    <use href="#i-leaf"></use>
+                </svg> 泡杯红茶
+            </button>
+            <button class="btn coffee-btn" id="requestCoffeeBtn">
+                <svg class="icon" aria-hidden="true" focusable="false">
+                    <use href="#i-mug-hot"></use>
+                </svg> 强行煮咖啡
+            </button>
+        </div>
+
+        <!-- 动态消息 & 拒绝计数器 -->
+        <div id="actionToast" class="toast-message">
+            <svg class="icon" aria-hidden="true" focusable="false">
+                <use href="#i-message"></use>
+            </svg> 等待您的指令...
+        </div>
+        <div class="counter-panel" id="counterPanel">
+            <svg class="icon" aria-hidden="true" focusable="false">
+                <use href="#i-circle-xmark"></use>
+            </svg> 今日拒绝咖啡请求: <span id="rejectCount">42</span> 次
+        </div>
+    </div>
+
+    <!-- 交互逻辑: 见 418/ (入口 index.ts; 图标 sprite 见页面顶部) -->
+    <script type="module" src="./418/index.ts"></script>
+</body>
+
+</html>

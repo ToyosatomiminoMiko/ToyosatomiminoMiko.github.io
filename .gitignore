@@ -4,3 +4,4 @@ dist/
 /prompt
 __pycache__/
 .scratch-p34/
+.scratch-451perf-profile/

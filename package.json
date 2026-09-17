@@ -5,6 +5,10 @@
   "description": "ToyosatomiminoMiko",
   "type": "module",
   "dependencies": {
+    "@fontsource/comic-neue": "^5.3.0",
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/quicksand": "^5.3.0",
+    "@fontsource/space-mono": "^5.3.0",
     "bootstrap": "^5.3.8",
     "katex": "^0.18.5"
   },
@@ -25,6 +29,7 @@
     "build": "npm run build:all",
     "preview": "vite preview",
     "test": "vitest run",
+    "perf:451": "node scripts/perf/451.mjs",
     "typecheck": "tsc --noEmit --noUnusedLocals --noUnusedParameters"
   }
 }
