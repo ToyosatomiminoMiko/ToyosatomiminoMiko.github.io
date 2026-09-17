@@ -43,7 +43,10 @@ fn vs_main(@builtin(vertex_index) vi : u32,
     let t = clamp(p.age / max(p.life, 0.001), 0.0, 1.0);
 
     // 原 CPU 版: alpha = min(1, life/maxLife*0.9+0.1) * (0.5 + sin(...)*0.2)
-    let fade = min(1.0, (1.0 - t) * 0.9 + 0.1);
+    // 寿命现在约等于"升过一屏"的时间, 所以 t 近似就是"升到多高".
+    // 原来的曲线从一半就开始明显变暗, 于是上半屏即使有粒子也看不出来;
+    // 改成前 37.5% 保持满亮, 之后线性收尾, 这样整屏亮度才均匀.
+    let fade = clamp((1.0 - t) * 1.6, 0.0, 1.0);
     let flicker = 0.82 + 0.18 * sin(sim.time * 3.0 + p.flick);
     // 刚重生时淡入, 避免突兀出现
     let birth = smoothstep(0.0, 0.12, t);

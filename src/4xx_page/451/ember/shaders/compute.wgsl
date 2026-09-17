@@ -33,16 +33,21 @@ fn update(@builtin(global_invocation_id) gid : vec3<u32>) {
         // 被指针"推开": 距离越近推力越大, 上限防止粒子被吹飞
         wind = -(toPointer / dist) * influence * 190.0 * sim.windScale;
     } else {
-        // 远处保留原有的一点点随机水平飘移
-        wind.x = (hash11(p.seed + floor(sim.time * 1.7) + p.flick) - 0.5) * 14.0;
+        // 远处保留一点随机水平漂移. 幅度从 14 提到 36: 寿命拉长之后,
+        // 原来的幅度只够让火星几乎笔直上升, 看着像一根根竖线
+        wind.x = (hash11(p.seed + floor(sim.time * 1.7) + p.flick) - 0.5) * 36.0;
     }
 
     // ---------- 积分 ----------
     var vel = p.vel + wind * dt;
-    // 空气阻力, 让横向速度自然收敛
-    vel = vel * (1.0 - clamp(2.6 * dt, 0.0, 1.0));
-    // 保留上升趋势, 防止阻力把火星完全拖停
-    if (vel.y > -34.0) { vel.y = mix(vel.y, -34.0, 0.08); }
+    // 横向: 阻尼照旧, 让侧向漂移自然收敛
+    vel.x = vel.x * (1.0 - clamp(2.6 * dt, 0.0, 1.0));
+    // 纵向: 只留很轻的阻尼. 以前纵向也用 2.6, 初速几百毫秒就被拖光, 稳态只剩
+    // ~23px/s, 再乘 1.6~3.8s 的寿命, 一生只升几十像素 -- 这正是"粒子全挤在
+    // 画面最底下一条"的根因.
+    vel.y = vel.y * (1.0 - clamp(0.8 * dt, 0.0, 1.0));
+    // 兜底: 收敛到这颗自己的巡航速度, 不会被阻力拖停
+    if (vel.y > -p.rise) { vel.y = mix(vel.y, -p.rise, 0.10); }
 
     p.pos = p.pos + vel * dt;
     p.vel = vel;

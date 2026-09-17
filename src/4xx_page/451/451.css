@@ -22,7 +22,6 @@
 
 body {
     width: 100%;
-    min-height: 100vh;
     background-color: #0a0301;
     font-family: 'Inter', 'Segoe UI', sans-serif;
     overflow-x: hidden;
@@ -46,7 +45,7 @@ body {
 .hero {
     position: relative;
     z-index: 10;
-    min-height: 100vh;
+    min-height: 99vh;
     width: 100%;
     display: flex;
     align-items: center;
@@ -367,6 +366,7 @@ body {
    对晕动症友好, 顺手也把"页面永远在重绘"这件事停下来.
    ------------------------------------------------------------------ */
 @media (prefers-reduced-motion: reduce) {
+
     .card::before,
     .temp-number,
     .flame-icon .icon {

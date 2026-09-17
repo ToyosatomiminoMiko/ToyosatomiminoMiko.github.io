@@ -209,6 +209,7 @@ export class EmberWebGPU {
 
         const viewport = this.measureViewport();
         if (isSameViewport(this.viewport, viewport)) return;
+        const first = this.viewport === null;
 
         this.viewport = viewport;
         this.physWidth = viewport.physWidth;
@@ -226,8 +227,13 @@ export class EmberWebGPU {
         this.historyViews = this.historyTextures.map((texture) => texture.createView());
         this.buildBindGroups();
 
-        // 画面尺寸变了: 让所有余烬重新从底部升起(按新宽度均匀铺开)
-        reseedParticleStore(device, store, this.particleCount, viewport.cssWidth, viewport.cssHeight);
+        // 首次只是把离屏纹理建起来, 粒子保留 createParticleStore() 那份"铺满整屏"
+        // 的预置状态. 原来这里无条件 reseed, 一上来就把所有粒子丢到屏幕下方,
+        // 于是刚打开页面时画面是空的, 要等好几秒才慢慢升满.
+        if (!first) {
+            // 画面尺寸变了: 让所有余烬重新从底部升起(按新宽度均匀铺开)
+            reseedParticleStore(device, store, this.particleCount, viewport.cssWidth, viewport.cssHeight);
+        }
         this.pingPong = 0;
     }
 
