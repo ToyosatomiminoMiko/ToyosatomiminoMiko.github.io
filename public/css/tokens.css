@@ -29,7 +29,15 @@
     --font-code: 'JetBrains Mono Slashed', 'Fira Code', 'Consolas', monospace;
 
     /* ---------- 背景 ---------- */
+    /* 站点默认背景图 */
     --bg-image-default: url("/images/bgimg/bgcode.gif");
+    /*
+     * 当前生效的背景图:运行时由 src/common/background.ts 用
+     * documentElement.style.setProperty() 改写(SETTING 标签页点缩略图),
+     * 没点过就一直回落到 --bg-image-default.
+     * 它是普通令牌,靠"内联自定义属性覆盖 :root 声明"生效,不依赖 !important.
+     */
+    --bg-image-active: var(--bg-image-default);
 
     /* ---------- 基础色 ---------- */
     --color-white: #ffffff;

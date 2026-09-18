@@ -23,9 +23,15 @@
 }
 
 body {
-    /* 防止 --darkreader-inline-bgimage */
-    background-image: var(--bg-image-default) !important;
-    /*background-image: url("/images/bgimg/bgstar.gif") !important;*/
+    /*
+     * 背景图取值链:--bg-image-active(SETTING 标签页点缩略图后由
+     * src/common/background.ts 改写)-> --bg-image-default(tokens.css 的默认图).
+     * 这里刻意不写 !important:
+     *   - 站点内部唯一的竞争者是 * 的 background: none,它权重更低,天然被压过;
+     *   - 对外不再和浏览器扩展抢 body 的内联样式,层叠战争交给用户自己的选择
+     *     (开启 Dark Reader 时由扩展决定深色呈现).
+     */
+    background-image: var(--bg-image-active);
     background-attachment: fixed;
 }
 

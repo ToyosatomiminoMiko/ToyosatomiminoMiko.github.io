@@ -8,18 +8,11 @@ import { mountRBT } from '@/rbt/rbt';
 import { OLEDCanvas } from '@/oled/oled';
 import { mountIEEE754 } from '@/ieee754/ieee754';
 import { mountMetroWindowAtMountId } from '@/metro_window/src/metro_window';
-import { BACKGROUND_IMAGE_CLASS, BACKGROUND_IMAGE_STYLE_PROPERTY } from '@/common/site.config';
+import { mountBackgroundSwitcher } from '@/common/background';
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 背景切换
-    const imgs = document.getElementsByClassName(BACKGROUND_IMAGE_CLASS);
-    for (let i = 0; i < imgs.length; i++) {
-        const img = imgs[i] as HTMLImageElement;
-        img.addEventListener('click', () => {
-            document.body.style.cssText =
-                BACKGROUND_IMAGE_STYLE_PROPERTY + ': url("' + img.src + '") !important;';
-        });
-    }
+    // 背景切换:把 SETTING 标签页缩略图的 URL 写进 --bg-image-active 令牌
+    mountBackgroundSwitcher();
 
     // 挂载所有独立控件(原生 TS)
     mountClock();
