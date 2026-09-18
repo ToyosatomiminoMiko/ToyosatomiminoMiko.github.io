@@ -7,7 +7,7 @@ import { mountClock } from '@/clock/clock';
 import { mountRBT } from '@/rbt/rbt';
 import { OLEDCanvas } from '@/oled/oled';
 import { mountIEEE754 } from '@/ieee754/ieee754';
-import { mountMetroWindowAtMountId } from '@/metro_window/src/metro_window';
+import { mountMetroWindowAtMountIds } from '@/metro_window/src/metro_window';
 import { mountBackgroundSwitcher } from '@/common/background';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -19,7 +19,9 @@ document.addEventListener('DOMContentLoaded', () => {
     mountRBT();
     new OLEDCanvas();
     mountIEEE754();
-    // 地铁车窗挂到 HOME 卡片的空宿主 #metro-window 上(挂载点 id 见其 config.ts).
-    // 组件内部按可见性自动暂停/恢复,切走标签页不会让 GPU 空转.
-    mountMetroWindowAtMountId();
+    // 地铁车窗拆成两块:舞台(画布)挂在 HOME 的空宿主 #metro-window 上,
+    // 控制台(整套设置面板)挂在 SETTING 的空宿主 #metro-params 上(挂载点 id
+    // 见其 config.ts 的 MOUNT_IDS).组件内部按可见性自动暂停/恢复,
+    // 切走标签页不会让 GPU 空转.
+    mountMetroWindowAtMountIds();
 });

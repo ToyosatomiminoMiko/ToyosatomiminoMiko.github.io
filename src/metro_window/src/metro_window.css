@@ -17,12 +17,28 @@
 - 注意 `font-family` 必须写成 `.metro-window, .metro-window *`:站点的通配重置
   给**每个元素**都设了字体,靠继承是传不下去的.
 
-宿主只需要一个带 `.metro-window` 类名的容器元素.
+宿主只需要带 `.metro-window` 类名的容器元素:组件拆成"舞台"(画布)与
+"控制台"(设置面板)两块,两个宿主都会由挂载函数补上这个类名(样式作用域),
+所以面板换到别的标签页也照样有样式.
 */
 .metro-window {
     padding: var(--metro-space-20);
     background: var(--metro-color-bg);
     color: var(--metro-color-text);
+}
+
+/* 舞台修饰类:由挂载函数固定加在舞台宿主上(面板宿主不加).
+   与默认(卡片内嵌)的区别只在"不要车窗面板的内边距与底色",让画布自己铺满
+   宿主;画布的显示尺寸仍由下面 `.metro-window canvas` 那条规则决定. */
+.metro-window--stage {
+    padding: 0;
+    background: none;
+}
+
+/* 面板宿主被省略时组件自建的隐藏容器:面板与状态区仍在 DOM 里,事件照常绑,
+   只是不显示(只想挂舞台的宿主 / 拆分过程中的中间态). */
+.metro-window .metro-panel-sink {
+    display: none;
 }
 
 .metro-window,

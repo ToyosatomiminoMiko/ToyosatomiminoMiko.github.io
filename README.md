@@ -1,6 +1,8 @@
 # main
 
-`2022.06.11.10:00:00`
+第一次部署时间`2022.06.11.10:00:00`
+
+$there$ $is$ $nothing$ $to$ $do.$
 
 &copy; ToyosatomiminoMiko(郝季仁)
 本项目基于*DeepSeek*生成的代码(MIT许可)开发
@@ -19,8 +21,10 @@
 
 ## 地铁车窗
 
-Rust + WASM + WebGPU 实时渲染的地铁车窗玻璃效果,挂在站点首页 HOME 卡片的
-`#metro-window` 空宿主上(挂载见 `src/main.ts`,源码在 `src/metro_window/`).
+Rust + WASM + WebGPU 实时渲染的地铁车窗玻璃效果,拆成"舞台"与"控制台"两块:
+画布挂在站点首页的空宿主 `#metro-window` 上,整套设置面板挂在 SETTING 标签页的
+空宿主 `#metro-params` 上(两个挂载点 id 见 `src/metro_window/src/config.ts`
+的 `MOUNT_IDS`;挂载见 `src/main.ts`,源码在 `src/metro_window/`).
 搬入前它是独立仓库
 [metro_window](https://github.com/ToyosatomiminoMiko/metro_window)(上游已归档).
 
@@ -98,7 +102,9 @@ Rust + WASM + WebGPU 实时渲染的地铁车窗玻璃效果,挂在站点首页 
 - **设置面板不手写 HTML**:结构与文案由 `src/metro_window/src/config.ts` 的
   声明式模型描述,由 `src/metro_window/src/ui/` 的组件渲染成元素并交回引用;
   加/改滑块只动配置,
-  宿主页(`index.html`)里只有一个空容器 `#metro-window`,不要回去改它.
+  宿主页(`index.html`)里只有两个空容器(`#metro-window` 舞台 /
+  `#metro-params` 控制台),不要回去改它们.面板放在哪个标签页由挂载点决定,
+  样式作用域类由挂载函数往两个宿主上补,组件本身不关心位置.
 - 等价性回归网:`cargo test` 与 `vitest` 覆盖参数布局与公式;
   程序化贴图还带 PPM 可视化测试,输出到 `src/metro_window/rust/test_output/`(已 gitignore).
 

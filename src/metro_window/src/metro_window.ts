@@ -1,32 +1,38 @@
 /*
 地铁车窗组件(可挂载)
 
-- 宿主页(index.html 的 HOME 卡片)只提供一个**空宿主** #metro-window,
-  车窗自己的标记(标题 / 副标题 / 画布)由 ui/window_content.ts 生成,设置面板
-  由 ui/settings.ts 按 config.ts 的声明式模型生成;本模块负责:
-  引入样式,长出标记,组装面板,绑定交互,加载 wasm,启动 WebGPU 渲染;
-- 做成"挂载函数"而不是页面入口,是把"宿主放哪,什么时候挂"留给宿主决定
-  (站点里已没有独立入口页,车窗只在首页 HOME 卡片挂一次).
+拆成两块,各挂各的宿主:
+
+- **舞台**(挂载点的 `stage`):宿主只提供一个**空容器**,画布(以及可选的
+  标题 / 副标题,见 config.ts 的 STAGE_COPY_ENABLED)由 ui/stage_content.ts 生成;
+- **控制台**(挂载点的 `panel`):整套设置面板(风格按钮 / 播放控制 / 全部滑块 /
+  状态区)由 ui/settings.ts 按 config.ts 的声明式模型生成,插进面板宿主;
+  省略面板宿主时退回一个隐藏容器,面板与状态区仍然存在,只是不显示.
+
+两个宿主都会由挂载函数补上样式作用域类 `.metro-window`:**样式全靠它作用域**,
+面板换了宿主却没这个类就是"样式静默失效".本模块负责:引入样式,长出标记,
+组装面板,绑定交互,加载 wasm,启动 WebGPU 渲染.
 
 所有字面量(id / 类名 / data-* 键名 / Rust 参数名 / 文案 / 阈值)都集中在
 @/metro_window/src/config.ts,标记与面板的结构集中在 @/metro_window/src/ui/,本文件只保留逻辑与生命周期.
 
 调用方式(两种等价写法,取一即可;导入统一用源码根别名 `@/`):
 
-    // 1) 宿主自己已经拿到了容器
+    // 1) 宿主自己已经拿到了容器(只挂舞台也行:面板退回隐藏容器)
     import { mountMetroWindow } from '@/metro_window/src/metro_window';
-    const el = document.getElementById('metro-window');
-    if (el) mountMetroWindow(el);
+    const stage = document.getElementById('metro-window');
+    const panel = document.getElementById('metro-params');
+    if (stage) mountMetroWindow({ stage, panel });
 
-    // 2) 按约定的挂载点 id 找容器(站点首页用这种,省得宿主自己写查找与报错)
-    import { mountMetroWindowAtMountId } from '@/metro_window/src/metro_window';
-    mountMetroWindowAtMountId();
+    // 2) 按约定的两个挂载点 id 找容器(站点入口用这种,省得宿主自己写查找与报错)
+    import { mountMetroWindowAtMountIds } from '@/metro_window/src/metro_window';
+    mountMetroWindowAtMountIds();
 
 宿主必须是**空容器**:标记全部由组件生成,已有的子节点不会被清掉,重复挂载
 只会把标记插两遍(wasm 侧的 App 是单例,本来也不允许挂载两次).
 
 单实例约束:wasm 侧的 App 是 crate 内的 thread_local 单例,setStyle/setParam/
-setRunning/reset 全都作用于它,所以一个页面只应挂载一次.
+setRunning/reset 全都作用于它,所以一个页面只应挂载一次(舞台上也只应有一张画布).
 */
 import './metro_window.css';
 
@@ -47,8 +53,10 @@ import {
     LOG_ADAPTER_PREFIX,
     MISSING_ELEMENT_MESSAGE_PREFIX,
     MISSING_MOUNT_MESSAGE_PREFIX,
-    MOUNT_ID,
+    MOUNT_IDS,
+    PANEL_SINK_CLASS,
     SOFTWARE_ADAPTER_PATTERN,
+    STAGE_MODIFIER_CLASS,
     STATUS_HTML_SEPARATOR,
     STATUS_LOADING_WASM,
     STATUS_NO_ADAPTER,
@@ -61,8 +69,9 @@ import {
     WEBGPU_HELP_STEPS,
     WINDOW_CLASS,
 } from './config';
+import { h } from '@/metro_window/src/ui/dom';
 import { createSettingsPanel, type SliderControl } from '@/metro_window/src/ui/settings';
-import { createWindowContent } from '@/metro_window/src/ui/window_content';
+import { createStageContent } from '@/metro_window/src/ui/stage_content';
 
 // WebGPU 适配器的最小类型定义(不依赖具体 TypeScript 版本的 DOM 类型)
 interface GpuAdapterInfo {
@@ -113,33 +122,69 @@ function decimalPlaces(step: number): number {
     return fraction === undefined ? 0 : fraction.length;
 }
 
-/**
- * 按约定的挂载点 id 找空宿主,再挂载车窗.
- * 站点首页的 src/main.ts 用这一条,省得宿主自己写一遍"找元素 + 报错".
- */
-export function mountMetroWindowAtMountId(): void {
-    const root = document.getElementById(MOUNT_ID);
-    if (!root) {
-        throw new Error(`${MISSING_MOUNT_MESSAGE_PREFIX}${MOUNT_ID}`);
-    }
-    mountMetroWindow(root);
+/** 两个挂载点的元素引用:舞台必需,控制台可省略(省略即不显示,见下方注释) */
+export interface MetroMountPoints {
+    /** 舞台宿主:承接画布(必填) */
+    readonly stage: HTMLElement;
+    /** 控制台宿主:承接整套设置面板;不给则退回隐藏容器 */
+    readonly panel?: HTMLElement;
 }
 
-export function mountMetroWindow(root: HTMLElement): void {
-    // 类名只在这里补:样式全靠它作用域,宿主漏写就是"样式静默失效",
-    // 补一下比让宿主去记这个约定划算(首页的 HTML 里就不写类名了).
-    root.classList.add(WINDOW_CLASS);
+/**
+ * 按约定的两个挂载点 id 找空宿主,再挂载车窗.
+ * 站点入口 src/main.ts 用这一条,省得宿主自己写一遍"找元素 + 报错".
+ * 两个 id 定义在 config.ts 的 MOUNT_IDS:舞台(画布)在首屏,控制台在 SETTING.
+ */
+export function mountMetroWindowAtMountIds(): void {
+    mountMetroWindow({
+        stage: mustFindMount(MOUNT_IDS.stage),
+        panel: mustFindMount(MOUNT_IDS.panel),
+    });
+}
 
-    // 标题 / 副标题 / 画布由组件生成(宿主只提供空容器);顺序即显示顺序.
-    root.append(...createWindowContent());
+/**
+ * 按 id 找一个宿主,找不到直接抛错.
+ * 这里和"省略 panel"是两回事:省略是宿主有意不显示面板(退回隐藏容器),
+ * 配了 id 却在页面里找不到是**布局写错了**,静默不挂比报错难查得多.
+ */
+function mustFindMount(id: string): HTMLElement {
+    const element = document.getElementById(id);
+    if (!element) {
+        throw new Error(`${MISSING_MOUNT_MESSAGE_PREFIX}${id}`);
+    }
+    return element;
+}
+
+/** 省略面板宿主时自建的隐藏容器(见 config.ts 的 PANEL_SINK_CLASS) */
+function createPanelSink(stage: HTMLElement): HTMLElement {
+    const sink = h('div', { class: PANEL_SINK_CLASS });
+    stage.append(sink);
+    return sink;
+}
+
+export function mountMetroWindow(points: MetroMountPoints): void {
+    const stage = points.stage;
+
+    // 类名只在这里补:样式全靠它作用域,宿主漏写就是"样式静默失效",
+    // 补一下比让宿主去记这个约定划算(站点的 HTML 里就不写类名了).
+    // 舞台额外带一个修饰类:把车窗面板的内边距与底色重置掉,让画布铺满宿主.
+    stage.classList.add(WINDOW_CLASS, STAGE_MODIFIER_CLASS);
+
+    // 画布(以及可选的标题 / 副标题)由组件生成(宿主只提供空容器);顺序即显示顺序.
+    stage.append(...createStageContent());
 
     // 画布仍然按 id 找回来:同一个 id 由 config.ts 的 ELEMENT_IDS 定义,
-    // window_content.ts 生成时用它,这里取值时也用它,两边不会各写一份.
-    const canvas = mustFind<HTMLCanvasElement>(root, ELEMENT_IDS.canvas);
+    // stage_content.ts 生成时用它,这里取值时也用它,两边不会各写一份.
+    const canvas = mustFind<HTMLCanvasElement>(stage, ELEMENT_IDS.canvas);
 
-    // 设置面板整体由声明式组件生成,紧跟在画布之后.
+    // 设置面板整体由声明式组件生成,挂到**另一个**宿主(站点放在 SETTING 标签页);
+    // 调用方没给面板宿主时退回一个隐藏容器,面板 / 状态区 / 事件绑定一个不少.
     const settings = createSettingsPanel();
-    canvas.after(settings.root);
+    const panel = points.panel ?? createPanelSink(stage);
+    // 面板宿主也要补样式作用域类:metro_window.css 的每条选择器都以 `.metro-window`
+    // 开头,面板换了宿主却没有这个类,样式会静默失效(看着"没坏"但全乱).
+    panel.classList.add(WINDOW_CLASS);
+    panel.append(settings.root);
 
     const setStatus = (message: string): void => {
         settings.status.textContent = message;
@@ -147,14 +192,16 @@ export function mountMetroWindow(root: HTMLElement): void {
     };
 
     // 容器不可见(被切走的标签页 / 滚出视口)时暂停;标签页是 display:none,
-    // 交集为空会直接反映成 isIntersecting === false
+    // 交集为空会直接反映成 isIntersecting === false.
+    // 观察对象始终是**舞台**(画布所在的那个容器):面板搬到别的标签页去了,
+    // 它可见与否不代表画面可见与否,不能拿来当暂停依据.
     const observer = new IntersectionObserver((entries) => {
         const entry = entries[entries.length - LAST_ENTRY_OFFSET];
         if (!entry) return;
         rootOnScreen = entry.isIntersecting;
         bootedRunning();
     });
-    observer.observe(root);
+    observer.observe(stage);
 
     document.addEventListener(EVENTS.visibilityChange, () => {
         documentVisible = !document.hidden;

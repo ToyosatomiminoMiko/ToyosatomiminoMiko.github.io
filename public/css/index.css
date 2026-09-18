@@ -46,7 +46,7 @@ main {
     margin-left: auto;
     margin-right: auto;
     margin-bottom: 0px;
-    height: 100vh;
+    min-height: 100vh;
     width: var(--main-width);
     background-color: rgba(0, 0, 0, 0);
 }
@@ -136,6 +136,14 @@ canvas#pixelCanvas {
 
 .bgul {
     list-style: none;
+    /*
+     * 让 ul 自己包住浮动子项(建立 BFC).
+     * 原来这里的浮动是溢出的:ul 高度算成 0,后面的兄弟块 -- SETTING 标签页里
+     * 紧接着它的地铁车窗控制台 #metro-params -- 会从 ul 的**顶边**开始排,
+     * 于是边框盒与缩略图重叠:缩略图浮在面板底色上,面板内容被挤到右侧.
+     * 以前 ul 后面什么都没有,这个泄漏一直没露出来;控制台搬到它下面才显形.
+     */
+    display: flow-root;
 }
 
 .bgli {

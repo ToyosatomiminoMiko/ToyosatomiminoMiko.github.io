@@ -1,10 +1,11 @@
 /*
 地铁车窗前端的集中配置(纯声明式数据,不含业务逻辑).
 
-页面只提供一个空宿主 #metro-window;车窗标记(标题 / 副标题 / 画布)由
-src/ui/window_content.ts 生成,设置面板(风格按钮 / 播放控制 / 滑块 /
-状态区)由 src/ui/ 下的声明式组件按本文件的模型生成;两边靠下面这些
-字符串对齐,一旦散落在代码里,改一处漏一处就是"静默失效",所以统一收到这里:
+页面提供**两个**空宿主:舞台(画布)与控制台(设置面板);舞台标记(画布,以及
+可选的标题 / 副标题)由 src/ui/stage_content.ts 生成,设置面板(风格按钮 /
+播放控制 / 滑块 / 状态区)由 src/ui/settings.ts 按本文件的模型生成;两边靠
+下面这些字符串对齐,一旦散落在代码里,改一处漏一处就是"静默失效",
+所以统一收到这里:
 
   - 宿主提供的挂载点 id,组件生成 / 查找的元素 id,类名 / data-* 键名;
   - 车窗标记的文案与画布渲染分辨率;
@@ -21,11 +22,38 @@ src/ui/window_content.ts 生成,设置面板(风格按钮 / 播放控制 / 滑�
 
 // ---------- DOM 契约 ----------
 
-/** 作用域类名:组件样式的选择器全靠它作用域,由挂载函数加到宿主上 */
+/** 作用域类名:组件样式的选择器全靠它作用域,由挂载函数加到**每一个**宿主上 */
 export const WINDOW_CLASS = 'metro-window';
 
-/** 挂载点 id:宿主页(站点首页)里的空容器用它,组件按它找容器 */
-export const MOUNT_ID = 'metro-window';
+/**
+ * 舞台宿主的修饰类:由挂载函数固定加在**舞台**宿主上(面板宿主不加).
+ * 它把车窗面板的内边距与底色重置掉,让画布自己铺满宿主 -- 首屏(hero)需要,
+ * 卡片内嵌时也无害(只是少一层内边距).画布的显示尺寸仍由 metro_window.css 决定.
+ */
+export const STAGE_MODIFIER_CLASS = 'metro-window--stage';
+
+/**
+ * 面板宿主被省略时,组件自建承载容器的类名.
+ * 这个容器是隐藏的:设置面板,状态区与事件绑定都还在(状态区仍要被 Rust 写到),
+ * 只是不显示 -- 留给"只想挂舞台"的宿主与拆分过程中的中间态.
+ */
+export const PANEL_SINK_CLASS = 'metro-panel-sink';
+
+/**
+ * 宿主必须提供的空容器 id(组件按 id 找,找不到就报错).
+ *
+ * 组件拆成"舞台"与"控制台"两块以后,一个页面里有两个宿主:
+ *   - stage:WebGPU 画布,站点放在首屏;
+ *   - panel:整套设置面板,站点放在 SETTING 标签页.
+ * 与下面的 ELEMENT_IDS 区别要分清:这里是**宿主必须提供**的,
+ * ELEMENT_IDS 是**组件自己生成**的.
+ */
+export const MOUNT_IDS = {
+    /** 舞台(画布)空宿主 */
+    stage: 'metro-window',
+    /** 控制台(设置面板)空宿主 */
+    panel: 'metro-params',
+} as const;
 
 /** 按 id 查元素时的选择器前缀:`#webgpu-canvas` 里的 `#` */
 export const ID_SELECTOR_PREFIX = '#';
@@ -37,7 +65,7 @@ export const MISSING_ELEMENT_MESSAGE_PREFIX = '找不到页面元素 #';
 export const MISSING_MOUNT_MESSAGE_PREFIX = '找不到挂载点 #';
 
 /**
- * 组件内部按 id 互相查找的元素.由 ui/window_content.ts 生成,metro_window.ts
+ * 组件内部按 id 互相查找的元素.由 ui/stage_content.ts 生成,metro_window.ts
  * 取回,两边都引用这里的值,所以它不是"宿主必须提供的 id".
  * 键名是用途,值一旦改动必须两处同时生效(都从这里取,改这里即可).
  */
@@ -49,13 +77,22 @@ export const ELEMENT_IDS = {
 // ---------- 车窗自身的页面级标记 ----------
 
 /*
- * 标题 / 副标题 / 画布这几块标记由 ui/window_content.ts 生成,不再是页面 HTML.
+ * 画布(以及可选的标题 / 副标题)由 ui/stage_content.ts 生成,不再是页面 HTML.
  *
- * 原因:宿主只提供空容器,文案与画布尺寸集中在这里定义一次 -- 宿主页(站点首页
- * HOME 卡片)不重复任何标记,改文案只动这一个文件.
+ * 原因:宿主只提供空容器,文案与画布尺寸集中在这里定义一次 -- 宿主页不重复
+ * 任何标记,改文案只动这一个文件.
  *
  * 注意与上面的区别:上面是"宿主必须提供的 id",这里是"组件自己生成的内容".
  */
+
+/**
+ * 舞台是否生成首屏文案(标题 + 副标题).
+ *
+ * false = 只出画布:站点把首屏(hero)文案交给页面自己负责(站名在导航左上角,
+ * 中央文案待定),组件不再往画面里塞字;WINDOW_TITLE / WINDOW_SUBTITLE 两个
+ * 字符串仍然保留在本文件里,以后要把文案交回组件,改这一个开关即可.
+ */
+export const STAGE_COPY_ENABLED = false;
 
 /** 车窗标题 <h1> 文案 */
 export const WINDOW_TITLE = '🚇 地铁车窗 · Rust + WebGPU';

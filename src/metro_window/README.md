@@ -15,35 +15,51 @@
 
 | | |
 | --- | --- |
-| 站点位置 | 站点首页 `index.html` 的 HOME 卡片体:空宿主 `#metro-window`,挂载见 `src/main.ts`(已没有独立入口页) |
+| 站点位置 | 站点首页 `index.html` 的**两个**空宿主:舞台(画布)`#metro-window` 在 HOME 标签页,控制台(设置面板)`#metro-params` 在 SETTING 标签页;挂载见 `src/main.ts`(已没有独立入口页) |
 | Rust 源码 | `src/metro_window/rust/`(crate `metro-window`,编译为 wasm32-unknown-unknown) |
 | 前端源码 | `src/metro_window/src/` |
-| 组件行为 | `src/metro_window/src/metro_window.ts`,导出 `mountMetroWindow(root: HTMLElement)` / `mountMetroWindowAtMountId()` |
+| 组件行为 | `src/metro_window/src/metro_window.ts`,导出 `mountMetroWindow(points: MetroMountPoints)` / `mountMetroWindowAtMountIds()` |
 | 运行时贴图 | 源码 `public/metro_window/resource/*.png`(站点 public),公开地址 `/metro_window/resource/*.png` |
 
 ### 组件形态
 
-前端做成了"挂载函数"而不是页面入口:**宿主只提供一个空容器**,标记由组件生成:
+前端做成了"挂载函数"而不是页面入口:**宿主只提供空容器**,标记由组件生成;
+组件拆成**舞台**(画布)与**控制台**(设置面板)两块,各挂各的宿主:
 
 ```ts
-import { mountMetroWindowAtMountId } from '@/metro_window/src/metro_window';
+import { mountMetroWindowAtMountIds } from '@/metro_window/src/metro_window';
 
-mountMetroWindowAtMountId();   // 找约定的挂载点 #metro-window,找不到就报错
+mountMetroWindowAtMountIds();   // 找约定的两个挂载点(见 MOUNT_IDS),缺一个就报错
 ```
 
-- **宿主只提供空容器**:站点首页里只有一个 `<div id="metro-window">`,
-  标题 / 副标题 / 画布由 `src/ui/window_content.ts` 按 `src/config.ts` 的
-  文案与分辨率生成,设置面板(风格按钮 / 播放控制 / 滑块 / 状态区)由
-  `src/ui/settings.ts` 按同一份模型生成,插在画布之后.宿主页不出现任何车窗
-  标记,加一个滑块只需要往 `SLIDER_GROUPS` 里加一条,改文案只动 `config.ts`.
+```ts
+// 或者自己给宿主:舞台必填,控制台可省略(省略则退回一个隐藏容器)
+import { mountMetroWindow } from '@/metro_window/src/metro_window';
+
+mountMetroWindow({ stage, panel });   // panel 不给:面板与状态区仍在,只是不显示
+```
+
+- **宿主只提供空容器**:站点里只有两个 `<div id="metro-window">` /
+  `<div id="metro-params">`;画布(以及可选的标题 / 副标题,见
+  `src/config.ts` 的 `STAGE_COPY_ENABLED`)由 `src/ui/stage_content.ts` 按
+  `src/config.ts` 的分辨率生成,设置面板(风格按钮 / 播放控制 / 滑块 / 状态区)由
+  `src/ui/settings.ts` 按同一份模型生成,插进**另一个**宿主.宿主页不出现任何
+  车窗标记,加一个滑块只需要往 `SLIDER_GROUPS` 里加一条,改文案只动 `config.ts`.
+- **拆分的两条硬约束**:
+  - 样式作用域类 `.metro-window` 由挂载函数往**两个**宿主上都补 --
+    `metro_window.css` 的每条选择器都以它开头,面板换了宿主却没这个类,
+    样式会**静默失效**(看着"没坏"但全乱);
+  - 渲染可见性只看**舞台**:`IntersectionObserver` 观察的是画布所在容器,
+    面板在别的标签页里可见与否不代表画面可见与否,不能拿来当暂停依据.
 - **声明式组件**:`src/ui/dom.ts` 的 `h()` 是唯一的 DOM 构造原语(描述 -> 元素),
-  `src/ui/window_content.ts`(车窗标记)与 `src/ui/settings.ts`(设置面板)
-  都是纯函数,不读页面,不改全局;`metro_window.ts` 把标记插进宿主,拿到组件交回的
+  `src/ui/stage_content.ts`(舞台标记)与 `src/ui/settings.ts`(设置面板)
+  都是纯函数,不读页面,不改全局;`metro_window.ts` 把标记插进各自的宿主,拿到组件交回的
   元素引用后绑事件,不再按 id 去 DOM 里找.滑块布局只在 `createSlider()` 里定义
   一处:最外层 `div.slider`,上层滑杆,下层"名称(左) + 数值(右)".
 - `metro_window.ts` 只做行为,`metro_window.css` 只做组件样式.
   `.metro-window` 类名由 `metro_window.ts` 挂上(宿主不用记这个约定),
-  组件只在容器内解析元素.
+  组件只在容器内解析元素.舞台还带一个修饰类 `.metro-window--stage`
+  (重置面板的内边距与底色,让画布铺满宿主),面板宿主不加.
 - 组件样式里**没有**页面级选择器:`body { margin: 0 }` 这类规则的宿主是站点,
   由站点的 `public/css/index.css` 负责;写进 `metro_window.css` 就等于让组件去改
   宿主页面的 body.原先独立页用的 `metro_index.css` 随入口页一起删掉了.
@@ -92,7 +108,7 @@ src/metro_window/
 │   ├── metro_window.ts  挂载函数:长出标记/组装面板/交互/WebGPU 适配器检查/生命周期
 │   ├── ui/
 │   │   ├── dom.ts             h():声明式 DOM 构造原语(描述 -> 元素)
-│   │   ├── window_content.ts  车窗标记组件(标题/副标题/画布)
+│   │   ├── stage_content.ts   舞台标记组件(画布,以及可选的标题/副标题)
 │   │   └── settings.ts        设置面板组件(按 config.ts 的模型生成并交回元素引用)
 │   ├── tokens.css       设计令牌(全部可调数值)
 │   └── metro_window.css 组件样式(全部以 .metro-window 作用域)
@@ -110,8 +126,9 @@ Rust -> wasm 的构建脚本放在**仓库的 tools 目录** `scripts/build_wasm
 的事:探测/补装 wasm32 target,并按 `Cargo.lock` 对齐 wasm-bindgen CLI 版本.
 
 > 这里没有 `index.html` / `page.ts` / `metro_index.css` / `public/`:并入站点后
-> 曾有一个 `/metro_window/` 独立入口页,后来撤掉,车窗只在站点首页 HOME 卡片
-> 挂一次 -- 页面级标记改由 `src/ui/window_content.ts` 生成,宿主只留空容器.
+> 曾有一个 `/metro_window/` 独立入口页,后来撤掉,车窗只在站点首页挂一次
+> (现在是两块:舞台在 HOME,控制台在 SETTING) -- 页面级标记改由
+> `src/ui/stage_content.ts` 生成,宿主只留空容器.
 > 运行时贴图也不再单独养一份 `public/`,而是集中到站点唯一的静态资源根
 > `public/metro_window/resource/`(URL 仍是 `/metro_window/resource/*.png`).
 
@@ -161,7 +178,7 @@ CI 侧(`.github/workflows/deploy.yml`)只多两步:`dtolnay/rust-toolchain@stabl
 ## 运行
 
 ```bash
-npm run dev        # 仓库根的 Vite 开发服务器,车窗在首页 http://127.0.0.1:5173/ 的 HOME 卡片里
+npm run dev        # 仓库根的 Vite 开发服务器:舞台在首页 http://127.0.0.1:5173/ 的 HOME 标签页,控制台在 SETTING 标签页
 npm run preview    # 预览 dist/ 里的构建产物
 ```
 
@@ -332,7 +349,7 @@ cargo run --package metro-window --example preview        # 用真实城市纹�
 | 删掉 `package.json` / `package-lock.json` / `vite.config.ts` / `tsconfig.json` / `build.sh` / `.gitignore` | 独立仓库的边界文件,由站点仓库统一接管;`scripts/build_wasm.sh` 保留了 npm 脚本做不到的那部分,`build:all` 步骤序列仍是单一事实源 |
 | 整个子项目从仓库根 `metro_window/` 挪进 `src/metro_window/`(Rust -> `rust/`,前端 -> `web/`,后者后来取消,见下) | 站点约定"代码在 `src/`":并入后不再留一个与 `src/` 平级的源码树;按语言/角色分成 `rust/` 与 `web/` 两个子目录,构建脚本归到仓库 tools 目录 `scripts/` |
 | 前端入口 `main.ts` -> `metro_window.ts`(行为)+ `metro_window.css`(样式) | 把行为做成"有标记就能挂"的模块,不再养一个页面级入口 |
-| 后来撤掉 `/metro_window/` 独立入口页(`index.html` / `page.ts` / `metro_index.css`),并入站点首页 | 车窗只在首页 HOME 卡片挂一次;页面级标记(标题/副标题/画布)改由 `src/ui/window_content.ts` 生成,宿主只留空容器 `#metro-window` |
+| 后来撤掉 `/metro_window/` 独立入口页(`index.html` / `page.ts` / `metro_index.css`),并入站点首页 | 车窗只在首页挂一次;页面级标记(画布,以及可选的标题/副标题)改由 `src/ui/stage_content.ts` 生成(当时叫 `window_content.ts`),宿主只留空容器 `#metro-window` |
 | 删掉 `web/design/city_mid.png.kra`(1.5 MB 的设计源文件) | 它只在独立页时代有用;入口页撤掉后不再参与构建,随后从仓库删除 |
 | `style.css` 全部选择器加 `.metro-window` 作用域,自定义属性加 `--metro-` 前缀 | 站点有一条 `* { ... }` 通配重置和 bootstrap,原来 `body`/`canvas`/`button` 的裸元素选择器会污染站点的其它页面 |
 | 新增渲染生命周期(IntersectionObserver + visibilitychange) | rAF 不会因为容器 `display:none` 而停,不禁的话切走标签页后 GPU 一直空转 |
@@ -350,6 +367,20 @@ cargo run --package metro-window --example preview        # 用真实城市纹�
 | 取消 `web/` 这一层:前端源码 `web/src/` -> 子项目根的 `src/`,wasm 产物 `web/pkg/` -> 子项目根的 `pkg/` | 前端只有一层,`web/` 没有任何信息量;子项目根直接是 `rust/`(crate)+ `src/`(前端)+ `pkg/`(产物),层级更短 |
 | `rust/prompt/` -> `rust/test_output/` | 该目录里放的是 `cargo test` 输出的 PPM 可视化产物,与"prompt(提示词/素材)"无关,旧名字会误导 |
 | 仓库根新增 `Cargo.toml`(cargo workspace),`Cargo.lock` 从 crate 移到仓库根,`[profile.release]` 也从 crate 移到根 manifest | 这个仓库以后还会加别的 Rust crate:workspace 让全仓库共用一份锁文件和一个 `target/`,在仓库根就能 `cargo test/clippy --workspace`,CI 也只缓存一处;成员在根 manifest 的 `members` 里显式列出 |
+
+### 组件拆分:舞台与控制台
+
+首屏要做成"画布铺满视口,导航文字直接压在画面上"(参考 kali.org 那种落地页),
+而原来的挂载函数把**舞台**(画布)和**控制台**(设置面板)焊在一次调用里,
+面板只能紧跟在画布后面 -- 两者同屏就必然压在画面上.所以按宿主拆成两块:
+
+| 改动 | 为什么 |
+| --- | --- |
+| `MOUNT_ID` -> `MOUNT_IDS { stage, panel }`;`mountMetroWindow(root)` -> `mountMetroWindow({ stage, panel? })`;`mountMetroWindowAtMountId()` -> `mountMetroWindowAtMountIds()` | 一个页面两个宿主:画布在首屏,设置面板在 SETTING 标签页."面板放哪"从此是站点的决定,组件不再假设两者同屏 |
+| `ui/window_content.ts` -> `ui/stage_content.ts`,`createWindowContent()` -> `createStageContent()`;新增 `STAGE_COPY_ENABLED` | 这个文件只管舞台;首屏文案(标题 / 副标题)当前不由组件生成(站名在导航左上角,中央文案待定),但两个字符串仍留在 `config.ts` 里,开关一开就回来 |
+| 样式作用域类由挂载函数往**两个**宿主上都补;新增舞台修饰类 `.metro-window--stage` 与隐藏容器 `.metro-panel-sink` | `metro_window.css` 的选择器**全部**以 `.metro-window` 开头:面板换了宿主却没这个类就是"样式静默失效"(看着没坏但全乱);省略面板宿主时退回隐藏容器,面板 / 状态区 / 事件绑定一个都不少 |
+| `IntersectionObserver` 明确只观察**舞台** | 面板在别的标签页里,它的可见性不代表画面的可见性,不能拿来当暂停依据 |
+| Rust 侧一行未改 | 面板只是换了 DOM 宿主;`startApp(canvas, status)` 要的 `status` 元素在任何宿主里都成立,`setStyle` / `setParam` / `setRunning` / `reset` 仍作用于同一个单例 |
 
 ### 归档状态与遗留
 
