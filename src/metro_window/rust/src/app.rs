@@ -125,7 +125,7 @@ impl App {
         surface.configure(&device, &config);
 
         // 用绝对路径(见 RESOURCE_BASE)而不是相对路径:
-        // 相对路径会随页面 URL 变化(例如 /web/index.html 这类回退地址),
+        // 相对路径会随页面 URL 变化(例如 /4xx_page/404.html 这类回退地址),
         // 导致 fetch 拿到 HTML 回退页而不是 PNG,从而报 Invalid PNG signature.
         set_status(&status, "正在加载城市纹理 (1/4)...");
         let bg = create_png_texture(&device, &queue, "city_bg", &city_png(CITY_BG_FILE)).await?;

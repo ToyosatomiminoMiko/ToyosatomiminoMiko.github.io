@@ -1,0 +1,26 @@
+# 仓库级 Cargo workspace(唯一的 Cargo.toml"根",成员是各子系统的 crate).
+#
+# 为什么放在仓库根:这个仓库本来就同时构建站点(TypeScript/Vite)和地铁车窗
+# (Rust -> wasm),以后还会继续加别的 Rust crate.workspace 定在仓库根之后:
+#   - 全仓库共用一份 Cargo.lock(就在本文件旁边),依赖版本只有一处事实源;
+#   - 全仓库共用根目录 target/(已在根 .gitignore 排除),不必每个 crate 各养一份;
+#   - 在仓库根直接 `cargo build/test/clippy/fmt --all`,不用 cd 进子目录,
+#     CI 也只需要缓存一个 target/.
+#
+# 新增 crate:把它的**目录**加进下面的 members(显式列出,不用通配,免得把
+# 非 crate 目录也卷进来),然后从仓库根跑一次 cargo 命令即可.
+# 目前成员:
+#   src/metro_window/rust  crate `metro-window`(wasm32-unknown-unknown)
+[workspace]
+resolver = "2"
+members = [
+    "src/metro_window/rust",
+]
+
+# 编译配置必须写在 workspace 根:成员 crate 里的 [profile.*] 会被 cargo 忽略,
+# 只认根 manifest 这一份.这里的瘦身参数原本写在 crate 的 Cargo.toml 里,
+# 是给 wasm 产物用的(见 scripts/build_wasm.sh);它对 workspace 内所有 crate 生效.
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true

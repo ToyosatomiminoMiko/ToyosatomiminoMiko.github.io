@@ -33,7 +33,5 @@ getrandom = { version = "0.3", features = ["wasm_js"] }
 [dev-dependencies]
 naga = "=24.0.0"
 
-[profile.release]
-opt-level = "s"
-lto = true
-strip = true
+# 说明:本 crate 是仓库根 Cargo.toml 里 workspace 的成员,Cargo.lock 与 target/
+# 都在仓库根;[profile.release] 也必须写在根 manifest(成员这里写了会被忽略).

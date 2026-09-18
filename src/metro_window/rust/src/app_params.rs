@@ -48,7 +48,7 @@ pub(crate) const INITIAL_STYLE_ID: u32 = 0;
 /// setStyle 允许的最大样式编号.
 ///
 /// 含义:前端可选样式数量 - 1;越界编号会被夹到该值,避免着色器走进未定义分支.
-/// 前端 (web/src/config.ts 的 STYLE_PRESETS) 目前提供 0 / 1 / 2 三种样式,因此上限为 2.
+/// 前端 (src/metro_window/src/config.ts 的 STYLE_PRESETS) 目前提供 0 / 1 / 2 三种样式,因此上限为 2.
 pub(crate) const MAX_STYLE_INDEX: u32 = 2;
 
 /// 城市贴图在站点里的公开路径前缀.
@@ -59,7 +59,7 @@ pub(crate) const MAX_STYLE_INDEX: u32 = 2;
 /// `public/` 按原路径挂载(dev)/拷贝(build),因此 URL 与目录层级一致,
 /// 不需要任何重写插件.
 ///
-/// 用绝对路径而不是相对路径:相对路径会随页面 URL 变化(例如 /web/index.html
+/// 用绝对路径而不是相对路径:相对路径会随页面 URL 变化(例如 /4xx_page/404.html
 /// 这类回退地址),导致 fetch 拿到 HTML 回退页而不是 PNG,从而报
 /// Invalid PNG signature.
 pub(crate) const RESOURCE_BASE: &str = "/metro_window/resource";
@@ -81,7 +81,7 @@ pub(crate) fn city_png(file: &str) -> String {
 /// 单个实时滑块的配置.
 ///
 /// `name` 是前端 `setParam(name, value)` 传入的参数名,必须与
-/// web/src/config.ts 的 `param` 字段逐字一致(前端按名字调用,
+/// src/metro_window/src/config.ts 的 `param` 字段逐字一致(前端按名字调用,
 /// 名字一旦改动前端就会打到未知分支).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct SliderSpec {
@@ -129,7 +129,7 @@ impl SliderSpec {
 
 /// 全部实时滑块的配置表(名字 + clamp 范围).
 ///
-/// 顺序与前端控件一致;每一项的 `name` 必须与 web/src/config.ts
+/// 顺序与前端控件一致;每一项的 `name` 必须与 src/metro_window/src/config.ts
 /// 的 `param` 字段一致.`min` / `max` 是前端数值的合法区间:
 /// 越界值会被夹到边界而不是拒绝,保证着色器永远拿到安全输入.
 pub(crate) const SLIDERS: &[SliderSpec] = &[
@@ -219,7 +219,7 @@ pub(crate) fn slider_spec(name: &str) -> Option<SliderSpec> {
 mod tests {
     use super::*;
 
-    /// 前端实际使用的 12 个参数名(与 web/src/config.ts 的 SLIDER_GROUPS 一致).
+    /// 前端实际使用的 12 个参数名(与 src/metro_window/src/config.ts 的 SLIDER_GROUPS 一致).
     /// 这份清单是断言用的期望集合:表里多一个/少一个都会失败.
     const EXPECTED_SLIDER_NAMES: [&str; 12] = [
         "vehicle_speed",

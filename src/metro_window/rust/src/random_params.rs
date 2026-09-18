@@ -2,7 +2,7 @@
 白噪声哈希参数配置模块
 - hash01(x, y) 使用的全部整数哈希常量集中于此,便于统一调整 / 复现白噪声分布.
 - 这些常量是"随机分布"参数,不是渲染参数:任意改动都会整体改变噪声图案,
-  进而改变程序化贴图与 prompt/ 下的 PPM 基准图,非必要不要调整.
+  进而改变程序化贴图与 test_output/ 下的 PPM 基准图,非必要不要调整.
 - 哈希公式(x / y 为 u32,全程 wrapping 运算):
     h = (x * HASH_X_MUL + y * HASH_Y_MUL + HASH_BASE_ADD) * HASH_TAIL_MUL
     h ^= h >> HASH_SHIFT_1

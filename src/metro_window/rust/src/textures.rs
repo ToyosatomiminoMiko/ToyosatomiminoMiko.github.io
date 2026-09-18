@@ -461,19 +461,20 @@ pub fn generate_interior(w: u32, h: u32) -> (u32, u32, Vec<u8>) {
 
 /*
 测试用的 ppm 可视化输出
-- 统一写到本 crate 根下的 prompt/(cargo test 的 cwd 就是 crate 根,即
-  src/metro_window/rust/prompt):这些图是给 prompt 当素材看的,该目录已被仓库根
-  .gitignore 的 /src/metro_window/rust/prompt 忽略,不往仓库里丢生成物;
+- 统一写到本 crate 根下的 test_output/(cargo test 的 cwd 就是 crate 根,即
+  src/metro_window/rust/test_output):这些图是 cargo test 的产物,拿来看生成
+  结果对不对,该目录已被仓库根 .gitignore 的 /src/metro_window/rust/test_output
+  忽略,不往仓库里丢生成物;
 - 目录不存在时自动创建,单独跑某个测试也不会失败.
 */
 #[cfg(test)]
 pub(crate) fn write_ppm(name: &str, w: u32, h: u32, pixels: &[u8]) {
     // 输出目录(相对 crate 根)与 PPM(P6)文件头的最大通道值.
-    const OUTPUT_DIR: &str = "prompt";
+    const OUTPUT_DIR: &str = "test_output";
     const MAX_CHANNEL: u32 = 255;
 
     let dir: &std::path::Path = std::path::Path::new(OUTPUT_DIR);
-    std::fs::create_dir_all(dir).expect("创建 prompt/ 失败");
+    std::fs::create_dir_all(dir).expect("创建 test_output/ 失败");
     let mut header: Vec<u8> = format!("P6\n{w} {h}\n{MAX_CHANNEL}\n").into_bytes();
     header.extend_from_slice(pixels);
     let path: std::path::PathBuf = dir.join(name);

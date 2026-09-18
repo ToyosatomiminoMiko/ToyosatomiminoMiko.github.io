@@ -103,20 +103,20 @@ export default defineConfig({
         },
     },
     // 开发服务器:不要把 cargo 的构建目录交给文件监听器.
-    // 地铁车窗的 Rust crate 放在 src/metro_window/rust/ 下,它的 target/ 是
-    // 十几万个文件 / GB 级的构建缓存;让 chokidar 去遍历,轻则拖慢启动,
-    // 重则吃满 inotify watch.它和站点源码无关,直接忽略.
+    // cargo 用的是仓库根 Cargo.toml 的 workspace,所有 Rust crate 共用一个
+    // 根目录 target/:它是十几万个文件 / GB 级的构建缓存;让 chokidar 去遍历,
+    // 轻则拖慢启动,重则吃满 inotify watch.它和站点源码无关,直接忽略.
     server: {
         watch: {
-            ignored: ['**/src/metro_window/rust/target/**'],
+            ignored: ['**/target/**'],
         },
     },
     // 测试只需要纯 TS 单测(src/ 下,含地铁车窗前端的 config.test.ts).
-    // 排除 src/metro_window/rust/ 是必须的而不是洁癖:那边有 cargo 的 target/
+    // 排除 target/ 是必须的而不是洁癖:cargo 的 workspace 缓存就在仓库根
     // (构建后体积以 GB 计,文件数十万),让 vitest 去 glob 一遍会白白卡住整条流水线.
-    // 只排 rust/ 不排 web/:前端单测就在 src/metro_window/web/src 下,要照常收集.
+    // 地铁车窗的前端单测在新位置 src/metro_window/src 下,要照常收集.
     test: {
         include: ['src/**/*.test.ts'],
-        exclude: ['node_modules/**', 'dist/**', 'src/metro_window/rust/**'],
+        exclude: ['node_modules/**', 'dist/**', 'target/**'],
     },
 });

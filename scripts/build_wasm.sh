@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rust -> wasm32-unknown-unknown,再用 wasm-bindgen 生成 web/pkg/.
+# Rust -> wasm32-unknown-unknown,再用 wasm-bindgen 生成 src/metro_window/pkg/.
 #
 # 归属:脚本本体在仓库的 tools 目录 scripts/ 下,**由仓库根目录的 package.json 调用**
 # (`npm run build:wasm`).这样做是为了保住"构建步骤序列只有 package.json 一处
@@ -12,10 +12,16 @@
 #     版本得从 Cargo.lock 解析;版本不符时装到本子项目的 .cargo-tools/,
 #     不污染全局,也不需要手工维护版本常量.
 #
-# 涉及的三个目录(全部在 src/metro_window/ 下):
-#   rust/    Rust crate(Cargo.toml / src/ / examples/),编译目标
-#   web/     前端源码(src/)与生成物(pkg/)
-#   .cargo-tools/  版本对齐用的 wasm-bindgen CLI 安装位置
+# cargo 侧:workspace 根在仓库根(根 Cargo.toml 的 [workspace] 收录
+# src/metro_window/rust),所以 Cargo.lock 与 target/ 都在仓库根,
+# 这里从仓库根用 --package metro-window 指定要编的成员.
+#
+# 涉及的目录:
+#   src/metro_window/rust/   Rust crate(Cargo.toml / src/ / examples/),编译目标
+#   src/metro_window/src/    前端源码(TS/CSS)
+#   src/metro_window/pkg/    生成物:wasm-bindgen 输出(gitignore)
+#   src/metro_window/.cargo-tools/  版本对齐用的 wasm-bindgen CLI 安装位置
+#   target/                  workspace 共用的 cargo 构建缓存(仓库根,gitignore)
 #
 # 单独运行(只改了 Rust/WGSL 时):
 #   bash scripts/build_wasm.sh
@@ -27,10 +33,11 @@ set -Eeuo pipefail
 # 脚本在 scripts/ 下,仓库根是它的上一级
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 METRO_ROOT="${REPO_ROOT}/src/metro_window"
-CRATE_DIR="${METRO_ROOT}/rust"
-WEB_DIR="${METRO_ROOT}/web"
+PKG_DIR="${METRO_ROOT}/pkg"
+# workspace 的 target/ 在根 manifest 旁边,不随成员 crate 走
+TARGET_DIR="${REPO_ROOT}/target"
 
-cd "$CRATE_DIR"
+cd "$REPO_ROOT"
 
 log() {
     printf '[WASM][%s] %s\n' "$(date '+%Y.%m.%d.%H:%M:%S')" "$*"
@@ -63,7 +70,7 @@ if command -v rustup >/dev/null 2>&1 && ! rustup target list --installed | grep 
 fi
 
 log "编译 Rust(${target})"
-cargo build --release --target "$target"
+cargo build --release --target "$target" --package metro-window
 
 # CLI 与 crate 版本不一致时 wasm-bindgen 会在运行时报错,
 # 因此版本从 Cargo.lock 解析(cargo pkgid),不手工维护常量
@@ -96,12 +103,12 @@ if [ ! -x "$wb" ] || [ "$("$wb" --version 2>/dev/null)" != "wasm-bindgen $wb_ver
 fi
 log "wasm-bindgen ${wb_version} (${wb})"
 
-# web/pkg 先清空再生成:改了 --out-name 后不会残留旧文件
+# pkg/ 先清空再生成:改了 --out-name 后不会残留旧文件
 # (build:all 里的 clean 已经删过一次,这里保证单独执行也干净)
-rm -rf "$WEB_DIR/pkg"
-mkdir -p "$WEB_DIR/pkg"
-log "生成 web/pkg/(wasm-bindgen --target web)"
-"$wb" --target web --out-dir "$WEB_DIR/pkg" --out-name metro_window \
-    "${CRATE_DIR}/target/${target}/release/metro_window.wasm"
+rm -rf "$PKG_DIR"
+mkdir -p "$PKG_DIR"
+log "生成 src/metro_window/pkg/(wasm-bindgen --target web)"
+"$wb" --target web --out-dir "$PKG_DIR" --out-name metro_window \
+    "${TARGET_DIR}/${target}/release/metro_window.wasm"
 
-log "wasm 产物: ${WEB_DIR}/pkg"
+log "wasm 产物: ${PKG_DIR}"

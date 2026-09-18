@@ -70,7 +70,7 @@ Rust + WASM + WebGPU 实时渲染的地铁车窗玻璃效果,挂在站点首页 
 | 主站脚本 | `src/clock/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,OLED 画板尺寸/通道/文案,红黑树布局与配色,IEEE 754 精度格式与掩码,站点级共用值 |
 | 4xx 页面样式 | `src/4xx_page/418/418_tokens.css`,`src/4xx_page/451/451_tokens.css`;`404/404.css` 与 `shared/icon.css` 顶部的 `:root` 块 | 各彩蛋页的设计令牌(颜色 / 几何 / 阴影 / 时长 / 字体) |
 | 4xx 页面脚本 | `src/4xx_page/418/teapot/config.ts`,`src/4xx_page/451/boot.config.ts`,`src/4xx_page/451/ember/*.config.ts` | 茶壶交互,启动开关,GPU 计时 / 统计 / 资源 / 能力 / 性能面板参数 |
-| 地铁车窗前端 | `src/metro_window/web/src/config.ts`,`src/metro_window/web/src/ui/`,`src/metro_window/web/src/tokens.css` | DOM id / class,`data-*` 键名,`setParam` 参数名映射,车窗标记与设置面板的声明式模型(标题/副标题/画布分辨率/滑块分组 / 风格 / 按钮 / 文案);声明式 DOM 组件(`h()` + 车窗标记 + 设置面板);组件设计令牌 |
+| 地铁车窗前端 | `src/metro_window/src/config.ts`,`src/metro_window/src/ui/`,`src/metro_window/src/tokens.css` | DOM id / class,`data-*` 键名,`setParam` 参数名映射,车窗标记与设置面板的声明式模型(标题/副标题/画布分辨率/滑块分组 / 风格 / 按钮 / 文案);声明式 DOM 组件(`h()` + 车窗标记 + 设置面板);组件设计令牌 |
 | 地铁车窗渲染 | `src/metro_window/rust/src/droplet_params.rs`,`app_params.rs`,`render_params.rs`,`random_params.rs`,`texture_params.rs` | 水滴生成 / 物理 / 折射 / 高光,主循环与资源路径,管线与绑定槽位,白噪声哈希,程序化贴图生成参数 |
 | 构建 | `vite.config.ts` | 多页入口,4xx 产物路径回移前缀 |
 
@@ -95,12 +95,12 @@ Rust + WASM + WebGPU 实时渲染的地铁车窗玻璃效果,挂在站点首页 
   "水珠边缘为什么不受低分辨率偏移图影响").
 - **DOM id / class / Rust 参数名**是跨语言契约:改动必须两边同时改,
   写错不会报错,只会静默失效,所以它们集中在配置文件里便于对照.
-- **设置面板不手写 HTML**:结构与文案由 `src/metro_window/web/src/config.ts` 的
-  声明式模型描述,由 `src/metro_window/web/src/ui/` 的组件渲染成元素并交回引用;
+- **设置面板不手写 HTML**:结构与文案由 `src/metro_window/src/config.ts` 的
+  声明式模型描述,由 `src/metro_window/src/ui/` 的组件渲染成元素并交回引用;
   加/改滑块只动配置,
   宿主页(`index.html`)里只有一个空容器 `#metro-window`,不要回去改它.
 - 等价性回归网:`cargo test` 与 `vitest` 覆盖参数布局与公式;
-  程序化贴图还带 PPM 可视化测试,输出到 `src/metro_window/rust/prompt/`(已 gitignore).
+  程序化贴图还带 PPM 可视化测试,输出到 `src/metro_window/rust/test_output/`(已 gitignore).
 
 ## 构建
 
@@ -121,6 +121,10 @@ lint:rs -> clean -> build:wasm -> test(vitest) -> test:rs(cargo) -> build:app
 
 工具链:`node` / `npm`,以及 **`cargo` / `rustc` + `wasm32-unknown-unknown`** --
 地铁车窗是 Rust->wasm 的,前端入口静态 import 它的产物,所以 Rust 是构建期硬依赖,
-不是可选项.wasm 产物(`metro_window/web/pkg/`)与 `metro_window/target/` 不入库,
+不是可选项.仓库根有一份 `Cargo.toml`,它是**整个仓库的 cargo workspace**
+(成员目前只有地铁车窗的 crate,以后新增 Rust 直接往 `members` 里加):`Cargo.lock`
+与构建缓存 `target/` 都在仓库根,所有 crate 共用,`cargo test` / `cargo clippy`
+等命令在仓库根直接跑 `--workspace` 即可,不必 cd 进子目录.
+wasm 产物(`src/metro_window/pkg/`)与 `target/` 不入库,
 缺产物时 `npm run dev` 会直接提示跑 `npm run build:wasm`,而不是抛 Vite 的解析错误.
 CI 见 [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml).

@@ -39,7 +39,7 @@ mod tests {
         const TEST_CHANNELS: u32 = 3;
         // 灰度量化上限:浮点 [0,1] 乘它取整得到 u8.
         const TEST_CHANNEL_MAX: f32 = 255.0;
-        // 输出文件名(写在 prompt/ 下).
+        // 输出文件名(写在 test_output/ 下).
         const TEST_PPM_NAME: &str = "hash01_64x64.ppm";
 
         let mut pixels: Vec<u8> =

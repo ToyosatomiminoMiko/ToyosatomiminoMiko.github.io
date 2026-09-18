@@ -42,7 +42,8 @@ jobs:
 
       # target/ 与 wasm-bindgen CLI 都不进仓库(见 .gitignore).冷缓存时 wgpu
       # 那一整棵依赖树要重编,所以两者的缓存都交给 rust-cache:
-      #   workspaces        -> src/metro_window/rust/target
+      #   workspaces        -> target(cargo workspace 根就是仓库根,见根 Cargo.toml,
+      #                        所有 Rust crate 共用这一个 target/)
       #   cache-directories -> src/metro_window/.cargo-tools(build_wasm.sh 把
       #                        wasm-bindgen CLI 装在这里,版本对齐 Cargo.lock)
       # cache-bin 关掉:命令行的 rustup/工具链代理由上面的 action 负责,
@@ -50,7 +51,7 @@ jobs:
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src/metro_window/rust -> target
+          workspaces: . -> target
           cache-directories: src/metro_window/.cargo-tools
           cache-bin: false
 
