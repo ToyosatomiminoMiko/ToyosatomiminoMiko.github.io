@@ -22,7 +22,9 @@
     },
     "include": [
         "src/**/*.ts",
-        "src/**/*.d.ts"
+        "src/**/*.d.ts",
+        "metro_window/web/src/**/*.ts",
+        "metro_window/web/src/**/*.d.ts"
     ],
     "exclude": [
         "node_modules",

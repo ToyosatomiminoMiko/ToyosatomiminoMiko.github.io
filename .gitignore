@@ -5,3 +5,13 @@ dist/
 __pycache__/
 .scratch-p34/
 .scratch-451perf-profile/
+
+# metro_window 子项目的生成物(生成过程见 package.json 的 build:wasm)
+/metro_window/target
+/metro_window/web/pkg
+# wasm-bindgen CLI 版本必须与 Cargo.lock 一致,不一致时由构建脚本装到这里
+/metro_window/.cargo-tools
+# cargo test 会把可视化用的 ppm 素材写到这里(cwd = crate 根)
+/metro_window/prompt
+# examples/preview 渲染出的单帧(cwd = crate 根)
+/metro_window/preview.png

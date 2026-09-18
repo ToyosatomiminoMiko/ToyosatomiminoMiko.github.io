@@ -31,8 +31,31 @@ jobs:
           node-version: "24"
           cache: "npm"
 
-      # 生产构建唯一入口:安装锁定依赖 -> 前端测试 -> TypeScript 检查 ->
-      # Vite 构建,分阶段日志由脚本输出.
+      # 地铁车窗(metro_window)是 Rust -> wasm 的,前端入口静态 import 它的产物,
+      # 所以构建期需要 wasm32 target 与 rustfmt/clippy(lint:rs 会跑).
+      # 工具链跟 stable 走:仓库只锁 Cargo.lock 里的依赖,不锁编译器版本.
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: rustfmt, clippy
+
+      # target/ 与 wasm-bindgen CLI 都不进仓库(见 .gitignore).冷缓存时 wgpu
+      # 那一整棵依赖树要重编,所以两者的缓存都交给 rust-cache:
+      #   workspaces        -> metro_window/target
+      #   cache-directories -> metro_window/.cargo-tools(build-wasm.sh 把
+      #                        wasm-bindgen CLI 装在这里,版本对齐 Cargo.lock)
+      # cache-bin 关掉:命令行的 rustup/工具链代理由上面的 action 负责,
+      # 再叠一层 ~/.cargo/bin 缓存只会把刚装好的代理换成旧的.
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: metro_window -> target
+          cache-directories: metro_window/.cargo-tools
+          cache-bin: false
+
+      # 生产构建唯一入口:安装锁定依赖 -> Rust lint -> wasm -> 测试 ->
+      # TypeScript 检查 -> Vite 构建,分阶段日志由脚本输出.
       - name: Install, test and build
         run: bash ./build.sh
 

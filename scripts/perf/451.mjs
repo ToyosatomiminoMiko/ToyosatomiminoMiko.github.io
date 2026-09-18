@@ -44,8 +44,7 @@ const MIME = {
   '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png',
   '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2',
-  '.ttf': 'font/ttf', '.webmanifest': 'application/manifest+json',
-  '.txt': 'text/plain; charset=utf-8',
+  '.ttf': 'font/ttf', '.txt': 'text/plain; charset=utf-8',
 };
 
 /** 场景 = 在页面里再注入一段 JS(用来成对地关掉某个嫌疑项, 做 A/B) */

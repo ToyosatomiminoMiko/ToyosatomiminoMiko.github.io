@@ -1,0 +1,39 @@
+# Rust 包配置
+# Rust + WebGPU 地铁车窗玻璃效果(wasm-bindgen 导出到前端)
+[package]
+name = "metro-window"
+version = "0.1.0"
+edition = "2021"
+description = "Rust + WebGPU 地铁车窗玻璃效果"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2.127"
+wasm-bindgen-futures = "0.4.77"
+js-sys = "0.3.104"
+web-sys = { version = "0.3.104", features = [
+    "console",
+    "Document",
+    "Element",
+    "HtmlCanvasElement",
+    "HtmlElement",
+    "Performance",
+    "Response",
+    "Window",
+] }
+wgpu = { version = "24", features = ["webgpu"] }
+png = "0.18"
+bytemuck = { version = "1", features = ["derive"] }
+rand = "0.9.2"
+# rand::rng() 在 wasm32-unknown-unknown 上需要浏览器熵源,这里显式启用 wasm_js 后端
+getrandom = { version = "0.3", features = ["wasm_js"] }
+
+[dev-dependencies]
+naga = "=24.0.0"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true

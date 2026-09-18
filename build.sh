@@ -33,12 +33,18 @@ trap 'err "build failed at line ${LINENO}"' ERR
 
 require_command node
 require_command npm
+# 地铁车窗(metro_window)是 Rust -> wasm 的,前端入口静态 import 它的产物,
+# 所以 cargo/rustc 已经是本仓库的构建期硬依赖.缺工具时在这里就说清楚,
+# 而不是等 npm run build:all 跑到一半才报.
+require_command cargo
+require_command rustc
 
 log "installing pinned dependencies from package-lock.json"
 npm ci --no-audit --no-fund
 
-# 流水线 = clean -> test -> build:app(内含 typecheck + vite build)
-log "running full build pipeline (clean -> test -> app)"
+# 流水线 = lint:rs -> clean -> build:wasm -> test(vitest) -> test:rs -> build:app
+# (build:app 内含 check:wasm + typecheck + vite build)
+log "running full build pipeline (lint -> clean -> wasm -> test -> app)"
 npm run build:all
 
 log "build succeeded"

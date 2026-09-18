@@ -1,0 +1,186 @@
+/*
+地铁车窗组件样式.
+- 深色控制台风格,16:9 画布与操作按钮
+
+**所有选择器都以 `.metro-window` 作用域开头**,这是硬性约束:
+  站点首页会 `@import` bootstrap,`public/css/index.css` 里还有一条
+  `* { margin:0; padding:0; border:0; background:none; font-family:consolas }`
+  的通配重置.那边是通配(0,0,0)选择器,只要本文件的选择器带上类名就能压住它;
+  反过来,原来那份"独立页面"写法里的 `body` / `canvas` / `button` 裸元素选择器
+  一旦进站,会连 OLED 的 `#pixelCanvas` 和 RBT 的 `#rbCanvas` 一起改样.
+- 自定义属性统一加 `--metro-` 前缀,避免和 bootstrap / 站点变量撞名.
+- 注意 `font-family` 必须写成 `.metro-window, .metro-window *`:站点的通配重置
+  给**每个元素**都设了字体,靠继承是传不下去的.
+
+宿主只需要一个带 `.metro-window` 类名的容器元素.
+*/
+.metro-window {
+    --metro-bg: #15181d;
+    --metro-panel: #00000033;
+    --metro-text: #e8ecf2;
+    --metro-muted: #9aa4b2;
+    --metro-accent: #57c7ff;
+    --metro-border: #39414f;
+
+    padding: 20px;
+    background: var(--metro-bg);
+    color: var(--metro-text);
+}
+
+.metro-window,
+.metro-window *,
+.metro-window *::before,
+.metro-window *::after {
+    box-sizing: border-box;
+    font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+.metro-window h1 {
+    font-size: 22px;
+    margin: 0 0 4px;
+}
+
+.metro-window .subtitle {
+    color: var(--metro-muted);
+    font-size: 13px;
+    margin: 0 0 14px;
+}
+
+.metro-window canvas {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: 1px solid #3a4150;
+    border-radius: 10px;
+    background: #05070a;
+}
+
+.metro-window .sliders {
+    margin: 16px 0 10px;
+    padding: 10px 14px 14px;
+    border: 1px solid var(--metro-border);
+    border-radius: 10px;
+}
+
+.metro-window .sliders legend {
+    padding: 0 6px;
+    color: var(--metro-accent);
+    font-size: 14px;
+}
+
+.metro-window .sliders:disabled {
+    opacity: .55;
+}
+
+.metro-window .slider-group {
+    margin-top: 8px;
+    border: none;
+}
+
+.metro-window .slider-group summary {
+    cursor: pointer;
+    color: var(--metro-muted);
+    font-size: 13px;
+    padding: 4px 0;
+    user-select: none;
+}
+
+.metro-window .slider-group summary:hover {
+    color: var(--metro-accent);
+}
+
+.metro-window .slider-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+    gap: 8px 18px;
+    margin-top: 6px;
+}
+
+.metro-window .slider-row {
+    display: grid;
+    grid-template-columns: minmax(96px, 1.1fr) minmax(140px, 2fr) 64px;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--metro-text);
+}
+
+.metro-window .slider-label {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+}
+
+.metro-window .slider-label small {
+    color: var(--metro-muted);
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.metro-window .slider-range {
+    width: 100%;
+    min-width: 0;
+    accent-color: var(--metro-accent);
+    cursor: pointer;
+}
+
+.metro-window .slider-value {
+    width: 100%;
+    background: #0d1120;
+    color: var(--metro-text);
+    border: 1px solid var(--metro-border);
+    border-radius: 6px;
+    padding: 4px 6px;
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 16px;
+}
+
+.metro-window .slider-value:focus {
+    border-color: var(--metro-accent);
+    outline: none;
+}
+
+.metro-window .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.metro-window button {
+    padding: 8px 14px;
+    border: 1px solid var(--metro-border);
+    border-radius: 6px;
+    color: var(--metro-text);
+    background-color: var(--metro-bg);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all .15s ease;
+}
+
+.metro-window button:hover:not(:disabled) {
+    border-color: var(--metro-accent);
+    color: var(--metro-accent);
+}
+
+.metro-window button:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+}
+
+.metro-window button.active {
+    border-color: var(--metro-accent);
+    background: rgba(87, 199, 255, .14);
+    color: var(--metro-accent);
+}
+
+.metro-window .gpu_info {
+    background: var(--metro-panel);
+    margin-top: 8px;
+}
+
+.metro-window .layers {
+    color: var(--metro-muted);
+    font-size: 12px;
+    margin-top: 8px;
+}

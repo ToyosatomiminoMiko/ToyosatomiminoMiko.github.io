@@ -217,14 +217,14 @@ WIN=420,300 npm run perf:451                      # 换窗口尺寸
 - `451/ember/config.ts` 里的 `MAX_DPR`(默认 1.5),`MAX_PIXELS`(默认 260 万),
   `MAX_FPS`(默认 60)用来压高 DPI 屏的填充率与刷新率;性能吃紧时先调这三个
 
-> 这几个开关曾经在**装了 Service Worker 的浏览器上完全失效**: workbox 默认只忽略
-> `utm_*` / `fbclid`,`?nogpu=1` 匹配不上预缓存条目, 就被 `navigateFallback` 兜底成了
-> 主页.已在 `vite.config.ts` 里用 `ignoreURLParametersMatching: [/.*/]` 修掉.
+> PWA / Service Worker 已整体移除,这几个开关现在是纯粹的 URL 参数,
+> 不再经过任何缓存层.
 
 ## 文件结构
 
 ```text
-vite-env.d.ts               `?raw` 导入的 ambient 声明(Vite 层面的全局能力)
+vite-env.d.ts               4xx 页的 ambient 声明壳(`?raw` 的声明已挪到项目级
+                            `src/vite-env.d.ts`,因为 metro_window 也要用)
 
 404.html                    404 页(纯 SVG, 无脚本)
 418.html                    418 页的标记 + 内联图标 sprite

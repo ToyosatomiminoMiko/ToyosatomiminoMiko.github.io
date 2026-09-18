@@ -1,6 +1,9 @@
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { defineConfig, type Plugin } from 'vite';
-import { VitePWA } from 'vite-plugin-pwa';
+// defineConfig 从 vitest/config 拿:它只是给 Vite 的 UserConfig 多加了 test 段,
+// 这样 vitest 的排除规则可以和构建配置写在同一个文件里,不必再养一份 vitest.config.ts
+import { defineConfig } from 'vitest/config';
+import type { Plugin } from 'vite';
 
 const here = (relativePath: string): string => fileURLToPath(new URL(relativePath, import.meta.url));
 
@@ -55,66 +58,56 @@ function fourXXPage(): Plugin {
     };
 }
 
+/**
+ * 地铁车窗的城市贴图(`metro_window/public/resource/*.png`).
+ *
+ * 这四张 PNG 既不进 JS 资源图,也拿不到带 hash 的地址:它们是 Rust 在运行时
+ * 自己 fetch 的(路径见 `metro_window/src/app.rs` 的 `RESOURCE_BASE`).
+ * 所以地址必须是构建后稳定可访问的,做法沿用上面 fourXXPage() 的双段式:
+ *   - dev:   Vite 的 publicDir 只能有一个,子项目的 public/ 不会被自动挂载,
+ *            这里把 /metro_window/resource/* 重写到 metro_window/public/resource/*;
+ *   - build: 按同名路径 emit 进产物,让 dev 与线上的 URL 完全一致.
+ *
+ * 资源留在 metro_window/public/ 而不是挪进站点 public/,是为了让这个子项目
+ * 自身完整:搬迁/回滚/对照上游归档时,不用再去站点 public/ 里翻.
+ */
+const METRO_PUBLIC_PREFIX = 'metro_window/resource/';
+const METRO_SOURCE_PREFIX = 'metro_window/public/resource/';
+
+function metroWindowAssets(): Plugin {
+    const sourceDir = here(METRO_SOURCE_PREFIX);
+    return {
+        name: 'metro-window-assets',
+
+        // 开发服务器:让 /metro_window/resource/*.png 直接可访问,与线上地址一致
+        configureServer(server) {
+            server.middlewares.use((req, _res, next) => {
+                if (req.url?.startsWith(`/${METRO_PUBLIC_PREFIX}`)) {
+                    req.url = `/${METRO_SOURCE_PREFIX}${req.url.slice(METRO_PUBLIC_PREFIX.length + 1)}`;
+                }
+                next();
+            });
+        },
+
+        // 构建:整目录按原路径写进产物(不 hash -- 地址是 Rust 里写死的)
+        enforce: 'post',
+        generateBundle() {
+            for (const name of readdirSync(sourceDir)) {
+                this.emitFile({
+                    type: 'asset',
+                    fileName: `${METRO_PUBLIC_PREFIX}${name}`,
+                    source: readFileSync(`${sourceDir}${name}`),
+                });
+            }
+        },
+    };
+}
+
 export default defineConfig({
     base: '/',
     plugins: [
         fourXXPage(),
-        VitePWA({
-            registerType: 'autoUpdate',
-            injectRegister: 'auto',
-            includeAssets: [
-                'favicon.ico',
-                'apple-touch-icon.png',
-                'pwa-192x192.png',
-                'pwa-512x512.png',
-            ],
-            manifest: {
-                name: 'ToyosatomiminoMiko',
-                short_name: 'Miko',
-                description: 'ToyosatomiminoMiko 的个人主页',
-                lang: 'zh-CN',
-                theme_color: '#0d0d0d',
-                background_color: '#0d0d0d',
-                display: 'standalone',
-                orientation: 'any',
-                scope: '/',
-                start_url: '/',
-                icons: [
-                    {
-                        src: 'pwa-192x192.png',
-                        sizes: '192x192',
-                        type: 'image/png',
-                    },
-                    {
-                        src: 'pwa-512x512.png',
-                        sizes: '512x512',
-                        type: 'image/png',
-                    },
-                    {
-                        src: 'pwa-maskable-512x512.png',
-                        sizes: '512x512',
-                        type: 'image/png',
-                        purpose: 'maskable',
-                    },
-                ],
-            },
-            workbox: {
-                globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,gif,woff2}'],
-                cleanupOutdatedCaches: true,
-                // 默认只忽略 utm_* / fbclid, 于是 /4xx_page/451.html?perf=1 匹配不上
-                // 预缓存条目, 被下面的 NavigationRoute 兜底成了 /index.html --
-                // 也就是说 ?nogpu=1 / ?perf=1 这些调试开关在装过 SW 的浏览器上全部失效.
-                // 本站资源名自带 hash, 忽略全部查询参数是安全的.
-                ignoreURLParametersMatching: [/.*/],
-                // 本 SW 的 scope 是 '/',它的 SPA 回退对站内所有导航生效,包括
-                // 其它项目页. GraphCalc 已拆到 /miko_graphcalc/,必须排除,否则
-                // 已经装过本 SW 的访客点进新站时,导航会被兜底成这里的主页,
-                // 新站自己的 SW 也就永远没机会注册接管.
-                navigateFallback: '/index.html',
-                navigateFallbackDenylist: [/^\/miko_graphcalc(\/|$)/],
-                maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
-            },
-        }),
+        metroWindowAssets(),
     ],
     build: {
         rollupOptions: {
@@ -125,7 +118,16 @@ export default defineConfig({
                 '4xx_page/404': here('src/4xx_page/404.html'),
                 '4xx_page/418': here('src/4xx_page/418.html'),
                 '4xx_page/451': here('src/4xx_page/451.html'),
+                // 地铁车窗的独立入口: 产物 -> dist/metro_window/index.html, 地址 /metro_window/
+                'metro_window/index': here('metro_window/index.html'),
             },
         },
+    },
+    // 测试只需要 src/ 下的纯 TS 单测.排除 metro_window/ 是必须的而不是洁癖:
+    // 那边有 cargo 的 target/(构建后体积以 GB 计,文件数十万),
+    // 让 vitest 去 glob 一遍会白白卡住整条流水线.
+    test: {
+        include: ['src/**/*.test.ts'],
+        exclude: ['node_modules/**', 'dist/**', 'metro_window/**'],
     },
 });
