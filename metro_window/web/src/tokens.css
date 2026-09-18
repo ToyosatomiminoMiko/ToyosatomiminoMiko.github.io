@@ -68,8 +68,9 @@
     /** 画布宽高比(16:9,与 index.html 里 canvas 的 1344x756 一致) */
     --metro-size-canvas-aspect: 16 / 9;
 
-    /** 滑块网格自动换行时单列的最小宽度 */
-    --metro-size-slider-grid-min: 320px;
+    /** 滑块的统一宽度(默认值):所有滑块都用它,所以宽度一致;
+        单个滑块要特殊宽度时,在 config.ts 的声明里写 `width` 覆盖. */
+    --metro-size-slider-width: 320px;
 
     /** 滑块"数值"输入框的固定宽度(在名称右侧,右对齐) */
     --metro-size-slider-value-col: 64px;

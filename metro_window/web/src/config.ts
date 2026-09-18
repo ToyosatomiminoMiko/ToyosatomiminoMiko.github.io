@@ -72,6 +72,20 @@ export const LAYERS_NOTE =
     'Layer 3 冷凝雾气 · Layer 4 车厢灯光与倒影';
 
 /**
+ * 滑块宽度的 CSS 自定义属性名.组件把它设在每个滑块最外层 div.slider 上,
+ * metro_window.css 的 `.slider` 再用 `var(--metro-slider-width)` 取用.
+ * 统一加 `--metro-` 前缀,避免和 bootstrap / 站点变量撞名.
+ */
+export const SLIDER_WIDTH_PROPERTY = '--metro-slider-width';
+
+/**
+ * 声明里没写 `width` 时的默认宽度.
+ * 指向 tokens.css 的设计令牌 `--metro-size-slider-width`,这样"默认宽度到底多少"
+ * 只在 tokens.css 里定义一次;不写 width 的滑块全都拿到同一个值,宽度自然统一.
+ */
+export const SLIDER_WIDTH_DEFAULT = 'var(--metro-size-slider-width)';
+
+/**
  * 单个实时滑块的声明式描述:既是标记(css 类名 / 范围 / 初始值),
  * 也是行为(param 名 / clamp 区间)的唯一来源.
  *
@@ -81,7 +95,8 @@ export const LAYERS_NOTE =
  * hint     -- 名称后的小字注释(可选),为空不渲染;
  * min/max  -- 前端可调区间(与 Rust 侧 clamp 区间各自独立,前端先夹一次);
  * step     -- 步长,同时决定显示小数位数;
- * value    -- 初始值.
+ * value    -- 初始值;
+ * width    -- 单个滑块的宽度(CSS 长度,可选),留空用 SLIDER_WIDTH_DEFAULT.
  */
 export interface SliderSpec {
     readonly id: string;
@@ -92,6 +107,13 @@ export interface SliderSpec {
     readonly max: number;
     readonly step: number;
     readonly value: number;
+    /**
+     * 单个滑块的宽度(CSS 长度,如 '320px' / '24rem' / '50%').
+     * 留空 => SLIDER_WIDTH_DEFAULT,也就是 tokens.css 的 --metro-size-slider-width;
+     * 因为默认所有滑块都不写 width,它们的宽度天然统一;只有确实需要特殊宽度
+     * (比如名字特别长)才在声明里单独覆盖一条.
+     */
+    readonly width?: string;
 }
 
 /** 一个可折叠的滑块分组(<details class="slider-group">) */

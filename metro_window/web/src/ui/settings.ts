@@ -24,6 +24,8 @@ import {
     PANEL_ID,
     PANEL_LEGEND,
     SLIDER_GROUPS,
+    SLIDER_WIDTH_DEFAULT,
+    SLIDER_WIDTH_PROPERTY,
     STATUS_ID,
     STATUS_INITIAL,
     STATUS_LABEL,
@@ -62,7 +64,7 @@ export interface SettingsPanel {
 
 /**
  * 一个实时滑块:上层滑杆,下层"名称(左) + 数值(右)".
- * 最外层是 div.slider,内边距/间距/圆角/底色都由这一层统一控制.
+ * 最外层是 div.slider,内边距/间距/圆角/底色/宽度都由这一层统一控制.
  */
 function createSlider(spec: SliderSpec): SliderControl {
     const range = h('input', {
@@ -84,6 +86,10 @@ function createSlider(spec: SliderSpec): SliderControl {
         range,
         h('div', { class: 'slider-meta' }, [label, number]),
     ]);
+    // 宽度:声明里写了 width 就用它,留空回落默认值(tokens.css 的 --metro-size-slider-width).
+    // 这里只设一个 CSS 自定义属性,真正的布局规则仍留在 metro_window.css 的 .slider 里;
+    // 因为默认所有声明都不写 width,所有滑块拿到同一个值,宽度自然统一.
+    root.style.setProperty(SLIDER_WIDTH_PROPERTY, spec.width ?? SLIDER_WIDTH_DEFAULT);
     return { spec, root, range, number };
 }
 

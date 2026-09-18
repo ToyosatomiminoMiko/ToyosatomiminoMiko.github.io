@@ -88,17 +88,22 @@
 }
 
 .metro-window .slider-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--metro-size-slider-grid-min)), 1fr));
+    display: flex;
+    flex-wrap: wrap;
     gap: var(--metro-space-8) var(--metro-space-18);
     margin-top: var(--metro-space-6);
 }
 
-/* 单个滑块:最外层是 div,内边距/间距/圆角/底色都只在这一层统一控制.
+/* 单个滑块:最外层是 div,内边距/间距/圆角/底色/宽度都只在这一层统一控制.
+   宽度取组件写在元素上的 --metro-slider-width(声明留空时由 JS 落到
+   --metro-size-slider-width);`0 1` 表示只收缩不伸张 -- 一排里的滑块不会
+   因为分摊剩余空间而宽度各不相同,只有窄到放不下时才允许收缩.
    内部固定两层:上层滑杆,下层"名称(左) + 数值(右)". */
 .metro-window .slider {
     display: flex;
     flex-direction: column;
+    flex: 0 1 var(--metro-slider-width);
+    max-width: 100%;
     gap: var(--metro-space-6);
     min-width: 0;
     padding: var(--metro-space-8);
