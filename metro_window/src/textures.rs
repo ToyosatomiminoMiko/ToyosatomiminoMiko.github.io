@@ -28,6 +28,8 @@
      (出现过 RGB=(170,255,255)),所以 generate_dirt 里有 MIN_WEIGHT 下限.
 */
 use crate::random::hash01;
+use crate::render_params::{RENDER_TARGET_FORMAT, RGBA_BYTES_PER_PIXEL};
+use crate::texture_params::{dirt, fog, interior, noise, CHANNEL_MAX};
 use wasm_bindgen::JsCast;
 use web_sys::window;
 
@@ -140,7 +142,7 @@ pub fn create_texture(
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8Unorm,
+        format: RENDER_TARGET_FORMAT,
         usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     });
@@ -154,7 +156,7 @@ pub fn create_texture(
         rgba,
         wgpu::TexelCopyBufferLayout {
             offset: 0,
-            bytes_per_row: Some(4 * width),
+            bytes_per_row: Some(RGBA_BYTES_PER_PIXEL * width),
             rows_per_image: Some(height),
         },
         size,
@@ -185,7 +187,7 @@ t [0,1]
 完美对称: f(1-t)=1-f(t), 关于点(0.5,0.5)中心对称
 */
 fn smooth(t: f32) -> f32 {
-    t * t * (3.0 - 2.0 * t)
+    t * t * (noise::SMOOTH_CUBIC - noise::SMOOTH_QUADRATIC * t)
 }
 
 /*
@@ -231,16 +233,16 @@ base_period 是第 0 层的晶格周期,
 */
 fn fbm(x: f32, y: f32, seed: u32, octaves: u32, base_period: u32) -> f32 {
     let mut sum: f32 = 0.0;
-    let mut amp: f32 = 0.5; // [0, 1] 自带归一化
-    let mut freq: f32 = 1.0;
+    let mut amp: f32 = noise::FBM_AMP_INITIAL; // [0, 1] 自带归一化
+    let mut freq: f32 = noise::FBM_FREQ_INITIAL;
     let mut period: u32 = base_period;
     let mut norm: f32 = 0.0;
     for _ in 0..octaves {
         sum += value_noise(x * freq, y * freq, seed, period) * amp;
         norm += amp;
-        amp *= 0.5;
-        freq *= 2.0;
-        period *= 2;
+        amp *= noise::FBM_AMP_DECAY;
+        freq *= noise::FBM_FREQ_GROWTH;
+        period *= noise::FBM_PERIOD_GROWTH;
     }
     sum / norm
 }
@@ -262,9 +264,9 @@ fn clamp01(v: f32) -> f32 {
 已知走样:powf(18) 让线宽不到 1 个纹素,取整后更像规则点阵(见文件头说明).
 */
 fn scratch_mask(fx: f32, fy: f32, grain: f32) -> f32 {
-    let diag: f32 = fx * 71.0 + fy * 44.0;
-    let line: f32 = (1.0 - (((diag % 1.0) - 0.5) * 2.0).abs()).powf(18.0);
-    line * (0.25 + 0.75 * grain)
+    let diag: f32 = fx * dirt::SCRATCH_LINES_X + fy * dirt::SCRATCH_LINES_Y;
+    let line: f32 = (1.0 - (((diag % 1.0) - 0.5) * 2.0).abs()).powf(dirt::SCRATCH_LINE_EXPONENT);
+    line * (dirt::SCRATCH_GRAIN_BASE + dirt::SCRATCH_GRAIN_SPAN * grain)
 }
 
 /*
@@ -276,69 +278,85 @@ fn scratch_mask(fx: f32, fy: f32, grain: f32) -> f32 {
 颜色统一混成接近中性的暖灰,否则某个通道会被乘成 0,整块玻璃就会偏色.
 */
 pub fn generate_dirt(w: u32, h: u32) -> (u32, u32, Vec<u8>) {
-    // 三种污渍各自的乘性颜色(数值越小该通道压得越暗)
-    //   污渍 smudge :暖灰褐,像玻璃上的水渍/油膜
-    //   划痕 scratch:比周围干净一点的中性发丝线
-    //   灰尘 dust   :中性偏冷的小颗粒
-    const SMUDGE_TINT: [f32; 3] = [0.62, 0.58, 0.52];
-    const SCRATCH_TINT: [f32; 3] = [0.82, 0.84, 0.90];
-    const DUST_TINT: [f32; 3] = [0.60, 0.62, 0.68];
-
-    let mut out: Vec<u8> = vec![0u8; (w * h * 4) as usize];
+    // 三种污渍各自的乘性颜色与阈值 / 频率 / seed 全部集中在
+    // src/texture_params.rs 的 dirt 子模块.
+    let mut out: Vec<u8> = vec![0u8; (w * h * RGBA_BYTES_PER_PIXEL) as usize];
     for y in 0..h {
         for x in 0..w {
             let fx: f32 = x as f32 / w as f32;
             let fy: f32 = y as f32 / h as f32;
             // 生成污渍 smudge
-            let smudge: f32 = fbm(fx * 5.0 + 3.7, fy * 5.0 + 1.2, 11, 4, 5);
-            let smudge_a: f32 = clamp01((smudge - 0.42) * 4.0) * 0.55;
+            let smudge: f32 = fbm(
+                fx * dirt::SMUDGE_FREQ + dirt::SMUDGE_OFFSET_X,
+                fy * dirt::SMUDGE_FREQ + dirt::SMUDGE_OFFSET_Y,
+                dirt::SMUDGE_SEED,
+                dirt::SMUDGE_OCTAVES,
+                dirt::SMUDGE_PERIOD,
+            );
+            let smudge_a: f32 = clamp01((smudge - dirt::SMUDGE_THRESHOLD) * dirt::SMUDGE_GAIN)
+                * dirt::SMUDGE_STRENGTH;
             // 生成划痕 scratch
             // 已知走样:71 条斜线摊在 256px 贴图上,每条不到 1 个纹素宽,
             // powf(18) 取整后变成规则的斜向点阵而不是自然的划痕.
             // 要修的话把频率调低(例如 71 -> 24)或降低 powf 指数,让线宽 >= 1 纹素.
-            let scratch: f32 = scratch_mask(fx, fy, value_noise(fx * 30.0, fy * 30.0, 7, 30));
+            let scratch: f32 = scratch_mask(
+                fx,
+                fy,
+                value_noise(
+                    fx * dirt::SCRATCH_NOISE_FREQ,
+                    fy * dirt::SCRATCH_NOISE_FREQ,
+                    dirt::SCRATCH_NOISE_SEED,
+                    dirt::SCRATCH_NOISE_PERIOD,
+                ),
+            );
             // 生成灰尘 dust
             // 密度偏高:阈值 0.78 在 90x90 晶格上留下约 0.8 颗/格,贴图 10% 的像素
             // 都是灰尘点(2048 宽画布上约上万颗).嫌脏就抬阈值或调小下面的 0.6 权重.
-            let dust: f32 = value_noise(fx * 90.0, fy * 90.0, 23, 90);
-            let dust_a: f32 = if dust > 0.78 {
-                (dust - 0.78) * 3.0
+            let dust: f32 = value_noise(
+                fx * dirt::DUST_NOISE_FREQ,
+                fy * dirt::DUST_NOISE_FREQ,
+                dirt::DUST_NOISE_SEED,
+                dirt::DUST_NOISE_PERIOD,
+            );
+            let dust_a: f32 = if dust > dirt::DUST_THRESHOLD {
+                (dust - dirt::DUST_THRESHOLD) * dirt::DUST_GAIN
             } else {
                 0.0
             };
 
             // 每种污渍对画面的权重,浓度取三者最大值(叠加会糊成一片)
             let w_smudge: f32 = smudge_a;
-            let w_scratch: f32 = scratch * 0.25;
-            let w_dust: f32 = dust_a * 0.6;
+            let w_scratch: f32 = scratch * dirt::SCRATCH_WEIGHT;
+            let w_dust: f32 = dust_a * dirt::DUST_WEIGHT;
             let a: f32 = (w_smudge.max(w_scratch).max(w_dust)).min(1.0);
             // 颜色按各自权重混合:纯污渍处偏暖,纯灰尘处偏冷,划痕最浅
-            // weight 极小的像素 alpha 取整后本来就是 0,直接保持 1.0:
+            // weight 极小的像素 alpha 取整后本来就是 0,直接保持中性色:
             // 既省掉一次除法,也避免次正规数(denormal)参与除法把颜色算花.
-            const MIN_WEIGHT: f32 = 1.0e-3;
             let weight: f32 = w_smudge + w_scratch + w_dust;
-            let mut rgb: [f32; 3] = [1.0, 1.0, 1.0];
-            if weight > MIN_WEIGHT {
-                for c in 0..3 {
-                    rgb[c] = (SMUDGE_TINT[c] * w_smudge
-                        + SCRATCH_TINT[c] * w_scratch
-                        + DUST_TINT[c] * w_dust)
+            let mut rgb: [f32; 3] = dirt::NEUTRAL_TINT;
+            if weight > dirt::MIN_WEIGHT {
+                // 逐通道混合:用 iter_mut().enumerate() 而不是 0..3 下标循环,
+                // 既避免 clippy::needless_range_loop,也不改变逐通道的计算顺序.
+                for (c, channel) in rgb.iter_mut().enumerate() {
+                    *channel = (dirt::SMUDGE_TINT[c] * w_smudge
+                        + dirt::SCRATCH_TINT[c] * w_scratch
+                        + dirt::DUST_TINT[c] * w_dust)
                         / weight;
                 }
             }
 
-            let i = ((y * w + x) * 4) as usize;
-            out[i] = (rgb[0] * 255.0) as u8;
-            out[i + 1] = (rgb[1] * 255.0) as u8;
-            out[i + 2] = (rgb[2] * 255.0) as u8;
-            out[i + 3] = (a * 255.0) as u8;
+            let i = ((y * w + x) * RGBA_BYTES_PER_PIXEL) as usize;
+            out[i] = (rgb[0] * CHANNEL_MAX) as u8;
+            out[i + 1] = (rgb[1] * CHANNEL_MAX) as u8;
+            out[i + 2] = (rgb[2] * CHANNEL_MAX) as u8;
+            out[i + 3] = (a * CHANNEL_MAX) as u8;
         }
     }
     (w, h, out)
 }
 
 pub fn generate_fog(w: u32, h: u32) -> (u32, u32, Vec<u8>) {
-    let mut out: Vec<u8> = vec![0u8; (w * h * 4) as usize];
+    let mut out: Vec<u8> = vec![0u8; (w * h * RGBA_BYTES_PER_PIXEL) as usize];
     for y in 0..h {
         for x in 0..w {
             let fx: f32 = x as f32 / w as f32;
@@ -346,14 +364,27 @@ pub fn generate_fog(w: u32, h: u32) -> (u32, u32, Vec<u8>) {
             // 采样坐标是 uv * (1.6, 1.3) 且 u 随 time 漂移:两个方向都会被推过 1,
             // 所以 fbm 必须双向可平铺(着色器里再用 fract 折回),
             // 否则 u 越界是一条竖缝,v 越界会被 ClampToEdge 拉成横条.
-            let n1: f32 = fbm(fx * 3.0, fy * 3.0, 42, 5, 3);
-            let n2: f32 = fbm(fx * 7.0 + 2.0, fy * 7.0 + 1.0, 43, 3, 7);
-            let v: f32 = clamp01((n1 * 0.7 + n2 * 0.3) * 1.2);
-            let i: usize = ((y * w + x) * 4) as usize;
-            out[i] = (v * 255.0) as u8;
-            out[i + 1] = (v * 235.0) as u8;
-            out[i + 2] = (v * 245.0) as u8;
-            out[i + 3] = (v * 255.0) as u8;
+            // 频率 / seed / octaves / 周期见 src/texture_params.rs 的 fog 子模块.
+            let n1: f32 = fbm(
+                fx * fog::BASE_FREQ,
+                fy * fog::BASE_FREQ,
+                fog::BASE_SEED,
+                fog::BASE_OCTAVES,
+                fog::BASE_PERIOD,
+            );
+            let n2: f32 = fbm(
+                fx * fog::DETAIL_FREQ + fog::DETAIL_OFFSET_X,
+                fy * fog::DETAIL_FREQ + fog::DETAIL_OFFSET_Y,
+                fog::DETAIL_SEED,
+                fog::DETAIL_OCTAVES,
+                fog::DETAIL_PERIOD,
+            );
+            let v: f32 = clamp01((n1 * fog::BASE_WEIGHT + n2 * fog::DETAIL_WEIGHT) * fog::GAIN);
+            let i: usize = ((y * w + x) * RGBA_BYTES_PER_PIXEL) as usize;
+            out[i] = (v * fog::R_SCALE) as u8;
+            out[i + 1] = (v * fog::G_SCALE) as u8;
+            out[i + 2] = (v * fog::B_SCALE) as u8;
+            out[i + 3] = (v * fog::A_SCALE) as u8;
         }
     }
     (w, h, out)
@@ -368,13 +399,8 @@ fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
 }
 
 pub fn generate_interior(w: u32, h: u32) -> (u32, u32, Vec<u8>) {
-    let mut out: Vec<u8> = vec![0u8; (w * h * 4) as usize];
-    let passengers: [(f32, f32, f32); 4] = [
-        (0.18f32, 0.76f32, 0.11f32),
-        (0.40, 0.80, 0.13),
-        (0.66, 0.74, 0.10),
-        (0.88, 0.82, 0.12),
-    ];
+    let mut out: Vec<u8> = vec![0u8; (w * h * RGBA_BYTES_PER_PIXEL) as usize];
+    // 乘客虚影 / 灯光条 / 窗框反光的全部参数见 src/texture_params.rs 的 interior 子模块.
     for y in 0..h {
         for x in 0..w {
             let fx: f32 = x as f32 / w as f32;
@@ -385,42 +411,49 @@ pub fn generate_interior(w: u32, h: u32) -> (u32, u32, Vec<u8>) {
             let mut a: f32 = 0.0;
 
             // 顶部车厢灯光条
-            let strip: f32 = smoothstep(0.0, 0.03, fy) * (1.0 - smoothstep(0.10, 0.17, fy));
-            let segments: f32 = 0.55 + 0.45 * (fx * 26.0 * std::f32::consts::PI).sin();
+            let strip: f32 = smoothstep(interior::LIGHT_TOP_EDGE, interior::LIGHT_TOP_FULL, fy)
+                * (1.0 - smoothstep(interior::LIGHT_BOTTOM_START, interior::LIGHT_BOTTOM_END, fy));
+            let segments: f32 = interior::SEGMENT_BASE
+                + interior::SEGMENT_AMPLITUDE
+                    * (fx * interior::SEGMENT_FREQ * std::f32::consts::PI).sin();
             let warm: f32 = strip * segments;
-            r += 0.98 * warm;
-            g += 0.88 * warm;
-            b += 0.70 * warm;
-            a += warm * 0.48;
+            r += interior::LIGHT_R * warm;
+            g += interior::LIGHT_G * warm;
+            b += interior::LIGHT_B * warm;
+            a += warm * interior::LIGHT_ALPHA;
 
             // 车窗框下沿的反光
-            let rail: f32 =
-                (1.0 - clamp01(((fy - 0.38) / 0.010).abs())) * (0.45 + 0.15 * (fx * 40.0).sin());
-            r += 0.55 * rail;
-            g += 0.60 * rail;
-            b += 0.68 * rail;
-            a += rail * 0.16;
+            let rail: f32 = (1.0
+                - clamp01(((fy - interior::RAIL_CENTER_Y) / interior::RAIL_HALF_WIDTH).abs()))
+                * (interior::RAIL_BASE
+                    + interior::RAIL_AMPLITUDE * (fx * interior::RAIL_FREQ).sin());
+            r += interior::RAIL_R * rail;
+            g += interior::RAIL_G * rail;
+            b += interior::RAIL_B * rail;
+            a += rail * interior::RAIL_ALPHA;
 
             // 乘客倒影(暗色虚影)
-            for &(cx, cy, s) in &passengers {
+            for &(cx, cy, s) in &interior::PASSENGERS {
                 let dx: f32 = (fx - cx) / s;
-                let dy: f32 = (fy - cy) / (s * 1.7);
-                let head: f32 = (-(dx * dx + dy * dy) * 9.0).exp();
-                let shx: f32 = (fx - cx) / (s * 1.6);
-                let shy: f32 = (fy - (cy + 0.10)) / (s * 1.15);
-                let shoulders: f32 = (-(shx * shx + shy * shy) * 6.0).exp();
-                let ghost: f32 = clamp01(head + shoulders * 0.75) * 0.22;
-                r += 0.16 * ghost;
-                g += 0.19 * ghost;
-                b += 0.28 * ghost;
+                let dy: f32 = (fy - cy) / (s * interior::HEAD_ASPECT);
+                let head: f32 = (-(dx * dx + dy * dy) * interior::HEAD_FALLOFF).exp();
+                let shx: f32 = (fx - cx) / (s * interior::SHOULDER_ASPECT_X);
+                let shy: f32 =
+                    (fy - (cy + interior::SHOULDER_OFFSET_Y)) / (s * interior::SHOULDER_ASPECT_Y);
+                let shoulders: f32 = (-(shx * shx + shy * shy) * interior::SHOULDER_FALLOFF).exp();
+                let ghost: f32 =
+                    clamp01(head + shoulders * interior::SHOULDER_MIX) * interior::GHOST_ALPHA;
+                r += interior::GHOST_R * ghost;
+                g += interior::GHOST_G * ghost;
+                b += interior::GHOST_B * ghost;
                 a += ghost;
             }
 
-            let i: usize = ((y * w + x) * 4) as usize;
-            out[i] = (clamp01(r) * 255.0) as u8;
-            out[i + 1] = (clamp01(g) * 255.0) as u8;
-            out[i + 2] = (clamp01(b) * 255.0) as u8;
-            out[i + 3] = (clamp01(a) * 255.0) as u8;
+            let i: usize = ((y * w + x) * RGBA_BYTES_PER_PIXEL) as usize;
+            out[i] = (clamp01(r) * CHANNEL_MAX) as u8;
+            out[i + 1] = (clamp01(g) * CHANNEL_MAX) as u8;
+            out[i + 2] = (clamp01(b) * CHANNEL_MAX) as u8;
+            out[i + 3] = (clamp01(a) * CHANNEL_MAX) as u8;
         }
     }
     (w, h, out)
@@ -435,9 +468,13 @@ pub fn generate_interior(w: u32, h: u32) -> (u32, u32, Vec<u8>) {
 */
 #[cfg(test)]
 pub(crate) fn write_ppm(name: &str, w: u32, h: u32, pixels: &[u8]) {
-    let dir: &std::path::Path = std::path::Path::new("prompt");
+    // 输出目录(相对 crate 根)与 PPM(P6)文件头的最大通道值.
+    const OUTPUT_DIR: &str = "prompt";
+    const MAX_CHANNEL: u32 = 255;
+
+    let dir: &std::path::Path = std::path::Path::new(OUTPUT_DIR);
     std::fs::create_dir_all(dir).expect("创建 prompt/ 失败");
-    let mut header: Vec<u8> = format!("P6\n{w} {h}\n255\n").into_bytes();
+    let mut header: Vec<u8> = format!("P6\n{w} {h}\n{MAX_CHANNEL}\n").into_bytes();
     header.extend_from_slice(pixels);
     let path: std::path::PathBuf = dir.join(name);
     std::fs::write(&path, header).unwrap_or_else(|e| panic!("写入 {} 失败: {e}", path.display()));
@@ -447,6 +484,13 @@ pub(crate) fn write_ppm(name: &str, w: u32, h: u32, pixels: &[u8]) {
 mod tests {
     use super::{fbm, generate_dirt, scratch_mask, value_noise, write_ppm};
 
+    // 像素的 RGBA 分量数:与生成缓冲区的步长一致.
+    const RGBA_COMPONENTS: usize = 4;
+    // 灰度 PPM 每像素通道数(只写 R=G=B,无 alpha).
+    const PPM_CHANNELS: u32 = 3;
+    // 灰度量化上限:浮点 [0,1] 乘它取整得到 u8.
+    const CHANNEL_SCALE: f32 = 255.0;
+
     /*
     污渍贴图的 RGB 是"乘性颜色"而不是遮罩:
     一旦把某个遮罩直接写进通道(例如把 smudge 写进 R,G/B 留 0),
@@ -454,12 +498,22 @@ mod tests {
     */
     #[test]
     fn dirt_color_stays_neutral() {
-        let (_, _, data) = generate_dirt(64, 64);
-        for px in data.as_chunks::<4>().0 {
+        // 测试贴图边长(像素),小尺寸已足以覆盖三种污渍的混合.
+        const TEST_SIZE: u32 = 64;
+        // 单通道下限:低于它说明污渍颜色过暗,画面会被压黑.
+        const MIN_CHANNEL: i32 = 120;
+        // RGB 最大允许色偏(乘性颜色必须接近中性).
+        const MAX_CHANNEL_SPREAD: i32 = 50;
+
+        let (_, _, data) = generate_dirt(TEST_SIZE, TEST_SIZE);
+        for px in data.as_chunks::<RGBA_COMPONENTS>().0 {
             let (r, g, b) = (px[0] as i32, px[1] as i32, px[2] as i32);
             let (max, min) = (r.max(g).max(b), r.min(g).min(b));
-            assert!(min >= 120, "污渍颜色过暗,画面会被压黑: {px:?}");
-            assert!(max - min <= 50, "污渍偏色过大(RGB 被当成遮罩用了?): {px:?}");
+            assert!(min >= MIN_CHANNEL, "污渍颜色过暗,画面会被压黑: {px:?}");
+            assert!(
+                max - min <= MAX_CHANNEL_SPREAD,
+                "污渍偏色过大(RGB 被当成遮罩用了?): {px:?}"
+            );
         }
     }
 
@@ -469,21 +523,33 @@ mod tests {
     */
     #[test]
     fn noise_tiles_seamlessly() {
+        // 覆盖三种实际用到的 (period, seed, octaves) 组合:
+        // 雾气主层 / 雾气细节层 / 污渍 smudge.
+        const TILE_TEST_CASES: [(u32, u32, u32); 3] = [(3, 42, 5), (7, 43, 3), (5, 11, 4)];
+        // x 方向把一个周期均分成的取样点数.
+        const SAMPLES: u32 = 16;
+        // 采样点相对周期起点的偏移(避开晶格边界).
+        const BASE_OFFSET: f32 = 2.0;
+        // y 方向固定取这几个非整数相位.
+        const SAMPLE_YS: [f32; 3] = [0.25, 1.0, 2.75];
+        // 浮点比较容差:周期取模后两次采样应逐位接近.
+        const TILE_EPSILON: f32 = 1e-6;
+
         // 周期 = 第 0 层晶格周期,采样点再乘上相同的倍率就落在完全相同的晶格相位上
-        for (period, seed, octaves) in [(3u32, 42u32, 5u32), (7, 43, 3), (5, 11, 4)] {
-            for i in 0..16 {
-                let t: f32 = i as f32 / 16.0;
-                let base: f32 = t * period as f32 + 2.0;
-                for v in [0.25f32, 1.0, 2.75] {
+        for (period, seed, octaves) in TILE_TEST_CASES {
+            for i in 0..SAMPLES {
+                let t: f32 = i as f32 / SAMPLES as f32;
+                let base: f32 = t * period as f32 + BASE_OFFSET;
+                for v in SAMPLE_YS {
                     let here: f32 = fbm(base, v, seed, octaves, period);
                     let next_x: f32 = fbm(base + period as f32, v, seed, octaves, period);
                     let next_y: f32 = fbm(base, v + period as f32, seed, octaves, period);
                     assert!(
-                        (here - next_x).abs() < 1e-6,
+                        (here - next_x).abs() < TILE_EPSILON,
                         "x 方向不平铺: period={period} t={t} v={v} {here} != {next_x}"
                     );
                     assert!(
-                        (here - next_y).abs() < 1e-6,
+                        (here - next_y).abs() < TILE_EPSILON,
                         "y 方向不平铺: period={period} t={t} v={v} {here} != {next_y}"
                     );
                 }
@@ -497,16 +563,23 @@ mod tests {
     */
     #[test]
     fn scratch_mask_tiles_in_both_axes() {
-        for i in 0..16 {
-            let fx: f32 = i as f32 / 16.0;
-            let fy: f32 = ((i * 5) % 16) as f32 / 16.0;
-            let here: f32 = scratch_mask(fx, fy, 0.7);
+        // 取样点数 / y 相位步长 / 测试用 grain.
+        const SAMPLES: u32 = 16;
+        const SAMPLE_Y_STRIDE: u32 = 5;
+        const TEST_GRAIN: f32 = 0.7;
+        // 浮点比较容差.
+        const TILE_EPSILON: f32 = 1e-6;
+
+        for i in 0..SAMPLES {
+            let fx: f32 = i as f32 / SAMPLES as f32;
+            let fy: f32 = ((i * SAMPLE_Y_STRIDE) % SAMPLES) as f32 / SAMPLES as f32;
+            let here: f32 = scratch_mask(fx, fy, TEST_GRAIN);
             assert!(
-                (here - scratch_mask(fx + 1.0, fy, 0.7)).abs() < 1e-6,
+                (here - scratch_mask(fx + 1.0, fy, TEST_GRAIN)).abs() < TILE_EPSILON,
                 "划痕 x 方向不平铺: fx={fx} fy={fy}"
             );
             assert!(
-                (here - scratch_mask(fx, fy + 1.0, 0.7)).abs() < 1e-6,
+                (here - scratch_mask(fx, fy + 1.0, TEST_GRAIN)).abs() < TILE_EPSILON,
                 "划痕 y 方向不平铺: fx={fx} fy={fy}"
             );
         }
@@ -517,20 +590,24 @@ mod tests {
     */
     #[test]
     fn dump_value_noise_ppm() {
-        const W: u32 = 64;
-        const H: u32 = 64;
+        // 输出分辨率(像素),单通道 seed 与文件名.
+        const TEST_SIZE: u32 = 64;
+        const TEST_SEED: u32 = 114;
+        const TEST_PPM_NAME: &str = "value_noise_64x64.ppm";
 
-        let mut pixels: Vec<u8> = Vec::with_capacity((W * H * 3) as usize);
-        for y in 0..H {
-            for x in 0..W {
+        let mut pixels: Vec<u8> =
+            Vec::with_capacity((TEST_SIZE * TEST_SIZE * PPM_CHANNELS) as usize);
+        for y in 0..TEST_SIZE {
+            for x in 0..TEST_SIZE {
                 // seed=0 时,异或 yi ^ 0 = yi
                 // value_noise(x, y, 0) == hash01(x, y)
-                let v: u8 = (value_noise(x as f32, y as f32, 114, 0) * 255.0).round() as u8;
+                let v: u8 =
+                    (value_noise(x as f32, y as f32, TEST_SEED, 0) * CHANNEL_SCALE).round() as u8;
                 pixels.extend_from_slice(&[v, v, v]);
             }
         }
 
-        write_ppm("value_noise_64x64.ppm", W, H, &pixels);
+        write_ppm(TEST_PPM_NAME, TEST_SIZE, TEST_SIZE, &pixels);
     }
 
     /*
@@ -538,23 +615,25 @@ mod tests {
     */
     #[test]
     fn dump_value_noise_smooth_ppm() {
-        const W: u32 = 512; // 放大分辨率看得更清楚
-        const H: u32 = 512;
+        // 放大分辨率看得更清楚.
+        const TEST_SIZE: u32 = 512;
+        const TEST_PPM_NAME: &str = "value_noise_512x512.ppm";
 
-        let mut pixels: Vec<u8> = Vec::with_capacity((W * H * 3) as usize);
-        for y in 0..H {
-            for x in 0..W {
+        let mut pixels: Vec<u8> =
+            Vec::with_capacity((TEST_SIZE * TEST_SIZE * PPM_CHANNELS) as usize);
+        for y in 0..TEST_SIZE {
+            for x in 0..TEST_SIZE {
                 // 关键改动:把 0..512 映射到 0..8 的浮点数范围
                 // 这样会让采样点落在网格内部,触发插值
                 let fx: f32 = x as f32;
                 let fy: f32 = y as f32;
-                let v: u8 = (value_noise(fx, fy, 0, 0) * 255.0).round() as u8;
+                let v: u8 = (value_noise(fx, fy, 0, 0) * CHANNEL_SCALE).round() as u8;
                 pixels.extend_from_slice(&[v, v, v]);
             }
         }
         // 文件名按真实分辨率命名:以前这里和上面那个测试都写 value_noise_64x64.ppm,
         // 两个测试并行跑会互相覆盖,谁最后写完谁说了算.
-        write_ppm("value_noise_512x512.ppm", W, H, &pixels);
+        write_ppm(TEST_PPM_NAME, TEST_SIZE, TEST_SIZE, &pixels);
     }
 
     /*
@@ -562,20 +641,26 @@ mod tests {
     */
     #[test]
     fn dump_fbm_smooth_ppm() {
-        const W: u32 = 512; // 放大分辨率看得更清楚
-        const H: u32 = 512;
+        // 放大分辨率看得更清楚.
+        const TEST_SIZE: u32 = 512;
+        // 把 0..512 映射到 0..8 的浮点数范围的除数.
+        const SAMPLE_SCALE: f32 = 64.0;
+        // FBM 层数(周期性由 base_period=0 关闭,只用于可视化).
+        const FBM_OCTAVES: u32 = 6;
+        const TEST_PPM_NAME: &str = "fbm_512x512.ppm";
 
-        let mut pixels: Vec<u8> = Vec::with_capacity((W * H * 3) as usize);
-        for y in 0..H {
-            for x in 0..W {
+        let mut pixels: Vec<u8> =
+            Vec::with_capacity((TEST_SIZE * TEST_SIZE * PPM_CHANNELS) as usize);
+        for y in 0..TEST_SIZE {
+            for x in 0..TEST_SIZE {
                 // 把 0..512 映射到 0..8 的浮点数范围
                 // 这样会让采样点落在网格内部,触发插值
-                let fx: f32 = x as f32 / 64.0; // 范围 0.0 ~ 7.98
-                let fy: f32 = y as f32 / 64.0; // 范围 0.0 ~ 7.98
-                let v: u8 = (fbm(fx, fy, 0, 6, 0) * 255.0).round() as u8;
+                let fx: f32 = x as f32 / SAMPLE_SCALE; // 范围 0.0 ~ 7.98
+                let fy: f32 = y as f32 / SAMPLE_SCALE; // 范围 0.0 ~ 7.98
+                let v: u8 = (fbm(fx, fy, 0, FBM_OCTAVES, 0) * CHANNEL_SCALE).round() as u8;
                 pixels.extend_from_slice(&[v, v, v]);
             }
         }
-        write_ppm("fbm_512x512.ppm", W, H, &pixels);
+        write_ppm(TEST_PPM_NAME, TEST_SIZE, TEST_SIZE, &pixels);
     }
 }

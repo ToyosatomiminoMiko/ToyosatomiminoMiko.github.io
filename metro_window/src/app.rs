@@ -3,33 +3,32 @@ WebGPU 应用主体
 - 初始化适配器 / 设备 / 渲染表面,以及全部 GPU 资源
 - 每帧更新 Uniforms,依次执行 水滴物理 -> 折射偏移 -> 渲染 三个 Pass
 */
+use crate::app_params::{
+    city_png, CITY_BG_FILE, CITY_FAR_FILE, CITY_MID_FILE, CITY_NEAR_FILE, FRAME_INTERVAL_MS,
+    INITIAL_DELTA_SECONDS, INITIAL_STYLE_ID, INITIAL_TIME_SECONDS, MAX_FRAME_DELTA_SECONDS,
+    MS_PER_SECOND,
+};
 use crate::droplet_params::DropletParams;
 use crate::droplets::make_droplets;
+use crate::performance_now;
 use crate::pipelines::{create_metro_pipelines, MetroTextures};
+use crate::render_params::{
+    ADAPTER_POWER_PREFERENCE, CLEAR_COLOR, FULLSCREEN_QUAD_INDICES, FULLSCREEN_QUAD_VERTICES,
+    MIN_TEXTURE_DIMENSION, QUAD_INDEX_FORMAT, REFRACTION_DOWNSCALE, REFRACTION_TEXTURE_FORMAT,
+    REFRACTION_WORKGROUP_DEPTH, REFRACTION_WORKGROUP_EDGE, SAMPLER_ADDRESS_MODE_CLAMP,
+    SAMPLER_ADDRESS_MODE_REPEAT, SAMPLER_FILTER_MODE, SURFACE_MAX_FRAME_LATENCY,
+    SURFACE_PRESENT_MODE,
+};
+use crate::texture_params::{DIRT_TEXTURE_SIZE, FOG_TEXTURE_SIZE, INTERIOR_TEXTURE_SIZE};
 use crate::textures::{
     create_png_texture, create_texture, generate_dirt, generate_fog, generate_interior,
 };
 use crate::uniforms::Uniforms;
-use crate::{performance_now, FRAME_INTERVAL_MS};
 use web_sys::{console, HtmlCanvasElement, HtmlElement};
 use wgpu::util::DeviceExt;
 
-/// 城市贴图在站点里的公开路径前缀.
-///
-/// 这四张 PNG 是 Rust 在运行时自己 fetch 的,既不进 wasm 包,也不走 Vite 的
-/// 资源图(拿不到带 hash 的地址),所以这里只能是构建后真实可访问的绝对路径.
-/// 并进本站后资源挂在 `/metro_window/resource/` 下,映射由 `vite.config.ts`
-/// 的 `metroWindowAssets()` 负责(dev 下重写请求,build 下按原路径 emit).
-///
-/// 用绝对路径而不是相对路径:相对路径会随页面 URL 变化(例如 /web/index.html
-/// 这类回退地址),导致 fetch 拿到 HTML 回退页而不是 PNG,从而报
-/// Invalid PNG signature.
-const RESOURCE_BASE: &str = "/metro_window/resource";
-
-/// 拼出某张城市贴图的公开地址(约定见 [`RESOURCE_BASE`]).
-fn city_png(file: &str) -> String {
-    format!("{RESOURCE_BASE}/{file}")
-}
+// 城市贴图的路径前缀 / 文件名,以及"为什么必须用绝对路径"的说明,
+// 全部集中在 src/app_params.rs(见 RESOURCE_BASE / CITY_*_FILE / city_png).
 
 pub(crate) struct App {
     pub(crate) device: wgpu::Device,
@@ -79,7 +78,7 @@ impl App {
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::HighPerformance,
+                power_preference: ADAPTER_POWER_PREFERENCE,
                 compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
             })
@@ -108,8 +107,8 @@ impl App {
             .await
             .map_err(|e| format!("无法获取 WebGPU 设备: {e}"))?;
 
-        let width = canvas.width().max(1);
-        let height = canvas.height().max(1);
+        let width = canvas.width().max(MIN_TEXTURE_DIMENSION);
+        let height = canvas.height().max(MIN_TEXTURE_DIMENSION);
         let caps = surface.get_capabilities(&adapter);
         let format = caps.formats[0];
         let config = wgpu::SurfaceConfiguration {
@@ -117,10 +116,10 @@ impl App {
             format,
             width,
             height,
-            present_mode: wgpu::PresentMode::AutoVsync,
+            present_mode: SURFACE_PRESENT_MODE,
             alpha_mode: caps.alpha_modes[0],
             view_formats: vec![],
-            desired_maximum_frame_latency: 2,
+            desired_maximum_frame_latency: SURFACE_MAX_FRAME_LATENCY,
         };
         surface.configure(&device, &config);
 
@@ -128,23 +127,22 @@ impl App {
         // 相对路径会随页面 URL 变化(例如 /web/index.html 这类回退地址),
         // 导致 fetch 拿到 HTML 回退页而不是 PNG,从而报 Invalid PNG signature.
         set_status(&status, "正在加载城市纹理 (1/4)...");
-        let bg = create_png_texture(&device, &queue, "city_bg", &city_png("city_bg.png")).await?;
+        let bg = create_png_texture(&device, &queue, "city_bg", &city_png(CITY_BG_FILE)).await?;
         set_status(&status, "正在加载城市纹理 (2/4)...");
-        let far =
-            create_png_texture(&device, &queue, "city_far", &city_png("city_far.png")).await?;
+        let far = create_png_texture(&device, &queue, "city_far", &city_png(CITY_FAR_FILE)).await?;
         set_status(&status, "正在加载城市纹理 (3/4)...");
-        let mid =
-            create_png_texture(&device, &queue, "city_mid", &city_png("city_mid.png")).await?;
+        let mid = create_png_texture(&device, &queue, "city_mid", &city_png(CITY_MID_FILE)).await?;
         set_status(&status, "正在加载城市纹理 (4/4)...");
         let near =
-            create_png_texture(&device, &queue, "city_near", &city_png("city_near.png")).await?;
+            create_png_texture(&device, &queue, "city_near", &city_png(CITY_NEAR_FILE)).await?;
 
         set_status(&status, "正在生成玻璃材质纹理...");
-        let (dw, dh, dirt_data) = generate_dirt(256, 256);
+        let (dw, dh, dirt_data) = generate_dirt(DIRT_TEXTURE_SIZE.0, DIRT_TEXTURE_SIZE.1);
         let dirt = create_texture(&device, &queue, "glass_dirt", dw, dh, &dirt_data);
-        let (fw, fh, fog_data) = generate_fog(256, 256);
+        let (fw, fh, fog_data) = generate_fog(FOG_TEXTURE_SIZE.0, FOG_TEXTURE_SIZE.1);
         let fog = create_texture(&device, &queue, "condensation_fog", fw, fh, &fog_data);
-        let (iw, ih, interior_data) = generate_interior(512, 256);
+        let (iw, ih, interior_data) =
+            generate_interior(INTERIOR_TEXTURE_SIZE.0, INTERIOR_TEXTURE_SIZE.1);
         let interior = create_texture(
             &device,
             &queue,
@@ -164,31 +162,33 @@ impl App {
         // 城市 PNG 是美术素材,左右边缘本来就有差异,不适用这条(实测跳变很弱).
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("metro-sampler"),
-            address_mode_u: wgpu::AddressMode::Repeat,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Linear,
+            address_mode_u: SAMPLER_ADDRESS_MODE_REPEAT,
+            address_mode_v: SAMPLER_ADDRESS_MODE_CLAMP,
+            address_mode_w: SAMPLER_ADDRESS_MODE_CLAMP,
+            mag_filter: SAMPLER_FILTER_MODE,
+            min_filter: SAMPLER_FILTER_MODE,
+            mipmap_filter: SAMPLER_FILTER_MODE,
             ..Default::default()
         });
 
-        let vertex_data: [f32; 16] = [
-            -1.0, -1.0, 0.0, 1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0,
-        ];
-        let index_data: [u16; 6] = [0, 1, 2, 1, 3, 2];
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("fullscreen-quad-vertices"),
-            contents: bytemuck::cast_slice(&vertex_data),
+            contents: bytemuck::cast_slice(&FULLSCREEN_QUAD_VERTICES),
             usage: wgpu::BufferUsages::VERTEX,
         });
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("fullscreen-quad-indices"),
-            contents: bytemuck::cast_slice(&index_data),
+            contents: bytemuck::cast_slice(&FULLSCREEN_QUAD_INDICES),
             usage: wgpu::BufferUsages::INDEX,
         });
 
-        let uniforms = Uniforms::new(0.0, 0.016, 0, width, height);
+        let uniforms = Uniforms::new(
+            INITIAL_TIME_SECONDS,
+            INITIAL_DELTA_SECONDS,
+            INITIAL_STYLE_ID,
+            width,
+            height,
+        );
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("uniforms"),
             contents: bytemuck::bytes_of(&uniforms),
@@ -209,11 +209,11 @@ impl App {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
-        // 折射偏移图分辨率 = 画布 1/8.
-        // 调大(/6//4)水珠边缘更锐利但更耗 GPU;
-        // 调小(/10//12)更省性能但水珠会偏模糊
-        let rw = (width / 8).max(1);
-        let rh = (height / 8).max(1);
+        // 折射偏移图分辨率 = 画布 1/REFRACTION_DOWNSCALE.
+        // 调大(如 /6//4)水珠边缘更锐利但更耗 GPU;
+        // 调小(如 /10//12)更省性能但水珠会偏模糊
+        let rw = (width / REFRACTION_DOWNSCALE).max(MIN_TEXTURE_DIMENSION);
+        let rh = (height / REFRACTION_DOWNSCALE).max(MIN_TEXTURE_DIMENSION);
         let refraction_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("refraction-offset"),
             size: wgpu::Extent3d {
@@ -224,19 +224,19 @@ impl App {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba16Float,
+            format: REFRACTION_TEXTURE_FORMAT,
             usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
         let refraction_view = refraction_texture.create_view(&Default::default());
         let refraction_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("refraction-sampler"),
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Linear,
+            address_mode_u: SAMPLER_ADDRESS_MODE_CLAMP,
+            address_mode_v: SAMPLER_ADDRESS_MODE_CLAMP,
+            address_mode_w: SAMPLER_ADDRESS_MODE_CLAMP,
+            mag_filter: SAMPLER_FILTER_MODE,
+            min_filter: SAMPLER_FILTER_MODE,
+            mipmap_filter: SAMPLER_FILTER_MODE,
             ..Default::default()
         });
 
@@ -303,8 +303,9 @@ impl App {
         let now: f64 = performance_now();
         let elapsed_ms: f64 = now - self.last;
         self.last = now;
-        // performance.now() 单位是毫秒,这里换算成秒再交给着色器
-        let delta: f32 = ((elapsed_ms as f32) / 1000.0).min(0.1);
+        // performance.now() 单位是毫秒,按 MS_PER_SECOND 换算成秒再交给着色器;
+        // 再用 MAX_FRAME_DELTA_SECONDS 截断掉帧造成的超大时间步.
+        let delta: f32 = ((elapsed_ms as f32) / MS_PER_SECOND).min(MAX_FRAME_DELTA_SECONDS);
         self.time += delta;
 
         if !self.running {
@@ -361,9 +362,9 @@ impl App {
             pass.dispatch_workgroups(1, 1, 1);
             pass.set_pipeline(&self.refraction_pipeline);
             pass.dispatch_workgroups(
-                self.refraction_size.0.div_ceil(8),
-                self.refraction_size.1.div_ceil(8),
-                1,
+                self.refraction_size.0.div_ceil(REFRACTION_WORKGROUP_EDGE),
+                self.refraction_size.1.div_ceil(REFRACTION_WORKGROUP_EDGE),
+                REFRACTION_WORKGROUP_DEPTH,
             );
         }
 
@@ -375,12 +376,7 @@ impl App {
                         view: &view,
                         resolve_target: None,
                         ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color {
-                                r: 0.05,
-                                g: 0.05,
-                                b: 0.08,
-                                a: 1.0,
-                            }),
+                            load: wgpu::LoadOp::Clear(CLEAR_COLOR),
                             store: wgpu::StoreOp::Store,
                         },
                     })],
@@ -390,9 +386,9 @@ impl App {
                 });
             pass.set_pipeline(&self.render_pipeline);
             pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            pass.set_index_buffer(self.index_buffer.slice(..), QUAD_INDEX_FORMAT);
             pass.set_bind_group(0, &self.render_bind_group, &[]);
-            pass.draw_indexed(0..6, 0, 0..1);
+            pass.draw_indexed(0..FULLSCREEN_QUAD_INDICES.len() as u32, 0, 0..1);
         }
 
         self.queue.submit(Some(encoder.finish()));

@@ -1,3 +1,12 @@
+/* 404 页设计令牌: 常量很少, 直接放在文件顶部, 不单独建 *_tokens.css */
+:root {
+    /* 三段线条的青色外发光: 偏移/模糊固定, 颜色单独抽出 */
+    --err404-glow-color: rgba(0, 255, 255, 0.222);
+    --err404-glow-shadow: drop-shadow(5px 5px 5px var(--err404-glow-color));
+    /* 页面兜底底色 */
+    --err404-bg-color: rgb(80, 90, 100);
+}
+
 /*
 404 页(纯 SVG)的样式.
 
@@ -16,11 +25,11 @@ body {
 path,
 line,
 circle {
-    filter: drop-shadow(5px 5px 5px rgba(0, 255, 255, 0.222));
+    filter: var(--err404-glow-shadow);
 }
 
 /* 页面上只有这一个 SVG, 整片底色靠这条兜底.
    !important 是故意的: 要压过浏览器扩展(如 Dark Reader)注入的内联背景色 */
 * {
-    background-color: rgb(80, 90, 100) !important;
+    background-color: var(--err404-bg-color) !important;
 }

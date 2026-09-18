@@ -1,12 +1,23 @@
+/* 图标设计令牌: 常量很少, 直接放在文件顶部, 不单独建 *_tokens.css.
+   命名 --icon-<名>, 只被 418 页面(经 418.css)引入. */
+:root {
+    /* 图标尺寸: 跟随字号 */
+    --icon-size: 1em;
+    /* 与文字基线的垂直对齐偏移 */
+    --icon-baseline-shift: -0.125em;
+    /* 颜色跟随文字颜色 */
+    --icon-fill: currentColor;
+}
+
 /* 内联 SVG 图标 (取代 Font Awesome 字体图标): 尺寸跟随字号, 颜色跟随 currentColor.
    只有 418 页面还在用 -- sprite 写在该页 HTML 里(<symbol> + <use href="#i-...">).
    451 的内联图标已全部换成 emoji, 因此不再引入本文件. */
 .icon {
-    width: 1em;
-    height: 1em;
+    width: var(--icon-size);
+    height: var(--icon-size);
     display: inline-block;
-    vertical-align: -0.125em;
-    fill: currentColor;
+    vertical-align: var(--icon-baseline-shift);
+    fill: var(--icon-fill);
     flex-shrink: 0;
 }
 

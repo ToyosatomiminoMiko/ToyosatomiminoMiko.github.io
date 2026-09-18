@@ -12,16 +12,17 @@
  *   t0 计算之前 -> t1 计算之后 -> t2 粒子绘制之后 -> t3 合成之后
  */
 import type { GpuPassTimings } from './stats';
-
-/** 一帧 4 个时间戳, 双缓冲: 允许"上一帧还在读回"时直接开始下一帧 */
-const MARKS_PER_FRAME = 4;
-const SLOT_COUNT = MARKS_PER_FRAME * 2;
-/** resolveQuerySet 的目标偏移必须按 256 对齐 */
-const BUFFER_SIZE = 256;
-/** 时间戳单位是纳秒 */
-const NS_PER_MS = 1e6;
-/** 连续这么多帧都读到 0 就认定该后端测不出 GPU 时间 */
-const ZERO_READS_BEFORE_GIVING_UP = 8;
+import {
+    BYTES_PER_TIMESTAMP,
+    MARKS_PER_FRAME,
+    NS_PER_MS,
+    SLOT_COUNT,
+    TIMESTAMP_BUFFER_SIZE,
+    TIMESTAMP_QUERY_LABEL,
+    TIMESTAMP_READ_LABEL,
+    TIMESTAMP_RESOLVE_LABEL,
+    ZERO_READS_BEFORE_GIVING_UP,
+} from './gpu_timing.config';
 
 export function isGpuTimingSupported(device: GPUDevice): boolean {
     return device.features.has('timestamp-query');
@@ -43,18 +44,18 @@ export class GpuTimer {
 
     constructor(device: GPUDevice) {
         this.querySet = device.createQuerySet({
-            label: '451-timestamps',
+            label: TIMESTAMP_QUERY_LABEL,
             type: 'timestamp',
             count: SLOT_COUNT,
         });
         this.resolveBuffer = device.createBuffer({
-            label: '451-timestamp-resolve',
-            size: BUFFER_SIZE,
+            label: TIMESTAMP_RESOLVE_LABEL,
+            size: TIMESTAMP_BUFFER_SIZE,
             usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC,
         });
         this.readBuffer = device.createBuffer({
-            label: '451-timestamp-read',
-            size: BUFFER_SIZE,
+            label: TIMESTAMP_READ_LABEL,
+            size: TIMESTAMP_BUFFER_SIZE,
             usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
         });
     }
@@ -94,17 +95,19 @@ export class GpuTimer {
             this.resolveBuffer,
             0,
             this.readBuffer,
-            base * 8,
-            MARKS_PER_FRAME * 8
+            base * BYTES_PER_TIMESTAMP,
+            MARKS_PER_FRAME * BYTES_PER_TIMESTAMP
         );
 
         if (this.reading) return;
         this.reading = true;
-        const offset = base * 8;
+        const offset = base * BYTES_PER_TIMESTAMP;
         this.readBuffer
-            .mapAsync(GPUMapMode.READ, offset, MARKS_PER_FRAME * 8)
+            .mapAsync(GPUMapMode.READ, offset, MARKS_PER_FRAME * BYTES_PER_TIMESTAMP)
             .then(() => {
-                const view = new BigUint64Array(this.readBuffer.getMappedRange(offset, MARKS_PER_FRAME * 8));
+                const view = new BigUint64Array(
+                    this.readBuffer.getMappedRange(offset, MARKS_PER_FRAME * BYTES_PER_TIMESTAMP)
+                );
                 const t0 = view[0] ?? 0n;
                 const t1 = view[1] ?? 0n;
                 const t2 = view[2] ?? 0n;

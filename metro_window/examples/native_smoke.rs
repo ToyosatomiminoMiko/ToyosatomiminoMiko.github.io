@@ -5,8 +5,34 @@
 */
 use metro_window::{
     create_metro_pipelines, create_texture, make_droplets, DropletParams, MetroTextures, Uniforms,
+    FULLSCREEN_QUAD_INDICES, FULLSCREEN_QUAD_VERTICES, QUAD_INDEX_FORMAT,
+    REFRACTION_TEXTURE_FORMAT, RENDER_TARGET_FORMAT, RGBA_BYTES_PER_PIXEL,
+    SAMPLER_ADDRESS_MODE_CLAMP, SAMPLER_ADDRESS_MODE_REPEAT, SAMPLER_FILTER_MODE,
 };
 use wgpu::util::DeviceExt;
+
+// ===== 原生冒烟测试参数(仅本示例使用)=====
+/// 纯色测试贴图的边长(像素):4×4 已足够覆盖上传 / 采样路径.
+const SMOKE_TEXTURE_SIZE: u32 = 4;
+/// 渲染目标边长(像素):256 便于读回后统计非零像素.
+const SMOKE_TARGET_SIZE: u32 = 256;
+/// 折射偏移图边长(像素).
+const SMOKE_REFRACTION_SIZE: u32 = 4;
+/// 纹理->缓冲区复制时每行字节的对齐要求(wgpu COPY_BYTES_PER_ROW_ALIGNMENT).
+const COPY_ROW_ALIGNMENT: u32 = 256;
+/// Rgba16Float 每像素字节数.
+const RGBA16F_BYTES_PER_PIXEL: u32 = 8;
+/// 纯白测试贴图的字节数(宽 × 高 × RGBA).
+const SMOKE_TEXTURE_BYTES: usize =
+    (SMOKE_TEXTURE_SIZE * SMOKE_TEXTURE_SIZE * RGBA_BYTES_PER_PIXEL) as usize;
+/// 写入 Uniforms 的初始时间(秒),取非 0 让水滴已经运动过.
+const SMOKE_TIME_SECONDS: f32 = 1.0;
+/// 写入 Uniforms 的帧间隔(秒).
+const SMOKE_DELTA_SECONDS: f32 = 0.016;
+/// 写入 Uniforms 的样式编号.
+const SMOKE_STYLE_ID: u32 = 1;
+/// 折射偏移非零的判定阈值:低于它视为"折射偏移全为零".
+const REFRACTION_NONZERO_EPSILON: f32 = 0.0001;
 
 use std::future::Future;
 use std::pin::pin;
@@ -62,44 +88,95 @@ fn main() {
             .await
             .expect("创建设备失败");
 
-        let white: [u8; 64] = [255u8; 4 * 4 * 4];
-        let bg: wgpu::Texture = create_texture(&device, &queue, "bg", 4, 4, &white);
-        let far: wgpu::Texture = create_texture(&device, &queue, "far", 4, 4, &white);
-        let mid: wgpu::Texture = create_texture(&device, &queue, "mid", 4, 4, &white);
-        let near: wgpu::Texture = create_texture(&device, &queue, "near", 4, 4, &white);
-        let dirt: wgpu::Texture = create_texture(&device, &queue, "dirt", 4, 4, &white);
-        let fog: wgpu::Texture = create_texture(&device, &queue, "fog", 4, 4, &white);
-        let interior: wgpu::Texture = create_texture(&device, &queue, "interior", 4, 4, &white);
+        let white: [u8; SMOKE_TEXTURE_BYTES] = [255u8; SMOKE_TEXTURE_BYTES];
+        let bg: wgpu::Texture = create_texture(
+            &device,
+            &queue,
+            "bg",
+            SMOKE_TEXTURE_SIZE,
+            SMOKE_TEXTURE_SIZE,
+            &white,
+        );
+        let far: wgpu::Texture = create_texture(
+            &device,
+            &queue,
+            "far",
+            SMOKE_TEXTURE_SIZE,
+            SMOKE_TEXTURE_SIZE,
+            &white,
+        );
+        let mid: wgpu::Texture = create_texture(
+            &device,
+            &queue,
+            "mid",
+            SMOKE_TEXTURE_SIZE,
+            SMOKE_TEXTURE_SIZE,
+            &white,
+        );
+        let near: wgpu::Texture = create_texture(
+            &device,
+            &queue,
+            "near",
+            SMOKE_TEXTURE_SIZE,
+            SMOKE_TEXTURE_SIZE,
+            &white,
+        );
+        let dirt: wgpu::Texture = create_texture(
+            &device,
+            &queue,
+            "dirt",
+            SMOKE_TEXTURE_SIZE,
+            SMOKE_TEXTURE_SIZE,
+            &white,
+        );
+        let fog: wgpu::Texture = create_texture(
+            &device,
+            &queue,
+            "fog",
+            SMOKE_TEXTURE_SIZE,
+            SMOKE_TEXTURE_SIZE,
+            &white,
+        );
+        let interior: wgpu::Texture = create_texture(
+            &device,
+            &queue,
+            "interior",
+            SMOKE_TEXTURE_SIZE,
+            SMOKE_TEXTURE_SIZE,
+            &white,
+        );
 
         let sampler: wgpu::Sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("smoke-sampler"),
-            address_mode_u: wgpu::AddressMode::Repeat,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Linear,
+            address_mode_u: SAMPLER_ADDRESS_MODE_REPEAT,
+            address_mode_v: SAMPLER_ADDRESS_MODE_CLAMP,
+            address_mode_w: SAMPLER_ADDRESS_MODE_CLAMP,
+            mag_filter: SAMPLER_FILTER_MODE,
+            min_filter: SAMPLER_FILTER_MODE,
+            mipmap_filter: SAMPLER_FILTER_MODE,
             ..Default::default()
         });
 
-        let vertices: [f32; 16] = [
-            -1.0, -1.0, 0.0, 1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0,
-        ];
-        let indices: [u16; 6] = [0, 1, 2, 1, 3, 2];
         let vertex_buffer: wgpu::Buffer =
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("vertices"),
-                contents: bytemuck::cast_slice(&vertices),
+                contents: bytemuck::cast_slice(&FULLSCREEN_QUAD_VERTICES),
                 usage: wgpu::BufferUsages::VERTEX,
             });
         let index_buffer: wgpu::Buffer =
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("indices"),
-                contents: bytemuck::cast_slice(&indices),
+                contents: bytemuck::cast_slice(&FULLSCREEN_QUAD_INDICES),
                 usage: wgpu::BufferUsages::INDEX,
             });
 
-        let uniforms: Uniforms = Uniforms::new(1.0, 0.016, 1, 256, 256);
+        let uniforms: Uniforms = Uniforms::new(
+            SMOKE_TIME_SECONDS,
+            SMOKE_DELTA_SECONDS,
+            SMOKE_STYLE_ID,
+            SMOKE_TARGET_SIZE,
+            SMOKE_TARGET_SIZE,
+        );
         let uniform_buffer: wgpu::Buffer =
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("uniforms"),
@@ -124,14 +201,14 @@ fn main() {
         let refraction_texture: wgpu::Texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("smoke-refraction"),
             size: wgpu::Extent3d {
-                width: 4,
-                height: 4,
+                width: SMOKE_REFRACTION_SIZE,
+                height: SMOKE_REFRACTION_SIZE,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba16Float,
+            format: REFRACTION_TEXTURE_FORMAT,
             usage: wgpu::TextureUsages::STORAGE_BINDING
                 | wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_SRC,
@@ -141,12 +218,12 @@ fn main() {
             refraction_texture.create_view(&Default::default());
         let refraction_sampler: wgpu::Sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("smoke-refraction-sampler"),
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Linear,
+            address_mode_u: SAMPLER_ADDRESS_MODE_CLAMP,
+            address_mode_v: SAMPLER_ADDRESS_MODE_CLAMP,
+            address_mode_w: SAMPLER_ADDRESS_MODE_CLAMP,
+            mag_filter: SAMPLER_FILTER_MODE,
+            min_filter: SAMPLER_FILTER_MODE,
+            mipmap_filter: SAMPLER_FILTER_MODE,
             ..Default::default()
         });
 
@@ -161,7 +238,7 @@ fn main() {
         ];
         let pipelines: metro_window::MetroPipelines = create_metro_pipelines(
             &device,
-            wgpu::TextureFormat::Rgba8Unorm,
+            RENDER_TARGET_FORMAT,
             &uniform_buffer,
             &droplet_params_buffer,
             &droplet_buffer,
@@ -178,14 +255,14 @@ fn main() {
         let target: wgpu::Texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("smoke-target"),
             size: wgpu::Extent3d {
-                width: 256,
-                height: 256,
+                width: SMOKE_TARGET_SIZE,
+                height: SMOKE_TARGET_SIZE,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
+            format: RENDER_TARGET_FORMAT,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
             view_formats: &[],
         });
@@ -222,20 +299,20 @@ fn main() {
                 });
             pass.set_pipeline(&pipelines.render_pipeline);
             pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-            pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            pass.set_index_buffer(index_buffer.slice(..), QUAD_INDEX_FORMAT);
             pass.set_bind_group(0, &pipelines.render_bind_group, &[]);
-            pass.draw_indexed(0..6, 0, 0..1);
+            pass.draw_indexed(0..FULLSCREEN_QUAD_INDICES.len() as u32, 0, 0..1);
         }
 
         let readback: wgpu::Buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("readback"),
-            size: 256 * 256 * 4,
+            size: (SMOKE_TARGET_SIZE * SMOKE_TARGET_SIZE * RGBA_BYTES_PER_PIXEL) as u64,
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
         });
         let refraction_readback: wgpu::Buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("refraction-readback"),
-            size: 4 * 256,
+            size: (SMOKE_REFRACTION_SIZE * COPY_ROW_ALIGNMENT) as u64,
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
         });
@@ -250,13 +327,13 @@ fn main() {
                 buffer: &readback,
                 layout: wgpu::TexelCopyBufferLayout {
                     offset: 0,
-                    bytes_per_row: Some(256 * 4),
-                    rows_per_image: Some(256),
+                    bytes_per_row: Some(SMOKE_TARGET_SIZE * RGBA_BYTES_PER_PIXEL),
+                    rows_per_image: Some(SMOKE_TARGET_SIZE),
                 },
             },
             wgpu::Extent3d {
-                width: 256,
-                height: 256,
+                width: SMOKE_TARGET_SIZE,
+                height: SMOKE_TARGET_SIZE,
                 depth_or_array_layers: 1,
             },
         );
@@ -271,13 +348,13 @@ fn main() {
                 buffer: &refraction_readback,
                 layout: wgpu::TexelCopyBufferLayout {
                     offset: 0,
-                    bytes_per_row: Some(256),
-                    rows_per_image: Some(4),
+                    bytes_per_row: Some(COPY_ROW_ALIGNMENT),
+                    rows_per_image: Some(SMOKE_REFRACTION_SIZE),
                 },
             },
             wgpu::Extent3d {
-                width: 4,
-                height: 4,
+                width: SMOKE_REFRACTION_SIZE,
+                height: SMOKE_REFRACTION_SIZE,
                 depth_or_array_layers: 1,
             },
         );
@@ -310,9 +387,13 @@ fn main() {
         let mut max_r: f32 = f32::MIN;
         let mut min_g: f32 = f32::MAX;
         let mut max_g: f32 = f32::MIN;
-        for row in 0..4 {
-            let base: usize = row * 256;
-            for chunk in rdata[base..base + 32].as_chunks::<8>().0 {
+        for row in 0..SMOKE_REFRACTION_SIZE as usize {
+            let base: usize = row * COPY_ROW_ALIGNMENT as usize;
+            let row_bytes = (SMOKE_REFRACTION_SIZE * RGBA16F_BYTES_PER_PIXEL) as usize;
+            for chunk in rdata[base..base + row_bytes]
+                .as_chunks::<{ RGBA16F_BYTES_PER_PIXEL as usize }>()
+                .0
+            {
                 let r = half_to_f32(u16::from_le_bytes([chunk[0], chunk[1]]));
                 let g = half_to_f32(u16::from_le_bytes([chunk[2], chunk[3]]));
                 min_r = min_r.min(r);
@@ -324,7 +405,7 @@ fn main() {
         drop(rdata);
         println!("斯涅尔折射偏移图 (4x4): r=[{min_r:.5}, {max_r:.5}] g=[{min_g:.5}, {max_g:.5}]");
         assert!(
-            max_r.abs() > 0.0001 || max_g.abs() > 0.0001,
+            max_r.abs() > REFRACTION_NONZERO_EPSILON || max_g.abs() > REFRACTION_NONZERO_EPSILON,
             "折射偏移全为零"
         );
         println!("native smoke 测试通过: 水滴物理 + 斯涅尔折射 + 渲染管线可用");

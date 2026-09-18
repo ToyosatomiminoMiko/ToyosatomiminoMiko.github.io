@@ -11,10 +11,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WebGPU 地铁车窗 - Rust + WASM</title>
-    <link rel="icon"
-        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚇</text></svg>">
-    <!-- 本页的页面级样式(去 body 外边距)在 web/src/page.css,由 page.ts 引入.
-         页面里不写内联样式块,样式一律外置 -->
+    <!-- 页面里不写内联样式块,样式一律外置 -->
 </head>
 
 <body>
@@ -45,23 +42,31 @@
                 <div class="slider-grid">
                     <div class="slider-row">
                         <label class="slider-label" for="vehicleSpeed">车速 <small>倍率</small></label>
-                        <input class="slider-range" id="vehicleSpeed" type="range" min="0" max="3" step="0.01" value="1">
-                        <input class="slider-value" id="vehicleSpeedNum" type="number" min="0" max="3" step="0.01" value="1">
+                        <input class="slider-range" id="vehicleSpeed" type="range" min="0" max="3" step="0.01"
+                            value="1">
+                        <input class="slider-value" id="vehicleSpeedNum" type="number" min="0" max="3" step="0.01"
+                            value="1">
                     </div>
                     <div class="slider-row">
                         <label class="slider-label" for="farDistance">远景距离 <small>越大越慢</small></label>
-                        <input class="slider-range" id="farDistance" type="range" min="0.2" max="3" step="0.01" value="1">
-                        <input class="slider-value" id="farDistanceNum" type="number" min="0.2" max="3" step="0.01" value="1">
+                        <input class="slider-range" id="farDistance" type="range" min="0.2" max="3" step="0.01"
+                            value="1">
+                        <input class="slider-value" id="farDistanceNum" type="number" min="0.2" max="3" step="0.01"
+                            value="1">
                     </div>
                     <div class="slider-row">
                         <label class="slider-label" for="midDistance">中景距离 <small>越大越慢</small></label>
-                        <input class="slider-range" id="midDistance" type="range" min="0.2" max="3" step="0.01" value="1">
-                        <input class="slider-value" id="midDistanceNum" type="number" min="0.2" max="3" step="0.01" value="1">
+                        <input class="slider-range" id="midDistance" type="range" min="0.2" max="3" step="0.01"
+                            value="1">
+                        <input class="slider-value" id="midDistanceNum" type="number" min="0.2" max="3" step="0.01"
+                            value="1">
                     </div>
                     <div class="slider-row">
                         <label class="slider-label" for="nearDistance">近景距离 <small>越大越慢</small></label>
-                        <input class="slider-range" id="nearDistance" type="range" min="0.2" max="3" step="0.01" value="1">
-                        <input class="slider-value" id="nearDistanceNum" type="number" min="0.2" max="3" step="0.01" value="1">
+                        <input class="slider-range" id="nearDistance" type="range" min="0.2" max="3" step="0.01"
+                            value="1">
+                        <input class="slider-value" id="nearDistanceNum" type="number" min="0.2" max="3" step="0.01"
+                            value="1">
                     </div>
                 </div>
             </details>
@@ -71,28 +76,37 @@
                 <div class="slider-grid">
                     <div class="slider-row">
                         <label class="slider-label" for="dropletSize">水滴大小 <small>倍率</small></label>
-                        <input class="slider-range" id="dropletSize" type="range" min="0.2" max="2.5" step="0.01" value="1">
-                        <input class="slider-value" id="dropletSizeNum" type="number" min="0.2" max="2.5" step="0.01" value="1">
+                        <input class="slider-range" id="dropletSize" type="range" min="0.2" max="2.5" step="0.01"
+                            value="1">
+                        <input class="slider-value" id="dropletSizeNum" type="number" min="0.2" max="2.5" step="0.01"
+                            value="1">
                     </div>
                     <div class="slider-row">
                         <label class="slider-label" for="windBackward">向后风 <small>随车速</small></label>
-                        <input class="slider-range" id="windBackward" type="range" min="0" max="1" step="0.01" value="0.15">
-                        <input class="slider-value" id="windBackwardNum" type="number" min="0" max="1" step="0.01" value="0.15">
+                        <input class="slider-range" id="windBackward" type="range" min="0" max="1" step="0.01"
+                            value="0.15">
+                        <input class="slider-value" id="windBackwardNum" type="number" min="0" max="1" step="0.01"
+                            value="0.15">
                     </div>
                     <div class="slider-row">
                         <label class="slider-label" for="windSway">摇摆风 <small>倍率</small></label>
                         <input class="slider-range" id="windSway" type="range" min="0" max="2" step="0.01" value="1">
-                        <input class="slider-value" id="windSwayNum" type="number" min="0" max="2" step="0.01" value="1">
+                        <input class="slider-value" id="windSwayNum" type="number" min="0" max="2" step="0.01"
+                            value="1">
                     </div>
                     <div class="slider-row">
                         <label class="slider-label" for="gravityScale">下落速度 <small>倍率</small></label>
-                        <input class="slider-range" id="gravityScale" type="range" min="0" max="3" step="0.01" value="1">
-                        <input class="slider-value" id="gravityScaleNum" type="number" min="0" max="3" step="0.01" value="1">
+                        <input class="slider-range" id="gravityScale" type="range" min="0" max="3" step="0.01"
+                            value="1">
+                        <input class="slider-value" id="gravityScaleNum" type="number" min="0" max="3" step="0.01"
+                            value="1">
                     </div>
                     <div class="slider-row">
                         <label class="slider-label" for="refractionScale">折射强度 <small>倍率</small></label>
-                        <input class="slider-range" id="refractionScale" type="range" min="0" max="3" step="0.01" value="1">
-                        <input class="slider-value" id="refractionScaleNum" type="number" min="0" max="3" step="0.01" value="1">
+                        <input class="slider-range" id="refractionScale" type="range" min="0" max="3" step="0.01"
+                            value="1">
+                        <input class="slider-value" id="refractionScaleNum" type="number" min="0" max="3" step="0.01"
+                            value="1">
                     </div>
                 </div>
             </details>
@@ -102,18 +116,24 @@
                 <div class="slider-grid">
                     <div class="slider-row">
                         <label class="slider-label" for="dirtOpacity">污渍浓度</label>
-                        <input class="slider-range" id="dirtOpacity" type="range" min="0" max="1" step="0.01" value="0.55">
-                        <input class="slider-value" id="dirtOpacityNum" type="number" min="0" max="1" step="0.01" value="0.55">
+                        <input class="slider-range" id="dirtOpacity" type="range" min="0" max="1" step="0.01"
+                            value="0.55">
+                        <input class="slider-value" id="dirtOpacityNum" type="number" min="0" max="1" step="0.01"
+                            value="0.55">
                     </div>
                     <div class="slider-row">
                         <label class="slider-label" for="fogOpacity">雾气浓度</label>
-                        <input class="slider-range" id="fogOpacity" type="range" min="0" max="1" step="0.01" value="0.30">
-                        <input class="slider-value" id="fogOpacityNum" type="number" min="0" max="1" step="0.01" value="0.30">
+                        <input class="slider-range" id="fogOpacity" type="range" min="0" max="1" step="0.01"
+                            value="0.30">
+                        <input class="slider-value" id="fogOpacityNum" type="number" min="0" max="1" step="0.01"
+                            value="0.30">
                     </div>
                     <div class="slider-row">
                         <label class="slider-label" for="interiorOpacity">车厢灯光</label>
-                        <input class="slider-range" id="interiorOpacity" type="range" min="0" max="1" step="0.01" value="0.55">
-                        <input class="slider-value" id="interiorOpacityNum" type="number" min="0" max="1" step="0.01" value="0.55">
+                        <input class="slider-range" id="interiorOpacity" type="range" min="0" max="1" step="0.01"
+                            value="0.55">
+                        <input class="slider-value" id="interiorOpacityNum" type="number" min="0" max="1" step="0.01"
+                            value="0.55">
                     </div>
                 </div>
             </details>

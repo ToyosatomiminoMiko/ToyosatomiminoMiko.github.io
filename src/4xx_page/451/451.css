@@ -1,3 +1,5 @@
+@import './451_tokens.css';
+
 /* ------------------------------------------------------------------
    字体: 由 @fontsource 自托管, 不再请求 Google Fonts CDN.
    字重与原来 <link> 里请求的完全一致: Inter 300/400/600/800/900, Space Mono 400/700.
@@ -21,10 +23,10 @@
 
 body {
     width: 100%;
-    background-color: #0a0301;
-    font-family: 'Inter', 'Segoe UI', sans-serif;
+    background-color: var(--fire-bg-page);
+    font-family: var(--fire-font-sans);
     overflow-x: hidden;
-    color: #f0e6d0;
+    color: var(--fire-text-page);
 }
 
 /* ---------- 粒子画布 (燃烧余烬) ---------- */
@@ -37,19 +39,19 @@ body {
     display: block;
     pointer-events: none;
     /* 让粒子不干扰点击/交互 */
-    z-index: 1;
+    z-index: var(--fire-z-canvas);
 }
 
 /* ---------- 主内容容器 ---------- */
 .hero {
     position: relative;
-    z-index: 10;
-    min-height: 99vh;
+    z-index: var(--fire-z-hero);
+    min-height: var(--fire-hero-min-height);
     width: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 2rem;
+    padding: var(--fire-hero-padding);
     /*
         这里原来有一层 backdrop-filter: blur(2px).hero 正好铺满视口,
         而它背后是每帧都在变的粒子 canvas -- 于是合成器每一帧都要重新模糊
@@ -60,17 +62,17 @@ body {
 
 /* 玻璃质感卡片 + 燃烧边缘效果 */
 .card {
-    max-width: 900px;
+    max-width: var(--fire-card-max-width);
     width: 100%;
     /* 原来的 backdrop-filter: blur(12px) 同样压在动态 canvas 上,
        省掉之后把底色加厚一点补回通透感 */
-    background: rgba(10, 5, 2, 0.82);
-    border-radius: 4rem 2rem 4rem 2rem;
-    border: 1px solid rgba(255, 80, 40, 0.5);
-    box-shadow: 0 30px 50px rgba(0, 0, 0, 0.6), 0 0 0 2px rgba(255, 70, 30, 0.1) inset, 0 0 30px rgba(255, 50, 0, 0.2);
-    padding: 3rem 2rem 4rem;
+    background: var(--fire-card-bg);
+    border-radius: var(--fire-card-radius);
+    border: var(--fire-card-border);
+    box-shadow: var(--fire-card-shadow);
+    padding: var(--fire-card-padding);
     text-align: center;
-    transition: border-color 0.4s ease;
+    transition: var(--fire-card-transition);
     /*
         这里原来挂着 cardGlow: 关键帧里改 border-color(以及更早版本改三条
         box-shadow).边框一改, 整张卡片就要重画一遍 -- 包括那条 50px 模糊的
@@ -83,12 +85,12 @@ body {
 
 /* 巨大451数字 + 火焰特效 */
 .temp-number {
-    font-family: 'Space Mono', 'Inter', monospace;
-    font-weight: 900;
-    font-size: clamp(5rem, 20vw, 14rem);
-    letter-spacing: 0.05em;
-    background: linear-gradient(135deg, #ff7e3a, #ff3c00, #ff9f4a, #d42a00);
-    background-size: 300% 300%;
+    font-family: var(--fire-font-display);
+    font-weight: var(--fire-weight-black);
+    font-size: var(--fire-temp-font-size);
+    letter-spacing: var(--fire-temp-letter-spacing);
+    background: var(--fire-temp-gradient);
+    background-size: var(--fire-temp-gradient-size);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -99,9 +101,9 @@ body {
         但同样完全是白烧的 -- 6.7Hz 的闪烁肉眼几乎看不出来.
         现在把闪烁改成只动 opacity(合成器就能做), 周期也放慢到 1.6s.
     */
-    animation: fireGradient 2.8s ease infinite, textFlicker 1.6s infinite alternate;
-    text-shadow: 0 0 15px rgba(255, 70, 0, 0.7), 0 0 30px rgba(255, 40, 0, 0.4);
-    margin-bottom: 0.5rem;
+    animation: var(--fire-temp-animation);
+    text-shadow: var(--fire-temp-text-shadow);
+    margin-bottom: var(--fire-temp-margin-bottom);
     position: relative;
     display: inline-block;
     /*
@@ -134,130 +136,130 @@ body {
     }
 
     100% {
-        opacity: 0.88;
+        opacity: var(--fire-flicker-opacity);
     }
 }
 
 /* 单位标识 °F */
 .unit {
-    font-size: clamp(1.8rem, 5vw, 3rem);
-    font-weight: 600;
-    background: linear-gradient(120deg, #ffc285, #ff702a);
+    font-size: var(--fire-unit-font-size);
+    font-weight: var(--fire-weight-semibold);
+    background: var(--fire-unit-gradient);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
-    margin-left: 0.2rem;
+    margin-left: var(--fire-unit-margin-left);
     display: inline-block;
     vertical-align: super;
-    font-family: 'Inter', sans-serif;
-    text-shadow: 0 0 6px rgba(255, 80, 0, 0.5);
+    font-family: var(--fire-font-sans-alt);
+    text-shadow: var(--fire-unit-text-shadow);
 }
 
 /* 燃烧书籍/法律错误标识 双符号 */
 .badge-row {
     display: flex;
     justify-content: center;
-    gap: 2rem;
-    margin: 1.2rem 0 1.5rem;
+    gap: var(--fire-badge-row-gap);
+    margin: var(--fire-badge-row-margin);
     flex-wrap: wrap;
 }
 
 .badge {
     /* 同样不再用 backdrop-filter: 小面积也会跟着动态底每帧重算 */
-    background: rgba(0, 0, 0, 0.72);
-    padding: 0.5rem 1.2rem;
-    border-radius: 60px;
-    font-size: 0.9rem;
-    font-weight: 500;
-    letter-spacing: 1px;
-    border-left: 3px solid #ff5722;
-    font-family: 'Space Mono', monospace;
-    color: #ffccaa;
+    background: var(--fire-badge-bg);
+    padding: var(--fire-badge-padding);
+    border-radius: var(--fire-radius-pill);
+    font-size: var(--fire-badge-font-size);
+    font-weight: var(--fire-weight-medium);
+    letter-spacing: var(--fire-badge-letter-spacing);
+    border-left: var(--fire-badge-border-left-w) solid var(--fire-accent);
+    font-family: var(--fire-font-mono);
+    color: var(--fire-badge-color);
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--fire-badge-gap);
 }
 
 /* 引语 & 核心文本 */
 .tagline {
-    font-size: clamp(1rem, 4vw, 1.5rem);
-    font-weight: 500;
-    margin: 1.5rem 0 0.8rem;
-    color: #ffcd94;
-    letter-spacing: -0.3px;
-    border-top: 1px dashed rgba(255, 100, 50, 0.6);
-    border-bottom: 1px dashed rgba(255, 100, 50, 0.6);
+    font-size: var(--fire-tagline-font-size);
+    font-weight: var(--fire-weight-medium);
+    margin: var(--fire-tagline-margin);
+    color: var(--fire-tagline-color);
+    letter-spacing: var(--fire-tagline-letter-spacing);
+    border-top: 1px dashed var(--fire-rule-color);
+    border-bottom: 1px dashed var(--fire-rule-color);
     display: inline-block;
-    padding: 0.6rem 1.2rem;
-    background: rgba(0, 0, 0, 0.45);
-    border-radius: 50px;
+    padding: var(--fire-tagline-padding);
+    background: var(--fire-tagline-bg);
+    border-radius: var(--fire-tagline-radius);
 }
 
 .description {
-    font-size: 1rem;
-    line-height: 1.6;
-    max-width: 750px;
-    margin: 1.5rem auto;
-    font-weight: 400;
-    color: #e0cbb0;
-    background: rgba(0, 0, 0, 0.5);
-    padding: 1rem 1.5rem;
-    border-radius: 2rem;
+    font-size: var(--fire-desc-font-size);
+    line-height: var(--fire-desc-line-height);
+    max-width: var(--fire-desc-max-width);
+    margin: var(--fire-desc-margin);
+    font-weight: var(--fire-weight-regular);
+    color: var(--fire-desc-color);
+    background: var(--fire-desc-bg);
+    padding: var(--fire-desc-padding);
+    border-radius: var(--fire-desc-radius);
 }
 
 .legal-message {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.85rem;
-    background: rgba(30, 10, 2, 0.7);
-    padding: 0.8rem 1rem;
-    border-radius: 2rem;
+    font-family: var(--fire-font-mono);
+    font-size: var(--fire-legal-font-size);
+    background: var(--fire-legal-bg);
+    padding: var(--fire-legal-padding);
+    border-radius: var(--fire-desc-radius);
     width: fit-content;
-    margin: 1rem auto;
-    color: #ffb47b;
-    border: 1px solid #ff5e2e;
-    letter-spacing: 0.5px;
+    margin: var(--fire-legal-margin);
+    color: var(--fire-legal-color);
+    border: 1px solid var(--fire-border-strong);
+    letter-spacing: var(--fire-legal-letter-spacing);
 }
 
 .quote {
     font-style: italic;
-    font-weight: 300;
-    font-size: 0.95rem;
-    margin-top: 2rem;
-    color: #e6ba8b;
-    border-left: 3px solid #ff5e2e;
-    padding-left: 1rem;
+    font-weight: var(--fire-weight-light);
+    font-size: var(--fire-quote-font-size);
+    margin-top: var(--fire-quote-margin-top);
+    color: var(--fire-quote-color);
+    border-left: 3px solid var(--fire-border-strong);
+    padding-left: var(--fire-quote-padding-left);
     text-align: left;
-    max-width: 450px;
+    max-width: var(--fire-quote-max-width);
     margin-left: auto;
     margin-right: auto;
 }
 
 .quote-author {
-    font-size: 0.75rem;
-    margin-top: 6px;
-    color: #cc9f70;
-    letter-spacing: 1px;
+    font-size: var(--fire-author-font-size);
+    margin-top: var(--fire-author-margin-top);
+    color: var(--fire-author-color);
+    letter-spacing: var(--fire-author-letter-spacing);
 }
 
 /* 响应式调整 */
 @media (max-width: 650px) {
     .card {
-        padding: 2rem 1.2rem 3rem;
-        border-radius: 2rem 1rem 2rem 1rem;
+        padding: var(--fire-card-padding-sm);
+        border-radius: var(--fire-card-radius-sm);
     }
 
     .badge-row {
-        gap: 1rem;
+        gap: var(--fire-badge-row-gap-sm);
     }
 
     .badge {
-        font-size: 0.7rem;
-        padding: 0.3rem 0.9rem;
+        font-size: var(--fire-badge-font-size-sm);
+        padding: var(--fire-badge-padding-sm);
     }
 
     .description {
-        font-size: 0.9rem;
-        padding: 0.8rem 1rem;
+        font-size: var(--fire-desc-font-size-sm);
+        padding: var(--fire-desc-padding-sm);
     }
 }
 
@@ -265,27 +267,27 @@ body {
 .card::before {
     content: '';
     position: absolute;
-    top: -3px;
-    left: -3px;
-    right: -3px;
-    bottom: -3px;
-    background: radial-gradient(circle at 20% 30%, rgba(255, 80, 0, 0.2), transparent 70%);
-    border-radius: 4rem 2rem 4rem 2rem;
-    z-index: -1;
+    top: var(--fire-glow-inset);
+    left: var(--fire-glow-inset);
+    right: var(--fire-glow-inset);
+    bottom: var(--fire-glow-inset);
+    background: var(--fire-glow-bg);
+    border-radius: var(--fire-card-radius);
+    z-index: var(--fire-z-glow);
     pointer-events: none;
     /* 模糊半径固定, 只让它呼吸: 关键帧里改 blur() 等于每帧重算一遍模糊 */
-    filter: blur(6px);
-    opacity: 0.6;
-    animation: borderBurn 2.2s infinite alternate;
+    filter: blur(var(--fire-glow-blur));
+    opacity: var(--fire-glow-opacity);
+    animation: var(--fire-glow-animation);
 }
 
 @keyframes borderBurn {
     0% {
-        opacity: 0.25;
+        opacity: var(--fire-burn-opacity-min);
     }
 
     100% {
-        opacity: 0.95;
+        opacity: var(--fire-burn-opacity-max);
     }
 }
 
@@ -297,24 +299,24 @@ body {
     width: 100%;
     height: 100%;
     pointer-events: none;
-    z-index: 2;
-    background: radial-gradient(ellipse at bottom, rgba(0, 0, 0, 0) 70%, rgba(20, 5, 0, 0.3) 100%);
+    z-index: var(--fire-z-ash);
+    background: var(--fire-ash-bg);
 }
 
 /* 滚动条隐藏风格,但保留功能 */
 ::-webkit-scrollbar {
-    width: 5px;
-    background: #1e0a03;
+    width: var(--fire-scrollbar-w);
+    background: var(--fire-scrollbar-track);
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #ff5722;
-    border-radius: 20px;
+    background: var(--fire-accent);
+    border-radius: var(--fire-scrollbar-thumb-radius);
 }
 
 body {
     scrollbar-width: thin;
-    scrollbar-color: #ff5722 #1e0a03;
+    scrollbar-color: var(--fire-accent) var(--fire-scrollbar-track);
 }
 
 /* ------------------------------------------------------------------
@@ -329,6 +331,6 @@ body {
     }
 
     .card::before {
-        opacity: 0.5;
+        opacity: var(--fire-glow-opacity-reduced);
     }
 }

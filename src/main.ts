@@ -7,15 +7,16 @@ import { mountClock } from './clock';
 import { mountRBT } from './rbt';
 import { OLEDCanvas } from './oled';
 import { mountIEEE754 } from './ieee754';
+import { BACKGROUND_IMAGE_CLASS, BACKGROUND_IMAGE_STYLE_PROPERTY } from './site.config';
 
 document.addEventListener('DOMContentLoaded', () => {
     // 背景切换
-    const imgs = document.getElementsByClassName('bgimg');
+    const imgs = document.getElementsByClassName(BACKGROUND_IMAGE_CLASS);
     for (let i = 0; i < imgs.length; i++) {
         const img = imgs[i] as HTMLImageElement;
         img.addEventListener('click', () => {
             document.body.style.cssText =
-                'background-image: url("' + img.src + '") !important;';
+                BACKGROUND_IMAGE_STYLE_PROPERTY + ': url("' + img.src + '") !important;';
         });
     }
 

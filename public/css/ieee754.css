@@ -1,64 +1,64 @@
 /* IEEE 754 */
 .ieee-hint {
-    color: #cbd5e1;
+    color: var(--ieee-hint-color);
     font-size: 0.9rem;
-    margin-bottom: 8px;
+    margin-bottom: var(--ieee-hint-margin-bottom);
 }
 
 .ieee-error {
-    color: #f43f5e;
+    color: var(--ieee-error-color);
     font-weight: 600;
-    margin: 6px 0;
+    margin: var(--ieee-error-margin);
 }
 
 .ieee-section {
-    margin: 12px 0;
-    padding: 10px;
-    border: 1px solid #334155;
-    border-radius: 6px;
-    background: #0b1220;
+    margin: var(--ieee-section-margin);
+    padding: var(--ieee-section-padding);
+    border: var(--ieee-border-width) solid var(--ieee-border-color);
+    border-radius: var(--ieee-radius);
+    background: var(--ieee-section-bg);
 }
 
 .ieee-legend {
     display: flex;
-    gap: 16px;
-    color: #94a3b8;
+    gap: var(--ieee-legend-gap);
+    color: var(--ieee-muted-color);
     font-size: 0.8rem;
-    margin-bottom: 6px;
+    margin-bottom: var(--ieee-caption-margin-bottom);
 }
 
 .ieee-legend b {
-    color: #7dd3fc;
+    color: var(--ieee-accent-color);
 }
 
 .ieee-bits {
-    font-family: 'JetBrains Mono Slashed', 'Fira Code', 'Consolas', monospace;
-    line-height: 2;
+    font-family: var(--font-code);
+    line-height: var(--ieee-bit-line-height);
     user-select: none;
     white-space: nowrap;
 }
 
 .ieee-bit-group {
     display: inline-flex;
-    gap: 2px;
-    margin-right: 8px;
+    gap: var(--ieee-group-gap);
+    margin-right: var(--ieee-group-margin-right);
 }
 
 .ieee-gap {
     display: inline-block;
-    width: 6px;
+    width: var(--ieee-gap-width);
 }
 
 .ieee-bit {
     display: inline-block;
-    width: 12px;
-    height: 22px;
-    line-height: 22px;
+    width: var(--ieee-bit-width);
+    height: var(--ieee-bit-height);
+    line-height: var(--ieee-bit-height);
     text-align: center;
-    font-size: 11px;
-    border: 1px solid #475569;
-    background: #0f172a;
-    color: #7dd3fc;
+    font-size: var(--ieee-bit-font-size);
+    border: var(--ieee-border-width) solid var(--ieee-bit-border);
+    background: var(--ieee-bit-bg);
+    color: var(--ieee-accent-color);
     cursor: pointer;
 }
 
@@ -67,59 +67,59 @@
 }
 
 .ieee-bit-group.ieee-sign .ieee-bit {
-    background: #be123c;
-    color: #fff;
+    background: var(--ieee-sign-bg);
+    color: var(--ieee-on-color);
 }
 
 .ieee-bit-group.ieee-exp .ieee-bit {
-    background: #7c2d12;
-    color: #fff;
+    background: var(--ieee-exp-bg);
+    color: var(--ieee-on-color);
 }
 
 .ieee-bit-group.ieee-frac .ieee-bit {
-    background: #065f46;
-    color: #fff;
+    background: var(--ieee-frac-bg);
+    color: var(--ieee-on-color);
 }
 
 .ieee-legend .ieee-s {
-    color: #fda4af;
+    color: var(--ieee-legend-sign);
 }
 
 .ieee-legend .ieee-e {
-    color: #fdba74;
+    color: var(--ieee-legend-exp);
 }
 
 .ieee-legend .ieee-m {
-    color: #6ee7b7;
+    color: var(--ieee-legend-frac);
 }
 
 .ieee-bitstring {
-    margin-top: 8px;
-    font-family: 'JetBrains Mono Slashed', 'Fira Code', 'Consolas', monospace;
+    margin-top: var(--ieee-hint-margin-bottom);
+    font-family: var(--font-code);
     font-size: 0.85rem;
-    color: #e2e8f0;
+    color: var(--ieee-text-color);
     word-break: break-all;
 }
 
 .ieee-breakdown {
-    margin: 8px 0;
-    font-family: 'JetBrains Mono Slashed', 'Fira Code', 'Consolas', monospace;
-    color: #e2e8f0;
+    margin: var(--ieee-block-margin);
+    font-family: var(--font-code);
+    color: var(--ieee-text-color);
     line-height: 1.8;
 }
 
 .ieee-breakdown b {
-    color: #7dd3fc;
+    color: var(--ieee-accent-color);
 }
 
 .ieee-breakdown .ieee-muted {
-    color: #94a3b8;
+    color: var(--ieee-muted-color);
 }
 
 .ieee-formula-title {
-    color: #94a3b8;
+    color: var(--ieee-muted-color);
     font-size: 0.8rem;
-    margin-bottom: 4px;
+    margin-bottom: var(--ieee-formula-title-margin-bottom);
 }
 
 .ieee-formula {
@@ -140,33 +140,33 @@
 .ieee-special-table {
     border-collapse: collapse;
     width: 100%;
-    font-family: 'JetBrains Mono Slashed', 'Fira Code', 'Consolas', monospace;
+    font-family: var(--font-code);
     font-size: 0.82rem;
 }
 
 .ieee-special-table th,
 .ieee-special-table td {
     text-align: left;
-    padding: 5px 10px;
-    border: 1px solid #334155;
+    padding: var(--ieee-cell-padding);
+    border: var(--ieee-border-width) solid var(--ieee-border-color);
     white-space: nowrap;
 }
 
 .ieee-special-table th {
-    color: #94a3b8;
+    color: var(--ieee-muted-color);
     font-weight: 600;
-    background: #0f172a;
+    background: var(--ieee-bit-bg);
 }
 
 .ieee-special-table tbody tr {
-    color: #e2e8f0;
+    color: var(--ieee-text-color);
     cursor: pointer;
 }
 
 .ieee-special-table tbody tr:hover {
-    background: #1e293b;
+    background: var(--ieee-row-hover-bg);
 }
 
 .ieee-special-table td.ieee-bits {
-    color: #7dd3fc;
+    color: var(--ieee-accent-color);
 }

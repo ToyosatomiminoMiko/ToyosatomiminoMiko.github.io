@@ -1,0 +1,150 @@
+/*
+地铁车窗的设计令牌(design tokens).
+
+这里集中 metro_window.css / metro_index.css 会用到的**全部可调数值**:
+颜色,透明度,尺寸,间距,圆角,字体,动效时长与缓动.
+
+约定:
+  - 令牌一律用 `--metro-<类别>-<名>` 命名,统一挂在 `:root` 上,避免和
+    bootstrap / 站点变量撞名,也让独立页面与组件共用同一份定义;
+  - 同一个值只在这里定义一次,任何选择器都必须 `var(--metro-*)` 引用,
+    不得再写死(结构性字面量如 `0` / `100%` / `none` / `display:block` 除外);
+  - 由变量拼出的复合值(如强调色淡底)也作为令牌集中在这里,保证"一处定义".
+
+改这些值即可整体换肤,不需要碰 metro_window.css.
+*/
+:root {
+    /* ---------- 颜色 ---------- */
+
+    /** 车窗面板底色(深蓝灰),同时用作普通按钮底色 */
+    --metro-color-bg: #15181d;
+
+    /** 半透明面板底色(#000000 @ 20%),用于 WebGPU 状态区 */
+    --metro-color-panel: #00000033;
+
+    /** 主文字色(标题,滑块行,按钮文字) */
+    --metro-color-text: #e8ecf2;
+
+    /** 次级文字色(副标题,说明,summary,图层面板) */
+    --metro-color-muted: #9aa4b2;
+
+    /** 强调色的 RGB 分量(87,199,255),供 rgb()/rgba() 复用以避免重复写色值 */
+    --metro-color-accent-rgb: 87, 199, 255;
+
+    /** 强调色:高亮边框,激活文字,滑杆 accent-color */
+    --metro-color-accent: rgb(var(--metro-color-accent-rgb));
+
+    /** 强调色淡底(激活按钮的背景),由强调色 + 透明度令牌拼出 */
+    --metro-color-accent-veil: rgba(var(--metro-color-accent-rgb), var(--metro-alpha-veil));
+
+    /** 常规边框色(面板,输入框,按钮) */
+    --metro-color-border: #39414f;
+
+    /** 画布边框色(比常规边框略亮,单独一个值) */
+    --metro-color-border-canvas: #3a4150;
+
+    /** 画布底色(近黑),让渲染画面之外也保持深色 */
+    --metro-color-canvas-bg: #05070a;
+
+    /** 数字输入框底色(比面板更深) */
+    --metro-color-input-bg: #0d1120;
+
+    /* ---------- 透明度 ---------- */
+
+    /** 激活按钮强调色底纹的透明度(.14) */
+    --metro-alpha-veil: .14;
+
+    /** 禁用按钮的整体透明度(.45) */
+    --metro-alpha-disabled: .45;
+
+    /** 禁用参数面板的整体透明度(.55) */
+    --metro-alpha-disabled-panel: .55;
+
+    /* ---------- 尺寸 ---------- */
+
+    /** 统一边框宽度(画布,面板,输入框,按钮都用它) */
+    --metro-size-border: 1px;
+
+    /** 画布宽高比(16:9,与 index.html 里 canvas 的 1344x756 一致) */
+    --metro-size-canvas-aspect: 16 / 9;
+
+    /** 滑块网格自动换行时单列的最小宽度 */
+    --metro-size-slider-grid-min: 320px;
+
+    /** 滑块行的三列宽度:标签列(最小 96px,占 1.1 份) */
+    --metro-size-slider-label-col: minmax(96px, 1.1fr);
+
+    /** 滑块行的三列宽度:滑杆列(最小 140px,占 2 份) */
+    --metro-size-slider-range-col: minmax(140px, 2fr);
+
+    /** 滑块行的三列宽度:数字输入框列(固定 64px) */
+    --metro-size-slider-value-col: 64px;
+
+    /* ---------- 间距(按像素值命名,同一像素值只定义一次) ---------- */
+
+    /** 4px:标题下边距,summary 上下内边距,数字框上下内边距 */
+    --metro-space-4: 4px;
+
+    /** 6px:legend 左右内边距,滑块网格上边距,若干 gap,数字框左右内边距 */
+    --metro-space-6: 6px;
+
+    /** 8px:控件间隔,滑块组上边距,按钮上下内边距,状态区上边距 */
+    --metro-space-8: 8px;
+
+    /** 10px:参数面板上/下边距与上内边距 */
+    --metro-space-10: 10px;
+
+    /** 14px:副标题下边距,参数面板左右内边距,按钮左右内边距 */
+    --metro-space-14: 14px;
+
+    /** 16px:参数面板上边距 */
+    --metro-space-16: 16px;
+
+    /** 18px:滑块网格的列间距 */
+    --metro-space-18: 18px;
+
+    /** 20px:最外层车窗容器的内边距 */
+    --metro-space-20: 20px;
+
+    /* ---------- 圆角 ---------- */
+
+    /** 小圆角 6px:数字输入框,按钮 */
+    --metro-radius-sm: 6px;
+
+    /** 大圆角 10px:画布,参数面板 */
+    --metro-radius-lg: 10px;
+
+    /* ---------- 字体 ---------- */
+
+    /** 界面字体栈(必须显式写在每个元素上,靠继承会被站点通配重置截断) */
+    --metro-font-family-base: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+
+    /** 数字输入框的等宽字体栈 */
+    --metro-font-family-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+
+    /** 22px:页面主标题 */
+    --metro-font-size-title: 22px;
+
+    /** 14px:参数面板 legend */
+    --metro-font-size-legend: 14px;
+
+    /** 13px:界面基准字号(副标题,summary,滑块行,按钮) */
+    --metro-font-size-base: 13px;
+
+    /** 12px:图层面板说明文字 */
+    --metro-font-size-note: 12px;
+
+    /** 11px:滑块标签后的小字注释 */
+    --metro-font-size-small: 11px;
+
+    /** 16px:数字输入框字号 */
+    --metro-font-size-input: 16px;
+
+    /* ---------- 动效 ---------- */
+
+    /** 按钮状态过渡时长(.15s) */
+    --metro-duration-fast: .15s;
+
+    /** 按钮状态过渡缓动函数 */
+    --metro-easing-standard: ease;
+}

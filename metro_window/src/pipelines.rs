@@ -6,6 +6,14 @@
 - struct DropletParams 由 Rust 侧生成并注入,保证 WGSL 与 Rust 字段完全同步
 */
 use crate::droplet_params::DropletParams;
+use crate::render_params::{
+    BINDING_DROPLETS, BINDING_DROPLET_PARAMS, BINDING_REFRACTION_IMAGE, BINDING_REFRACTION_SAMPLER,
+    BINDING_REFRACTION_VIEW, BINDING_SAMPLER, BINDING_TEXTURE_BASE, BINDING_UNIFORMS,
+    BIND_ENTRY_CAPACITY, FRAGMENT_ENTRY_POINT, OUTPUT_BLEND_STATE, OUTPUT_WRITE_MASK,
+    PHYSICS_ENTRY_POINT, REFRACTION_ENTRY_POINT, REFRACTION_TEXTURE_FORMAT, TEXTURE_LAYER_COUNT,
+    VERTEX_ENTRY_POINT, VERTEX_POSITION_LOCATION, VERTEX_POSITION_OFFSET, VERTEX_STRIDE_BYTES,
+    VERTEX_UV_LOCATION, VERTEX_UV_OFFSET,
+};
 
 pub struct MetroPipelines {
     pub render_pipeline: wgpu::RenderPipeline,
@@ -63,7 +71,7 @@ pub fn create_metro_pipelines(
             label: Some("metro-compute-bgl"),
             entries: &[
                 wgpu::BindGroupLayoutEntry {
-                    binding: 0,
+                    binding: BINDING_UNIFORMS,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
@@ -73,7 +81,7 @@ pub fn create_metro_pipelines(
                     count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
-                    binding: 1,
+                    binding: BINDING_DROPLETS,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -83,17 +91,17 @@ pub fn create_metro_pipelines(
                     count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
-                    binding: 2,
+                    binding: BINDING_REFRACTION_IMAGE,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::StorageTexture {
                         access: wgpu::StorageTextureAccess::WriteOnly,
-                        format: wgpu::TextureFormat::Rgba16Float,
+                        format: REFRACTION_TEXTURE_FORMAT,
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
-                    binding: 3,
+                    binding: BINDING_DROPLET_PARAMS,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
@@ -105,9 +113,10 @@ pub fn create_metro_pipelines(
             ],
         });
 
-    let mut render_entries: Vec<wgpu::BindGroupLayoutEntry> = Vec::with_capacity(12);
+    let mut render_entries: Vec<wgpu::BindGroupLayoutEntry> =
+        Vec::with_capacity(BIND_ENTRY_CAPACITY);
     render_entries.push(wgpu::BindGroupLayoutEntry {
-        binding: 0,
+        binding: BINDING_UNIFORMS,
         visibility: wgpu::ShaderStages::FRAGMENT,
         ty: wgpu::BindingType::Buffer {
             ty: wgpu::BufferBindingType::Uniform,
@@ -117,7 +126,7 @@ pub fn create_metro_pipelines(
         count: None,
     });
     render_entries.push(wgpu::BindGroupLayoutEntry {
-        binding: 3,
+        binding: BINDING_DROPLET_PARAMS,
         visibility: wgpu::ShaderStages::FRAGMENT,
         ty: wgpu::BindingType::Buffer {
             ty: wgpu::BufferBindingType::Uniform,
@@ -127,14 +136,14 @@ pub fn create_metro_pipelines(
         count: None,
     });
     render_entries.push(wgpu::BindGroupLayoutEntry {
-        binding: 10,
+        binding: BINDING_SAMPLER,
         visibility: wgpu::ShaderStages::FRAGMENT,
         ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
         count: None,
     });
-    for i in 0..7 {
+    for i in 0..TEXTURE_LAYER_COUNT {
         render_entries.push(wgpu::BindGroupLayoutEntry {
-            binding: 11 + i as u32,
+            binding: BINDING_TEXTURE_BASE + i,
             visibility: wgpu::ShaderStages::FRAGMENT,
             ty: wgpu::BindingType::Texture {
                 sample_type: wgpu::TextureSampleType::Float { filterable: true },
@@ -145,7 +154,7 @@ pub fn create_metro_pipelines(
         });
     }
     render_entries.push(wgpu::BindGroupLayoutEntry {
-        binding: 18,
+        binding: BINDING_REFRACTION_VIEW,
         visibility: wgpu::ShaderStages::FRAGMENT,
         ty: wgpu::BindingType::Texture {
             sample_type: wgpu::TextureSampleType::Float { filterable: true },
@@ -155,7 +164,7 @@ pub fn create_metro_pipelines(
         count: None,
     });
     render_entries.push(wgpu::BindGroupLayoutEntry {
-        binding: 19,
+        binding: BINDING_REFRACTION_SAMPLER,
         visibility: wgpu::ShaderStages::FRAGMENT,
         ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
         count: None,
@@ -181,49 +190,50 @@ pub fn create_metro_pipelines(
         layout: &compute_bgl,
         entries: &[
             wgpu::BindGroupEntry {
-                binding: 0,
+                binding: BINDING_UNIFORMS,
                 resource: uniform_buffer.as_entire_binding(),
             },
             wgpu::BindGroupEntry {
-                binding: 1,
+                binding: BINDING_DROPLETS,
                 resource: droplet_buffer.as_entire_binding(),
             },
             wgpu::BindGroupEntry {
-                binding: 2,
+                binding: BINDING_REFRACTION_IMAGE,
                 resource: wgpu::BindingResource::TextureView(refraction_view),
             },
             wgpu::BindGroupEntry {
-                binding: 3,
+                binding: BINDING_DROPLET_PARAMS,
                 resource: droplet_params_buffer.as_entire_binding(),
             },
         ],
     });
 
-    let mut render_bind_entries: Vec<wgpu::BindGroupEntry<'_>> = Vec::with_capacity(12);
+    let mut render_bind_entries: Vec<wgpu::BindGroupEntry<'_>> =
+        Vec::with_capacity(BIND_ENTRY_CAPACITY);
     render_bind_entries.push(wgpu::BindGroupEntry {
-        binding: 0,
+        binding: BINDING_UNIFORMS,
         resource: uniform_buffer.as_entire_binding(),
     });
     render_bind_entries.push(wgpu::BindGroupEntry {
-        binding: 3,
+        binding: BINDING_DROPLET_PARAMS,
         resource: droplet_params_buffer.as_entire_binding(),
     });
     render_bind_entries.push(wgpu::BindGroupEntry {
-        binding: 10,
+        binding: BINDING_SAMPLER,
         resource: wgpu::BindingResource::Sampler(sampler),
     });
     for (i, view) in texture_views.iter().enumerate() {
         render_bind_entries.push(wgpu::BindGroupEntry {
-            binding: 11 + i as u32,
+            binding: BINDING_TEXTURE_BASE + i as u32,
             resource: wgpu::BindingResource::TextureView(view),
         });
     }
     render_bind_entries.push(wgpu::BindGroupEntry {
-        binding: 18,
+        binding: BINDING_REFRACTION_VIEW,
         resource: wgpu::BindingResource::TextureView(refraction_view),
     });
     render_bind_entries.push(wgpu::BindGroupEntry {
-        binding: 19,
+        binding: BINDING_REFRACTION_SAMPLER,
         resource: wgpu::BindingResource::Sampler(refraction_sampler),
     });
     let render_bind_group: wgpu::BindGroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -238,21 +248,21 @@ pub fn create_metro_pipelines(
             layout: Some(&render_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: Some("vs_main"),
+                entry_point: Some(VERTEX_ENTRY_POINT),
                 compilation_options: Default::default(),
                 buffers: &[wgpu::VertexBufferLayout {
-                    array_stride: 16,
+                    array_stride: VERTEX_STRIDE_BYTES,
                     step_mode: wgpu::VertexStepMode::Vertex,
                     attributes: &[
                         wgpu::VertexAttribute {
                             format: wgpu::VertexFormat::Float32x2,
-                            offset: 0,
-                            shader_location: 0,
+                            offset: VERTEX_POSITION_OFFSET,
+                            shader_location: VERTEX_POSITION_LOCATION,
                         },
                         wgpu::VertexAttribute {
                             format: wgpu::VertexFormat::Float32x2,
-                            offset: 8,
-                            shader_location: 1,
+                            offset: VERTEX_UV_OFFSET,
+                            shader_location: VERTEX_UV_LOCATION,
                         },
                     ],
                 }],
@@ -270,12 +280,12 @@ pub fn create_metro_pipelines(
             multisample: wgpu::MultisampleState::default(),
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
-                entry_point: Some("fs_main"),
+                entry_point: Some(FRAGMENT_ENTRY_POINT),
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
+                    blend: Some(OUTPUT_BLEND_STATE),
+                    write_mask: OUTPUT_WRITE_MASK,
                 })],
             }),
             multiview: None,
@@ -287,7 +297,7 @@ pub fn create_metro_pipelines(
             label: Some("metro-physics-pipeline"),
             layout: Some(&compute_layout),
             module: &shader,
-            entry_point: Some("cs_main"),
+            entry_point: Some(PHYSICS_ENTRY_POINT),
             compilation_options: Default::default(),
             cache: None,
         });
@@ -296,7 +306,7 @@ pub fn create_metro_pipelines(
             label: Some("metro-refraction-pipeline"),
             layout: Some(&compute_layout),
             module: &shader,
-            entry_point: Some("cs_refraction"),
+            entry_point: Some(REFRACTION_ENTRY_POINT),
             compilation_options: Default::default(),
             cache: None,
         });

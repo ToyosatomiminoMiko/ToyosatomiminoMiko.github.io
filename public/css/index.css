@@ -1,13 +1,18 @@
 /*全局设置*/
-:root,
-* {
+
+/*
+  Dark Reader 的占位令牌:原先就定义在 index.css,按人类要求原样保留在这里,
+  不搬进 tokens.css(它属于浏览器扩展的注入约定,不是本站设计令牌).
+  :root 的自定义属性在任何样式表里都参与层叠,链接顺序不影响 var() 解析.
+*/
+:root {
     --darkreader-background-000000: #000000 !important;
 }
 
 * {
     /*字体名称必须设置为Unicode形式才能生效 */
     /*font-family: "\5FAE\8F6F\96C5\9ED1";*/
-    font-family: "\0063\006f\006e\0073\006f\006c\0061\0073";
+    font-family: var(--font-base);
     /* consolas */
     margin: 0px;
     padding: 0px;
@@ -19,7 +24,7 @@
 
 body {
     /* 防止 --darkreader-inline-bgimage */
-    background-image: url("/images/bgimg/bgcode.gif") !important;
+    background-image: var(--bg-image-default) !important;
     /*background-image: url("/images/bgimg/bgstar.gif") !important;*/
     background-attachment: fixed;
 }
@@ -27,76 +32,76 @@ body {
 .nav {
     position: relative;
     /* 导航栏高度 */
-    height: 42px;
+    height: var(--nav-height);
 }
 
 main {
-    margin-top: 3%;
+    margin-top: var(--main-margin-top);
     margin-left: auto;
     margin-right: auto;
     margin-bottom: 0px;
     height: 100vh;
-    width: 90%;
+    width: var(--main-width);
     background-color: rgba(0, 0, 0, 0);
 }
 
 /*home主页卡片*/
 #home>div {
-    background-color: #00000000;
+    background-color: var(--color-black-transparent);
 }
 
 /* 图标 */
 .head {
-    width: 35px;
-    margin: 5px;
+    width: var(--head-size);
+    margin: var(--head-margin);
 }
 
 .head:hover {
-    filter: drop-shadow(0 0 15px #00ffc3);
+    filter: drop-shadow(0 0 var(--head-glow-blur) var(--head-glow));
 }
 
 /* 画布样式 */
 .oled-card {
-    width: 100%;
+    width: var(--card-width);
 }
 
 canvas#pixelCanvas {
     /* 放大显示尺寸 */
     /*width: 512px;
     height: 256px;*/
-    width: 1024px;
-    height: 512px;
+    width: var(--oled-canvas-width);
+    height: var(--oled-canvas-height);
     /*width: 100%;*/
     /* 保持像素锐利 */
     image-rendering: pixelated;
     /* 隐藏默认鼠标指针 */
     cursor: none;
-    border: 1px solid #00785c;
+    border: var(--ieee-border-width) solid var(--oled-border);
 }
 
 /* 工具区布局 */
 .tools {
-    margin-top: 15px;
-    color: #ffffff;
+    margin-top: var(--oled-tools-margin-top);
+    color: var(--color-white);
 }
 
 /* 状态指示器样式 */
 .coords-display {
-    background: #f0f0f0;
-    padding: 8px 15px;
-    border-radius: 5px;
-    font-family: monospace;
-    margin-top: 10px;
+    background: var(--oled-coords-bg);
+    padding: var(--oled-coords-padding);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    margin-top: var(--oled-coords-margin-top);
 }
 
 /* 优化指示器样式 */
 .pixel-indicator {
     /* 改为fixed定位 */
     position: fixed;
-    z-index: 9999;
-    background: rgba(255, 0, 0, 0.6);
+    z-index: var(--z-pixel-indicator);
+    background: var(--oled-indicator-bg);
     /* 添加平滑移动效果 */
-    transition: all 10ms linear;
+    transition: all var(--transition-indicator);
     pointer-events: none;
     /* 初始隐藏 */
     display: none;
@@ -105,22 +110,22 @@ canvas#pixelCanvas {
 .textarea-data {
     /*锁定宽度*/
     resize: vertical;
-    min-height: 150px;
-    width: 100%;
-    font-family: monospace;
+    min-height: var(--oled-textarea-min-height);
+    width: var(--card-width);
+    font-family: var(--font-mono);
     display: block;
-    background-color: #555555;
-    border: 10px;
+    background-color: var(--oled-textarea-bg);
+    border: var(--oled-textarea-border);
 }
 
 .area-data {
-    margin-top: 10px;
-    margin-bottom: 10px;
+    margin-top: var(--oled-area-margin);
+    margin-bottom: var(--oled-area-margin);
 }
 
 #change-color {
-    color: #ffffff;
-    background-color: #000000;
+    color: var(--color-white);
+    background-color: var(--color-black);
 }
 
 .bgul {
@@ -128,26 +133,26 @@ canvas#pixelCanvas {
 }
 
 .bgli {
-    width: 90px;
-    height: 60px;
+    width: var(--setting-item-width);
+    height: var(--setting-item-height);
     float: left;
-    margin: 10px;
-    background-color: #001fab9f;
-    padding: 5px;
+    margin: var(--setting-item-margin);
+    background-color: var(--setting-item-bg);
+    padding: var(--setting-item-padding);
 }
 
 .bgimg {
-    width: 80px;
-    height: 50px;
+    width: var(--setting-thumb-width);
+    height: var(--setting-thumb-height);
     cursor: pointer;
 }
 
 /* LED clock */
 #app_led_clock {
-    background-color: #000 !important;
-    border-radius: 10px;
-    padding: 20px;
-    box-shadow: 0 0 40px rgba(0, 255, 255, 0.5);
+    background-color: var(--clock-panel-bg) !important;
+    border-radius: var(--clock-panel-radius);
+    padding: var(--clock-panel-padding);
+    box-shadow: 0 0 var(--clock-glow-blur) var(--clock-glow);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -168,20 +173,20 @@ canvas#pixelCanvas {
     保留"像素化"外观,同时避免引入缩放伪影
     */
     image-rendering: pixelated;
-    height: 128px;
+    height: var(--clock-canvas-height);
 }
 
 #treeInput {
-    width: 100%;
+    width: var(--card-width);
     padding: 0px;
-    font-family: 'JetBrains Mono Slashed', 'Fira Code', 'Consolas', monospace;
-    color: #00FF00FF;
-    background: #000000FF;
-    border: 1.5px solid #e2e8f0;
-    margin-top: 10px;
-    margin-bottom: 10px;
+    font-family: var(--font-code);
+    color: var(--rbt-text-color);
+    background: var(--rbt-input-bg);
+    border: var(--rbt-input-border);
+    margin-top: var(--rbt-input-margin);
+    margin-bottom: var(--rbt-input-margin);
     resize: vertical;
-    min-height: 100px;
+    min-height: var(--rbt-input-min-height);
     /* 保留显式声明 */
     white-space: pre-wrap;
 }

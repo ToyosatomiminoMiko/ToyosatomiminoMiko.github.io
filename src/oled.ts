@@ -12,15 +12,55 @@ import type {
     BresenhamCallback,
     ExportedData,
 } from './oled.types';
+import {
+    OLED_BITS_PER_BYTE,
+    OLED_BUFFER_BYTES,
+    OLED_BYTE_ORDER_TEXT,
+    OLED_BYTES_PER_PIXEL,
+    OLED_BYTES_PER_SOURCE_LINE,
+    OLED_CANVAS_MISSING_MESSAGE,
+    OLED_CHANNEL_A_OFFSET,
+    OLED_COLOR_MODES,
+    OLED_CONTEXT_UNAVAILABLE,
+    OLED_COORDS_EMPTY,
+    OLED_COORDS_PREFIX,
+    OLED_COPY_BUTTON_TEXT,
+    OLED_COPY_FAILED_ALERT,
+    OLED_COPY_FAILED_LOG,
+    OLED_COPY_FEEDBACK_MS,
+    OLED_COPY_SUCCESS_TEXT,
+    OLED_DEFAULT_BYTE_ORDER,
+    OLED_DEFAULT_COLOR_MODE,
+    OLED_DEFAULT_CONFIG,
+    OLED_DEFAULT_TOOL,
+    OLED_DISPLAY_HIDDEN,
+    OLED_DISPLAY_VISIBLE,
+    OLED_DOM,
+    OLED_EXPORT_ARRAY_LENGTH,
+    OLED_EXPORT_ARRAY_NAME,
+    OLED_HEX_BYTE_PATTERN,
+    OLED_HEX_DIGITS_PER_BYTE,
+    OLED_HEX_RADIX,
+    OLED_IMPORT_FAILED_PREFIX,
+    OLED_IMPORT_FORMAT_ERROR,
+    OLED_IMPORT_SUCCESS_MESSAGE,
+    OLED_MOUSE_BUTTON_MASK,
+    OLED_MSB_TOP_BIT,
+    OLED_PAGE_ROWS,
+    OLED_PNG_FILENAME,
+    OLED_PREVIEW_COMPOSITE_OPERATION,
+    OLED_PREVIEW_HALF_PIXEL,
+    OLED_PREVIEW_STROKE_WIDTH,
+    OLED_RESIZE_DEBOUNCE_MS,
+    OLED_TEMP_CANVAS_ID,
+    OLED_VALUE_BLACK,
+    OLED_VALUE_WHITE,
+    fillRgb,
+} from './oled.config';
 
 // ---------- 默认配置 ----------
-const DEFAULT_CONFIG: OLEDConfig = {
-    canvasId: 'pixelCanvas',
-    width: 128,
-    height: 64,
-    previewColor: '#FF0000',
-    previewOpacity: 0.6,
-};
+/** 默认配置(集中定义于 oled.config.ts,保证画布尺寸/预览色只有一处定义) */
+const DEFAULT_CONFIG: OLEDConfig = OLED_DEFAULT_CONFIG;
 
 export class OLEDCanvas {
     // ---- DOM 引用 ----
@@ -39,13 +79,13 @@ export class OLEDCanvas {
     // 画布初始化
     // ======================
     // 画笔颜色
-    private pixelColorMode: PixelColorMode = 'dark';
+    private pixelColorMode: PixelColorMode = OLED_DEFAULT_COLOR_MODE;
 
     // 'lsb' | 'msb' (低位/高位模式)
-    private byteOrderMode: ByteOrderMode = 'lsb';
+    private byteOrderMode: ByteOrderMode = OLED_DEFAULT_BYTE_ORDER;
 
     // 绘图工具设置
-    private currentTool: DrawTool = 'free';
+    private currentTool: DrawTool = OLED_DEFAULT_TOOL;
 
     // 记录位置,首次/最后按下
     private startPos: PixelPos | null = null;
@@ -71,12 +111,12 @@ export class OLEDCanvas {
         // 获取 canvas 并验证
         const canvas = document.getElementById(this.config.canvasId);
         if (!canvas || !(canvas instanceof HTMLCanvasElement)) {
-            throw new Error(`[OLEDCanvas] 找不到 canvas 元素: #${this.config.canvasId}`);
+            throw new Error(OLED_CANVAS_MISSING_MESSAGE);
         }
         this.canvas = canvas;
 
         const ctx = this.canvas.getContext('2d');
-        if (!ctx) throw new Error('[OLEDCanvas] Canvas 2D 上下文不可用');
+        if (!ctx) throw new Error(OLED_CONTEXT_UNAVAILABLE);
         this.ctx = ctx;
 
         // 设置物理像素尺寸(实际分辨率)
@@ -87,23 +127,22 @@ export class OLEDCanvas {
         const getEl = <T extends HTMLElement>(id: string): T | null =>
             document.getElementById(id) as T | null;
 
-        this.indicator = getEl('pixelIndicator');
-        this.coordsDisplay = getEl('coordsDisplay');
-        this.exportTextarea = getEl('exportOutput');
-        this.importTextarea = getEl('importData');
-        this.copyBtn = getEl('output-button');
-        this.byteOrderBtn = getEl('byte-order-btn');
-        this.colorBtn = getEl('change-color');
-        this.pngBtn = getEl('output-png-btn');
+        this.indicator = getEl(OLED_DOM.indicatorId);
+        this.coordsDisplay = getEl(OLED_DOM.coordsDisplayId);
+        this.exportTextarea = getEl(OLED_DOM.exportTextareaId);
+        this.importTextarea = getEl(OLED_DOM.importTextareaId);
+        this.copyBtn = getEl(OLED_DOM.copyBtnId);
+        this.byteOrderBtn = getEl(OLED_DOM.byteOrderBtnId);
+        this.colorBtn = getEl(OLED_DOM.colorBtnId);
+        this.pngBtn = getEl(OLED_DOM.pngBtnId);
 
         // 初始化白色画布
         this.imageData = this.ctx.createImageData(this.canvas.width, this.canvas.height);
         // 填充白色背景(RGBA格式)
-        for (let i = 0; i < this.imageData.data.length; i += 4) {
-            this.imageData.data[i] = 255;     // R
-            this.imageData.data[i + 1] = 255; // G
-            this.imageData.data[i + 2] = 255; // B
-            this.imageData.data[i + 3] = 255; // A(完全不透明)
+        for (let i = 0; i < this.imageData.data.length; i += OLED_BYTES_PER_PIXEL) {
+            fillRgb(this.imageData.data, i, OLED_VALUE_WHITE);
+            // A(完全不透明)
+            this.imageData.data[i + OLED_CHANNEL_A_OFFSET] = OLED_VALUE_WHITE;
         }
         this.ctx.putImageData(this.imageData, 0, 0);
 
@@ -123,7 +162,7 @@ export class OLEDCanvas {
     // ======================
     private bindEvents(): void {
         // --- 按钮事件 ---
-        document.getElementById('refill-btn')
+        document.getElementById(OLED_DOM.refillBtnId)
             ?.addEventListener('click', () => this.refill());
         if (this.colorBtn) {
             this.colorBtn.addEventListener('click', () => this.toggleColor());
@@ -137,16 +176,16 @@ export class OLEDCanvas {
         if (this.copyBtn) {
             this.copyBtn.addEventListener('click', () => this.copyExport());
         }
-        document.getElementById('export-btn')
+        document.getElementById(OLED_DOM.exportBtnId)
             ?.addEventListener('click', () => this.exportData());
-        document.getElementById('import-btn')
+        document.getElementById(OLED_DOM.importBtnId)
             ?.addEventListener('click', () => {
                 const result = this.importDataFromText();
                 alert((result.success ? '✅' : '❌') + result.message);
             });
 
         // --- 工具 radio(通过 name="tools" 查找) ---
-        document.querySelectorAll<HTMLInputElement>('input[name="tools"]').forEach(radio => {
+        document.querySelectorAll<HTMLInputElement>(OLED_DOM.toolRadioSelector).forEach(radio => {
             radio.addEventListener('change', () => this.setTool(radio.value as DrawTool));
         });
 
@@ -182,11 +221,9 @@ export class OLEDCanvas {
     // ======================
     /** 清除画板 */
     refill(): void {
-        for (let i = 0; i < this.imageData.data.length; i += 4) {
-            const val = this.pixelColorMode === 'dark' ? 0 : 255;
-            this.imageData.data[i] = val;
-            this.imageData.data[i + 1] = val;
-            this.imageData.data[i + 2] = val;
+        const val = OLED_COLOR_MODES[this.pixelColorMode].pixelValue;
+        for (let i = 0; i < this.imageData.data.length; i += OLED_BYTES_PER_PIXEL) {
+            fillRgb(this.imageData.data, i, val);
         }
         this.ctx.putImageData(this.imageData, 0, 0);
     }
@@ -195,15 +232,10 @@ export class OLEDCanvas {
     toggleColor(): void {
         this.pixelColorMode = this.pixelColorMode === 'dark' ? 'light' : 'dark';
         if (this.colorBtn) {
-            if (this.pixelColorMode === 'dark') {
-                this.colorBtn.textContent = '🔄️暗⬛';
-                this.colorBtn.style.color = '#ffffff';
-                this.colorBtn.style.backgroundColor = '#000000';
-            } else {
-                this.colorBtn.textContent = '🔄️亮⬜';
-                this.colorBtn.style.color = '#000000';
-                this.colorBtn.style.backgroundColor = '#ffffff';
-            }
+            const mode = OLED_COLOR_MODES[this.pixelColorMode];
+            this.colorBtn.textContent = mode.buttonText;
+            this.colorBtn.style.color = mode.buttonTextColor;
+            this.colorBtn.style.backgroundColor = mode.buttonBackgroundColor;
         }
     }
 
@@ -219,11 +251,7 @@ export class OLEDCanvas {
     toggleByteOrder(): void {
         this.byteOrderMode = this.byteOrderMode === 'lsb' ? 'msb' : 'lsb';
         if (this.byteOrderBtn) {
-            if (this.byteOrderMode === 'lsb') {
-                this.byteOrderBtn.textContent = '⬇低位模式(LSB)';
-            } else {
-                this.byteOrderBtn.textContent = '⬆高位模式(MSB)';
-            }
+            this.byteOrderBtn.textContent = OLED_BYTE_ORDER_TEXT[this.byteOrderMode];
         }
     }
 
@@ -239,7 +267,7 @@ export class OLEDCanvas {
     /** 下载PNG */
     downloadPNG(): void {
         const link = document.createElement('a');
-        link.download = 'canvas.png';
+        link.download = OLED_PNG_FILENAME;
         link.href = this.canvas.toDataURL('image/png');
         document.body.appendChild(link);
         link.click();
@@ -255,14 +283,14 @@ export class OLEDCanvas {
             await navigator.clipboard.writeText(textarea.value);
             // 添加视觉反馈
             if (this.copyBtn) {
-                this.copyBtn.textContent = '✅已复制!';
+                this.copyBtn.textContent = OLED_COPY_SUCCESS_TEXT;
                 setTimeout(() => {
-                    if (this.copyBtn) this.copyBtn.textContent = '复制到剪贴板';
-                }, 4000);
+                    if (this.copyBtn) this.copyBtn.textContent = OLED_COPY_BUTTON_TEXT;
+                }, OLED_COPY_FEEDBACK_MS);
             }
         } catch (err) {
-            console.error('❌复制失败:', err);
-            alert('❌复制失败,请手动选择文本后按 Ctrl+C');
+            console.error(OLED_COPY_FAILED_LOG, err);
+            alert(OLED_COPY_FAILED_ALERT);
         }
     }
 
@@ -271,18 +299,18 @@ export class OLEDCanvas {
         const input = this.importTextarea?.value ?? '';
         try {
             // 提取十六进制数据
-            const hexValues = input.match(/0x[0-9a-fA-F]{2}/g);
-            if (!hexValues || hexValues.length !== 1024) {
-                throw new Error('❌数据格式错误,需要包含1024个十六进制值');
+            const hexValues = input.match(OLED_HEX_BYTE_PATTERN);
+            if (!hexValues || hexValues.length !== OLED_BUFFER_BYTES) {
+                throw new Error(OLED_IMPORT_FORMAT_ERROR);
             }
             // 转换到Uint8Array
-            const buffer = new Uint8Array(hexValues.map(v => parseInt(v, 16)));
+            const buffer = new Uint8Array(hexValues.map(v => parseInt(v, OLED_HEX_RADIX)));
             // 更新画布数据
             this.updateCanvasFromBuffer(buffer);
-            return { success: true, message: '✅数据格式正确,已导入!' };
+            return { success: true, message: OLED_IMPORT_SUCCESS_MESSAGE };
         } catch (e) {
             const err = e as Error;
-            return { success: false, message: `❌导入失败:${err.message}` };
+            return { success: false, message: `${OLED_IMPORT_FAILED_PREFIX}${err.message}` };
         }
     }
 
@@ -295,12 +323,10 @@ export class OLEDCanvas {
      * @param y - Y坐标
      */
     private setPixel(x: number, y: number): void {
-        const index = (y * this.canvas.width + x) * 4;
-        const val = this.pixelColorMode === 'dark' ? 0 : 255;
-        this.imageData.data[index] = val;       // R
-        this.imageData.data[index + 1] = val;   // G
-        this.imageData.data[index + 2] = val;   // B
+        const index = (y * this.canvas.width + x) * OLED_BYTES_PER_PIXEL;
+        const val = OLED_COLOR_MODES[this.pixelColorMode].pixelValue;
         // 注意:保留Alpha通道不变
+        fillRgb(this.imageData.data, index, val);
     }
 
     // Bresenham 直线通用迭代器 (核心抽离)
@@ -357,13 +383,14 @@ export class OLEDCanvas {
 
         // 2. 创建临时canvas实现预览效果
         const tempCanvas = document.createElement('canvas');
+        tempCanvas.id = OLED_TEMP_CANVAS_ID;
         tempCanvas.width = this.canvas.width;
         tempCanvas.height = this.canvas.height;
         const tempCtx = tempCanvas.getContext('2d')!;
         tempCtx.imageSmoothingEnabled = false;
 
         // 使用混合模式保持二值化核心
-        tempCtx.globalCompositeOperation = 'source-over';
+        tempCtx.globalCompositeOperation = OLED_PREVIEW_COMPOSITE_OPERATION;
         tempCtx.fillStyle = this.config.previewColor; // 直线必须fillStyle
         tempCtx.globalAlpha = this.config.previewOpacity;
 
@@ -410,6 +437,7 @@ export class OLEDCanvas {
         // 它和主画布没有任何关系
         // ===========================================
         const tempCanvas = document.createElement('canvas');
+        tempCanvas.id = OLED_TEMP_CANVAS_ID;
         tempCanvas.width = this.canvas.width;   // 128
         tempCanvas.height = this.canvas.height; // 64
         const tempCtx = tempCanvas.getContext('2d')!;
@@ -422,10 +450,10 @@ export class OLEDCanvas {
         // ===========================================
         tempCtx.strokeStyle = this.config.previewColor;
         tempCtx.globalAlpha = this.config.previewOpacity;
-        tempCtx.lineWidth = 1;
+        tempCtx.lineWidth = OLED_PREVIEW_STROKE_WIDTH;
 
-        const x = Math.min(this.startPos.x, endX) + 0.5;
-        const y = Math.min(this.startPos.y, endY) + 0.5;
+        const x = Math.min(this.startPos.x, endX) + OLED_PREVIEW_HALF_PIXEL;
+        const y = Math.min(this.startPos.y, endY) + OLED_PREVIEW_HALF_PIXEL;
         const w = Math.abs(endX - this.startPos.x);
         const h = Math.abs(endY - this.startPos.y);
         tempCtx.strokeRect(x, y, w, h);
@@ -443,23 +471,23 @@ export class OLEDCanvas {
     // 数据生成模块
     // ======================
     private generateEmbeddedData(): ExportedData {
-        const buffer = new Uint8Array(this.canvas.width * (this.canvas.height / 8)); // 128列 x 8页
+        const buffer = new Uint8Array(this.canvas.width * (this.canvas.height / OLED_PAGE_ROWS)); // 128列 x 8页
         // 遍历每个页(8页,每页8行)
-        for (let page = 0; page < this.canvas.height / 8; page++) {
+        for (let page = 0; page < this.canvas.height / OLED_PAGE_ROWS; page++) {
             // 遍历每列(128列)
             for (let x = 0; x < this.canvas.width; x++) {
                 let byte = 0;
                 // 组合8个垂直像素为一个字节
-                for (let bit = 0; bit < 8; bit++) {
+                for (let bit = 0; bit < OLED_BITS_PER_BYTE; bit++) {
                     const y = this.byteOrderMode === 'lsb'
-                        ? page * 8 + bit           // LSB
-                        : page * 8 + (7 - bit);      // MSB
-                    const idx = (y * this.canvas.width + x) * 4;
+                        ? page * OLED_PAGE_ROWS + bit           // LSB
+                        : page * OLED_PAGE_ROWS + (OLED_MSB_TOP_BIT - bit);      // MSB
+                    const idx = (y * this.canvas.width + x) * OLED_BYTES_PER_PIXEL;
                     // 判断像素颜色(黑色为1)
                     const isBlack =
-                        this.imageData.data[idx] === 0 &&
-                        this.imageData.data[idx + 1] === 0 &&
-                        this.imageData.data[idx + 2] === 0;
+                        this.imageData.data[idx] === OLED_VALUE_BLACK &&
+                        this.imageData.data[idx + 1] === OLED_VALUE_BLACK &&
+                        this.imageData.data[idx + 2] === OLED_VALUE_BLACK;
                     // 要求最高位bit7对应页顶部的像素
                     byte |= (isBlack ? 1 : 0) << bit;
                 }
@@ -468,11 +496,11 @@ export class OLEDCanvas {
         }
 
         // 格式化为 C 源码
-        let cSource = 'const uint8_t bitmap[1024] = {\n    ';
+        let cSource = `const uint8_t ${OLED_EXPORT_ARRAY_NAME}[${OLED_EXPORT_ARRAY_LENGTH}] = {\n    `;
         buffer.forEach((byte, i) => {
-            cSource += `0x${byte.toString(16).padStart(2, '0')}`;
+            cSource += `0x${byte.toString(OLED_HEX_RADIX).padStart(OLED_HEX_DIGITS_PER_BYTE, '0')}`;
             cSource += i !== buffer.length - 1 ? ', ' : '';
-            if ((i + 1) % 16 === 0) cSource += '\n    ';
+            if ((i + 1) % OLED_BYTES_PER_SOURCE_LINE === 0) cSource += '\n    ';
         });
         cSource += '\n};';
 
@@ -484,24 +512,20 @@ export class OLEDCanvas {
     // ======================
     private updateCanvasFromBuffer(buffer: Uint8Array): void {
         // 重置画布为白色
-        for (let i = 0; i < this.imageData.data.length; i += 4) {
-            this.imageData.data[i] = 255;
-            this.imageData.data[i + 1] = 255;
-            this.imageData.data[i + 2] = 255;
+        for (let i = 0; i < this.imageData.data.length; i += OLED_BYTES_PER_PIXEL) {
+            fillRgb(this.imageData.data, i, OLED_VALUE_WHITE);
         }
         // 解析缓冲数据
-        for (let page = 0; page < this.canvas.height / 8; page++) {
+        for (let page = 0; page < this.canvas.height / OLED_PAGE_ROWS; page++) {
             for (let x = 0; x < this.canvas.width; x++) {
                 const byte = buffer[page * this.canvas.width + x];
-                for (let bit = 0; bit < 8; bit++) {
+                for (let bit = 0; bit < OLED_BITS_PER_BYTE; bit++) {
                     const y = this.byteOrderMode === 'lsb'
-                        ? page * 8 + bit           // LSB
-                        : page * 8 + (7 - bit);      // MSB
+                        ? page * OLED_PAGE_ROWS + bit           // LSB
+                        : page * OLED_PAGE_ROWS + (OLED_MSB_TOP_BIT - bit);      // MSB
                     const isBlack = (byte & (1 << bit)) !== 0; // 注意位顺序
-                    const index = (y * this.canvas.width + x) * 4;
-                    this.imageData.data[index] = isBlack ? 0 : 255;
-                    this.imageData.data[index + 1] = isBlack ? 0 : 255;
-                    this.imageData.data[index + 2] = isBlack ? 0 : 255;
+                    const index = (y * this.canvas.width + x) * OLED_BYTES_PER_PIXEL;
+                    fillRgb(this.imageData.data, index, isBlack ? OLED_VALUE_BLACK : OLED_VALUE_WHITE);
                 }
             }
         }
@@ -565,9 +589,9 @@ export class OLEDCanvas {
         this.indicator.style.height = `${Math.ceil(pixelHeight)}px`;
 
         // 保持可见性
-        this.indicator.style.display = 'block';
+        this.indicator.style.display = OLED_DISPLAY_VISIBLE;
         if (this.coordsDisplay) {
-            this.coordsDisplay.style.display = 'block';
+            this.coordsDisplay.style.display = OLED_DISPLAY_VISIBLE;
         }
     }
 
@@ -580,7 +604,7 @@ export class OLEDCanvas {
      */
     private updateCoordsDisplay(pos: PixelPos): void {
         if (this.coordsDisplay) {
-            this.coordsDisplay.textContent = `coordinate:(X:${pos.x},Y:${pos.y})`;
+            this.coordsDisplay.textContent = `${OLED_COORDS_PREFIX}(X:${pos.x},Y:${pos.y})`;
         }
     }
 
@@ -593,11 +617,11 @@ export class OLEDCanvas {
     private onMouseLeave = (): void => {
         // 隐藏画笔
         if (this.indicator) {
-            this.indicator.style.display = 'none';
+            this.indicator.style.display = OLED_DISPLAY_HIDDEN;
         }
         // 重置坐标指示
         if (this.coordsDisplay) {
-            this.coordsDisplay.textContent = 'coordinate:(X:-,Y:-)';
+            this.coordsDisplay.textContent = OLED_COORDS_EMPTY;
         }
     };
 
@@ -650,7 +674,7 @@ export class OLEDCanvas {
             return; // 阻断自由绘制逻辑
         }
         // 自由绘制模式(仅在非直线工具时生效)
-        else if (this.currentTool === 'free' && (e.buttons & 3)) {
+        else if (this.currentTool === 'free' && (e.buttons & OLED_MOUSE_BUTTON_MASK)) {
             if (this.lastPos) {
                 // 鼠标移动过快采样低画直线
                 this.drawLine(this.lastPos.x, this.lastPos.y, pos.x, pos.y);
@@ -690,6 +714,6 @@ export class OLEDCanvas {
 
     private onResize = (): void => {
         if (this.resizeTimer) clearTimeout(this.resizeTimer);
-        this.resizeTimer = setTimeout(() => this.updateCanvasRect(), 100);
+        this.resizeTimer = setTimeout(() => this.updateCanvasRect(), OLED_RESIZE_DEBOUNCE_MS);
     };
 }

@@ -2,6 +2,62 @@
 2026.05.01.00:00:00
 红黑树工具
 */
+import {
+    RBT_BLACK_NODE_FILL,
+    RBT_BLACK_NODE_LINE_WIDTH,
+    RBT_BLACK_NODE_STROKE,
+    RBT_BLACK_NODE_TEXT,
+    RBT_CANVAS_BACKGROUND,
+    RBT_CLAMP_TOLERANCE,
+    RBT_COLOR_BLACK,
+    RBT_COLOR_RED,
+    RBT_COMMA,
+    RBT_DOM,
+    RBT_DOM_MISSING_MESSAGE,
+    RBT_EDGE_COLOR,
+    RBT_EDGE_LINE_WIDTH,
+    RBT_EMPTY_HINT_COLOR,
+    RBT_EMPTY_HINT_FONT,
+    RBT_EMPTY_HINT_TEXT,
+    RBT_EMPTY_TEXT,
+    RBT_ERR_COLOR_MARK,
+    RBT_ERR_NODE_FORMAT,
+    RBT_ERR_NO_COMMA,
+    RBT_ERR_PARSE_FAILED,
+    RBT_ERR_SHORTHAND_NO_COLOR,
+    RBT_ERR_SHORTHAND_TOO_SHORT,
+    RBT_ERR_SHORTHAND_TOO_SHORT_SUFFIX,
+    RBT_ERR_UNBALANCED,
+    RBT_ERROR_HINT_COLOR,
+    RBT_ERROR_HINT_FONT,
+    RBT_ERROR_PREFIX,
+    RBT_ERROR_TEXT_MAX,
+    RBT_ERROR_UI_PREFIX,
+    RBT_LEAF_SUFFIX,
+    RBT_LEFT_PAREN,
+    RBT_MIN_CHILD_WIDTH_FACTOR,
+    RBT_MIN_HORIZONTAL_GAP,
+    RBT_MIN_SHORTHAND_LENGTH,
+    RBT_NIL,
+    RBT_NODE_FONT_FAMILY,
+    RBT_NODE_FONT_MIN_SIZE,
+    RBT_NODE_FONT_RADIUS_FACTOR,
+    RBT_NODE_RADIUS,
+    RBT_NODE_SHADOW_BLUR,
+    RBT_NODE_SHADOW_COLOR,
+    RBT_RED_NODE_FILL,
+    RBT_RED_NODE_LINE_WIDTH,
+    RBT_RED_NODE_STROKE,
+    RBT_RED_NODE_TEXT,
+    RBT_RIGHT_PAREN,
+    RBT_SIDE_MARGIN,
+    RBT_SINGLE_CHILD_GAP_FACTOR,
+    RBT_START_Y,
+    RBT_TEXT_ALIGN,
+    RBT_TEXT_BASELINE,
+    RBT_TREE_EXAMPLE,
+    RBT_Y_STEP,
+} from './rbt.config';
 
 // ============================================================
 // 红黑树节点定义 (支持任意数值/字符串)
@@ -35,32 +91,32 @@ function trim(s: string): string {
 function parseNode(str: string): RBNode | null {
     let s = trim(str);
     // nil / 空 直接返回 null
-    if (s === '' || s === 'nil' || s === 'Nil' || s === 'NIL') {
+    if (s === '' || s === RBT_NIL || s === 'Nil' || s === 'NIL') {
         return null;
     }
 
     // 简写叶子节点: 不带括号 => 自动包装成 值颜色(nil,nil)
-    if (!s.includes('(')) {
-        if (s.length < 2) {
-            throw new Error(`无效节点简写: "${s}",需要例如 "5R" 或 "13B"`);
+    if (!s.includes(RBT_LEFT_PAREN)) {
+        if (s.length < RBT_MIN_SHORTHAND_LENGTH) {
+            throw new Error(`${RBT_ERR_SHORTHAND_TOO_SHORT}${s}${RBT_ERR_SHORTHAND_TOO_SHORT_SUFFIX}`);
         }
         const lastChar = s[s.length - 1];
-        if (lastChar !== 'R' && lastChar !== 'B') {
-            throw new Error(`简写节点必须用 R/B 结尾,错误: "${s}"`);
+        if (lastChar !== RBT_COLOR_RED && lastChar !== RBT_COLOR_BLACK) {
+            throw new Error(`${RBT_ERR_SHORTHAND_NO_COLOR}${s}"`);
         }
-        const fullExpr = `${s}(nil,nil)`;
+        const fullExpr = `${s}${RBT_LEAF_SUFFIX}`;
         return parseNode(fullExpr);
     }
 
     // 标准带括号解析
-    const leftParenIdx = s.indexOf('(');
+    const leftParenIdx = s.indexOf(RBT_LEFT_PAREN);
     const valueColorPart = s.substring(0, leftParenIdx);
-    if (valueColorPart.length < 2) {
-        throw new Error(`节点格式错误: 至少包含值和颜色(如 13B), 实际: ${valueColorPart}`);
+    if (valueColorPart.length < RBT_MIN_SHORTHAND_LENGTH) {
+        throw new Error(`${RBT_ERR_NODE_FORMAT}${valueColorPart}`);
     }
     const colorChar = valueColorPart[valueColorPart.length - 1];
-    if (colorChar !== 'R' && colorChar !== 'B') {
-        throw new Error(`颜色标记必须是 R 或 B, 错误部分: ${valueColorPart}`);
+    if (colorChar !== RBT_COLOR_RED && colorChar !== RBT_COLOR_BLACK) {
+        throw new Error(`${RBT_ERR_COLOR_MARK}${valueColorPart}`);
     }
     const valueStr = valueColorPart.substring(0, valueColorPart.length - 1);
     const nodeValue = valueStr;
@@ -69,12 +125,12 @@ function parseNode(str: string): RBNode | null {
     let balance = 1;
     let rightParenIdx = leftParenIdx + 1;
     while (rightParenIdx < s.length && balance > 0) {
-        if (s[rightParenIdx] === '(') balance++;
-        else if (s[rightParenIdx] === ')') balance--;
+        if (s[rightParenIdx] === RBT_LEFT_PAREN) balance++;
+        else if (s[rightParenIdx] === RBT_RIGHT_PAREN) balance--;
         rightParenIdx++;
     }
     if (balance !== 0) {
-        throw new Error(`括号不匹配: ${s}`);
+        throw new Error(`${RBT_ERR_UNBALANCED}${s}`);
     }
     const inside = s.substring(leftParenIdx + 1, rightParenIdx - 1);
     let leftStr = '', rightStr = '';
@@ -82,15 +138,15 @@ function parseNode(str: string): RBNode | null {
     let depth = 0;
     for (let i = 0; i < inside.length; i++) {
         const ch = inside[i];
-        if (ch === '(') depth++;
-        else if (ch === ')') depth--;
-        else if (ch === ',' && depth === 0) {
+        if (ch === RBT_LEFT_PAREN) depth++;
+        else if (ch === RBT_RIGHT_PAREN) depth--;
+        else if (ch === RBT_COMMA && depth === 0) {
             commaIdx = i;
             break;
         }
     }
     if (commaIdx === -1) {
-        throw new Error(`子树格式错误: 缺少逗号分隔左右子树, 内部: ${inside}`);
+        throw new Error(`${RBT_ERR_NO_COMMA}${inside}`);
     }
     leftStr = inside.substring(0, commaIdx);
     rightStr = inside.substring(commaIdx + 1);
@@ -108,7 +164,7 @@ function buildTreeFromExpression(expr: string): RBNode | null {
         return parseNode(expr);
     } catch (e) {
         console.error(e);
-        throw new Error(`解析失败: ${(e as Error).message}`);
+        throw new Error(`${RBT_ERR_PARSE_FAILED}${(e as Error).message}`);
     }
 }
 
@@ -124,7 +180,7 @@ export function getTreeDepth(node: RBNode | null): number {
 }
 
 // ============================================================
-// 画布绘制器 -- 采用【区间递归分配法】彻底避免节点重叠/交叉
+// 画布绘制器 -- 采用[区间递归分配法]彻底避免节点重叠/交叉
 // ============================================================
 class TreeDrawer {
     ctx: CanvasRenderingContext2D;
@@ -140,11 +196,11 @@ class TreeDrawer {
         this.ctx = ctx;
         this.canvasWidth = canvasWidth;
         this.canvasHeight = canvasHeight;
-        this.nodeRadius = 22;
-        this.yStep = 70;
-        this.startY = 65;
-        this.minHorizontalGap = this.nodeRadius * 2.2;  // ≈ 48px
-        this.sideMargin = this.nodeRadius + 16;
+        this.nodeRadius = RBT_NODE_RADIUS;
+        this.yStep = RBT_Y_STEP;
+        this.startY = RBT_START_Y;
+        this.minHorizontalGap = RBT_MIN_HORIZONTAL_GAP;
+        this.sideMargin = RBT_SIDE_MARGIN;
     }
 
     // --------------------------------------------------------
@@ -163,7 +219,7 @@ class TreeDrawer {
             let leftRightBound = node.x - this.minHorizontalGap;
             let rightLeftBound = node.x + this.minHorizontalGap;
 
-            const minChildWidth = this.minHorizontalGap * 0.8;
+            const minChildWidth = this.minHorizontalGap * RBT_MIN_CHILD_WIDTH_FACTOR;
             if (leftRightBound - leftBound < minChildWidth) {
                 leftRightBound = leftBound + minChildWidth;
             }
@@ -180,13 +236,13 @@ class TreeDrawer {
             this.placeNodeRecursive(node.right!, rightLeftBound, rightBound, y + this.yStep);
         }
         else if (hasLeft) {
-            let leftRightBound = node.x - this.minHorizontalGap * 0.6;
-            if (leftRightBound <= leftBound) leftRightBound = leftBound + this.minHorizontalGap * 0.8;
+            let leftRightBound = node.x - this.minHorizontalGap * RBT_SINGLE_CHILD_GAP_FACTOR;
+            if (leftRightBound <= leftBound) leftRightBound = leftBound + this.minHorizontalGap * RBT_MIN_CHILD_WIDTH_FACTOR;
             this.placeNodeRecursive(node.left!, leftBound, leftRightBound, y + this.yStep);
         }
         else if (hasRight) {
-            let rightLeftBound = node.x + this.minHorizontalGap * 0.6;
-            if (rightLeftBound >= rightBound) rightLeftBound = rightBound - this.minHorizontalGap * 0.8;
+            let rightLeftBound = node.x + this.minHorizontalGap * RBT_SINGLE_CHILD_GAP_FACTOR;
+            if (rightLeftBound >= rightBound) rightLeftBound = rightBound - this.minHorizontalGap * RBT_MIN_CHILD_WIDTH_FACTOR;
             this.placeNodeRecursive(node.right!, rightLeftBound, rightBound, y + this.yStep);
         }
         // 无孩子:叶子节点不需递归
@@ -204,8 +260,8 @@ class TreeDrawer {
 
     private clampNodePositions(node: RBNode): void {
         if (!node) return;
-        const minX = this.sideMargin - 5;
-        const maxX = this.canvasWidth - this.sideMargin + 5;
+        const minX = this.sideMargin - RBT_CLAMP_TOLERANCE;
+        const maxX = this.canvasWidth - this.sideMargin + RBT_CLAMP_TOLERANCE;
         if (node.x !== undefined && node.x < minX) node.x = minX;
         if (node.x !== undefined && node.x > maxX) node.x = maxX;
         if (node.left) this.clampNodePositions(node.left);
@@ -222,8 +278,8 @@ class TreeDrawer {
             ctx.beginPath();
             ctx.moveTo(startX, startY);
             ctx.lineTo(node.left.x!, node.left.y!);
-            ctx.strokeStyle = '#94a3b8';
-            ctx.lineWidth = 2;
+            ctx.strokeStyle = RBT_EDGE_COLOR;
+            ctx.lineWidth = RBT_EDGE_LINE_WIDTH;
             ctx.stroke();
             this.drawLines(node.left);
         }
@@ -231,8 +287,8 @@ class TreeDrawer {
             ctx.beginPath();
             ctx.moveTo(startX, startY);
             ctx.lineTo(node.right.x!, node.right.y!);
-            ctx.strokeStyle = '#94a3b8';
-            ctx.lineWidth = 2;
+            ctx.strokeStyle = RBT_EDGE_COLOR;
+            ctx.lineWidth = RBT_EDGE_LINE_WIDTH;
             ctx.stroke();
             this.drawLines(node.right);
         }
@@ -244,31 +300,31 @@ class TreeDrawer {
         const y = node.y!;
         const r = this.nodeRadius;
 
-        ctx.shadowColor = "rgba(0,0,0,0.08)";
-        ctx.shadowBlur = 4;
-        if (node.color === 'R') {
-            ctx.fillStyle = '#ff0000';
+        ctx.shadowColor = RBT_NODE_SHADOW_COLOR;
+        ctx.shadowBlur = RBT_NODE_SHADOW_BLUR;
+        if (node.color === RBT_COLOR_RED) {
+            ctx.fillStyle = RBT_RED_NODE_FILL;
             ctx.beginPath();
             ctx.arc(x, y, r, 0, Math.PI * 2);
             ctx.fill();
-            ctx.strokeStyle = '#c2410c';
-            ctx.lineWidth = 1.8;
+            ctx.strokeStyle = RBT_RED_NODE_STROKE;
+            ctx.lineWidth = RBT_RED_NODE_LINE_WIDTH;
             ctx.stroke();
-            ctx.fillStyle = '#2d1a0e';
+            ctx.fillStyle = RBT_RED_NODE_TEXT;
         } else {
-            ctx.fillStyle = '#000000';
+            ctx.fillStyle = RBT_BLACK_NODE_FILL;
             ctx.beginPath();
             ctx.arc(x, y, r, 0, Math.PI * 2);
             ctx.fill();
-            ctx.strokeStyle = '#0f172a';
-            ctx.lineWidth = 1.6;
+            ctx.strokeStyle = RBT_BLACK_NODE_STROKE;
+            ctx.lineWidth = RBT_BLACK_NODE_LINE_WIDTH;
             ctx.stroke();
-            ctx.fillStyle = '#f1f5f9';
+            ctx.fillStyle = RBT_BLACK_NODE_TEXT;
         }
         ctx.shadowBlur = 0;
-        ctx.font = `bold ${Math.max(13, Math.floor(r * 0.75))}px "Fira Code", "Monaco", monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
+        ctx.font = `bold ${Math.max(RBT_NODE_FONT_MIN_SIZE, Math.floor(r * RBT_NODE_FONT_RADIUS_FACTOR))}px ${RBT_NODE_FONT_FAMILY}`;
+        ctx.textAlign = RBT_TEXT_ALIGN;
+        ctx.textBaseline = RBT_TEXT_BASELINE;
         ctx.fillText(`${node.value}`, x, y);
     }
 
@@ -281,17 +337,17 @@ class TreeDrawer {
 
     clearCanvas(): void {
         this.ctx.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
-        this.ctx.fillStyle = '#ffffff';
+        this.ctx.fillStyle = RBT_CANVAS_BACKGROUND;
         this.ctx.fillRect(0, 0, this.canvasWidth, this.canvasHeight);
     }
 
     render(root: RBNode | null): void {
         this.clearCanvas();
         if (!root) {
-            this.ctx.font = "14px monospace";
-            this.ctx.fillStyle = "#94a3b8";
-            this.ctx.textAlign = "center";
-            this.ctx.fillText("✨ 请输入红黑树表达式 (例如: 13B(8R(1B,11R),17R(15B,25B)))", this.canvasWidth / 2, this.canvasHeight / 2);
+            this.ctx.font = RBT_EMPTY_HINT_FONT;
+            this.ctx.fillStyle = RBT_EMPTY_HINT_COLOR;
+            this.ctx.textAlign = RBT_TEXT_ALIGN;
+            this.ctx.fillText(RBT_EMPTY_HINT_TEXT, this.canvasWidth / 2, this.canvasHeight / 2);
             return;
         }
 
@@ -304,20 +360,16 @@ class TreeDrawer {
 // ============================================================
 // 原生 TS 挂载模块
 // ============================================================
-// 深度为4的满二叉树示例
-const TREE_EXAMPLE =
-    "15B(7R(3B(1R(0B,2B),5R(4B,6B)),11B(9R(8B,10B),13R(12B,14B))),23R(19B(17R(16B,18B),21R(20B,22B)),27B(25R(24B,26B),29R(28B,30B))))";
-
 export function mountRBT(): void {
-    const input = document.getElementById('treeInput');
-    const errorEl = document.getElementById('treeError');
-    const canvas = document.getElementById('rbCanvas');
+    const input = document.getElementById(RBT_DOM.inputId);
+    const errorEl = document.getElementById(RBT_DOM.errorId);
+    const canvas = document.getElementById(RBT_DOM.canvasId);
     if (
         !input || !errorEl || !canvas ||
         !(input instanceof HTMLTextAreaElement) ||
         !(canvas instanceof HTMLCanvasElement)
     ) {
-        console.warn('[RBT] 找不到 #treeInput / #treeError / #rbCanvas');
+        console.warn(RBT_DOM_MISSING_MESSAGE);
         return;
     }
 
@@ -340,29 +392,29 @@ export function mountRBT(): void {
         const expr = input.value.trim();
 
         const setError = (msg: string): void => {
-            errorEl.textContent = msg ? `⚠️ ${msg}` : '';
-            errorEl.hidden = msg === '';
+            errorEl.textContent = msg ? `${RBT_ERROR_UI_PREFIX}${msg}` : RBT_EMPTY_TEXT;
+            errorEl.hidden = msg === RBT_EMPTY_TEXT;
         };
 
-        if (expr === '') {
-            setError('');
+        if (expr === RBT_EMPTY_TEXT) {
+            setError(RBT_EMPTY_TEXT);
             activeDrawer.render(null);
             return;
         }
 
         try {
             const rootNode = buildTreeFromExpression(expr);
-            setError('');
+            setError(RBT_EMPTY_TEXT);
             activeDrawer.render(rootNode);
         } catch (err) {
             const msg = (err as Error).message;
             setError(msg);
             activeDrawer.clearCanvas();
-            activeDrawer.ctx.font = '13px monospace';
-            activeDrawer.ctx.fillStyle = '#e11d48';
-            activeDrawer.ctx.textAlign = 'center';
+            activeDrawer.ctx.font = RBT_ERROR_HINT_FONT;
+            activeDrawer.ctx.fillStyle = RBT_ERROR_HINT_COLOR;
+            activeDrawer.ctx.textAlign = RBT_TEXT_ALIGN;
             activeDrawer.ctx.fillText(
-                `❌ 解析错误: ${msg.slice(0, 88)}`,
+                `${RBT_ERROR_PREFIX}${msg.slice(0, RBT_ERROR_TEXT_MAX)}`,
                 activeDrawer.canvasWidth / 2,
                 activeDrawer.canvasHeight / 2
             );
@@ -372,6 +424,6 @@ export function mountRBT(): void {
     input.addEventListener('input', renderTree);
 
     // 打开页面时自动加载示例
-    input.value = TREE_EXAMPLE;
+    input.value = RBT_TREE_EXAMPLE;
     renderTree();
 }

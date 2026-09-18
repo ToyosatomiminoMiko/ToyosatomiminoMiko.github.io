@@ -3,6 +3,12 @@
  * 这里只负责"拿不到就返回 null",是否放弃绘制由调用方决定.
  */
 import { log } from './log';
+import {
+    ADAPTER_POWER_PREFERENCE,
+    FALLBACK_TEXTURE_FORMAT,
+    OPTIONAL_DEVICE_FEATURES,
+    PREFERRED_TEXTURE_FORMATS,
+} from './capabilities.config';
 
 export interface GpuContext {
     device: GPUDevice;
@@ -19,12 +25,6 @@ type DeviceWithFormatCaps = GPUDevice & {
     getTextureFormatCapabilities?(format: GPUTextureFormat): TextureFormatCapabilities;
 };
 
-/**
- * 有就用,没有也能跑的可选能力.
- * timestamp-query 只服务于性能打点,缺失时统计里少一项 GPU 耗时而已.
- */
-const OPTIONAL_FEATURES: GPUFeatureName[] = ['timestamp-query'];
-
 /** 申请适配器与设备;任何一步失败都返回 null */
 export async function acquireGpuContext(): Promise<GpuContext | null> {
     if (!('gpu' in navigator) || !navigator.gpu) {
@@ -32,13 +32,13 @@ export async function acquireGpuContext(): Promise<GpuContext | null> {
         return null;
     }
 
-    const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+    const adapter = await navigator.gpu.requestAdapter({ powerPreference: ADAPTER_POWER_PREFERENCE });
     if (!adapter) {
         log('没有可用的 GPU 适配器(浏览器/驱动未启用 WebGPU?), 放弃绘制');
         return null;
     }
 
-    const requiredFeatures = OPTIONAL_FEATURES.filter((feature) => adapter.features.has(feature));
+    const requiredFeatures = OPTIONAL_DEVICE_FEATURES.filter((feature) => adapter.features.has(feature));
     const device = await adapter.requestDevice({ requiredFeatures });
     if (!device) {
         log('requestDevice() 返回 null, 放弃绘制');
@@ -50,15 +50,15 @@ export async function acquireGpuContext(): Promise<GpuContext | null> {
 
 /** 挑一个既能当渲染目标,又能被采样的离屏格式 (优先 16F, 加法叠加不易断层) */
 export function pickTextureFormat(device: GPUDevice): GPUTextureFormat {
-    const candidates: GPUTextureFormat[] = ['rgba16float', 'rgba8unorm'];
+    const candidates = PREFERRED_TEXTURE_FORMATS;
     for (const format of candidates) {
         const probe = (device as DeviceWithFormatCaps).getTextureFormatCapabilities;
-        if (typeof probe !== 'function') return candidates[candidates.length - 1];
+        if (typeof probe !== 'function') return FALLBACK_TEXTURE_FORMAT;
         try {
             if (probe.call(device, format)?.renderable !== false) return format;
         } catch {
             /* 单个格式查询失败就试下一个 */
         }
     }
-    return 'rgba8unorm';
+    return FALLBACK_TEXTURE_FORMAT;
 }

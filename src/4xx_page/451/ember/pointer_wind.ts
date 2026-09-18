@@ -4,9 +4,11 @@
  *
  * 语义: 指针位置是一股"风",越近推得越开;停手一段时间后自然衰减回 0.
  */
+import { POINTER_IDLE_AFTER_MS, POINTER_MIN_DT, POINTER_OFFSCREEN, POINTER_SMOOTHING } from './config';
+
 export class PointerWind {
-    private pointerX = -10_000;
-    private pointerY = -10_000;
+    private pointerX = -POINTER_OFFSCREEN;
+    private pointerY = -POINTER_OFFSCREEN;
     private lastMoveTime = 0;
     private targetStrength = 0;
     private currentStrength = 0;
@@ -14,7 +16,7 @@ export class PointerWind {
     constructor(
         private readonly now: () => number = () => performance.now(),
         /** 停手多久后开始衰减(ms) */
-        private readonly idleAfterMs = 140
+        private readonly idleAfterMs = POINTER_IDLE_AFTER_MS
     ) {}
 
     get x(): number {
@@ -48,6 +50,8 @@ export class PointerWind {
     update(dt: number): void {
         if (this.now() - this.lastMoveTime > this.idleAfterMs) this.targetStrength = 0;
         // dt 为 0(不足一个仿真步)时也留一点最小推进,避免强度卡死
-        this.currentStrength += (this.targetStrength - this.currentStrength) * Math.min(1, Math.max(dt, 1 / 240) * 6);
+        this.currentStrength +=
+            (this.targetStrength - this.currentStrength) *
+            Math.min(1, Math.max(dt, POINTER_MIN_DT) * POINTER_SMOOTHING);
     }
 }

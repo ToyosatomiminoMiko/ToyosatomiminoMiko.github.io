@@ -4,16 +4,28 @@ crate 入口(WASM 绑定层)
 - 持有全局 App 实例,通过 requestAnimationFrame 驱动渲染主循环
 */
 mod app;
+mod app_params;
 mod droplet_params;
 mod droplets;
 mod pipelines;
 mod random;
+mod random_params;
+mod render_params;
+mod texture_params;
 mod textures;
 mod uniforms;
 
 pub use droplet_params::DropletParams;
 pub use droplets::{make_droplets, Droplet, DROPLET_COUNT};
 pub use pipelines::{create_metro_pipelines, shader_source, MetroPipelines, MetroTextures};
+// 下面几组常量同时被 examples/ 使用:导出同一份定义,避免示例与运行时数值漂移.
+pub use render_params::{
+    FULLSCREEN_QUAD_INDICES, FULLSCREEN_QUAD_VERTICES, MIN_TEXTURE_DIMENSION, QUAD_INDEX_FORMAT,
+    REFRACTION_TEXTURE_FORMAT, REFRACTION_WORKGROUP_EDGE, RENDER_TARGET_FORMAT,
+    RGBA_BYTES_PER_PIXEL, SAMPLER_ADDRESS_MODE_CLAMP, SAMPLER_ADDRESS_MODE_REPEAT,
+    SAMPLER_FILTER_MODE,
+};
+pub use texture_params::{DIRT_TEXTURE_SIZE, FOG_TEXTURE_SIZE, INTERIOR_TEXTURE_SIZE};
 pub use textures::{create_texture, decode_png, generate_dirt, generate_fog, generate_interior};
 pub use uniforms::Uniforms;
 
@@ -25,10 +37,6 @@ use wasm_bindgen::JsCast;
 use web_sys::{console, window, HtmlCanvasElement, HtmlElement};
 
 use crate::app::App;
-
-// 渲染帧率上限:60fps.
-// 防止在无垂直同步/高刷新率环境下无意义地跑满 CPU 和 GPU.
-pub(crate) const FRAME_INTERVAL_MS: f64 = 1000.0 / 60.0;
 
 thread_local! {
     static APP: RefCell<Option<App>> = const { RefCell::new(None) };
@@ -50,7 +58,7 @@ pub async fn start_app(canvas: HtmlCanvasElement, status: HtmlElement) -> Result
 #[wasm_bindgen(js_name = setStyle)]
 pub fn set_style(style: u32) {
     with_app(|app| {
-        app.style = style.min(2);
+        app.style = style.min(app_params::MAX_STYLE_INDEX);
     });
 }
 
@@ -64,24 +72,12 @@ pub fn set_running(running: bool) {
 #[wasm_bindgen(js_name = setParam)]
 pub fn set_param(name: &str, value: f32) {
     with_app(|app| {
-        let p = &mut app.droplet_params;
-        match name {
-            // 车速 / 背景层距离
-            "vehicle_speed" => p.vehicle_speed = value.clamp(0.0, 5.0),
-            "far_distance" => p.far_distance = value.clamp(0.1, 3.0),
-            "mid_distance" => p.mid_distance = value.clamp(0.1, 3.0),
-            "near_distance" => p.near_distance = value.clamp(0.1, 3.0),
-            // 水滴外观 / 物理
-            "droplet_size" => p.droplet_size = value.clamp(0.1, 3.0),
-            "wind_backward_factor" => p.wind_backward_factor = value.clamp(0.0, 1.0),
-            "wind_sway_scale" => p.wind_sway_scale = value.clamp(0.0, 3.0),
-            "gravity_scale" => p.gravity_scale = value.clamp(0.0, 3.0),
-            "refraction_scale" => p.refraction_scale = value.clamp(0.0, 3.0),
-            // 玻璃材质浓度
-            "dirt_opacity" => p.dirt_opacity = value.clamp(0.0, 1.0),
-            "fog_opacity" => p.fog_opacity = value.clamp(0.0, 1.0),
-            "interior_opacity" => p.interior_opacity = value.clamp(0.0, 1.0),
-            _ => console::warn_1(&format!("未知滑块参数: {name}").into()),
+        // 参数名与 clamp 上下限统一由 src/app_params.rs 的 SLIDERS 配置表维护:
+        // 表里的 name 就是前端 setParam(name, value) 传的字面值(不可改动),
+        // apply 负责夹到合法区间后写入对应的 DropletParams 字段.
+        match app_params::slider_spec(name) {
+            Some(spec) => spec.apply(&mut app.droplet_params, value),
+            None => console::warn_1(&format!("未知滑块参数: {name}").into()),
         }
     });
 }

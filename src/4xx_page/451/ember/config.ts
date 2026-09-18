@@ -79,3 +79,60 @@ export const REDUCED_MOTION_FPS = 30;
 
 /** 允许的调度抖动: rAF 少给一两毫秒就把整帧丢掉太亏,给一点余量 */
 export const FRAME_JITTER_MS = 1.5;
+
+/**
+ * 跨模块共用的单位 / 布局 / 交互常量.
+ * 下面这些分散在 index / viewport / frame_clock / pointer_wind / log 里,
+ * 集中在此以免同一数值各写一份.
+ */
+
+/** 毫秒 / 秒换算(ms per s) */
+export const MS_PER_SECOND = 1000;
+
+/** 一个 f32 占的字节数 */
+export const FLOAT_BYTES = 4;
+
+/** devicePixelRatio 缺失时按 1 处理 */
+export const DEFAULT_DEVICE_PIXEL_RATIO = 1;
+
+/** 系统"减少动态效果"媒体查询串 */
+export const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+
+/** 引擎日志前缀, 控制台按它筛选 451 的输出 */
+export const LOG_PREFIX = '[451/ember]';
+
+/** SimUniforms 每帧实际写入的 f32 个数(前 8 个字段) */
+export const UNIFORM_FLOAT_COUNT = 8;
+
+/** 一个粒子实例的顶点数(一个四边形拆两个三角形) */
+export const PARTICLE_VERTEX_COUNT = 6;
+
+/** 最终合成的全屏三角形顶点数 */
+export const COMPOSITE_VERTEX_COUNT = 3;
+
+/** 粒子 pass 的 loadOp:clear 颜色(全透明黑 = 上一帧历史清零) */
+export const PARTICLE_CLEAR_VALUE = { r: 0, g: 0, b: 0, a: 0 } as const;
+
+/** 合成 pass 的 loadOp:clear 颜色(不透明黑 = 画布底色) */
+export const COMPOSITE_CLEAR_VALUE = { r: 0, g: 0, b: 0, a: 1 } as const;
+
+/** 指针风场: 停手多久后开始衰减(ms) */
+export const POINTER_IDLE_AFTER_MS = 140;
+
+/** 指针风场: 指针初始位置(屏幕外, 逻辑像素) */
+export const POINTER_OFFSCREEN = 10_000;
+
+/** 指针风场: 仿真步长下限(s), dt 为 0 时也留一点最小推进 */
+export const POINTER_MIN_DT = 1 / 240;
+
+/** 指针风场: 强度逼近系数(无量纲), 越大越跟手 */
+export const POINTER_SMOOTHING = 6;
+
+/** 视口: 逻辑 / 物理尺寸的下限(px) */
+export const VIEWPORT_MIN_DIMENSION = 1;
+
+/** 视口: 小于这么多像素的抖动忽略(移动端地址栏收放) */
+export const VIEWPORT_SIZE_TOLERANCE = 2;
+
+/** 视口: 小于这么多 dpr 的抖动忽略 */
+export const VIEWPORT_DPR_TOLERANCE = 0.01;

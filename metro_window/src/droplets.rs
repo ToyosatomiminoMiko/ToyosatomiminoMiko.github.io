@@ -13,6 +13,14 @@ use rand::Rng;
 //   cs_refraction 里的 64u 保持一致.
 // - cs_main 的 @workgroup_size(64) 恰好一次处理 64 颗水滴.
 pub const DROPLET_COUNT: u32 = 64;
+
+/// 初始随机数区间下限(含):每个 r_k 都是该区间内的独立均匀随机数.
+const RANDOM_UNIT_MIN: f32 = 0.0;
+/// 初始随机数区间上限(不含).
+const RANDOM_UNIT_MAX: f32 = 1.0;
+/// 横向初速度的随机项中心:`(r3 - VELOCITY_MIDPOINT)` 把 [0,1) 映射到 [-0.5, 0.5).
+const VELOCITY_MIDPOINT: f32 = 0.5;
+
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Droplet {
@@ -35,17 +43,17 @@ pub fn make_droplets(params: &DropletParams) -> Vec<Droplet> {
     let mut rng = rand::rng();
     (0..DROPLET_COUNT)
         .map(|_| {
-            let r1: f32 = rng.random_range(0.0..1.0); // 用于初始 x
-            let r2: f32 = rng.random_range(0.0..1.0); // 用于初始 y
-            let r3: f32 = rng.random_range(0.0..1.0); // 用于初始 vx
-            let r4: f32 = rng.random_range(0.0..1.0); // 用于初始 vy
-            let r5: f32 = rng.random_range(0.0..1.0); // 用于初始半径
-            let r6: f32 = rng.random_range(0.0..1.0); // 用于初始强度
+            let r1: f32 = rng.random_range(RANDOM_UNIT_MIN..RANDOM_UNIT_MAX); // 用于初始 x
+            let r2: f32 = rng.random_range(RANDOM_UNIT_MIN..RANDOM_UNIT_MAX); // 用于初始 y
+            let r3: f32 = rng.random_range(RANDOM_UNIT_MIN..RANDOM_UNIT_MAX); // 用于初始 vx
+            let r4: f32 = rng.random_range(RANDOM_UNIT_MIN..RANDOM_UNIT_MAX); // 用于初始 vy
+            let r5: f32 = rng.random_range(RANDOM_UNIT_MIN..RANDOM_UNIT_MAX); // 用于初始半径
+            let r6: f32 = rng.random_range(RANDOM_UNIT_MIN..RANDOM_UNIT_MAX); // 用于初始强度
             Droplet {
                 pos_vel: [
                     params.spawn_x_min + r1 * params.spawn_x_span,
                     params.spawn_y_min + r2 * params.spawn_y_span,
-                    (r3 - 0.5) * params.velocity_x_span
+                    (r3 - VELOCITY_MIDPOINT) * params.velocity_x_span
                         - params.vehicle_speed * params.wind_backward_factor,
                     params.velocity_y_min + r4 * params.velocity_y_span,
                 ],

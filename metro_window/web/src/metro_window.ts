@@ -5,6 +5,9 @@
   引入样式(metro_window.css),绑定交互,加载 wasm,启动 WebGPU 渲染;
 - 做成"挂载函数"而不是页面入口,是把"标记放哪,什么时候挂"留给宿主决定.
 
+所有字面量(id / 类名 / data-* 键名 / Rust 参数名 / 文案 / 阈值)都集中在
+./config.ts,本文件只保留逻辑与结构.
+
 调用方式:
 
     import { mountMetroWindow } from '../metro_window/web/src/metro-window';
@@ -17,6 +20,37 @@ setRunning/reset 全都作用于它,所以一个页面只应挂载一次.
 import './metro_window.css';
 
 import init, { reset, setParam, setRunning, setStyle, startApp } from '../pkg/metro_window.js';
+
+import {
+    ADAPTER_LABEL_SEPARATOR,
+    buildSoftwareAdapterMessage,
+    DECIMAL_FRACTION_INDEX,
+    DECIMAL_SEPARATOR,
+    DEFAULT_STYLE_INDEX,
+    ELEMENT_IDS,
+    ERROR_LABEL,
+    EVENTS,
+    GPU_ADAPTER_OPTIONS,
+    ID_SELECTOR_PREFIX,
+    LAST_ENTRY_OFFSET,
+    LOG_ADAPTER_PREFIX,
+    MISSING_ELEMENT_MESSAGE_PREFIX,
+    NUMBER_INPUT_ID_SUFFIX,
+    SLIDERS,
+    SOFTWARE_ADAPTER_PATTERN,
+    STATUS_HTML_SEPARATOR,
+    STATUS_LOADING_WASM,
+    STATUS_NO_ADAPTER,
+    STATUS_NO_WEBGPU_API,
+    STYLE_BUTTON_ACTIVE_CLASS,
+    STYLE_BUTTON_CLASS,
+    STYLE_DATA_KEY,
+    UNKNOWN_ADAPTER_LABEL,
+    WARN_ADAPTER_INFO_UNAVAILABLE,
+    WEBGPU_ADAPTER_ERROR_KEYWORD,
+    WEBGPU_HELP_STEPS,
+    WINDOW_CLASS,
+} from './config';
 
 // WebGPU 适配器的最小类型定义(不依赖具体 TypeScript 版本的 DOM 类型)
 interface GpuAdapterInfo {
@@ -37,26 +71,6 @@ interface GpuNavigator {
     }): Promise<GpuAdapter | null>;
 }
 
-// 只匹配明确表示软件渲染的适配器名称,避免把 NVIDIA/AMD 硬件误判
-const SOFTWARE_ADAPTER_PATTERN = /swiftshader|llvmpipe|lavapipe|microsoft basic render/i;
-
-// 滑块 <-> Rust 参数名的映射.名字必须与 src/lib.rs 的 set_param 分支一致,
-// 写错不会报错,只会静默不生效,所以集中在这里便于对照.
-const SLIDERS: ReadonlyArray<{ id: string; param: string }> = [
-    { id: 'vehicleSpeed', param: 'vehicle_speed' },
-    { id: 'farDistance', param: 'far_distance' },
-    { id: 'midDistance', param: 'mid_distance' },
-    { id: 'nearDistance', param: 'near_distance' },
-    { id: 'dropletSize', param: 'droplet_size' },
-    { id: 'windBackward', param: 'wind_backward_factor' },
-    { id: 'windSway', param: 'wind_sway_scale' },
-    { id: 'gravityScale', param: 'gravity_scale' },
-    { id: 'refractionScale', param: 'refraction_scale' },
-    { id: 'dirtOpacity', param: 'dirt_opacity' },
-    { id: 'fogOpacity', param: 'fog_opacity' },
-    { id: 'interiorOpacity', param: 'interior_opacity' },
-];
-
 let booted = false;
 
 // --- 渲染生命周期 ---
@@ -74,9 +88,9 @@ function bootedRunning(): void {
 }
 
 function mustFind<T extends HTMLElement>(root: ParentNode, id: string): T {
-    const element = root.querySelector<T>(`#${id}`);
+    const element = root.querySelector<T>(`${ID_SELECTOR_PREFIX}${id}`);
     if (!element) {
-        throw new Error(`找不到页面元素 #${id}`);
+        throw new Error(`${MISSING_ELEMENT_MESSAGE_PREFIX}${id}`);
     }
     return element;
 }
@@ -84,10 +98,10 @@ function mustFind<T extends HTMLElement>(root: ParentNode, id: string): T {
 export function mountMetroWindow(root: HTMLElement): void {
     // 标记由页面提供(metro_window/index.html).这里只补类名:样式全靠它作用域,
     // 漏写就是"样式静默失效",补一下比报错划算.
-    root.classList.add('metro-window');
+    root.classList.add(WINDOW_CLASS);
 
-    const status = mustFind(root, 'status');
-    const canvas = mustFind<HTMLCanvasElement>(root, 'webgpu-canvas');
+    const status = mustFind(root, ELEMENT_IDS.status);
+    const canvas = mustFind<HTMLCanvasElement>(root, ELEMENT_IDS.canvas);
     const setStatus = (message: string): void => {
         status.textContent = message;
         console.log(message);
@@ -96,14 +110,14 @@ export function mountMetroWindow(root: HTMLElement): void {
     // 容器不可见(被切走的标签页 / 滚出视口)时暂停;标签页是 display:none,
     // 交集为空会直接反映成 isIntersecting === false
     const observer = new IntersectionObserver((entries) => {
-        const entry = entries[entries.length - 1];
+        const entry = entries[entries.length - LAST_ENTRY_OFFSET];
         if (!entry) return;
         rootOnScreen = entry.isIntersecting;
         bootedRunning();
     });
     observer.observe(root);
 
-    document.addEventListener('visibilitychange', () => {
+    document.addEventListener(EVENTS.visibilityChange, () => {
         documentVisible = !document.hidden;
         bootedRunning();
     });
@@ -112,109 +126,99 @@ export function mountMetroWindow(root: HTMLElement): void {
     void boot();
 
     async function boot(): Promise<void> {
-        setStatus('正在加载 WebAssembly...');
+        setStatus(STATUS_LOADING_WASM);
         try {
             await init();
 
             const gpu = (navigator as Navigator & { gpu?: GpuNavigator }).gpu;
             if (!gpu) {
-                showWebGpuHelp('当前浏览器不支持 WebGPU(未找到 navigator.gpu).');
+                showWebGpuHelp(STATUS_NO_WEBGPU_API);
                 return;
             }
 
             // 严格模式:只接受硬件 WebGPU.
             // 软件渲染(SwiftShader/llvmpipe)会用 CPU 模拟每一帧,导致
             // 所有核心高占用/风扇狂转,因此直接报错而不是降级运行.
-            const adapter = await gpu.requestAdapter({
-                powerPreference: 'high-performance',
-                forceFallbackAdapter: false,
-            });
+            const adapter = await gpu.requestAdapter(GPU_ADAPTER_OPTIONS);
             if (!adapter) {
-                showWebGpuHelp('当前浏览器未提供 WebGPU 适配器(No available adapters).请检查是否已启用 WebGPU 与硬件加速后刷新重试');
+                showWebGpuHelp(STATUS_NO_ADAPTER);
                 return;
             }
 
             let info: GpuAdapterInfo | null = null;
-            let adapterLabel = '未知';
+            let adapterLabel: string = UNKNOWN_ADAPTER_LABEL;
             try {
                 info = adapter.info;
                 adapterLabel = [info.vendor, info.architecture, info.device, info.description]
                     .filter(Boolean)
-                    .join(' ');
+                    .join(ADAPTER_LABEL_SEPARATOR);
             } catch (error) {
                 // 部分浏览器/版本未实现 adapter.info:不阻塞,交给 Rust 侧继续初始化
-                console.warn('无法读取 WebGPU 适配器信息,跳过软件渲染检查', error);
+                console.warn(WARN_ADAPTER_INFO_UNAVAILABLE, error);
             }
-            console.info('WebGPU 适配器:', adapterLabel);
+            console.info(LOG_ADAPTER_PREFIX, adapterLabel);
 
             if (info && SOFTWARE_ADAPTER_PATTERN.test(adapterLabel)) {
-                showWebGpuHelp(
-                    `❌ 当前 WebGPU 适配器为 CPU 软件渲染(${adapterLabel}),说明这个浏览器实例访问不到独立显卡.若你用的是 Fedora/Chromium 且系统浏览器仍报此错,已知是 Chromium 沙箱挡住了 NVIDIA Vulkan 驱动,可改用 Firefox,或用 \`chromium-browser --no-sandbox --enable-unsafe-webgpu\` 启动(仅限本机可信页面).注意:chrome://flags/#enable-vulkan 可能导致 Chromium 黑屏,不建议启用`,
-                );
+                showWebGpuHelp(buildSoftwareAdapterMessage(adapterLabel));
                 return;
             }
 
             await startApp(canvas, status);
             booted = true;
-            root.querySelectorAll<HTMLButtonElement>('.style-btn').forEach((btn) => {
+            root.querySelectorAll<HTMLButtonElement>(`.${STYLE_BUTTON_CLASS}`).forEach((btn) => {
                 btn.disabled = false;
             });
-            mustFind<HTMLButtonElement>(root, 'pauseBtn').disabled = false;
-            mustFind<HTMLFieldSetElement>(root, 'paramPanel').disabled = false;
+            mustFind<HTMLButtonElement>(root, ELEMENT_IDS.pauseButton).disabled = false;
+            mustFind<HTMLFieldSetElement>(root, ELEMENT_IDS.paramPanel).disabled = false;
             // startApp 里的 App 默认就是 running,这里按当前可见性同步一次,
             // 免得在隐藏的标签页里挂载时白跑 (IntersectionObserver 的首次回调
             // 可能早于 booted = true,不能只依赖它)
             bootedRunning();
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            if (message.includes('WebGPU 适配器')) {
-                showWebGpuHelp(`❌ ${message}`);
+            if (message.includes(WEBGPU_ADAPTER_ERROR_KEYWORD)) {
+                showWebGpuHelp(`${ERROR_LABEL}${message}`);
             } else {
-                setStatus(`❌ ${message}`);
+                setStatus(`${ERROR_LABEL}${message}`);
             }
             console.error(error);
         }
     }
 
     function showWebGpuHelp(message: string): void {
-        status.innerHTML = `${message}<br><br>` +
-            '请按以下任一步骤启用 WebGPU:<br>' +
-            '① Chrome / Edge:地址栏打开 <b>chrome://flags/#enable-unsafe-webgpu</b> 或 <b>edge://flags/#enable-unsafe-webgpu</b>,选择 <b>Enabled</b> 并重启浏览器;<br>' +
-            '② 在设置中开启"使用硬件加速"(Chrome 设置 -> 系统 -> 使用图形加速),并到 <b>chrome://gpu</b> 确认 WebGPU 状态为可用;<br>' +
-            '③ Firefox:地址栏打开 <b>about:config</b>,搜索 <b>dom.webgpu.enabled</b> 设为 <b>true</b>;<br>' +
-            '④ 若在虚拟机/远程桌面或无独显环境运行,请改用支持 WebGPU 的物理机/浏览器.';
+        status.innerHTML = `${message}${STATUS_HTML_SEPARATOR}${WEBGPU_HELP_STEPS}`;
     }
 
     function setup(): void {
-        const styleButtons = root.querySelectorAll<HTMLButtonElement>('.style-btn');
+        const styleButtons = root.querySelectorAll<HTMLButtonElement>(`.${STYLE_BUTTON_CLASS}`);
         styleButtons.forEach((btn) => {
             btn.disabled = true;
-            btn.addEventListener('click', () => {
+            btn.addEventListener(EVENTS.click, () => {
                 if (!booted) return;
-                setStyle(Number(btn.dataset.style ?? 0));
-                styleButtons.forEach((b) => b.classList.toggle('active', b === btn));
+                setStyle(Number(btn.dataset[STYLE_DATA_KEY] ?? DEFAULT_STYLE_INDEX));
+                styleButtons.forEach((b) => b.classList.toggle(STYLE_BUTTON_ACTIVE_CLASS, b === btn));
             });
         });
 
-        mustFind(root, 'startBtn').addEventListener('click', () => {
+        mustFind(root, ELEMENT_IDS.startButton).addEventListener(EVENTS.click, () => {
             wantRunning = true;
             bootedRunning();
         });
-        mustFind(root, 'pauseBtn').addEventListener('click', () => {
+        mustFind(root, ELEMENT_IDS.pauseButton).addEventListener(EVENTS.click, () => {
             wantRunning = false;
             bootedRunning();
         });
-        mustFind(root, 'resetBtn').addEventListener('click', () => {
+        mustFind(root, ELEMENT_IDS.resetButton).addEventListener(EVENTS.click, () => {
             if (booted) reset();
         });
 
         // 滑块:拖动时实时写入 Rust 参数,下一帧立即生效
         SLIDERS.forEach(({ id, param }) => {
             const input = mustFind<HTMLInputElement>(root, id);
-            const numberInput = mustFind<HTMLInputElement>(root, `${id}Num`);
+            const numberInput = mustFind<HTMLInputElement>(root, `${id}${NUMBER_INPUT_ID_SUFFIX}`);
             const min = Number(input.min);
             const max = Number(input.max);
-            const decimals = (Number(input.step).toString().split('.')[1] ?? '').length;
+            const decimals = (Number(input.step).toString().split(DECIMAL_SEPARATOR)[DECIMAL_FRACTION_INDEX] ?? '').length;
             const syncFromSlider = (): void => {
                 const value = Number(input.value);
                 numberInput.value = String(value);
@@ -232,9 +236,9 @@ export function mountMetroWindow(root: HTMLElement): void {
                     setParam(param, clamped);
                 }
             };
-            input.addEventListener('input', syncFromSlider);
-            numberInput.addEventListener('input', syncFromNumber);
-            numberInput.addEventListener('change', syncFromNumber);
+            input.addEventListener(EVENTS.input, syncFromSlider);
+            numberInput.addEventListener(EVENTS.input, syncFromNumber);
+            numberInput.addEventListener(EVENTS.change, syncFromNumber);
             syncFromSlider();
         });
     }

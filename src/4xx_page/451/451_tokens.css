@@ -1,0 +1,141 @@
+/* ------------------------------------------------------------------
+   451 页面设计令牌.
+   由 451.css 第一行 @import 引入, 页面里一律用 var(--fire-...) 引用.
+   CSS 规范要求 @import 必须位于一切规则之前, 所以本 import 只能放最顶部.
+   命名: --fire-<类别>-<名>; 值与原 451.css 中的字面量逐位一致.
+   ------------------------------------------------------------------ */
+:root {
+    /* ----- 页面基底 / 字体 ----- */
+    --fire-bg-page: #0a0301;
+    --fire-text-page: #f0e6d0;
+    --fire-font-sans: 'Inter', 'Segoe UI', sans-serif;
+    --fire-font-sans-alt: 'Inter', sans-serif;
+    --fire-font-display: 'Space Mono', 'Inter', monospace;
+    --fire-font-mono: 'Space Mono', monospace;
+    --fire-weight-black: 900;
+    --fire-weight-semibold: 600;
+    --fire-weight-medium: 500;
+    --fire-weight-regular: 400;
+    --fire-weight-light: 300;
+
+    /* ----- 通用动画时长 / 强调色 ----- */
+    --fire-card-duration: 0.4s;
+    --fire-gradient-duration: 2.8s;
+    --fire-flicker-duration: 1.6s;
+    --fire-burn-duration: 2.2s;
+    --fire-accent: #ff5722;
+    --fire-border-strong: #ff5e2e;
+    --fire-rule-color: rgba(255, 100, 50, 0.6);
+
+    /* ----- 层级 ----- */
+    --fire-z-canvas: 1;
+    --fire-z-ash: 2;
+    --fire-z-hero: 10;
+    --fire-z-glow: -1;
+
+    /* ----- 主内容容器 ----- */
+    --fire-hero-min-height: 99vh;
+    --fire-hero-padding: 2rem;
+
+    /* ----- 玻璃质感卡片 ----- */
+    --fire-card-max-width: 900px;
+    --fire-card-bg: rgba(10, 5, 2, 0.82);
+    --fire-card-radius: 4rem 2rem 4rem 2rem;
+    --fire-card-radius-sm: 2rem 1rem 2rem 1rem;
+    --fire-card-border: 1px solid rgba(255, 80, 40, 0.5);
+    --fire-card-shadow: 0 30px 50px rgba(0, 0, 0, 0.6), 0 0 0 2px rgba(255, 70, 30, 0.1) inset, 0 0 30px rgba(255, 50, 0, 0.2);
+    --fire-card-padding: 3rem 2rem 4rem;
+    --fire-card-padding-sm: 2rem 1.2rem 3rem;
+    --fire-card-transition: border-color var(--fire-card-duration) ease;
+
+    /* ----- 巨大 451 数字 ----- */
+    --fire-temp-font-size: clamp(5rem, 20vw, 14rem);
+    --fire-temp-letter-spacing: 0.05em;
+    --fire-temp-gradient: linear-gradient(135deg, #ff7e3a, #ff3c00, #ff9f4a, #d42a00);
+    --fire-temp-gradient-size: 300% 300%;
+    --fire-temp-animation: fireGradient var(--fire-gradient-duration) ease infinite, textFlicker var(--fire-flicker-duration) infinite alternate;
+    --fire-temp-text-shadow: 0 0 15px rgba(255, 70, 0, 0.7), 0 0 30px rgba(255, 40, 0, 0.4);
+    --fire-temp-margin-bottom: 0.5rem;
+    --fire-flicker-opacity: 0.88;
+
+    /* ----- 单位标识 °F ----- */
+    --fire-unit-font-size: clamp(1.8rem, 5vw, 3rem);
+    --fire-unit-gradient: linear-gradient(120deg, #ffc285, #ff702a);
+    --fire-unit-margin-left: 0.2rem;
+    --fire-unit-text-shadow: 0 0 6px rgba(255, 80, 0, 0.5);
+
+    /* ----- 徽章行 ----- */
+    --fire-badge-row-gap: 2rem;
+    --fire-badge-row-gap-sm: 1rem;
+    --fire-badge-row-margin: 1.2rem 0 1.5rem;
+    --fire-badge-bg: rgba(0, 0, 0, 0.72);
+    --fire-badge-padding: 0.5rem 1.2rem;
+    --fire-badge-padding-sm: 0.3rem 0.9rem;
+    --fire-badge-font-size: 0.9rem;
+    --fire-badge-font-size-sm: 0.7rem;
+    --fire-badge-letter-spacing: 1px;
+    --fire-badge-border-left-w: 3px;
+    --fire-badge-color: #ffccaa;
+    --fire-badge-gap: 10px;
+    --fire-radius-pill: 60px;
+
+    /* ----- 引语 ----- */
+    --fire-tagline-font-size: clamp(1rem, 4vw, 1.5rem);
+    --fire-tagline-margin: 1.5rem 0 0.8rem;
+    --fire-tagline-color: #ffcd94;
+    --fire-tagline-letter-spacing: -0.3px;
+    --fire-tagline-padding: 0.6rem 1.2rem;
+    --fire-tagline-bg: rgba(0, 0, 0, 0.45);
+    --fire-tagline-radius: 50px;
+
+    /* ----- 描述 ----- */
+    --fire-desc-font-size: 1rem;
+    --fire-desc-font-size-sm: 0.9rem;
+    --fire-desc-line-height: 1.6;
+    --fire-desc-max-width: 750px;
+    --fire-desc-margin: 1.5rem auto;
+    --fire-desc-color: #e0cbb0;
+    --fire-desc-bg: rgba(0, 0, 0, 0.5);
+    --fire-desc-padding: 1rem 1.5rem;
+    --fire-desc-padding-sm: 0.8rem 1rem;
+    --fire-desc-radius: 2rem;
+
+    /* ----- 法律提示 ----- */
+    --fire-legal-font-size: 0.85rem;
+    --fire-legal-bg: rgba(30, 10, 2, 0.7);
+    --fire-legal-padding: 0.8rem 1rem;
+    --fire-legal-margin: 1rem auto;
+    --fire-legal-color: #ffb47b;
+    --fire-legal-letter-spacing: 0.5px;
+
+    /* ----- 引文 ----- */
+    --fire-quote-font-size: 0.95rem;
+    --fire-quote-margin-top: 2rem;
+    --fire-quote-color: #e6ba8b;
+    --fire-quote-padding-left: 1rem;
+    --fire-quote-max-width: 450px;
+
+    /* ----- 引文作者 ----- */
+    --fire-author-font-size: 0.75rem;
+    --fire-author-margin-top: 6px;
+    --fire-author-color: #cc9f70;
+    --fire-author-letter-spacing: 1px;
+
+    /* ----- 燃烧边缘装饰 (.card::before) ----- */
+    --fire-glow-inset: -3px;
+    --fire-glow-bg: radial-gradient(circle at 20% 30%, rgba(255, 80, 0, 0.2), transparent 70%);
+    --fire-glow-blur: 6px;
+    --fire-glow-opacity: 0.6;
+    --fire-glow-opacity-reduced: 0.5;
+    --fire-glow-animation: borderBurn var(--fire-burn-duration) infinite alternate;
+    --fire-burn-opacity-min: 0.25;
+    --fire-burn-opacity-max: 0.95;
+
+    /* ----- 灰烬飘浮层 ----- */
+    --fire-ash-bg: radial-gradient(ellipse at bottom, rgba(0, 0, 0, 0) 70%, rgba(20, 5, 0, 0.3) 100%);
+
+    /* ----- 滚动条 ----- */
+    --fire-scrollbar-w: 5px;
+    --fire-scrollbar-track: #1e0a03;
+    --fire-scrollbar-thumb-radius: 20px;
+}

@@ -16,7 +16,30 @@
 //   viewport(尺寸) / frame_clock(定步长) / pointer_wind(指针风) / log(日志)
 // ============================================================
 
-import { FIXED_DT, FRAME_JITTER_MS, MAX_FPS, PARTICLE_COUNT, REDUCED_MOTION_FPS, UNIFORM_STRIDE, WORKGROUP_SIZE } from './config';
+import {
+    COMPOSITE_CLEAR_VALUE,
+    COMPOSITE_VERTEX_COUNT,
+    DEFAULT_DEVICE_PIXEL_RATIO,
+    FIXED_DT,
+    FLOAT_BYTES,
+    FRAME_JITTER_MS,
+    MAX_FPS,
+    PARTICLE_CLEAR_VALUE,
+    PARTICLE_COUNT,
+    PARTICLE_VERTEX_COUNT,
+    REDUCED_MOTION_FPS,
+    REDUCED_MOTION_QUERY,
+    UNIFORM_FLOAT_COUNT,
+    UNIFORM_STRIDE,
+    WORKGROUP_SIZE,
+} from './config';
+import {
+    STATS_FPS_DATASET_KEY,
+    STATS_REPORT_FRAMES,
+    STATS_REPORT_INTERVAL_MS,
+    STATS_REPORT_MIN_FRAMES,
+} from './stats.config';
+import { CANVAS_ALPHA_MODE, FALLBACK_TEXTURE_FORMAT } from './capabilities.config';
 import { log } from './log';
 import { acquireGpuContext, pickTextureFormat } from './capabilities';
 import { buildPipelines, type EmberPipelines } from './pipelines';
@@ -45,7 +68,7 @@ export type { FrameStatsSnapshot, GpuPassTimings, Distribution } from './stats';
 /** 系统是否要求"减少动态效果" */
 function prefersReducedMotion(): boolean {
     try {
-        return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        return window.matchMedia(REDUCED_MOTION_QUERY).matches;
     } catch {
         return false;
     }
@@ -58,7 +81,7 @@ export class EmberWebGPU {
     running = false;
     disposed = false;
     /** 离屏纹理格式,初始化成功后才有意义 */
-    textureFormat: GPUTextureFormat = 'rgba8unorm';
+    textureFormat: GPUTextureFormat = FALLBACK_TEXTURE_FORMAT;
     /** 适配器信息,便于在控制台排查实际跑在哪块 GPU 上 */
     adapterInfo: GPUAdapterInfo | null = null;
     /** 最近一次解析出的物理像素尺寸,便于调试 */
@@ -71,9 +94,9 @@ export class EmberWebGPU {
     /** GPU 计时器; 适配器不支持 timestamp-query 时为 null */
     gpuTimer: GpuTimer | null = null;
     /** 每攒够这么多帧上报一次统计 */
-    statsIntervalFrames = 60;
+    statsIntervalFrames = STATS_REPORT_FRAMES;
     /** 距上次上报超过这么久也强制上报一次(低帧率下 HUD 才不会僵住) */
-    statsIntervalMs = 1000;
+    statsIntervalMs = STATS_REPORT_INTERVAL_MS;
     /** 帧率上限; 设为 0 表示不限制 */
     maxFps = MAX_FPS;
     /** 上报回调(屏幕 HUD / 控制台用), 默认不挂 */
@@ -96,7 +119,7 @@ export class EmberWebGPU {
     private readonly clock = new FixedStepClock();
     private readonly wind = new PointerWind();
 
-    private readonly uniformData = new Float32Array(UNIFORM_STRIDE / 4);
+    private readonly uniformData = new Float32Array(UNIFORM_STRIDE / FLOAT_BYTES);
 
     // init() 成功后才会全部就位
     private pipelines: EmberPipelines | null = null;
@@ -149,7 +172,7 @@ export class EmberWebGPU {
             context.configure({
                 device,
                 format: this.textureFormat,
-                alphaMode: 'premultiplied',
+                alphaMode: CANVAS_ALPHA_MODE,
             });
             this.contextConfigured = true;
 
@@ -198,7 +221,7 @@ export class EmberWebGPU {
         return computeViewport(
             this.canvas,
             { width: window.innerWidth, height: window.innerHeight },
-            window.devicePixelRatio || 1
+            window.devicePixelRatio || DEFAULT_DEVICE_PIXEL_RATIO
         );
     }
 
@@ -370,13 +393,13 @@ export class EmberWebGPU {
         const due =
             this.framesSinceReport >= this.statsIntervalFrames ||
             now - this.lastReportTime >= this.statsIntervalMs;
-        if (!due || this.framesSinceReport < 4) return;
+        if (!due || this.framesSinceReport < STATS_REPORT_MIN_FRAMES) return;
         this.framesSinceReport = 0;
         this.lastReportTime = now;
 
         const snapshot = this.stats.snapshot();
         // 同时挂到 <html> 上, 便于控制台/自动化直接读, 不用实例
-        document.documentElement.dataset.emberFps = String(snapshot.fps);
+        document.documentElement.dataset[STATS_FPS_DATASET_KEY] = String(snapshot.fps);
         if (this.hud) this.hud.update(this.stats.format());
         this.onStats?.(snapshot);
     }
@@ -424,7 +447,7 @@ export class EmberWebGPU {
         u[5] = this.wind.x;          // 指针位置
         u[6] = this.wind.y;
         u[7] = this.wind.strength;   // 指针影响强度(0 = 无交互)
-        device.queue.writeBuffer(simBuffer, 0, u, 0, 8);
+        device.queue.writeBuffer(simBuffer, 0, u, 0, UNIFORM_FLOAT_COUNT);
     }
 
     private encode(): void {
@@ -472,14 +495,14 @@ export class EmberWebGPU {
                 {
                     view: this.historyViews[writeIndex],
                     loadOp: 'clear',
-                    clearValue: { r: 0, g: 0, b: 0, a: 0 },
+                    clearValue: PARTICLE_CLEAR_VALUE,
                     storeOp: 'store',
                 },
             ],
         });
         particlePass.setPipeline(pipelines.renderPipeline);
         particlePass.setBindGroup(0, renderBindGroup);
-        particlePass.draw(6, this.particleCount);
+        particlePass.draw(PARTICLE_VERTEX_COUNT, this.particleCount);
         particlePass.end();
 
         if (timer) timer.mark(encoder, slot + 2);
@@ -491,14 +514,14 @@ export class EmberWebGPU {
                 {
                     view: context.getCurrentTexture().createView(),
                     loadOp: 'clear',
-                    clearValue: { r: 0, g: 0, b: 0, a: 1 },
+                    clearValue: COMPOSITE_CLEAR_VALUE,
                     storeOp: 'store',
                 },
             ],
         });
         compositePass.setPipeline(pipelines.compositePipeline);
         compositePass.setBindGroup(0, this.compositeBindGroups[writeIndex]);
-        compositePass.draw(3);
+        compositePass.draw(COMPOSITE_VERTEX_COUNT);
         compositePass.end();
 
         if (timer) {

@@ -10,6 +10,18 @@
  * 两者之比 cpuShare 一眼就能看出"主线程到底占多少": 接近 0 就说明再怎么优化
  * JS 也没用, 该去动填充率,CSS 特效和帧率上限.
  */
+import { MS_PER_SECOND } from './config';
+import {
+    STATS_CAPACITY,
+    STATS_CATCHUP_DIGITS,
+    STATS_CPU_SHARE_DIGITS,
+    STATS_CPU_SHARE_PERCENT_DIGITS,
+    STATS_DISTRIBUTION_DIGITS,
+    STATS_FPS_DIGITS,
+    STATS_PERCENTILE_P50,
+    STATS_PERCENTILE_P95,
+    STATS_STEPS_DIGITS,
+} from './stats.config';
 
 export interface FrameSample {
     /** 距上一帧的 rAF 间隔(ms); 首帧(<= 0)会被忽略 */
@@ -52,8 +64,8 @@ export interface FrameStatsSnapshot {
     gpu: GpuPassTimings | null;
 }
 
-/** 默认保留最近 240 帧(60Hz 下约 4 秒) */
-export const STATS_CAPACITY = 240;
+/** 统计窗口容量(帧), 默认值见 stats.config.ts; 这里转出以保持既有导入路径可用 */
+export { STATS_CAPACITY };
 
 /**
  * 最近秩(nearest-rank)分位: 返回"第 ceil(q * n) 小"的样本.
@@ -65,7 +77,7 @@ function percentile(sorted: Float64Array, count: number, q: number): number {
     return sorted[index] ?? 0;
 }
 
-function round(value: number, digits = 2): number {
+function round(value: number, digits = STATS_DISTRIBUTION_DIGITS): number {
     const factor = 10 ** digits;
     return Math.round(value * factor) / factor;
 }
@@ -81,8 +93,8 @@ function summarize(values: Float64Array, count: number): Distribution {
     const sorted = values.slice(0, count).sort();
     return {
         avg: round(sum / count),
-        p50: round(percentile(sorted, count, 0.5)),
-        p95: round(percentile(sorted, count, 0.95)),
+        p50: round(percentile(sorted, count, STATS_PERCENTILE_P50)),
+        p95: round(percentile(sorted, count, STATS_PERCENTILE_P95)),
         max: round(max),
     };
 }
@@ -128,14 +140,14 @@ export class FrameStats {
         const frames = this.count;
         return {
             frames,
-            fps: interval.avg > 0 ? round(1000 / interval.avg, 1) : 0,
+            fps: interval.avg > 0 ? round(MS_PER_SECOND / interval.avg, STATS_FPS_DIGITS) : 0,
             interval,
             cpu,
             steps: {
-                avg: frames ? round(this.stepSum / frames, 2) : 0,
-                catchUp: frames ? round(this.catchUpFrames / frames, 3) : 0,
+                avg: frames ? round(this.stepSum / frames, STATS_STEPS_DIGITS) : 0,
+                catchUp: frames ? round(this.catchUpFrames / frames, STATS_CATCHUP_DIGITS) : 0,
             },
-            cpuShare: interval.avg > 0 ? round(cpu.avg / interval.avg, 4) : 0,
+            cpuShare: interval.avg > 0 ? round(cpu.avg / interval.avg, STATS_CPU_SHARE_DIGITS) : 0,
             gpu: this.lastGpu,
         };
     }
@@ -144,11 +156,11 @@ export class FrameStats {
     format(): string {
         const s = this.snapshot();
         const gpu = s.gpu
-            ? ` | GPU compute ${s.gpu.compute.toFixed(2)} / particle ${s.gpu.particle.toFixed(2)} / composite ${s.gpu.composite.toFixed(2)} ms`
+            ? ` | GPU compute ${s.gpu.compute.toFixed(STATS_DISTRIBUTION_DIGITS)} / particle ${s.gpu.particle.toFixed(STATS_DISTRIBUTION_DIGITS)} / composite ${s.gpu.composite.toFixed(STATS_DISTRIBUTION_DIGITS)} ms`
             : ' | GPU 时间不可测(适配器无 timestamp-query, 或后端只返回 0)';
         return (
-            `${s.fps.toFixed(1)} fps (帧间隔 p50 ${s.interval.p50} / p95 ${s.interval.p95} ms)` +
-            ` | 主线程 ${s.cpu.avg} ms/帧, 占 ${(s.cpuShare * 100).toFixed(1)}%` +
+            `${s.fps.toFixed(STATS_FPS_DIGITS)} fps (帧间隔 p50 ${s.interval.p50} / p95 ${s.interval.p95} ms)` +
+            ` | 主线程 ${s.cpu.avg} ms/帧, 占 ${(s.cpuShare * 100).toFixed(STATS_CPU_SHARE_PERCENT_DIGITS)}%` +
             ` | 步数 ${s.steps.avg}${gpu}`
         );
     }

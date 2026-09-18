@@ -4,7 +4,7 @@
  * 把不稳定的帧间隔换算成"本帧该跑几个固定步": dt 序列恒定,
  * 120Hz 屏和 60Hz 屏看到的余烬速度一致,不会因为高刷屏跑得飞快.
  */
-import { FIXED_DT, MAX_FRAME_DELTA, MAX_STEPS_PER_FRAME } from './config';
+import { FIXED_DT, MAX_FRAME_DELTA, MAX_STEPS_PER_FRAME, MS_PER_SECOND } from './config';
 
 export class FixedStepClock {
     private accumulator = 0;
@@ -33,7 +33,7 @@ export class FixedStepClock {
      * 返回 0 表示帧间隔不足一步 -- 调用方仍应合成一帧,让拖尾继续衰减.
      */
     advance(nowMs: number): number {
-        const delta = Math.min(Math.max(nowMs - this.lastFrameTime, 0) / 1000, this.maxFrameDelta);
+        const delta = Math.min(Math.max(nowMs - this.lastFrameTime, 0) / MS_PER_SECOND, this.maxFrameDelta);
         this.lastFrameTime = nowMs;
 
         // 余量上限 = 一帧最多补的步数,防止长时间挂起后一次性补爆

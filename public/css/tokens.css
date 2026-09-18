@@ -1,0 +1,196 @@
+/* ================================================================
+ * 设计令牌(tokens.css)
+ *
+ * public/css 是 Vite 的 publicDir,文件按原样拷贝,不经打包.所有按设计
+ * 可调的参数(字体族,调色板,尺寸,圆角,间距,z-index,过渡时长,阴影)
+ * 都集中在这里的 :root 自定义属性里,index.css / ieee754.css 只引用 var().
+ *
+ * 命名约定:
+ *   --font-*      字体族
+ *   --bg-*        背景图 / 背景填充
+ *   --led-*       LED 时钟
+ *   --oled-*      OLED 像素画板
+ *   --rbt-*       红黑树工具
+ *   --ieee-*      IEEE 754 面板
+ *   --setting-*   SETTING 标签页
+ *   --radius-*    圆角
+ *   --z-*         层级
+ *   --transition-* 过渡
+ * ================================================================ */
+
+:root {
+    /* ---------- 字体族 ---------- */
+
+    /* 全局字体:用 Unicode 转义写 consolas(注释里的字体名必须转义才生效) */
+    --font-base: "\0063\006f\006e\0073\006f\006c\0061\0073";
+    /* 通用等宽字体(坐标显示,文本框等) */
+    --font-mono: monospace;
+    /* 代码等宽字体栈:红黑树输入框与 IEEE754 位图共用 */
+    --font-code: 'JetBrains Mono Slashed', 'Fira Code', 'Consolas', monospace;
+
+    /* ---------- 背景 ---------- */
+    --bg-image-default: url("/images/bgimg/bgcode.gif");
+
+    /* ---------- 基础色 ---------- */
+    --color-white: #ffffff;
+    --color-black: #000000;
+    /* 时钟面板底色:原实现写作 #000(与 --color-black 同色但保持字面量形态) */
+    --clock-panel-bg: #000;
+    /* 半透明黑(主页卡片背景,完全透明) */
+    --color-black-transparent: #00000000;
+
+    /* ---------- 通用尺寸 / 圆角 / 过渡 ---------- */
+    --card-width: 100%;
+    /* 主内容区占视口宽度比例 */
+    --main-width: 90%;
+    /* 主内容区距顶部比例 */
+    --main-margin-top: 3%;
+    /* 小圆角(卡片 / 坐标显示条) */
+    --radius-sm: 5px;
+    /* 中圆角(时钟面板) */
+    --radius-md: 10px;
+    /* 像素指示器移动过渡 */
+    --transition-indicator: 10ms linear;
+
+    /* ---------- 层级(z-index) ---------- */
+    /* 像素指示器浮在页面最上层 */
+    --z-pixel-indicator: 9999;
+
+    /* ---------- 导航栏 ---------- */
+    --nav-height: 42px;
+    /* 头像直径 */
+    --head-size: 35px;
+    /* 头像外边距 */
+    --head-margin: 5px;
+    /* 头像悬停辉光颜色 */
+    --head-glow: #00ffc3;
+    /* 头像悬停辉光模糊半径 */
+    --head-glow-blur: 15px;
+
+    /* ---------- LED 时钟 ---------- */
+    --clock-panel-radius: var(--radius-md);
+    --clock-panel-padding: 20px;
+    /* 时钟面板辉光阴影 */
+    --clock-glow: rgba(0, 255, 255, 0.5);
+    /* 时钟面板辉光模糊半径 */
+    --clock-glow-blur: 40px;
+    /* 时钟 canvas 显示高度(保持像素锐利) */
+    --clock-canvas-height: 128px;
+
+    /* ---------- OLED 像素画板 ---------- */
+    /* 画布放大后的显示宽度 */
+    --oled-canvas-width: 1024px;
+    /* 画布放大后的显示高度 */
+    --oled-canvas-height: 512px;
+    /* 画布边框颜色 */
+    --oled-border: #00785c;
+    /* 工具区与上方元素的间距 */
+    --oled-tools-margin-top: 15px;
+    /* 坐标显示条的背景 */
+    --oled-coords-bg: #f0f0f0;
+    /* 坐标显示条的内边距 */
+    --oled-coords-padding: 8px 15px;
+    /* 坐标显示条与上方元素的间距 */
+    --oled-coords-margin-top: 10px;
+    /* 鼠标像素指示器的背景(红色半透明) */
+    --oled-indicator-bg: rgba(255, 0, 0, 0.6);
+    /* 数据文本框背景 */
+    --oled-textarea-bg: #555555;
+    /* 数据文本框最小高度 */
+    --oled-textarea-min-height: 150px;
+    /* 数据文本框内边距(占位边框) */
+    --oled-textarea-border: 10px;
+    /* 导入 / 导出区块的上下外边距 */
+    --oled-area-margin: 10px;
+
+    /* ---------- SETTING 标签页 ---------- */
+    /* 背景缩略图项的背景色(半透明蓝) */
+    --setting-item-bg: #001fab9f;
+    /* 背景缩略图项的宽高 */
+    --setting-item-width: 90px;
+    --setting-item-height: 60px;
+    /* 背景缩略图项的外边距 / 内边距 */
+    --setting-item-margin: 10px;
+    --setting-item-padding: 5px;
+    /* 背景缩略图自身的宽高 */
+    --setting-thumb-width: 80px;
+    --setting-thumb-height: 50px;
+
+    /* ---------- 红黑树 ---------- */
+    /* 表达式输入框的字体绿 / 背景黑 */
+    --rbt-text-color: #00FF00FF;
+    --rbt-input-bg: #000000FF;
+    /* 输入框边框 */
+    --rbt-input-border: 1.5px solid #e2e8f0;
+    /* 输入框上下外边距 / 最小高度 */
+    --rbt-input-margin: 10px;
+    --rbt-input-min-height: 100px;
+
+    /* ---------- IEEE 754 面板:文案色 ---------- */
+    /* 提示文字(浅灰) */
+    --ieee-hint-color: #cbd5e1;
+    /* 错误提示(玫红) */
+    --ieee-error-color: #f43f5e;
+    /* 弱化 / 次要文字(石板灰) */
+    --ieee-muted-color: #94a3b8;
+    /* 强调文字(浅蓝,高亮数值与位) */
+    --ieee-accent-color: #7dd3fc;
+    /* 正文文字(浅灰白) */
+    --ieee-text-color: #e2e8f0;
+
+    /* ---------- IEEE 754 面板:边框与底色 ---------- */
+    /* 区块 / 单元格边框(深石板) */
+    --ieee-border-color: #334155;
+    /* 区块 / 单元格边框宽度 */
+    --ieee-border-width: 1px;
+    /* 区块圆角(比通用小圆角略大) */
+    --ieee-radius: 6px;
+    /* 位与分组的底色(深蓝黑) */
+    --ieee-bit-bg: #0f172a;
+    /* 区块底色(更深蓝黑) */
+    --ieee-section-bg: #0b1220;
+    /* 表格行悬停底色 */
+    --ieee-row-hover-bg: #1e293b;
+    /* 位边框色(中石板) */
+    --ieee-bit-border: #475569;
+    /* 表格白字(白色,用于彩色位底) */
+    --ieee-on-color: #fff;
+    /* 符号位底色(玫红) */
+    --ieee-sign-bg: #be123c;
+    /* 指数位底色(深橙) */
+    --ieee-exp-bg: #7c2d12;
+    /* 尾数位底色(深绿) */
+    --ieee-frac-bg: #065f46;
+    /* 图例符号色(浅玫红 / 浅橙 / 浅绿) */
+    --ieee-legend-sign: #fda4af;
+    --ieee-legend-exp: #fdba74;
+    --ieee-legend-frac: #6ee7b7;
+
+    /* ---------- IEEE 754 面板:尺寸与间距 ---------- */
+    /* 区块上下外边距 / 内边距 */
+    --ieee-section-margin: 12px 0;
+    --ieee-section-padding: 10px;
+    /* 图例 / 标题的底部间距 */
+    --ieee-caption-margin-bottom: 6px;
+    /* 公式标题的底部间距(比图例更紧凑) */
+    --ieee-formula-title-margin-bottom: 4px;
+    /* 提示文字底部间距 */
+    --ieee-hint-margin-bottom: 8px;
+    /* 错误提示上下外边距 */
+    --ieee-error-margin: 6px 0;
+    /* 区块内小元素的上下外边距 */
+    --ieee-block-margin: 8px 0;
+    /* 位图行高 / 单个位方块尺寸 */
+    --ieee-bit-line-height: 2;
+    --ieee-bit-width: 12px;
+    --ieee-bit-height: 22px;
+    --ieee-bit-font-size: 11px;
+    /* 位分组间距 / 组间距 / 4 位间距占位宽度 */
+    --ieee-group-gap: 2px;
+    --ieee-group-margin-right: 8px;
+    --ieee-gap-width: 6px;
+    /* 特殊值表单元格内边距 */
+    --ieee-cell-padding: 5px 10px;
+    /* 图例项间距 */
+    --ieee-legend-gap: 16px;
+}

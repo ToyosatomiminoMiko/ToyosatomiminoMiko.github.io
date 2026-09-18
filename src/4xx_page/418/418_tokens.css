@@ -1,0 +1,278 @@
+/* ------------------------------------------------------------------
+   418 页面设计令牌.
+   由 418.css 第一行 @import 引入, 页面里一律用 var(--teapot-...) 引用.
+   CSS 规范要求 @import 必须位于一切规则之前, 所以本 import 只能放最顶部.
+   命名: --teapot-<类别>-<名>; 值与原 418.css 中的字面量逐位一致.
+   ------------------------------------------------------------------ */
+:root {
+    /* ----- 页面与字体 ----- */
+    --teapot-page-bg: linear-gradient(145deg, #fdf8f0 0%, #f5e6d3 100%);
+    --teapot-page-min-height: 100vh;
+    --teapot-page-padding: 1.5rem;
+    --teapot-font-sans: 'Quicksand', 'Comic Neue', sans-serif;
+    --teapot-font-display: 'Comic Neue', cursive;
+    --teapot-font-button: 'Quicksand', sans-serif;
+    --teapot-font-mono: monospace;
+    --teapot-weight-bold: 700;
+    --teapot-weight-semibold: 600;
+
+    /* ----- 通用时长 / 模糊 / 圆角 / 阴影色 ----- */
+    --teapot-duration-fast: 0.2s;
+    --teapot-wobble-duration: 0.4s;
+    --teapot-pupil-duration: 0.15s;
+    --teapot-btn-duration: 0.1s;
+    --teapot-blur-soft: 4px;
+    --teapot-card-blur: 12px;
+    --teapot-radius-pill: 40px;
+    --teapot-radius-box: 30px;
+    --teapot-radius-circle: 50%;
+    --teapot-shadow-soft: rgba(0, 0, 0, 0.1);
+    --teapot-shadow-faint: rgba(0, 0, 0, 0.05);
+    --teapot-shadow-whisper: rgba(0, 0, 0, 0.08);
+    --teapot-shadow-hard-mid: #8b5e3c;
+    --teapot-shadow-hard-dark: #7a4f2e;
+
+    /* ----- 背景装饰: 飘浮的茶叶 / 咖啡豆 ----- */
+    --teapot-bg-float-opacity: 0.08;
+    --teapot-bg-float-font-size: 8rem;
+    --teapot-float-tea1-top: 5%;
+    --teapot-float-tea1-left: 2%;
+    --teapot-float-tea1-angle: -15deg;
+    --teapot-float-tea2-bottom: 8%;
+    --teapot-float-tea2-right: 3%;
+    --teapot-float-tea2-angle: 20deg;
+    --teapot-float-coffee-top: 15%;
+    --teapot-float-coffee-right: 8%;
+    --teapot-float-coffee-opacity: 0.05;
+    --teapot-float-coffee-font-size: 12rem;
+    --teapot-float-coffee-color: #6f4e37;
+
+    /* ----- 主卡片 ----- */
+    --teapot-card-max-width: 750px;
+    --teapot-card-bg: rgba(255, 251, 245, 0.85);
+    --teapot-card-radius: 64px 24px 64px 24px;
+    --teapot-card-shadow: 0 25px 40px -10px rgba(90, 50, 30, 0.25), 0 8px 20px var(--teapot-shadow-whisper), inset 0 1px 4px rgba(255, 255, 255, 0.8);
+    --teapot-card-border: 1px solid rgba(210, 160, 120, 0.25);
+    --teapot-card-padding: 2.5rem 2rem 2.8rem;
+    --teapot-card-padding-sm: 1.8rem 1rem 2rem;
+    --teapot-card-hover-lift: -5px;
+    --teapot-z-card: 10;
+
+    /* ----- 418 大标题 ----- */
+    --teapot-status-font-size: 7.5rem;
+    --teapot-status-font-size-sm: 5.5rem;
+    --teapot-status-color: #7b4a2e;
+    --teapot-status-text-shadow: 6px 6px 0 #f0d5b0, 2px 2px 0 rgba(180, 110, 70, 0.3);
+    --teapot-status-letter-spacing: 6px;
+    --teapot-status-line-height: 1.1;
+    --teapot-status-margin-bottom: 0.5rem;
+
+    /* ----- 茶壶徽章 ----- */
+    --teapot-badge-bg: #d9b382;
+    --teapot-badge-padding: 0.25rem 1.2rem;
+    --teapot-badge-color: #2d1e12;
+    --teapot-badge-font-size: 1.3rem;
+    --teapot-badge-letter-spacing: 2px;
+    --teapot-badge-shadow: inset 0 -2px 0 #a77b52, 0 4px 8px var(--teapot-shadow-faint);
+    --teapot-badge-margin-bottom: 1.2rem;
+    --teapot-badge-border: 1px solid #ebc7a0;
+
+    /* ----- 茶壶容器与壶身 ----- */
+    --teapot-container-w: 260px;
+    --teapot-container-h: 220px;
+    --teapot-container-margin: 0 auto 1.5rem;
+    --teapot-container-scale-sm: 0.85;
+    --teapot-body-w: 190px;
+    --teapot-body-h: 150px;
+    --teapot-body-light: #f3d4b1;
+    --teapot-body-shade: #d9a06c;
+    --teapot-body-bg: radial-gradient(circle at 30% 25%, var(--teapot-body-light), var(--teapot-body-shade));
+    --teapot-body-radius: 45% 45% 40% 40% / 55% 55% 35% 35%;
+    --teapot-body-shadow: 0 12px 0 var(--teapot-shadow-hard-mid), 0 18px 20px -6px rgba(70, 40, 20, 0.3), inset 0 -6px 6px var(--teapot-shadow-faint), inset 6px 6px 12px rgba(255, 245, 220, 0.7);
+    --teapot-body-border-w: 2px;
+    --teapot-outline-color: #b57e54;
+
+    /* ----- 晃动动画 ----- */
+    --teapot-wobble-animation: teapotShake var(--teapot-wobble-duration) ease-in-out;
+    --teapot-wobble-angle: 4deg;
+    --teapot-wobble-angle-neg: -4deg;
+    --teapot-wobble-angle-small: 2deg;
+
+    /* ----- 壶盖 ----- */
+    --teapot-lid-top: -8px;
+    --teapot-lid-w: 90px;
+    --teapot-lid-h: 28px;
+    --teapot-lid-bg: #c28b5e;
+    --teapot-lid-radius: 50% 50% 30% 30% / 60% 60% 20% 20%;
+    --teapot-lid-shadow: 0 6px 0 var(--teapot-shadow-hard-dark), inset 0 4px 6px #eab88a;
+    --teapot-lid-border: 1.5px solid #a56e44;
+    --teapot-z-lid: 5;
+
+    /* ----- 壶盖顶珠 ----- */
+    --teapot-knob-top: -10px;
+    --teapot-knob-w: 22px;
+    --teapot-knob-h: 18px;
+    --teapot-knob-bg: #e6b381;
+    --teapot-knob-radius: 40% 40% 30% 30%;
+    --teapot-knob-shadow: 0 4px 0 #996b42, inset 0 2px 4px #ffefd6;
+    --teapot-knob-border: 1px solid #b47a4e;
+
+    /* ----- 壶嘴 ----- */
+    --teapot-spout-right: -24px;
+    --teapot-spout-top: 45px;
+    --teapot-spout-w: 38px;
+    --teapot-spout-h: 52px;
+    --teapot-spout-radius: 0 60% 40% 0 / 20% 70% 30% 30%;
+    --teapot-spout-angle: 18deg;
+    --teapot-spout-shadow: 6px 8px 0 var(--teapot-shadow-hard-mid), inset 3px -2px 8px #efcaa2, inset -3px 0 4px var(--teapot-shadow-faint);
+    --teapot-spout-border-w: 1.5px;
+    --teapot-z-spout: 2;
+
+    /* ----- 把手 ----- */
+    --teapot-handle-left: -28px;
+    --teapot-handle-top: 35px;
+    --teapot-handle-w: 45px;
+    --teapot-handle-h: 70px;
+    --teapot-handle-border-w: 10px;
+    --teapot-handle-border-color: #c48a5c;
+    --teapot-handle-left-color: #ac7048;
+    --teapot-handle-top-color: #b47a52;
+    --teapot-handle-radius: 50% 30% 30% 50% / 40% 50% 50% 40%;
+    --teapot-handle-angle: -5deg;
+    --teapot-handle-shadow: 4px 8px 0 var(--teapot-shadow-hard-dark), inset -4px -2px 6px #edc8a6;
+    --teapot-handle-right-w: 8px;
+    --teapot-handle-right-color: #b27a50;
+    --teapot-z-handle: 1;
+
+    /* ----- 表情: 脸 / 眼睛 / 瞳孔 / 眉毛 / 嘴 / 腮红 ----- */
+    --teapot-face-top: 45%;
+    --teapot-face-w: 90px;
+    --teapot-z-face: 8;
+    --teapot-eye-w: 24px;
+    --teapot-eye-h: 28px;
+    --teapot-eye-bg: #fef9e8;
+    --teapot-eye-radius: 50% 50% 40% 40%;
+    --teapot-eye-shadow: inset 0 -2px 4px #b0987a, 0 4px 0 #6b4a2e;
+    --teapot-eye-border: 1px solid #966842;
+    --teapot-pupil-w: 12px;
+    --teapot-pupil-h: 16px;
+    --teapot-pupil-bg: #2e1c0e;
+    --teapot-pupil-shadow: inset 0 0 4px #4a2e1a, 0 0 0 2px #6f4a2b;
+    --teapot-brow-top: -8px;
+    --teapot-brow-w: 28px;
+    --teapot-brow-h: 6px;
+    --teapot-brow-bg: #5a3b22;
+    --teapot-brow-radius: 6px;
+    --teapot-brow-angle: -8deg;
+    --teapot-brow-left-angle: -12deg;
+    --teapot-brow-right-angle: 12deg;
+    --teapot-mouth-bottom: 22px;
+    --teapot-mouth-w: 42px;
+    --teapot-mouth-h: 16px;
+    --teapot-mouth-border-w: 5px;
+    --teapot-mouth-color: #6b3e1e;
+    --teapot-mouth-radius: 0 0 30% 30%;
+    --teapot-z-mouth: 9;
+    --teapot-blush-bottom: 15px;
+    --teapot-blush-w: 22px;
+    --teapot-blush-h: 12px;
+    --teapot-blush-bg: #f5a3a3;
+    --teapot-blush-opacity: 0.5;
+    --teapot-blush-inset: 25px;
+    --teapot-z-blush: 7;
+
+    /* ----- 蒸汽 ----- */
+    --teapot-steam-top: -30px;
+    --teapot-steam-left: 30%;
+    --teapot-steam-gap: 10px;
+    --teapot-steam-w: 10px;
+    --teapot-steam-h: 24px;
+    --teapot-steam-bg: rgba(240, 230, 210, 0.7);
+    --teapot-steam-radius: 40% 40% 20% 20%;
+    --teapot-steam-animation: steamFloat 2.5s infinite ease-in-out;
+    --teapot-steam-second-delay: 0.5s;
+    --teapot-steam-second-w: 13px;
+    --teapot-steam-second-h: 28px;
+    --teapot-steam-third-delay: 1.2s;
+    --teapot-steam-third-w: 8px;
+    --teapot-steam-third-h: 18px;
+    --teapot-steam-rise-start: 8px;
+    --teapot-steam-scale-start: 0.8;
+    --teapot-steam-opacity-peak: 0.45;
+    --teapot-steam-opacity-mid: 0.25;
+    --teapot-steam-rise-end: -35px;
+    --teapot-steam-scale-end: 1.4;
+    --teapot-z-steam: 15;
+
+    /* ----- 咖啡禁令 ----- */
+    --teapot-ban-margin: 0.5rem 0 1.2rem;
+    --teapot-ban-gap: 12px;
+    --teapot-ban-font-size: 1.8rem;
+    --teapot-ban-color: #5d3f28;
+    --teapot-ban-icon-font-size: 2.4rem;
+    --teapot-ban-icon-color: #a1582b;
+    --teapot-ban-icon-shadow: drop-shadow(0 4px 4px var(--teapot-shadow-soft));
+    --teapot-ban-icon-alert-color: #b34e4e;
+    --teapot-ban-text-bg: #e7cfb5;
+    --teapot-ban-text-padding: 0.2rem 1.2rem;
+    --teapot-ban-text-font-size: 1.2rem;
+    --teapot-ban-text-border: 1px dashed #9f6e48;
+    --teapot-ban-text-color: #3e2a1b;
+
+    /* ----- 文案 / 引语 ----- */
+    --teapot-message-font-size: 1.4rem;
+    --teapot-message-font-size-sm: 1.2rem;
+    --teapot-message-margin: 0.5rem 0 0.2rem;
+    --teapot-message-color: #523f2e;
+    --teapot-message-line-height: 1.4;
+    --teapot-sub-message-color: #745f4b;
+    --teapot-sub-message-font-size: 1rem;
+    --teapot-sub-message-margin-bottom: 1.8rem;
+    --teapot-sub-message-padding: 0 0.5rem;
+    --teapot-quote-bg: #efe0d0;
+    --teapot-quote-padding: 0.7rem 1.2rem;
+    --teapot-quote-font-size: 0.9rem;
+    --teapot-quote-color: #3b2b1e;
+    --teapot-quote-border-left: 6px solid #b2835a;
+    --teapot-quote-shadow: inset 0 1px 4px #ccb094;
+    --teapot-quote-max-width: 90%;
+    --teapot-icon-gap: 8px;
+
+    /* ----- 按钮组 ----- */
+    --teapot-button-gap: 12px;
+    --teapot-button-group-margin: 1.5rem 0 0.8rem;
+    --teapot-btn-bg: #efdac8;
+    --teapot-btn-border-w: 2px;
+    --teapot-btn-border-color: #ab7b58;
+    --teapot-btn-color: #412f21;
+    --teapot-btn-padding: 0.8rem 1.8rem;
+    --teapot-btn-font-size: 1.1rem;
+    --teapot-btn-radius: 60px;
+    --teapot-btn-shadow: 0 6px 0 #8b6244, 0 4px 8px var(--teapot-shadow-soft);
+    --teapot-btn-gap: 8px;
+    --teapot-btn-icon-font-size: 1.2rem;
+    --teapot-btn-hover-lift: -3px;
+    --teapot-btn-hover-shadow: 0 9px 0 #8b6244, 0 6px 12px var(--teapot-shadow-soft);
+    --teapot-btn-hover-bg: #f3e2d4;
+    --teapot-btn-active-sink: 3px;
+    --teapot-btn-active-shadow: 0 3px 0 #8b6244, 0 4px 8px var(--teapot-shadow-soft);
+    --teapot-coffee-btn-bg: #b58d70;
+    --teapot-coffee-btn-border-color: #624a38;
+    --teapot-coffee-btn-color: #fcf3e8;
+    --teapot-coffee-btn-shadow: 0 6px 0 #5a3f2d;
+    --teapot-coffee-btn-hover-bg: #c9a185;
+
+    /* ----- 计数器 / Toast ----- */
+    --teapot-counter-margin-top: 2rem;
+    --teapot-counter-font-size: 0.9rem;
+    --teapot-counter-color: #5b4637;
+    --teapot-counter-bg: #eedbcb;
+    --teapot-counter-padding: 0.6rem 1.2rem;
+    --teapot-counter-border: 1px solid #cdad8f;
+    --teapot-counter-shadow: inset 0 1px 6px #ddc5b1;
+    --teapot-counter-icon-gap: 6px;
+    --teapot-counter-icon-color: #aa6e44;
+    --teapot-toast-margin-top: 12px;
+    --teapot-toast-min-height: 32px;
+    --teapot-toast-color: #6b3f20;
+}

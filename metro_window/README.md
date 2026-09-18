@@ -76,8 +76,8 @@ metro_window/
 │   ├── src/             行为与样式
 │   │   ├── metro_window.ts  挂载函数:交互/WebGPU 适配器检查/生命周期
 │   │   ├── metro_window.css  组件样式(全部以 .metro-window 作用域)
-│   │   ├── page.css          页面级样式(只有去 body 外边距)
-│   │   └── page.ts           入口脚本(引 page.css + 调用挂载函数)
+│   │   ├── .css          页面级样式(只有去 body 外边距)
+│   │   └── page.ts           入口脚本(引 .css + 调用挂载函数)
 │   ├── design/          设计源文件(.kra),不参与构建
 │   └── pkg/             生成:wasm-bindgen 输出(gitignore)
 ├── Cargo.toml       Rust 依赖
@@ -236,7 +236,7 @@ cargo run --manifest-path metro_window/Cargo.toml --example preview        # 用
 
 还剩一件事要确认:
 
-4. **上游 project 仓库的 GitHub Pages 是否开着**.`metro_window` 的 Pages 会占
+1. **上游 project 仓库的 GitHub Pages 是否开着**.`metro_window` 的 Pages 会占
    `toyosatomiminomiko.github.io/metro_window/`,而本站是 user Pages
    (`ToyosatomiminoMiko.github.io`),现在也在**同一个路径** `/metro_window/`
    提供内容 -- 两边都发布就是抢同一个路径.归档**不会**自动关 Pages,

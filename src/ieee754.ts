@@ -47,31 +47,66 @@ IEEE 754 浮点可视化:单精度(float32) / 双精度(float64)
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import type { IEEE754Class, IEEE754Format, IEEE754Value } from './ieee754.types';
+import {
+    FLOAT32,
+    FLOAT32_KEY,
+    FLOAT64,
+    FLOAT64_KEY,
+    F32_EXPONENT_MASK,
+    F32_EXPONENT_SHIFT,
+    F32_FRACTION_MASK,
+    F32_SIGN_SHIFT,
+    F64_EXPONENT_MASK,
+    F64_EXPONENT_SHIFT,
+    F64_FRACTION_MASK,
+    F64_SIGN_MASK,
+    F64_SIGN_SHIFT,
+    IEEE754_BINARY_RADIX,
+    IEEE754_BIT_GROUP_SIZE,
+    IEEE754_BITS_CLASS,
+    IEEE754_BITSTRING_PATTERN,
+    IEEE754_BIT_CLASS,
+    IEEE754_BIT_GROUP_CLASS,
+    IEEE754_DOM,
+    IEEE754_DOM_MISSING_MESSAGE,
+    IEEE754_ERROR_UI_PREFIX,
+    IEEE754_ERR_EMPTY_INPUT,
+    IEEE754_ERR_UNPARSABLE_PREFIX,
+    IEEE754_ERR_UNPARSABLE_SUFFIX,
+    IEEE754_EXPONENT_START,
+    IEEE754_EXP_CLASS,
+    IEEE754_FORMATS,
+    IEEE754_FRAC_CLASS,
+    IEEE754_GAP_CLASS,
+    IEEE754_KATEX_OPTIONS,
+    IEEE754_MUTED_CLASS,
+    IEEE754_NAN_TEXT,
+    IEEE754_ON_CLASS,
+    IEEE754_SIGN_CLASS,
+    IEEE754_SIGN_MASK,
+    IEEE754_SIGN_START,
+    IEEE754_SPECIAL_ROW_TITLE,
+    IEEE754_SPECIAL_TABLE_CLASS,
+    IEEE754_SPECIAL_TABLE_HEADERS,
+    IEEE754_SPECIAL_VALUES,
+    IEEE754_ZERO_FIELD,
+} from './ieee754.config';
 
 // ============================================================
-// 常量(类型定义见 ./ieee754.types)
+// 常量(集中定义见 ./ieee754.config)
 // ============================================================
 
-export const FLOAT32: IEEE754Format = {
-    name: '单精度 float32',
-    totalBits: 32,
-    exponentBits: 8,
-    fractionBits: 23,
-    bias: 127,
-};
-
-export const FLOAT64: IEEE754Format = {
-    name: '双精度 float64',
-    totalBits: 64,
-    exponentBits: 11,
-    fractionBits: 52,
-    bias: 1023,
-};
-
-export const IEEE754_FORMATS: Record<'f32' | 'f64', IEEE754Format> = {
-    f32: FLOAT32,
-    f64: FLOAT64,
-};
+/**
+ * 由配置里的 [S, E, M] 原始位域构造特殊值,并补上展示用的 name.
+ * 位域 -> IEEE754Value 的换算属逻辑层,故映射留在本模块(配置只声明数据).
+ */
+const SPECIAL_VALUES = IEEE754_SPECIAL_VALUES.map(spec => ({
+    name: spec.name,
+    make: (format: IEEE754Format): IEEE754Value => {
+        const b = spec.bits(format);
+        return buildIEEE754(b.sign, b.exponentField, b.fraction, format);
+    },
+}));
 
 // ============================================================
 // 纯逻辑层(无 DOM)--可被 vitest 直接测试
@@ -195,18 +230,18 @@ export function buildIEEE754(
     format: IEEE754Format,
 ): IEEE754Value {
     const exponentBits = exponentField
-        .toString(2)
+        .toString(IEEE754_BINARY_RADIX)
         .padStart(format.exponentBits, '0');
-    const fractionBits = fraction.toString(2).padStart(format.fractionBits, '0');
+    const fractionBits = fraction.toString(IEEE754_BINARY_RADIX).padStart(format.fractionBits, '0');
     const bits = `${sign}${exponentBits}${fractionBits}`;
 
     const expMax = (1 << format.exponentBits) - 1;
     let classification: IEEE754Class;
-    if (exponentField === 0 && fraction === 0) {
+    if (exponentField === IEEE754_ZERO_FIELD && fraction === IEEE754_ZERO_FIELD) {
         classification = 'zero';
-    } else if (exponentField === 0) {
+    } else if (exponentField === IEEE754_ZERO_FIELD) {
         classification = 'subnormal';
-    } else if (exponentField === expMax && fraction === 0) {
+    } else if (exponentField === expMax && fraction === IEEE754_ZERO_FIELD) {
         classification = 'infinity';
     } else if (exponentField === expMax) {
         classification = 'nan';
@@ -238,16 +273,16 @@ export function reconstructIEEE754(
     if (format === FLOAT32) {
         const u = new Uint32Array(1);
         u[0] =
-            ((sign & 1) << 31) |
-            ((exponentField & 0xff) << 23) |
-            (fraction & 0x7fffff);
+            ((sign & IEEE754_SIGN_MASK) << F32_SIGN_SHIFT) |
+            ((exponentField & F32_EXPONENT_MASK) << F32_EXPONENT_SHIFT) |
+            (fraction & F32_FRACTION_MASK);
         return new Float32Array(u.buffer)[0];
     }
     const u = new BigUint64Array(1);
     u[0] =
-        (BigInt(sign & 1) << 63n) |
-        (BigInt(exponentField & 0x7ff) << 52n) |
-        (BigInt(fraction) & 0xfffffffffffffn);
+        (BigInt(sign & Number(F64_SIGN_MASK)) << F64_SIGN_SHIFT) |
+        (BigInt(exponentField & Number(F64_EXPONENT_MASK)) << F64_EXPONENT_SHIFT) |
+        (BigInt(fraction) & F64_FRACTION_MASK);
     return new Float64Array(u.buffer)[0];
 }
 
@@ -261,16 +296,16 @@ export function computeIEEE754(value: number, format: IEEE754Format): IEEE754Val
         const f32 = new Float32Array(1);
         f32[0] = value;
         const bits = new Uint32Array(f32.buffer)[0];
-        sign = (bits >>> 31) & 1;
-        exponentField = (bits >>> 23) & 0xff;
-        fraction = bits & 0x7fffff;
+        sign = (bits >>> F32_SIGN_SHIFT) & IEEE754_SIGN_MASK;
+        exponentField = (bits >>> F32_EXPONENT_SHIFT) & F32_EXPONENT_MASK;
+        fraction = bits & F32_FRACTION_MASK;
     } else {
         const f64 = new Float64Array(1);
         f64[0] = value;
         const bits = new BigUint64Array(f64.buffer)[0];
-        sign = Number((bits >> 63n) & 1n);
-        exponentField = Number((bits >> 52n) & 0x7ffn);
-        fraction = Number(bits & 0xfffffffffffffn);
+        sign = Number((bits >> F64_SIGN_SHIFT) & 1n);
+        exponentField = Number((bits >> F64_EXPONENT_SHIFT) & F64_EXPONENT_MASK);
+        fraction = Number(bits & F64_FRACTION_MASK);
     }
 
     return buildIEEE754(sign, exponentField, fraction, format);
@@ -336,19 +371,15 @@ export function ieee754Latex(v: IEEE754Value): string {
 // ============================================================
 
 function renderLatex(latex: string, element: HTMLElement): void {
-    katex.render(latex, element, {
-        displayMode: true,
-        throwOnError: false,
-        trust: false,
-    });
+    katex.render(latex, element, IEEE754_KATEX_OPTIONS);
 }
 
 /** 把完整位串按 S / E / M 三段切好,给 UI 分组展示用. */
 function splitBits(v: IEEE754Value): { sign: string; exponent: string; fraction: string } {
-    const expStart = 1;
-    const fracStart = 1 + v.format.exponentBits;
+    const expStart = IEEE754_EXPONENT_START;
+    const fracStart = IEEE754_EXPONENT_START + v.format.exponentBits;
     return {
-        sign: v.bits.slice(0, 1),
+        sign: v.bits.slice(IEEE754_SIGN_START, IEEE754_EXPONENT_START),
         exponent: v.bits.slice(expStart, fracStart),
         fraction: v.bits.slice(fracStart),
     };
@@ -381,7 +412,7 @@ function breakdownHtml(v: IEEE754Value): string {
     const mantissaHead = v.classification === 'subnormal' ? '0' : '1';
     return [
         `<div>符号 S = <b>${v.sign}</b> (${s})</div>`,
-        `<div>指数 E = <b>${v.exponentField}</b> <span class="ieee-muted">(` +
+        `<div>指数 E = <b>${v.exponentField}</b> <span class="${IEEE754_MUTED_CLASS}">(` +
         `${v.exponentBits})</span> - ${expInfo}</div>`,
         `<div>尾数 M = <b>${mantissaHead}.${fraction}</b><sub>2</sub> ` +
         `(${v.format.fractionBits} bit)</div>`,
@@ -389,25 +420,8 @@ function breakdownHtml(v: IEEE754Value): string {
 }
 
 // ============================================================
-// 特殊值参考表(纯数据 + 无 DOM 依赖的构造;渲染在 UI 层)
+// 特殊值参考表(数据在 ./ieee754.config,构造在本模块;渲染在 UI 层)
 // ============================================================
-
-interface SpecialValue {
-    name: string;
-    make: (format: IEEE754Format) => IEEE754Value;
-}
-
-/** 用固定的 S/E/M 位域构造给定精度的特殊值,保证位图与数值一致. */
-const SPECIAL_VALUES: SpecialValue[] = [
-    { name: '正零 +0', make: (f) => buildIEEE754(0, 0, 0, f) },
-    { name: '负零 -0', make: (f) => buildIEEE754(1, 0, 0, f) },
-    { name: '正无穷 +∞', make: (f) => buildIEEE754(0, Math.pow(2, f.exponentBits) - 1, 0, f) },
-    { name: '负无穷 -∞', make: (f) => buildIEEE754(1, Math.pow(2, f.exponentBits) - 1, 0, f) },
-    { name: 'NaN 非数', make: (f) => buildIEEE754(0, Math.pow(2, f.exponentBits) - 1, 1, f) },
-    { name: '最小正规格化数', make: (f) => buildIEEE754(0, 1, 0, f) },
-    { name: '最小正次规格化数', make: (f) => buildIEEE754(0, 0, 1, f) },
-    { name: '最大有限值', make: (f) => buildIEEE754(0, Math.pow(2, f.exponentBits) - 2, Math.pow(2, f.fractionBits) - 1, f) },
-];
 
 /**
  * 把某值写成可展示的字符串(供特殊值参考表的"数值"列使用).
@@ -438,11 +452,11 @@ function renderSpecialTable(
 ): void {
     container.replaceChildren();
     const table = document.createElement('table');
-    table.className = 'ieee-special-table';
+    table.className = IEEE754_SPECIAL_TABLE_CLASS;
 
     const thead = document.createElement('thead');
     const headTr = document.createElement('tr');
-    for (const label of ['名称', '位模式 (S / E / M)', '数值']) {
+    for (const label of IEEE754_SPECIAL_TABLE_HEADERS) {
         const th = document.createElement('th');
         th.textContent = label;
         headTr.appendChild(th);
@@ -454,14 +468,14 @@ function renderSpecialTable(
     for (const row of SPECIAL_VALUES) {
         const v = row.make(format);
         const tr = document.createElement('tr');
-        tr.title = '点击载入此特殊值';
+        tr.title = IEEE754_SPECIAL_ROW_TITLE;
 
         const tdName = document.createElement('td');
         tdName.textContent = row.name;
 
         const { sign, exponent, fraction } = splitBits(v);
         const tdBits = document.createElement('td');
-        tdBits.className = 'ieee-bits';
+        tdBits.className = IEEE754_BITS_CLASS;
         tdBits.textContent = `S=${sign} E=${exponent} M=${fraction}`;
 
         const tdVal = document.createElement('td');
@@ -478,23 +492,23 @@ function renderSpecialTable(
 }
 
 export function mountIEEE754(): void {
-    const formatSel = document.getElementById('ieee-format') as HTMLSelectElement | null;
-    const input = document.getElementById('ieee-input') as HTMLInputElement | null;
-    const convertBtn = document.getElementById('ieee-convert') as HTMLButtonElement | null;
-    const bitsEl = document.getElementById('ieee-bits');
-    const bitstringEl = document.getElementById('ieee-bitstring');
-    const breakdownEl = document.getElementById('ieee-breakdown');
-    const formulaEl = document.getElementById('ieee-formula');
-    const errorEl = document.getElementById('ieee-error');
-    const specialEl = document.getElementById('ieee-special');
-    const expBitsLabel = document.querySelector('[data-role="exp-bits"]');
-    const fracBitsLabel = document.querySelector('[data-role="frac-bits"]');
+    const formatSel = document.getElementById(IEEE754_DOM.formatId) as HTMLSelectElement | null;
+    const input = document.getElementById(IEEE754_DOM.inputId) as HTMLInputElement | null;
+    const convertBtn = document.getElementById(IEEE754_DOM.convertId) as HTMLButtonElement | null;
+    const bitsEl = document.getElementById(IEEE754_DOM.bitsId);
+    const bitstringEl = document.getElementById(IEEE754_DOM.bitstringId);
+    const breakdownEl = document.getElementById(IEEE754_DOM.breakdownId);
+    const formulaEl = document.getElementById(IEEE754_DOM.formulaId);
+    const errorEl = document.getElementById(IEEE754_DOM.errorId);
+    const specialEl = document.getElementById(IEEE754_DOM.specialId);
+    const expBitsLabel = document.querySelector(IEEE754_DOM.expBitsSelector);
+    const fracBitsLabel = document.querySelector(IEEE754_DOM.fracBitsSelector);
 
     if (
         !formatSel || !input || !bitsEl || !bitstringEl ||
         !breakdownEl || !formulaEl || !errorEl
     ) {
-        console.warn('[IEEE754] 找不到 #ieee-format/#ieee-input/#ieee-bits 等 DOM 元素');
+        console.warn(IEEE754_DOM_MISSING_MESSAGE);
         return;
     }
 
@@ -503,7 +517,7 @@ export function mountIEEE754(): void {
     /** 渲染某一比特位为可点击方块. */
     const makeBit = (bitVal: string, globalIndex: number, css: string): HTMLElement => {
         const el = document.createElement('span');
-        el.className = `ieee-bit ${css}${bitVal === '1' ? ' on' : ''}`;
+        el.className = `${IEEE754_BIT_CLASS} ${css}${bitVal === '1' ? ` ${IEEE754_ON_CLASS}` : ''}`;
         el.textContent = bitVal;
         el.title = `bit ${globalIndex}`;
         el.addEventListener('click', () => toggleBit(globalIndex));
@@ -516,11 +530,11 @@ export function mountIEEE754(): void {
 
         const addGroup = (css: string, start: number, end: number): void => {
             const g = document.createElement('div');
-            g.className = `ieee-bit-group ${css}`;
+            g.className = `${IEEE754_BIT_GROUP_CLASS} ${css}`;
             for (let i = start; i < end; i++) {
-                if (i !== start && (i - start) % 4 === 0) {
+                if (i !== start && (i - start) % IEEE754_BIT_GROUP_SIZE === 0) {
                     const gap = document.createElement('span');
-                    gap.className = 'ieee-gap';
+                    gap.className = IEEE754_GAP_CLASS;
                     g.appendChild(gap);
                 }
                 g.appendChild(makeBit(v.bits[i], i, css));
@@ -528,11 +542,11 @@ export function mountIEEE754(): void {
             bitsEl.appendChild(g);
         };
 
-        const expStart = 1;
-        const fracStart = 1 + v.format.exponentBits;
-        addGroup('ieee-sign', 0, 1);
-        addGroup('ieee-exp', expStart, expStart + v.format.exponentBits);
-        addGroup('ieee-frac', fracStart, fracStart + v.format.fractionBits);
+        const expStart = IEEE754_EXPONENT_START;
+        const fracStart = IEEE754_EXPONENT_START + v.format.exponentBits;
+        addGroup(IEEE754_SIGN_CLASS, IEEE754_SIGN_START, IEEE754_EXPONENT_START);
+        addGroup(IEEE754_EXP_CLASS, expStart, expStart + v.format.exponentBits);
+        addGroup(IEEE754_FRAC_CLASS, fracStart, fracStart + v.format.fractionBits);
 
         const { sign, exponent, fraction } = splitBits(v);
         bitstringEl.textContent = `S=${sign}  E=${exponent}  M=${fraction}`;
@@ -543,17 +557,17 @@ export function mountIEEE754(): void {
         if (!current) return;
         const bits = current.bits.split('');
         bits[globalIndex] = bits[globalIndex] === '0' ? '1' : '0';
-        const expStart = 1;
-        const fracStart = 1 + current.format.exponentBits;
-        const sign = Number(bits[0]);
-        const exponentField = parseInt(bits.slice(expStart, fracStart).join(''), 2);
-        const fraction = parseInt(bits.slice(fracStart).join(''), 2);
+        const expStart = IEEE754_EXPONENT_START;
+        const fracStart = IEEE754_EXPONENT_START + current.format.exponentBits;
+        const sign = Number(bits[IEEE754_SIGN_START]);
+        const exponentField = parseInt(bits.slice(expStart, fracStart).join(''), IEEE754_BINARY_RADIX);
+        const fraction = parseInt(bits.slice(fracStart).join(''), IEEE754_BINARY_RADIX);
         current = buildIEEE754(sign, exponentField, fraction, current.format);
         renderAll(current);
     };
 
     const showError = (msg: string): void => {
-        errorEl.textContent = `⚠️ ${msg}`;
+        errorEl.textContent = `${IEEE754_ERROR_UI_PREFIX}${msg}`;
         errorEl.hidden = false;
     };
 
@@ -577,20 +591,20 @@ export function mountIEEE754(): void {
     const applyInput = (text: string): void => {
         const t = text.trim();
         if (t === '') {
-            showError('请输入数值或位串.');
+            showError(IEEE754_ERR_EMPTY_INPUT);
             return;
         }
 
         // 纯位串,且长度匹配某精度 -> 按位串解释
-        if (/^[01]+$/.test(t) && (t.length === FLOAT32.totalBits || t.length === FLOAT64.totalBits)) {
+        if (IEEE754_BITSTRING_PATTERN.test(t) && (t.length === FLOAT32.totalBits || t.length === FLOAT64.totalBits)) {
             const fmt = t.length === FLOAT32.totalBits ? FLOAT32 : FLOAT64;
             const bits = t.split('');
-            const expStart = 1;
-            const fracStart = 1 + fmt.exponentBits;
-            const sign = Number(bits[0]);
-            const exponentField = parseInt(bits.slice(expStart, fracStart).join(''), 2);
-            const fraction = parseInt(bits.slice(fracStart).join(''), 2);
-            formatSel.value = fmt === FLOAT32 ? 'f32' : 'f64';
+            const expStart = IEEE754_EXPONENT_START;
+            const fracStart = IEEE754_EXPONENT_START + fmt.exponentBits;
+            const sign = Number(bits[IEEE754_SIGN_START]);
+            const exponentField = parseInt(bits.slice(expStart, fracStart).join(''), IEEE754_BINARY_RADIX);
+            const fraction = parseInt(bits.slice(fracStart).join(''), IEEE754_BINARY_RADIX);
+            formatSel.value = fmt === FLOAT32 ? FLOAT32_KEY : FLOAT64_KEY;
             refreshLabels(fmt);
             refreshSpecial(fmt);
             current = buildIEEE754(sign, exponentField, fraction, fmt);
@@ -600,11 +614,11 @@ export function mountIEEE754(): void {
 
         // 十进制
         const num = Number(t);
-        if (Number.isNaN(num) && t.toLowerCase() !== 'nan') {
-            showError(`无法解析的数值: "${t}"`);
+        if (Number.isNaN(num) && t.toLowerCase() !== IEEE754_NAN_TEXT) {
+            showError(`${IEEE754_ERR_UNPARSABLE_PREFIX}${t}${IEEE754_ERR_UNPARSABLE_SUFFIX}`);
             return;
         }
-        const fmt = formatSel.value === 'f32' ? FLOAT32 : FLOAT64;
+        const fmt = formatSel.value === FLOAT32_KEY ? FLOAT32 : FLOAT64;
         current = computeIEEE754(num, fmt);
         renderAll(current);
     };

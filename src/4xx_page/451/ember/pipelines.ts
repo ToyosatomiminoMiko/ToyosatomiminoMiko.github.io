@@ -1,7 +1,30 @@
 /**
  * 管线构建: 着色器模块 + bind group layout + 三条管线 + 采样器.
  * 全部是 (device, format) 的纯函数,不持有任何运行时状态.
+ *
+ * 绑定槽位 / 入口点名 / 标签 / 混合与采样器状态集中在
+ * `pipelines.config.ts`,这里只做接线,不再出现裸字面量.
  */
+import {
+    COMPOSITE_BINDING_SAMPLER,
+    COMPOSITE_BINDING_SCENE,
+    COMPOSITE_BINDING_UNIFORMS,
+    COMPUTE_BINDING_PARTICLES,
+    COMPUTE_BINDING_UNIFORMS,
+    COMPUTE_ENTRY_POINT,
+    FRAGMENT_ENTRY_POINT,
+    LAYOUT_LABELS,
+    PARTICLE_BLEND_STATE,
+    PARTICLE_TOPOLOGY,
+    PIPELINE_LABELS,
+    RENDER_BINDING_PARTICLES,
+    RENDER_BINDING_UNIFORMS,
+    SAMPLER_CONFIG,
+    SAMPLER_LABEL,
+    SHADER_DEBUG_NAMES,
+    SHADER_MODULE_LABELS,
+    VERTEX_ENTRY_POINT,
+} from './pipelines.config';
 import { shaderSources } from './shader_sources';
 
 export interface EmberPipelines {
@@ -29,91 +52,104 @@ async function assertCompiles(module: GPUShaderModule, name: string): Promise<vo
 export async function buildPipelines(device: GPUDevice, format: GPUTextureFormat): Promise<EmberPipelines> {
     // common.wgsl 里是共用的结构体/工具函数,与各 pass 拼成完整模块
     const computeModule = device.createShaderModule({
-        label: '451-compute',
+        label: SHADER_MODULE_LABELS.compute,
         code: `${shaderSources.common}\n${shaderSources.compute}`,
     });
     const renderModule = device.createShaderModule({
-        label: '451-render',
+        label: SHADER_MODULE_LABELS.render,
         code: `${shaderSources.common}\n${shaderSources.render}`,
     });
     const compositeModule = device.createShaderModule({
-        label: '451-composite',
+        label: SHADER_MODULE_LABELS.composite,
         code: `${shaderSources.common}\n${shaderSources.composite}`,
     });
 
-    await assertCompiles(computeModule, 'compute');
-    await assertCompiles(renderModule, 'render');
-    await assertCompiles(compositeModule, 'composite');
+    await assertCompiles(computeModule, SHADER_DEBUG_NAMES.compute);
+    await assertCompiles(renderModule, SHADER_DEBUG_NAMES.render);
+    await assertCompiles(compositeModule, SHADER_DEBUG_NAMES.composite);
 
     // ---- compute: 更新粒子 ----
     const computeLayout = device.createBindGroupLayout({
-        label: '451-compute-layout',
+        label: LAYOUT_LABELS.compute,
         entries: [
-            { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
-            { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
+            {
+                binding: COMPUTE_BINDING_PARTICLES,
+                visibility: GPUShaderStage.COMPUTE,
+                buffer: { type: 'storage' },
+            },
+            {
+                binding: COMPUTE_BINDING_UNIFORMS,
+                visibility: GPUShaderStage.COMPUTE,
+                buffer: { type: 'uniform' },
+            },
         ],
     });
     const computePipeline = device.createComputePipeline({
-        label: '451-compute-pipeline',
+        label: PIPELINE_LABELS.compute,
         layout: device.createPipelineLayout({ bindGroupLayouts: [computeLayout] }),
-        compute: { module: computeModule, entryPoint: 'update' },
+        compute: { module: computeModule, entryPoint: COMPUTE_ENTRY_POINT },
     });
 
     // ---- render: 画粒子 (顶点取粒子数据, 片元用 dt 做拖尾衰减) ----
     const renderLayout = device.createBindGroupLayout({
-        label: '451-render-layout',
+        label: LAYOUT_LABELS.render,
         entries: [
-            { binding: 0, visibility: GPUShaderStage.VERTEX, buffer: { type: 'read-only-storage' } },
             {
-                binding: 1,
+                binding: RENDER_BINDING_PARTICLES,
+                visibility: GPUShaderStage.VERTEX,
+                buffer: { type: 'read-only-storage' },
+            },
+            {
+                binding: RENDER_BINDING_UNIFORMS,
                 visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
                 buffer: { type: 'uniform' },
             },
         ],
     });
     const renderPipeline = device.createRenderPipeline({
-        label: '451-particle-pipeline',
+        label: PIPELINE_LABELS.particle,
         layout: device.createPipelineLayout({ bindGroupLayouts: [renderLayout] }),
-        vertex: { module: renderModule, entryPoint: 'vs_main' },
+        vertex: { module: renderModule, entryPoint: VERTEX_ENTRY_POINT },
         fragment: {
             module: renderModule,
-            entryPoint: 'fs_main',
-            targets: [
-                {
-                    format,
-                    blend: {
-                        color: { srcFactor: 'src-alpha', dstFactor: 'one', operation: 'add' },
-                        alpha: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
-                    },
-                },
-            ],
+            entryPoint: FRAGMENT_ENTRY_POINT,
+            targets: [{ format, blend: PARTICLE_BLEND_STATE }],
         },
-        primitive: { topology: 'triangle-list' },
+        primitive: { topology: PARTICLE_TOPOLOGY },
     });
 
     // ---- composite: 把离屏图(已是最终画面)拷到画布 ----
     const compositeLayout = device.createBindGroupLayout({
-        label: '451-composite-layout',
+        label: LAYOUT_LABELS.composite,
         entries: [
-            { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
-            { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
-            { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+            {
+                binding: COMPOSITE_BINDING_SCENE,
+                visibility: GPUShaderStage.FRAGMENT,
+                texture: { sampleType: 'float' },
+            },
+            {
+                binding: COMPOSITE_BINDING_SAMPLER,
+                visibility: GPUShaderStage.FRAGMENT,
+                sampler: { type: 'filtering' },
+            },
+            {
+                binding: COMPOSITE_BINDING_UNIFORMS,
+                visibility: GPUShaderStage.FRAGMENT,
+                buffer: { type: 'uniform' },
+            },
         ],
     });
     const compositePipeline = device.createRenderPipeline({
-        label: '451-composite-pipeline',
+        label: PIPELINE_LABELS.composite,
         layout: device.createPipelineLayout({ bindGroupLayouts: [compositeLayout] }),
-        vertex: { module: compositeModule, entryPoint: 'vs_main' },
-        fragment: { module: compositeModule, entryPoint: 'fs_main', targets: [{ format }] },
-        primitive: { topology: 'triangle-list' },
+        vertex: { module: compositeModule, entryPoint: VERTEX_ENTRY_POINT },
+        fragment: { module: compositeModule, entryPoint: FRAGMENT_ENTRY_POINT, targets: [{ format }] },
+        primitive: { topology: PARTICLE_TOPOLOGY },
     });
 
     const sampler = device.createSampler({
-        label: '451-history-sampler',
-        magFilter: 'linear',
-        minFilter: 'linear',
-        addressModeU: 'clamp-to-edge',
-        addressModeV: 'clamp-to-edge',
+        label: SAMPLER_LABEL,
+        ...SAMPLER_CONFIG,
     });
 
     return {

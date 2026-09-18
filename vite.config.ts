@@ -21,7 +21,10 @@ const here = (relativePath: string): string => fileURLToPath(new URL(relativePat
  * 原样落到 /src/4xx_page/451/451.css, 中间那层映射见下面的 configureServer.
  */
 const PUBLIC_PREFIX = '4xx_page/';
-const SOURCE_PREFIX = 'src/4xx_page/';
+/** 仓库源码根目录名. Vite 的 HTML 入口输出路径 = 相对 root 的路径, 因此以它开头. */
+const SOURCE_ROOT = 'src/';
+/** 三个彩蛋页的源码前缀 = 源码根 + 公开前缀, 由上面两个常量拼出, 只此一处定义. */
+const SOURCE_PREFIX = `${SOURCE_ROOT}${PUBLIC_PREFIX}`;
 
 function fourXXPage(): Plugin {
     return {
@@ -44,7 +47,7 @@ function fourXXPage(): Plugin {
                 if (!fileName.startsWith(SOURCE_PREFIX)) continue;
                 const output = bundle[fileName];
                 if (!output) continue;
-                const target = fileName.slice('src/'.length);
+                const target = fileName.slice(SOURCE_ROOT.length);
                 if (bundle[target]) continue;
                 // 必须重新 emit: 直接往 bundle 上挂新 key 不会被 rolldown 写出去
                 this.emitFile({
