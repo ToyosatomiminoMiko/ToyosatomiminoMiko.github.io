@@ -203,6 +203,45 @@ code --no-sandbox --enable-unsafe-webgpu
   vehicle_speed 参数驱动(公式见 droplet_params.rs 与 shaders.wgsl 注释)
 - 风格切换:uniform 传入 styleId,WGSL 片段着色器内实现
   泡沫时期东京电车/赛博朋克/上海磁悬浮三套调色与氛围
+- 水滴形状:按画布宽高比换算到各向同性空间后再判定,屏幕上始终是正圆
+  (原因/改法/验证见下一节)
+
+### 水滴为什么是正圆(坐标空间契约)
+
+uv 是 [0,1]² 的归一化坐标:x 方向 1 个单位跨画布宽 W 像素,y 方向跨画布高
+H 像素,两根轴的"单位长度"并不相等.若直接判定 `length(Δuv) < r`,屏幕上的
+边界是
+
+```text
+(ΔX / (r·W))² + (ΔY / (r·H))² = 1
+```
+
+也就是一个横竖比 = W/H 的椭圆:16:9 的画布(运行时 1344×756)上水珠横向被
+拉长 1.778 倍,看着是扁的.真实水珠接近正圆,水滴形状与折射偏移都必须先把
+坐标换成各向同性空间(见 `rust/src/shaders.wgsl` 的 `toIsotropic`/`toUvOffset`)
+
+```text
+toIsotropic(uv) = (uv.x * aspect, uv.y)     aspect = 画布宽 / 画布高
+toUvOffset(o)   = (o.x / aspect, o.y)       折射偏移要加回 uv 上采样背景
+```
+
+- `dropletOffset`/`dropletCoverage`/`cs_refraction` 的 AABB 剔除都用等比空间
+  量距离,折射偏移算完再除回 aspect 变回 uv 偏移
+- `aspect` 由 `rust/src/app.rs` 初始化时从 `canvas.width / canvas.height` 算出,
+  每帧写进 `Uniforms.aspect`;该字段同时把 16 字节的 uniform 结构填满
+  (原来是占位的 `_padding`),字段名写错会被 `cargo test` 拦住而不是静默读 0
+- 半径随之定义在"画布高度"尺度上:半径 r 的水珠直径 = 2r·H 像素.所以修正
+  前后**纵向直径不变,横向从 2r·W 收到 2r·H**:radius 0.006..0.024 在
+  1344×756 上由 16.1×9.1 .. 64.5×36.3 px 变成 9.1×9.1 .. 36.3×36.3 px,
+  横竖比 1.778 -> 1.000.嫌小就抬 `radius_min`/`radius_span` 或用"水滴大小"滑块
+- 画布分辨率是 HTML 上的固定属性(`web/src/config.ts` 的 CANVAS_WIDTH/HEIGHT),
+  没有 resize 路径,所以 aspect 只算一次;以后若要支持 resize/DPR,必须让
+  表面配置与 aspect 同步更新
+
+验证方式(软件 Vulkan 实渲):固定随机种子让同一颗水珠跑两次,只把 aspect 切成
+1.0(复现旧椭圆)与 W/H(修正后),两次渲染的差异像素应只剩水珠左右两侧的竖直
+月牙,即旧椭圆横向多出来的部分(实测 7×23 / 7×28 / 7×25 px,宽高比约 0.3),
+纵向一个像素都不变
 
 ## 技术栈
 

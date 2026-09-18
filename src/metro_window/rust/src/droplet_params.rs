@@ -48,6 +48,9 @@ define_droplet_params! {
     velocity_x_span = 0.08;
     velocity_y_min = 0.01;
     velocity_y_span = 0.05;
+    // radius_min / radius_span:水珠半径,单位是"画布高度"的比例(0.006 = 画面
+    // 高度的 0.6%),即直径像素 = 2 × 半径 × 画布高;横竖同一尺度,所以半径决定
+    // 的边界在屏幕上是正圆(换算见 shaders.wgsl 的 toIsotropic).
     radius_min = 0.006;
     radius_span = 0.018;
     strength_min = 0.020;
@@ -81,7 +84,7 @@ define_droplet_params! {
     // radius_epsilon:半径过小时跳过,同时用作圆心附近除零保护的阈值;
     // refraction_eta_water:水折射率,用于斯涅尔公式;
     // refraction_strength_per:强度对折射放大因子的增益;
-    // refraction_offset_clamp:折射偏移上限(屏宽比例);
+    // refraction_offset_clamp:折射偏移上限(uv 比例:x 按画布宽,y 按画布高);
     // lateral_z_epsilon:折射方向投影到 z = -1 平面时防止除零的阈值.
     radius_epsilon = 0.0001;
     refraction_eta_water = 1.333;
@@ -110,7 +113,7 @@ define_droplet_params! {
     near_distance = 1.0;
 
     // ===== 水滴外观 / 物理(实时滑块) =====
-    // droplet_size:水滴整体大小倍率,直接缩放半径;
+    // droplet_size:水滴整体大小倍率,直接缩放半径(半径的尺度见 radius_min);
     // wind_backward_factor:后吹风系数,水平风速 = -车速 × 该系数;
     // wind_sway_scale:原有正弦摇摆风的整体倍率;
     // gravity_scale:重力(下落速度)倍率;

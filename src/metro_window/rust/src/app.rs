@@ -46,6 +46,9 @@ pub(crate) struct App {
     pub(crate) droplet_buffer: wgpu::Buffer,
     pub(crate) droplet_params: DropletParams,
     pub(crate) refraction_size: (u32, u32),
+    /// 画布宽高比(宽 / 高):每帧写进 Uniforms,着色器据此把水滴画成正圆,
+    /// 而不是被 [0,1]² 的 uv 拉成椭圆(见 src/uniforms.rs 的 aspect 注释).
+    pub(crate) aspect: f32,
     pub(crate) time: f32,
     pub(crate) last: f64,
     pub(crate) frame_accumulator: f64,
@@ -104,6 +107,9 @@ impl App {
 
         let width = canvas.width().max(MIN_TEXTURE_DIMENSION);
         let height = canvas.height().max(MIN_TEXTURE_DIMENSION);
+        // 水滴形状依赖画布宽高比(见 src/uniforms.rs 的 aspect 注释):
+        // 画布分辨率取自 HTML 上的固定属性,没有 resize 路径,所以只算一次.
+        let aspect: f32 = width as f32 / height as f32;
         let caps = surface.get_capabilities(&adapter);
         let format = caps.formats[0];
         let config = wgpu::SurfaceConfiguration {
@@ -181,6 +187,7 @@ impl App {
             INITIAL_TIME_SECONDS,
             INITIAL_DELTA_SECONDS,
             INITIAL_STYLE_ID,
+            aspect,
         );
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("uniforms"),
@@ -284,6 +291,7 @@ impl App {
             droplet_buffer,
             droplet_params,
             refraction_size: (rw, rh),
+            aspect,
             time: 0.0,
             last: performance_now(),
             frame_accumulator: 0.0,
@@ -312,7 +320,7 @@ impl App {
         }
         self.frame_accumulator %= FRAME_INTERVAL_MS;
 
-        let uniforms: Uniforms = Uniforms::new(self.time, delta, self.style);
+        let uniforms: Uniforms = Uniforms::new(self.time, delta, self.style, self.aspect);
         self.queue
             .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
         self.queue.write_buffer(

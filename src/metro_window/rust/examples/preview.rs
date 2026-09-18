@@ -152,6 +152,8 @@ fn main() {
             PREVIEW_TIME_SECONDS,
             PREVIEW_DELTA_SECONDS,
             PREVIEW_STYLE_ID,
+            // 水滴要按画布宽高比换算成正圆,预览画布同样是 16:9.
+            width as f32 / height as f32,
         );
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("uniforms"),

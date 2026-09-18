@@ -41,6 +41,9 @@ const SMOKE_TIME_SECONDS: f32 = 1.0;
 const SMOKE_DELTA_SECONDS: f32 = 0.016;
 /// 写入 Uniforms 的样式编号.
 const SMOKE_STYLE_ID: u32 = 1;
+/// 写入 Uniforms 的画布宽高比:渲染目标与折射偏移图都是正方形,所以取 1.0
+/// (水滴形状只在 16:9 画布上才会被拉成椭圆).
+const SMOKE_ASPECT: f32 = 1.0;
 /// 折射偏移非零的判定阈值:低于它视为"折射偏移全为零".
 const REFRACTION_NONZERO_EPSILON: f32 = 0.0001;
 
@@ -180,8 +183,12 @@ fn main() {
                 usage: wgpu::BufferUsages::INDEX,
             });
 
-        let uniforms: Uniforms =
-            Uniforms::new(SMOKE_TIME_SECONDS, SMOKE_DELTA_SECONDS, SMOKE_STYLE_ID);
+        let uniforms: Uniforms = Uniforms::new(
+            SMOKE_TIME_SECONDS,
+            SMOKE_DELTA_SECONDS,
+            SMOKE_STYLE_ID,
+            SMOKE_ASPECT,
+        );
         let uniform_buffer: wgpu::Buffer =
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("uniforms"),

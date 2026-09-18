@@ -8,6 +8,10 @@ WGSL 着色器
 struct DropletParams 由 Rust 侧 src/droplet_params.rs 生成并注入,
 不要在本文件重复声明,以免与 Rust 字段清单漂移.
 
+水滴形状统一在"各向同性空间"里判定(uv.x 先乘上 uniform 的 aspect),
+否则 [0,1]² 的 uv 会把正圆拉成画布宽高比倍的椭圆;
+半径也因此定义在"画布高度"尺度上.详见 toIsotropic 上方的注释.
+
 贴图通道语义(与 src/textures.rs 的生成代码是一份契约,改一边要改另一边):
 - textureBG / Far / Mid / Near:城市美术素材,RGB = 颜色,A = 该层不透明度;
 - textureDirt:RGB = 污渍的"乘性颜色"(接近 1 的暖灰,不是遮罩),A = 浓度,
@@ -20,8 +24,9 @@ struct Uniforms {
     time: f32,
     deltaTime: f32,
     styleId: u32,
-    // 补齐到 16 字节:与 Rust `uniforms.rs` 的 `_padding` 一一对应.
-    _padding: u32,
+    // 画布宽高比 = 画布宽 / 画布高,与 Rust `uniforms.rs` 的 `aspect` 一一对应.
+    // 水滴要在屏幕上呈正圆就必须用它(见下面的 toIsotropic).
+    aspect: f32,
 };
 
 struct Droplet {
@@ -210,6 +215,26 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3u) {
     droplets[i] = d;
 }
 
+// ===== 水滴的形状:uv 空间 -> 各向同性空间 =====
+// uv ∈ [0,1]² 是归一化坐标:x 方向 1 个单位跨画布宽 W 像素,y 方向 1 个单位跨
+// 画布高 H 像素,所以两根轴的"单位长度"不相等.直接比较 |Δuv| < r 时,屏幕上的
+// 边界满足 (ΔX / (r·W))² + (ΔY / (r·H))² = 1,即一个半轴为 r·W × r·H 的椭圆:
+// 16:9 画布上水珠横向被拉长 1.78 倍,看起来是扁的,不是水珠该有的正圆.
+// 把 uv.x 乘上宽高比 aspect = W/H,两根轴的单位长度就都等于"画布高度",
+// 再用欧氏距离判定,屏幕上的水滴才是正圆:
+//   toIsotropic(uv) = (uv.x · aspect, uv.y).
+// 半径也因此定义在"画布高度"这个尺度上:半径 r 的水珠直径 = 2r·H 像素
+// (横向直径同样是 2r·H,而不是 2r·W).
+fn toIsotropic(uv: vec2f) -> vec2f {
+    return vec2f(uv.x * uniforms.aspect, uv.y);
+}
+
+// 各向同性空间的偏移 -> uv 偏移:x 方向除回 aspect.
+// 折射偏移最终是直接加到 uv 上采样背景的(见 fs_main 的 uvBG),必须换回 uv 空间.
+fn toUvOffset(offset: vec2f) -> vec2f {
+    return vec2f(offset.x / uniforms.aspect, offset.y);
+}
+
 // 斯涅尔折射:把水滴当成球面水透镜,计算光线穿过后的横向偏移.
 // 球面单位法线 n = (dir * s, sqrt(1 - s²)),其中 s = d/R ∈ [0,1).
 // 相对折射率 η = n_air / n_water = 1.0 / refraction_eta_water ≈ 0.7502.
@@ -218,7 +243,8 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3u) {
 //   t = η * i - (η * cosθ_i + sqrt(k)) * n
 // 若 k ≤ 0 发生全反射,水滴边缘看不到窗外光线,返回无偏移.
 fn dropletOffset(uv: vec2f, d: Droplet) -> vec2f {
-    let delta = uv - d.posVel.xy;
+    // 距离与半径都在各向同性空间里比较,水珠才是正圆(见 toIsotropic).
+    let delta = toIsotropic(uv) - toIsotropic(d.posVel.xy);
     let dist = length(delta);
     let radius = d.radiusStrength.x * dropletParams.droplet_size;
     // radius_epsilon:半径过小时跳过,避免后续除零;dist >= radius 时像素在水滴外.
@@ -252,11 +278,11 @@ fn dropletOffset(uv: vec2f, d: Droplet) -> vec2f {
     // 得到单位距离处的横向偏移;lateral_z_epsilon 防止 t.z ≈ 0 时除零.
     let lateral = t.xy / max(-t.z, dropletParams.lateral_z_epsilon);
     // 最终偏移 = lateral * R * (1 + s * refraction_strength_per) * refraction_scale:
-    //   R = radius 把无量纲方向放大成 UV 偏移;
+    //   R = radius 把无量纲方向放大成"画面高度"尺度的偏移,再换算回 uv 偏移;
     //   (1 + s * refraction_strength_per):强度放大因子.
     //   refraction_scale:实时滑块控制的整体折射强度.
     //   半径自动跟随 radiusStrength.x,强度自动跟随 radiusStrength.y.
-    return lateral
+    return toUvOffset(lateral)
         * radius
         * (1.0 + d.radiusStrength.y * dropletParams.refraction_strength_per)
         * dropletParams.refraction_scale;
@@ -265,7 +291,8 @@ fn dropletOffset(uv: vec2f, d: Droplet) -> vec2f {
 // 水滴覆盖度 coverage = (1 - s)²:
 //   中心 s = 0 时为 1,边缘 s = 1 时为 0,二次衰减.
 fn dropletCoverage(uv: vec2f, d: Droplet) -> f32 {
-    let delta = uv - d.posVel.xy;
+    // 同 dropletOffset:距离必须在各向同性空间里量,覆盖度边界才是正圆.
+    let delta = toIsotropic(uv) - toIsotropic(d.posVel.xy);
     let dist = length(delta);
     let radius = d.radiusStrength.x * dropletParams.droplet_size;
     if (dist >= radius) {
@@ -296,7 +323,9 @@ fn cs_refraction(@builtin(global_invocation_id) gid: vec3u) {
         if (radius <= dropletParams.radius_epsilon) {
             continue;
         }
-        let delta = uv - d.posVel.xy;
+        // 同样换算到各向同性空间:这里的 radius 是"画布高度"尺度的半径,
+        // 只有各向同性的 delta 才能直接和它比.
+        let delta = toIsotropic(uv) - toIsotropic(d.posVel.xy);
         // AABB 快速剔除:圆心与当前像素的 x/y 距离任一个超过半径,
         // 就一定不在水滴内,直接跳过,避免对每颗水滴都做 length/sqrt.
         if (abs(delta.x) >= radius || abs(delta.y) >= radius) {

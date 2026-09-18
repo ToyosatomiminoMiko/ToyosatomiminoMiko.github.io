@@ -85,6 +85,10 @@ Rust + WASM + WebGPU 实时渲染的地铁车窗玻璃效果,挂在站点首页 
   都由单测校验两边文本一致(只改一边会让 `cargo test` 失败);
   水滴参数更进一步:WGSL 里的 `struct DropletParams` 由 Rust 的
   `DropletParams::WGSL_DECL` 生成后注入,不存在两边各写一份.
+- **水滴形状必须按画布宽高比换算**:uv 是 [0,1]²,直接量 `length(Δuv)` 会把
+  正圆拉成 W/H 倍的椭圆.判定统一走 `shaders.wgsl` 的 `toIsotropic`,
+  比值由 `uniforms.rs` 的 `Uniforms.aspect` 每帧传入(半径语义/验证方法见
+  `src/metro_window/README.md` 的"水滴为什么是正圆").
 - **DOM id / class / Rust 参数名**是跨语言契约:改动必须两边同时改,
   写错不会报错,只会静默失效,所以它们集中在配置文件里便于对照.
 - **设置面板不手写 HTML**:结构与文案由 `src/metro_window/web/src/config.ts` 的
