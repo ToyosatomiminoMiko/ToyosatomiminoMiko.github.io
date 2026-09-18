@@ -34,7 +34,7 @@ npm run preview    # 预览 dist/ 里的产物
 | --- | --- |
 | Google Fonts CSS(4 个字体族 12 个字重) | `@fontsource/*` npm 包自托管,`@import` 进页面 CSS,由 Vite 打包并加 hash |
 | Font Awesome 6 CDN(约 100KB CSS + 一整套 webfont) | 页面内联的 SVG sprite(`<symbol>` + `<use href="#i-xxx">`),依赖被彻底去掉 |
-| 浏览器全局的 WebGPU 类型 | TypeScript 7 的 `lib.dom` 已经带了全部 WebGPU 接口,只差 5 个常量对象,见 `webgpu-constants.d.ts`;因此不需要 `@webgpu/types` |
+| 浏览器全局的 WebGPU 类型 | TypeScript 7 的 `lib.dom` 已经带了全部 WebGPU 接口,只差 5 个常量对象,见 `webgpu_constants.d.ts`;因此不需要 `@webgpu/types` |
 
 字重与原来 `<link>` 里请求的完全一致,没有增删:
 
@@ -126,7 +126,7 @@ GPU 计时依赖适配器的 `timestamp-query` 特性: 有就自动开, 没有�
 于是这一轮改了三件事:
 
 1. **拿掉压在动态 canvas 上的全部 `backdrop-filter`** (`.hero` 整屏 2px + `.card` 12px
-   + badge/tagline/description), 用略厚的半透明底色补回通透感.
+   - badge/tagline/description), 用略厚的半透明底色补回通透感.
 2. **把所有无限动画改成"合成器友好"的形式**: `cardGlow` 取消(呼吸交给底光的 opacity),
    `borderBurn`/`textFlicker`/`flickerFlame` 只动 `opacity`/`transform`, 模糊与投影都改静态;
    渐变流动(`fireGradient`)保留, 但用 `will-change: transform` 单独给它一层,
@@ -217,22 +217,22 @@ WIN=420,300 npm run perf:451                      # 换窗口尺寸
 - `451/ember/config.ts` 里的 `MAX_DPR`(默认 1.5),`MAX_PIXELS`(默认 260 万),
   `MAX_FPS`(默认 60)用来压高 DPI 屏的填充率与刷新率;性能吃紧时先调这三个
 
-> PWA / Service Worker 已整体移除,这几个开关现在是纯粹的 URL 参数,
-> 不再经过任何缓存层.
-
 ## 文件结构
 
 ```text
-vite-env.d.ts               4xx 页的 ambient 声明壳(`?raw` 的声明已挪到项目级
-                            `src/vite-env.d.ts`,因为 metro_window 也要用)
+vite_env.d.ts               4xx 页的 ambient 声明壳(`?raw` 的声明在项目级
+                            `src/vite_env.d.ts`)
 
 404.html                    404 页(纯 SVG, 无脚本)
 418.html                    418 页的标记 + 内联图标 sprite
 451.html                    451 页的标记 + 内联图标 sprite
 
 shared/                     418 / 451 共用
-  icon.css                    .icon 基础规则
+  icon.css                    .icon 基础规则 + .icon-sprite(sprite 宿主)
   icon.ts                     icon() -> <use href="#i-..."> 片段(JS 动态拼 HTML 时用)
+
+404/                        404 页
+  404.css                     纯 SVG 的居中/发光/底色
 
 418/                        茶壶页
   index.ts                    入口: 挂载交互
@@ -247,19 +247,19 @@ shared/                     418 / 451 共用
   ember/                      粒子引擎(对外只暴露 index.ts)
     index.ts                    EmberWebGPU 门面: 生命周期 + 每帧录制命令 + 帧率上限
     config.ts                   调参常量(FIXED_DT / MAX_DPR / MAX_PIXELS / MAX_FPS ...)
-    frame-clock.ts              固定步长时钟(纯逻辑, 有单测)
+    frame_clock.ts              固定步长时钟(纯逻辑, 有单测)
     viewport.ts                 逻辑/物理像素尺寸计算(纯函数, 有单测)
-    pointer-wind.ts             指针风场状态机(纯逻辑, 有单测)
+    pointer_wind.ts             指针风场状态机(纯逻辑, 有单测)
     stats.ts                    帧统计(帧间隔/主线程耗时/GPU 耗时 的环形缓冲, 有单测)
-    gpu-timing.ts               timestamp-query 打点(可选, 拿不到就自动关)
-    perf-overlay.ts             ?perf=1 时的屏幕 HUD
+    gpu_timing.ts               timestamp-query 打点(可选, 拿不到就自动关)
+    perf_overlay.ts             ?perf=1 时的屏幕 HUD
     capabilities.ts             申请适配器/设备 + 挑离屏纹理格式
     pipelines.ts                着色器模块 / 三条管线 / bind group layout / 采样器
     resources.ts                粒子缓冲(含 CPU 播种) + 两张乒乓历史纹理
     resources.test.ts           Particle 结构布局守卫(TS 下标 vs WGSL 对齐, 有单测)
-    shader-sources.ts           `?raw` 导入 4 个 .wgsl(打包器耦合只在这里)
+    shader_sources.ts           `?raw` 导入 4 个 .wgsl(打包器耦合只在这里)
     log.ts                      统一日志前缀
-    webgpu-constants.d.ts       补 lib.dom 缺的 WebGPU 常量与 writeTimestamp
+    webgpu_constants.d.ts       补 lib.dom 缺的 WebGPU 常量与 writeTimestamp
     shaders/*.wgsl              公共 / 仿真 / 绘制 / 合成 四段 WGSL
 ```
 
@@ -267,14 +267,14 @@ shared/                     418 / 451 共用
 
 - **引擎只从 `ember/index.ts` 进出**.`config` / `pipelines` / `resources` 这些都是
   实现细节,`boot.ts` 只认 `EmberWebGPU` 这一个名字.
-- **纯逻辑单独成文件**:定步长(`frame-clock`),尺寸换算(`viewport`),指针风
-  (`pointer-wind`)都不碰 DOM,因此有单测;`viewport` 只要求对象上有
+- **纯逻辑单独成文件**:定步长(`frame_clock`),尺寸换算(`viewport`),指针风
+  (`pointer_wind`)都不碰 DOM,因此有单测;`viewport` 只要求对象上有
   `clientWidth/clientHeight`,不需要真的传一个 canvas.
 - **入口文件保持薄**:`418/index.ts` 只调 `mountTeapot()`,`451/index.ts` 只调
   `startEmber()`;逻辑都在被调用的模块里,import 本身不产生副作用.
-- **`?raw` 只出现在 `shader-sources.ts`**:换个打包器只需要改这一个文件.
+- **`?raw` 只出现在 `shader_sources.ts`**:换个打包器只需要改这一个文件.
 
-着色器是**真正的 `.wgsl` 文件**,由 `shader-sources.ts` 用 Vite 的
+着色器是**真正的 `.wgsl` 文件**,由 `shader_sources.ts` 用 Vite 的
 `import source from './x.wgsl?raw'` 按文本导入.之前的 `*.wgsl.js`
 (把 WGSL 塞进 JS 模板字符串)就是为了绕开浏览器对模块脚本的严格 MIME 校验,
 有了打包器之后这层包装可以整块删掉;改着色器直接改 `.wgsl` 即可.
@@ -283,7 +283,6 @@ shared/                     418 / 451 共用
 > 各自的子目录,是因为它们的公开地址是 `/4xx_page/451.html`,而 Vite 的 HTML 产物
 > 路径 = 源文件相对 root 的路径;留在这一层才能让 `./451/451.css` 这类相对引用在
 > dev 和 build 下含义一致.详见 `vite.config.ts` 里 `fourXXPage()` 的注释.
-
 
 ### 改完 451 的着色器后
 
@@ -312,7 +311,7 @@ shared/                     418 / 451 共用
   但 `loadOp: 'clear'` 恰好把"上一帧"清掉了 -- 混合的目标 dst 全是 0,
   那句 `fade * keep` 其实什么都没加;而 `composite` 绑定的又是**另一张**纹理
   (`readIndex`),屏幕上看到的只是上一帧的粒子.净效果是:两张乒乓纹理 + 一次全屏 clear
-  + 一次全屏合成, 目前只起到了"延迟一帧显示"的作用, 拖尾并不存在.
+  - 一次全屏合成, 目前只起到了"延迟一帧显示"的作用, 拖尾并不存在.
 
   > 这一轮只做性能改造, 没有动这段逻辑, 但把坑标出来.要修的话二选一:
   > ① 粒子 pass 里显式采样 `historyViews[readIndex]`, 把衰减算进颜色,

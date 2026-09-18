@@ -2,7 +2,7 @@
  * 管线构建: 着色器模块 + bind group layout + 三条管线 + 采样器.
  * 全部是 (device, format) 的纯函数,不持有任何运行时状态.
  */
-import { shaderSources } from './shader-sources';
+import { shaderSources } from './shader_sources';
 
 export interface EmberPipelines {
     computeLayout: GPUBindGroupLayout;

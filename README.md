@@ -35,6 +35,14 @@
 - 站点: <https://toyosatomiminomiko.github.io/miko_graphcalc/>
 - 源码: <https://github.com/ToyosatomiminoMiko/miko_graphcalc>
 
+## 约定
+
+- **文件名不用 `-`,一律 `_`**.唯一不能改的是工具写死的两个:
+  `package-lock.json`(npm)和 `.githooks/pre-commit`(git 钩子名).
+  第三方包路径里的连字符(如 `@fontsource/inter/latin-400.css`)不在此列.
+- **HTML 里不写 CSS**:不放内联样式块,也不用 `style=` 属性;
+  样式一律进 `.css` 文件,由 `<link>` 或 TS `import` 引入.
+
 ## 构建
 
 ```bash

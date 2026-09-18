@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FixedStepClock } from './frame-clock';
+import { FixedStepClock } from './frame_clock';
 
 const STEP = 1 / 60;
 

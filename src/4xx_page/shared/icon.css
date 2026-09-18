@@ -9,3 +9,13 @@
     fill: currentColor;
     flex-shrink: 0;
 }
+
+/* sprite 宿主: <symbol> 定义完就不该占版面, 但也不能用 display:none --
+   那样 <use> 会一起不渲染. 所以是"零尺寸 + 溢出隐藏".
+   (以前是写成 svg 上的 style 属性, 已外置到这里) */
+.icon-sprite {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+}

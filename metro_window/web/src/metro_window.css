@@ -147,6 +147,12 @@
     gap: 8px;
 }
 
+/* 把播放/暂停/重置推到右边, 与三颗风格按钮分开.
+   以前这里是 <span style="flex:1"> 内联样式, 已外置 */
+.metro-window .spacer {
+    flex: 1;
+}
+
 .metro-window button {
     padding: 8px 14px;
     border: 1px solid var(--metro-border);

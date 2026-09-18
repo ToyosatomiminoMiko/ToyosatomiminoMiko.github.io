@@ -1,0 +1,26 @@
+/*
+404 页(纯 SVG)的样式.
+
+原来是写在 404.html 里的 <style>, 现在外置成这个文件, 由页面用
+<link rel="stylesheet" href="./404/404.css"> 引入(与 418 / 451 一致).
+*/
+
+/* SVG 居中 */
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* 三段线条的青色外发光 */
+path,
+line,
+circle {
+    filter: drop-shadow(5px 5px 5px rgba(0, 255, 255, 0.222));
+}
+
+/* 页面上只有这一个 SVG, 整片底色靠这条兜底.
+   !important 是故意的: 要压过浏览器扩展(如 Dark Reader)注入的内联背景色 */
+* {
+    background-color: rgb(80, 90, 100) !important;
+}

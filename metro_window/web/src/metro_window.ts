@@ -1,10 +1,9 @@
 /*
 地铁车窗组件(可挂载)
 
-- 宿主只负责提供一个容器元素,本模块负责:注入标记(metro-window.html),
-  引入样式(metro-window.css),绑定交互,加载 wasm,启动 WebGPU 渲染;
-- 做成"挂载函数"而不是页面入口,是因为这块内容要以欢迎页的形式嵌进站点的
-  标签页(见仓库根 README);写成入口就没法复用,标记还会在两边各存一份.
+- 标记写在页面里(metro_window/index.html 的 #metro-window),本模块负责:
+  引入样式(metro_window.css),绑定交互,加载 wasm,启动 WebGPU 渲染;
+- 做成"挂载函数"而不是页面入口,是把"标记放哪,什么时候挂"留给宿主决定.
 
 调用方式:
 
@@ -15,8 +14,7 @@
 单实例约束:wasm 侧的 App 是 crate 内的 thread_local 单例,setStyle/setParam/
 setRunning/reset 全都作用于它,所以一个页面只应挂载一次.
 */
-import './metro-window.css';
-import markup from './metro-window.html?raw';
+import './metro_window.css';
 
 import init, { reset, setParam, setRunning, setStyle, startApp } from '../pkg/metro_window.js';
 
@@ -84,9 +82,9 @@ function mustFind<T extends HTMLElement>(root: ParentNode, id: string): T {
 }
 
 export function mountMetroWindow(root: HTMLElement): void {
-    // 宿主可能忘了加类名;样式全靠这个类名作用域,这里补上,免得静默失效
+    // 标记由页面提供(metro_window/index.html).这里只补类名:样式全靠它作用域,
+    // 漏写就是"样式静默失效",补一下比报错划算.
     root.classList.add('metro-window');
-    root.innerHTML = markup;
 
     const status = mustFind(root, 'status');
     const canvas = mustFind<HTMLCanvasElement>(root, 'webgpu-canvas');

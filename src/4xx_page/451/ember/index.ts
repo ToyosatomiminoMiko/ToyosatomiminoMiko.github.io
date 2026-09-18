@@ -13,7 +13,7 @@
 //
 // 本文件只负责"串起来"(生命周期 + 每帧录制命令);具体职责已拆到同目录:
 //   capabilities(拿设备/选格式) / pipelines(建管线) / resources(建缓冲纹理)
-//   viewport(尺寸) / frame-clock(定步长) / pointer-wind(指针风) / log(日志)
+//   viewport(尺寸) / frame_clock(定步长) / pointer_wind(指针风) / log(日志)
 // ============================================================
 
 import { FIXED_DT, FRAME_JITTER_MS, MAX_FPS, PARTICLE_COUNT, REDUCED_MOTION_FPS, UNIFORM_STRIDE, WORKGROUP_SIZE } from './config';
@@ -27,11 +27,11 @@ import {
     type ParticleStore,
 } from './resources';
 import { computeViewport, isSameViewport, type Viewport } from './viewport';
-import { FixedStepClock } from './frame-clock';
-import { PointerWind } from './pointer-wind';
+import { FixedStepClock } from './frame_clock';
+import { PointerWind } from './pointer_wind';
 import { FrameStats, type FrameStatsSnapshot } from './stats';
-import { createGpuTimer, type GpuTimer } from './gpu-timing';
-import { createPerfOverlay, type PerfOverlay } from './perf-overlay';
+import { createGpuTimer, type GpuTimer } from './gpu_timing';
+import { createPerfOverlay, type PerfOverlay } from './perf_overlay';
 
 export interface EmberOptions {
     /** 粒子数量,默认 180 */

@@ -1,8 +1,9 @@
 # 地铁车窗 · Rust + WASM + WebGPU
 
 > **本目录已并入站点仓库** `ToyosatomiminoMiko.github.io`,不再是独立项目.
-> 上游仓库 `ToyosatomiminoMiko/metro_window` 已归档,只读留档;
-> 迁移范围,改了什么,为什么这么改,见文末[「迁移与归档」](#迁移与归档).
+> 上游仓库 `ToyosatomiminoMiko/metro_window` 已归档(只读),本地 clone 已删除 --
+> 本目录现在是唯一的可写副本;迁移范围,改了什么,为什么这么改,
+> 见文末[「迁移与归档」](#迁移与归档).
 
 用 Rust 编写/编译为 WebAssembly,再通过 wgpu(浏览器原生 WebGPU 后端)实现的
 地铁车窗玻璃效果.原有 JavaScript 实现已由 Rust 重写,所有绘制/水滴物理和
@@ -12,14 +13,14 @@
 
 | | |
 | --- | --- |
-| 独立入口页 | `metro_window/index.html` -> 线上 `/metro_window/` |
+| 独立入口页 | `metro_window/index.html`(标记也在这一页)-> 线上 `/metro_window/` |
 | 站点欢迎页 | **待定**:视觉设计未定,先把架构做完(见"组件形态") |
-| 组件本体 | `web/src/metro-window.ts`,导出 `mountMetroWindow(root: HTMLElement)` |
+| 组件行为 | `web/src/metro_window.ts`,导出 `mountMetroWindow(root: HTMLElement)` |
 | 运行时贴图 | `/metro_window/resource/*.png` |
 
 ### 组件形态
 
-前端做成了"挂载函数"而不是页面入口,宿主只提供一个容器元素:
+前端做成了"挂载函数"而不是页面入口,标记留在页面里,宿主只负责把它交上来:
 
 ```ts
 import { mountMetroWindow } from '../metro_window/web/src/metro-window';
@@ -28,10 +29,11 @@ const host = document.getElementById('metro-window');
 if (host) mountMetroWindow(host);
 ```
 
-- 标记(`web/src/metro-window.html`),样式(`web/src/metro-window.css`),
-  行为(`web/src/metro-window.ts`)全在组件里,标记由 `?raw` 引入后注入容器.
-  于是"独立页"和"嵌进站点 HOME 标签页"只是换一个容器而已,
-  标记不会在两处各存一份 -- 这正是把落地形态的决定推迟到视觉设计阶段的前提.
+- **标记在页面里**(`index.html` 的 `#metro-window`),`metro_window.ts` 只做行为,
+  `metro_window.css` 只做组件样式,`page.css`(只有独立页引)只做页面级样式,
+  `page.ts` 只做挂载.容器必须带 `.metro-window` 类名,组件按 id 查元素且只在容器内解析.
+- 组件样式与页面样式**分开**:`body { margin: 0 }` 这种只能进 `page.css` --
+  放进 `metro_window.css` 就等于让组件去改宿主页面的 body.
 - 样式**全部**以 `.metro-window` 作用域开头.站点首页引了 bootstrap,还有一条
   `* { margin:0; padding:0; border:0; background:none }` 的通配重置,
   原来那份独立页写法里的 `body` / `canvas` / `button` 裸元素选择器一旦进站,
@@ -66,16 +68,16 @@ metro_window/
 │   └── shaders.wgsl     WGSL 着色器
 ├── examples/        本地验证与预览程序
 ├── scripts/
-│   └── build-wasm.sh    Rust -> wasm 的构建脚本(由仓库根的 npm 脚本调用)
-├── index.html       独立入口页(宿主:一个容器 + 一个入口脚本)
+│   └── build_wasm.sh    Rust -> wasm 的构建脚本(由仓库根的 npm 脚本调用)
+├── index.html       页面:车窗的全部标记 + 一个入口脚本
 ├── public/          运行时贴图,按 /metro_window/resource/ 公开
 │   └── resource/    城市纹理 PNG(Rust 在运行时按 URL fetch)
 ├── web/             前端源码
-│   ├── src/             组件本体
-│   │   ├── metro-window.ts  挂载函数:交互/WebGPU 适配器检查/生命周期
-│   │   ├── metro-window.html 组件标记(?raw 引入)
-│   │   ├── metro-window.css  组件样式(全部以 .metro-window 作用域)
-│   │   └── page.ts      独立入口页的入口脚本(只调用挂载函数)
+│   ├── src/             行为与样式
+│   │   ├── metro_window.ts  挂载函数:交互/WebGPU 适配器检查/生命周期
+│   │   ├── metro_window.css  组件样式(全部以 .metro-window 作用域)
+│   │   ├── page.css          页面级样式(只有去 body 外边距)
+│   │   └── page.ts           入口脚本(引 page.css + 调用挂载函数)
 │   ├── design/          设计源文件(.kra),不参与构建
 │   └── pkg/             生成:wasm-bindgen 输出(gitignore)
 ├── Cargo.toml       Rust 依赖
@@ -85,7 +87,7 @@ metro_window/
 **这个目录里没有 `package.json` / `vite.config.ts` / `tsconfig.json` / `build.sh`.**
 并进站点后,这些"独立仓库的边界文件"由站点统一接管(Vite 配置在仓库根,
 构建步骤序列在根 `package.json` 的 `build:all`),子项目只保留一个
-`scripts/build-wasm.sh`,因为它要做 npm 脚本做不到的事(探测 wasm32 target,
+`scripts/build_wasm.sh`,因为它要做 npm 脚本做不到的事(探测 wasm32 target,
 按 `Cargo.lock` 对齐 wasm-bindgen CLI 版本).这样"构建步骤只有一处事实源"
 这条约定仍然成立.
 
@@ -103,7 +105,7 @@ metro_window/
 ```bash
 ./build.sh          # 完整构建:检查工具链 -> npm ci -> 跑完整流水线
 npm run build:all   # 跳过依赖安装,只跑流水线(CI 与本地完全一致的步骤序列)
-npm run build:wasm  # 只重新编译 Rust->wasm(等价于 bash metro_window/scripts/build-wasm.sh)
+npm run build:wasm  # 只重新编译 Rust->wasm(等价于 bash metro_window/scripts/build_wasm.sh)
 ```
 
 流水线步骤定义在仓库根 `package.json` 的 `build:all`(单一事实源),顺序如下:
@@ -133,7 +135,7 @@ npm run preview    # 预览 dist/ 里的构建产物
 ```
 
 缺 wasm 产物时 `npm run dev` 会先报错提示先跑 `npm run build:wasm`
-(`scripts/check-wasm.mjs`),而不是让 Vite 抛一句 "Failed to resolve import".
+(`scripts/check_wasm.mjs`),而不是让 Vite 抛一句 "Failed to resolve import".
 
 > 开发时改动 `web/src/` 下的 TypeScript/CSS 会自动热更新;改动 Rust/WGSL
 > 需要重新运行 `npm run build:wasm`(会重新生成 `web/pkg/`,Vite 会自动加载新产物).
@@ -196,26 +198,27 @@ cargo run --manifest-path metro_window/Cargo.toml --example preview        # 用
 
 ### 从哪来
 
-- 上游仓库:<https://github.com/ToyosatomiminoMiko/metro_window>
+- 上游仓库:<https://github.com/ToyosatomiminoMiko/metro_window>(**已归档,只读**)
 - 迁移时的上游 `main`:**`36922c6`(样式调整)**
-- 该仓库已归档,只读留档,后续开发只在本仓库进行.
+- 上游的本地 clone **已删除**:本目录是唯一的可写副本,只读副本在 GitHub 归档仓库里.
 
 ### 搬过来了什么(上游全部被跟踪文件)
 
 `Cargo.toml` / `Cargo.lock`,`src/`(Rust + WGSL),`examples/`,
-`public/resource/*.png`(4 张城市贴图),`web/src/`(前端),
-`web/design/city_mid.png.kra`(唯一的设计源文件),`index.html`,`README.md`.
+`public/resource/*.png`(4 张城市贴图),`web/`(前端源码 + 设计源文件),
+`index.html`,`README.md`.归档前逐项核对过,没有遗漏;尤其是
+`web/design/city_mid.png.kra`(1.5 MB,唯一的设计源文件).
 
-上游 `.gitignore` 里的 `/prompt` 是本地草稿目录(未跟踪),其中
-`prompt/prompt.md` 记录了本项目的总体目标与演进过程,但它**不在上游仓库里**,
-归档也留不下它 -- 如果还需要,得手工另存.
+上游 `.gitignore` 里的 `/prompt` 是本地草稿目录(未跟踪),不在归档范围内:
+其中 `prompt/prompt.md` 记录了本项目的总体目标与演进过程,本地 clone 删除后
+它就只剩别处的副本了.
 
 ### 搬进来改了什么
 
 | 改动 | 为什么 |
 | --- | --- |
-| 删掉 `package.json` / `package-lock.json` / `vite.config.ts` / `tsconfig.json` / `build.sh` / `.gitignore` | 独立仓库的边界文件,由站点仓库统一接管;`scripts/build-wasm.sh` 保留了 npm 脚本做不到的那部分,`build:all` 步骤序列仍是单一事实源 |
-| 前端入口 `main.ts` -> `metro-window.ts` + `metro-window.html` + `metro-window.css` + `page.ts` | 落地形态(独立页 / 嵌 HOME 标签页)当时未定,先做成与形态无关的可挂载组件 |
+| 删掉 `package.json` / `package-lock.json` / `vite.config.ts` / `tsconfig.json` / `build.sh` / `.gitignore` | 独立仓库的边界文件,由站点仓库统一接管;`scripts/build_wasm.sh` 保留了 npm 脚本做不到的那部分,`build:all` 步骤序列仍是单一事实源 |
+| 前端入口 `main.ts` -> `metro_window.ts`(行为)+ `metro_window.css`(样式)+ `page.ts`(挂载) | 把行为做成"有标记就能挂"的模块,标记留在 `index.html` 里,不再单独养一个组件标记文件 |
 | `style.css` 全部选择器加 `.metro-window` 作用域,自定义属性加 `--metro-` 前缀 | 站点有一条 `* { ... }` 通配重置和 bootstrap,原来 `body`/`canvas`/`button` 的裸元素选择器会污染站点的其它页面 |
 | 新增渲染生命周期(IntersectionObserver + visibilitychange) | rAF 不会因为容器 `display:none` 而停,不禁的话切走标签页后 GPU 一直空转 |
 | Rust 里贴图路径 `/resource/...` -> `/metro_window/resource/...`,集中成 `app.rs` 的 `RESOURCE_BASE` | 并进站点后资源挂在子路径下;地址是 Rust 里写死的,必须和产物里的真实路径一致 |
@@ -223,19 +226,18 @@ cargo run --manifest-path metro_window/Cargo.toml --example preview        # 用
 | 删掉上游 `LICENSE`(GPL-3.0) | 站点是 **AGPL-3.0**;作者同为一人,合并后整体按站点许可走,保留一份子目录许可只会让人误以为这个子树单独授权 |
 | 删掉上游 `prompt/` | 未跟踪的本地草稿,不属于仓库内容 |
 
-### 归档方还需要做的事
+### 归档状态与遗留
 
-上游仓库那边(需要仓库管理员权限,不在本仓库范围内):
+已经做完的:
 
-1. **先确认上面那份"搬过来了什么"清单没有遗漏**,尤其是设计源文件
-   `web/design/city_mid.png.kra`(1.5 MB)和 4 张城市贴图 -- 归档后仓库只读,
-   但内容仍在,别让它成为唯一副本.
-2. 在 `README.md` 顶部加归档说明(指向本站新位置),再提交一次,
-   然后点 GitHub 的 **Archive** 按钮.
-3. **关掉或确认没有开 GitHub Pages**.`metro_window` 是 project 仓库,
-   它的 Pages 会占 `toyosatomiminomiko.github.io/metro_window/`;
-   而本站是 user Pages(`ToyosatomiminoMiko.github.io`),现在也要在
-   **同一个路径** `/metro_window/` 提供内容 -- 两边都发布的话会抢同一个路径.
-   归档**不会**自动关 Pages,所以要单独去 Settings -> Pages 把 source 置为 None.
-4. 归档不影响已有的 fork/star/issue,也不影响 clone;但如果站内或别处
-   有指向 `github.com/.../metro_window` 的链接,建议改成指向本站.
+1. 上游仓库在 GitHub 上**已归档**(只读),本地 clone 已删除.
+2. 归档前逐项核对过"搬过来了什么",没有遗漏.
+3. 站内没有任何指向 `github.com/.../metro_window` 的链接,不需要改指向.
+
+还剩一件事要确认:
+
+4. **上游 project 仓库的 GitHub Pages 是否开着**.`metro_window` 的 Pages 会占
+   `toyosatomiminomiko.github.io/metro_window/`,而本站是 user Pages
+   (`ToyosatomiminoMiko.github.io`),现在也在**同一个路径** `/metro_window/`
+   提供内容 -- 两边都发布就是抢同一个路径.归档**不会**自动关 Pages,
+   要单独去 Settings -> Pages 把 source 置成 None.

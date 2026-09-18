@@ -13,7 +13,7 @@
 #     不污染全局,也不需要手工维护版本常量.
 #
 # 单独运行(只改了 Rust/WGSL 时):
-#   bash metro_window/scripts/build-wasm.sh
+#   bash metro_window/scripts/build_wasm.sh
 # 等价于在仓库根跑:
 #   npm run build:wasm
 

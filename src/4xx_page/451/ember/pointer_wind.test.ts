@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PointerWind } from './pointer-wind';
+import { PointerWind } from './pointer_wind';
 
 /** 可控时钟,避免测试依赖真实时间 */
 function fakeClock(start = 0) {
