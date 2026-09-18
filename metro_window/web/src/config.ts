@@ -1,11 +1,13 @@
 /*
 地铁车窗前端的集中配置(纯声明式数据,不含业务逻辑).
 
-页面只提供容器 / 标题 / 画布这些页面级标记,设置面板(风格按钮 / 播放控制 /
-滑块 / 状态区)由 web/src/ui/ 下的声明式组件按本文件的模型生成;两边靠下面这些
+页面只提供一个空宿主 #metro-window;车窗标记(标题 / 副标题 / 画布)由
+web/src/ui/window_content.ts 生成,设置面板(风格按钮 / 播放控制 / 滑块 /
+状态区)由 web/src/ui/ 下的声明式组件按本文件的模型生成;两边靠下面这些
 字符串对齐,一旦散落在代码里,改一处漏一处就是"静默失效",所以统一收到这里:
 
-  - 页面提供的元素 id,组件生成的类名 / data-* 键名;
+  - 宿主提供的挂载点 id,组件生成 / 查找的元素 id,类名 / data-* 键名;
+  - 车窗标记的文案与画布渲染分辨率;
   - setParam / setStyle 的参数名        -- 必须与 metro_window/src/lib.rs 一致;
   - 设置面板的完整结构模型(分组 / 顺序 / 文案 / 范围);
   - WebGPU 适配器识别规则与请求参数;
@@ -19,10 +21,10 @@
 
 // ---------- DOM 契约 ----------
 
-/** 容器必须带的作用域类名:组件样式的选择器全靠它作用域 */
+/** 作用域类名:组件样式的选择器全靠它作用域,由挂载函数加到宿主上 */
 export const WINDOW_CLASS = 'metro-window';
 
-/** 挂载点 id:page.ts 用它 getElementById,index.html 里也是这个值 */
+/** 挂载点 id:宿主页(站点首页)里的空容器用它,组件按它找容器 */
 export const MOUNT_ID = 'metro-window';
 
 /** 按 id 查元素时的选择器前缀:`#webgpu-canvas` 里的 `#` */
@@ -35,13 +37,44 @@ export const MISSING_ELEMENT_MESSAGE_PREFIX = '找不到页面元素 #';
 export const MISSING_MOUNT_MESSAGE_PREFIX = '找不到挂载点 #';
 
 /**
- * 页面(index.html)必须提供的元素 id.设置面板由组件生成,不在其中.
- * 键名是用途,值必须与 HTML 里的 id 完全一致,不得改动.
+ * 组件内部按 id 互相查找的元素.由 ui/window_content.ts 生成,metro_window.ts
+ * 取回,两边都引用这里的值,所以它不是"宿主必须提供的 id".
+ * 键名是用途,值一旦改动必须两处同时生效(都从这里取,改这里即可).
  */
 export const ELEMENT_IDS = {
     /** WebGPU 渲染画布 <canvas> */
     canvas: 'webgpu-canvas',
 } as const;
+
+// ---------- 车窗自身的页面级标记 ----------
+
+/*
+ * 标题 / 副标题 / 画布这几块标记由 ui/window_content.ts 生成,不再是页面 HTML.
+ *
+ * 原因:宿主只提供空容器,文案与画布尺寸集中在这里定义一次 -- 宿主页(站点首页
+ * HOME 卡片)不重复任何标记,改文案只动这一个文件.
+ *
+ * 注意与上面的区别:上面是"宿主必须提供的 id",这里是"组件自己生成的内容".
+ */
+
+/** 车窗标题 <h1> 文案 */
+export const WINDOW_TITLE = '🚇 地铁车窗 · Rust + WebGPU';
+
+/** 车窗副标题 <p> 文案 */
+export const WINDOW_SUBTITLE =
+    'Rust/WASM 驱动 WebGPU:水滴物理/折射虚像/玻璃污渍/冷凝雾气/车厢灯光反射,三种风格实时切换';
+
+/** 副标题的类名(metro_window.css 的 `.metro-window .subtitle`) */
+export const SUBTITLE_CLASS = 'subtitle';
+
+/**
+ * 画布的渲染分辨率(宽度,像素).Rust 侧直接读 canvas.width/height 建 surface,
+ * 所以这个值是**后备缓冲尺寸**(画多大),显示多大由 metro_window.css 控制.
+ */
+export const CANVAS_WIDTH = 1344;
+
+/** 画布的渲染分辨率(高度,像素),与 CANVAS_WIDTH 同为 16:9 */
+export const CANVAS_HEIGHT = 756;
 
 /** 风格按钮的类名(三颗 data-style 按钮共用) */
 export const STYLE_BUTTON_CLASS = 'style-btn';

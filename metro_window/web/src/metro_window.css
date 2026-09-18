@@ -46,7 +46,10 @@
 
 .metro-window canvas {
     display: block;
+    /* 铺满宿主(独立页的 body / 站点首页卡片体),但不超过令牌里的上限;
+       Rust 侧按画布的 width/height 属性建 surface,这里只缩显示尺寸. */
     width: 100%;
+    max-width: var(--metro-size-canvas-max-width);
     aspect-ratio: var(--metro-size-canvas-aspect);
     border: var(--metro-size-border) solid var(--metro-color-border-canvas);
     border-radius: var(--metro-radius-lg);

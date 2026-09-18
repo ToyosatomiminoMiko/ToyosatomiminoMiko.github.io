@@ -1,19 +1,29 @@
 /*
 地铁车窗组件(可挂载)
 
-- 页面只提供容器与画布(metro_window/index.html 的 #metro-window / canvas),
-  设置面板由 ui/settings.ts 按 config.ts 的声明式模型生成;本模块负责:
-  引入样式,组装面板,绑定交互,加载 wasm,启动 WebGPU 渲染;
-- 做成"挂载函数"而不是页面入口,是把"标记放哪,什么时候挂"留给宿主决定.
+- 宿主页(index.html 的 HOME 卡片)只提供一个**空宿主** #metro-window,
+  车窗自己的标记(标题 / 副标题 / 画布)由 ui/window_content.ts 生成,设置面板
+  由 ui/settings.ts 按 config.ts 的声明式模型生成;本模块负责:
+  引入样式,长出标记,组装面板,绑定交互,加载 wasm,启动 WebGPU 渲染;
+- 做成"挂载函数"而不是页面入口,是把"宿主放哪,什么时候挂"留给宿主决定
+  (站点里已没有独立入口页,车窗只在首页 HOME 卡片挂一次).
 
 所有字面量(id / 类名 / data-* 键名 / Rust 参数名 / 文案 / 阈值)都集中在
-./config.ts,设置面板的结构集中在 ./ui/,本文件只保留逻辑与生命周期.
+./config.ts,标记与面板的结构集中在 ./ui/,本文件只保留逻辑与生命周期.
 
-调用方式:
+调用方式(两种等价写法,取一即可):
 
+    // 1) 宿主自己已经拿到了容器
     import { mountMetroWindow } from '../metro_window/web/src/metro_window';
     const el = document.getElementById('metro-window');
     if (el) mountMetroWindow(el);
+
+    // 2) 按约定的挂载点 id 找容器(站点首页用这种,省得宿主自己写查找与报错)
+    import { mountMetroWindowAtMountId } from '../metro_window/web/src/metro_window';
+    mountMetroWindowAtMountId();
+
+宿主必须是**空容器**:标记全部由组件生成,已有的子节点不会被清掉,重复挂载
+只会把标记插两遍(wasm 侧的 App 是单例,本来也不允许挂载两次).
 
 单实例约束:wasm 侧的 App 是 crate 内的 thread_local 单例,setStyle/setParam/
 setRunning/reset 全都作用于它,所以一个页面只应挂载一次.
@@ -36,6 +46,8 @@ import {
     LAST_ENTRY_OFFSET,
     LOG_ADAPTER_PREFIX,
     MISSING_ELEMENT_MESSAGE_PREFIX,
+    MISSING_MOUNT_MESSAGE_PREFIX,
+    MOUNT_ID,
     SOFTWARE_ADAPTER_PATTERN,
     STATUS_HTML_SEPARATOR,
     STATUS_LOADING_WASM,
@@ -50,6 +62,7 @@ import {
     WINDOW_CLASS,
 } from './config';
 import { createSettingsPanel, type SliderControl } from './ui/settings';
+import { createWindowContent } from './ui/window_content';
 
 // WebGPU 适配器的最小类型定义(不依赖具体 TypeScript 版本的 DOM 类型)
 interface GpuAdapterInfo {
@@ -100,11 +113,28 @@ function decimalPlaces(step: number): number {
     return fraction === undefined ? 0 : fraction.length;
 }
 
+/**
+ * 按约定的挂载点 id 找空宿主,再挂载车窗.
+ * 站点首页的 src/main.ts 用这一条,省得宿主自己写一遍"找元素 + 报错".
+ */
+export function mountMetroWindowAtMountId(): void {
+    const root = document.getElementById(MOUNT_ID);
+    if (!root) {
+        throw new Error(`${MISSING_MOUNT_MESSAGE_PREFIX}${MOUNT_ID}`);
+    }
+    mountMetroWindow(root);
+}
+
 export function mountMetroWindow(root: HTMLElement): void {
-    // 标记由页面提供(metro_window/index.html).这里只补类名:样式全靠它作用域,
-    // 漏写就是"样式静默失效",补一下比报错划算.
+    // 类名只在这里补:样式全靠它作用域,宿主漏写就是"样式静默失效",
+    // 补一下比让宿主去记这个约定划算(首页的 HTML 里就不写类名了).
     root.classList.add(WINDOW_CLASS);
 
+    // 标题 / 副标题 / 画布由组件生成(宿主只提供空容器);顺序即显示顺序.
+    root.append(...createWindowContent());
+
+    // 画布仍然按 id 找回来:同一个 id 由 config.ts 的 ELEMENT_IDS 定义,
+    // window_content.ts 生成时用它,这里取值时也用它,两边不会各写一份.
     const canvas = mustFind<HTMLCanvasElement>(root, ELEMENT_IDS.canvas);
 
     // 设置面板整体由声明式组件生成,紧跟在画布之后.

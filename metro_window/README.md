@@ -13,36 +13,36 @@
 
 | | |
 | --- | --- |
-| 独立入口页 | `metro_window/index.html`(标记也在这一页)-> 线上 `/metro_window/` |
-| 站点欢迎页 | **待定**:视觉设计未定,先把架构做完(见"组件形态") |
-| 组件行为 | `web/src/metro_window.ts`,导出 `mountMetroWindow(root: HTMLElement)` |
-| 运行时贴图 | `/metro_window/resource/*.png` |
+| 站点位置 | 站点首页 `index.html` 的 HOME 卡片体:空宿主 `#metro-window`,挂载见 `src/main.ts`(已没有独立入口页) |
+| 组件行为 | `web/src/metro_window.ts`,导出 `mountMetroWindow(root: HTMLElement)` / `mountMetroWindowAtMountId()` |
+| 运行时贴图 | 源码 `public/metro_window/resource/*.png`(站点 public),公开地址 `/metro_window/resource/*.png` |
 
 ### 组件形态
 
-前端做成了"挂载函数"而不是页面入口,宿主只负责把容器交上来:
+前端做成了"挂载函数"而不是页面入口:**宿主只提供一个空容器**,标记由组件生成:
 
 ```ts
-import { mountMetroWindow } from './metro_window';
+import { mountMetroWindowAtMountId } from './metro_window';
 
-const host = document.getElementById('metro-window');
-if (host) mountMetroWindow(host);
+mountMetroWindowAtMountId();   // 找约定的挂载点 #metro-window,找不到就报错
 ```
 
-- **页面只留页面级标记**:`index.html` 里是容器 `#metro-window`,标题,副标题和
-  画布;设置面板(风格按钮 / 播放控制 / 滑块 / 状态区)由 `web/src/ui/settings.ts`
-  按 `web/src/config.ts` 的声明式模型生成,插在画布之后 -- 标记不再手写进 HTML,
-  加一个滑块只需要往 `SLIDER_GROUPS` 里加一条.
+- **宿主只提供空容器**:站点首页里只有一个 `<div id="metro-window">`,
+  标题 / 副标题 / 画布由 `web/src/ui/window_content.ts` 按 `web/src/config.ts` 的
+  文案与分辨率生成,设置面板(风格按钮 / 播放控制 / 滑块 / 状态区)由
+  `web/src/ui/settings.ts` 按同一份模型生成,插在画布之后.宿主页不出现任何车窗
+  标记,加一个滑块只需要往 `SLIDER_GROUPS` 里加一条,改文案只动 `config.ts`.
 - **声明式组件**:`web/src/ui/dom.ts` 的 `h()` 是唯一的 DOM 构造原语(描述 -> 元素),
-  `web/src/ui/settings.ts` 的每个组件都是纯函数(props -> 元素),不读页面,不改全局;
-  `metro_window.ts` 拿到组件交回的元素引用后绑事件,不再按 id 去 DOM 里找.
-  滑块布局只在 `createSlider()` 里定义一处:最外层 `div.slider`,上层滑杆,
-  下层"名称(左) + 数值(右)".
-- `metro_window.ts` 只做行为,`metro_window.css` 只做组件样式,
-  `metro_index.css`(只有独立页引)只做页面级样式,`page.ts` 只做挂载.
-  容器必须带 `.metro-window` 类名,组件只在容器内解析元素.
-- 组件样式与页面样式**分开**:`body { margin: 0 }` 这种只能进 `metro_index.css` --
-  放进 `metro_window.css` 就等于让组件去改宿主页面的 body.
+  `web/src/ui/window_content.ts`(车窗标记)与 `web/src/ui/settings.ts`(设置面板)
+  都是纯函数,不读页面,不改全局;`metro_window.ts` 把标记插进宿主,拿到组件交回的
+  元素引用后绑事件,不再按 id 去 DOM 里找.滑块布局只在 `createSlider()` 里定义
+  一处:最外层 `div.slider`,上层滑杆,下层"名称(左) + 数值(右)".
+- `metro_window.ts` 只做行为,`metro_window.css` 只做组件样式.
+  `.metro-window` 类名由 `metro_window.ts` 挂上(宿主不用记这个约定),
+  组件只在容器内解析元素.
+- 组件样式里**没有**页面级选择器:`body { margin: 0 }` 这类规则的宿主是站点,
+  由站点的 `public/css/index.css` 负责;写进 `metro_window.css` 就等于让组件去改
+  宿主页面的 body.原先独立页用的 `metro_index.css` 随入口页一起删掉了.
 - 样式**全部**以 `.metro-window` 作用域开头.站点首页引了 bootstrap,还有一条
   `* { margin:0; padding:0; border:0; background:none }` 的通配重置,
   原来那份独立页写法里的 `body` / `canvas` / `button` 裸元素选择器一旦进站,
@@ -78,25 +78,27 @@ metro_window/
 ├── examples/        本地验证与预览程序
 ├── scripts/
 │   └── build_wasm.sh    Rust -> wasm 的构建脚本(由仓库根的 npm 脚本调用)
-├── index.html       页面:容器 + 标题/副标题/画布 + 一个入口脚本
-├── public/          运行时贴图,按 /metro_window/resource/ 公开
-│   └── resource/    城市纹理 PNG(Rust 在运行时按 URL fetch)
 ├── web/             前端源码
 │   ├── src/             配置 / 组件 / 行为 / 样式
-│   │   ├── config.ts        全部常量 + 设置面板的声明式模型(滑块/风格/按钮/文案)
-│   │   ├── metro_window.ts  挂载函数:组装面板/交互/WebGPU 适配器检查/生命周期
+│   │   ├── config.ts        全部常量 + 标记与设置面板的声明式模型(文案/分辨率/滑块/风格/按钮)
+│   │   ├── metro_window.ts  挂载函数:长出标记/组装面板/交互/WebGPU 适配器检查/生命周期
 │   │   ├── ui/
-│   │   │   ├── dom.ts       h():声明式 DOM 构造原语(描述 -> 元素)
-│   │   │   └── settings.ts  设置面板组件(按 config.ts 的模型生成并交回元素引用)
+│   │   │   ├── dom.ts             h():声明式 DOM 构造原语(描述 -> 元素)
+│   │   │   ├── window_content.ts  车窗标记组件(标题/副标题/画布)
+│   │   │   └── settings.ts        设置面板组件(按 config.ts 的模型生成并交回元素引用)
 │   │   ├── tokens.css       设计令牌(全部可调数值)
-│   │   ├── metro_window.css 组件样式(全部以 .metro-window 作用域)
-│   │   ├── metro_index.css  页面级样式(只有去 body 外边距)
-│   │   └── page.ts          入口脚本(引 .css + 调用挂载函数)
+│   │   └── metro_window.css 组件样式(全部以 .metro-window 作用域)
 │   ├── design/          设计源文件(.kra),不参与构建
 │   └── pkg/             生成:wasm-bindgen 输出(gitignore)
 ├── Cargo.toml       Rust 依赖
 └── Cargo.lock       Rust 依赖锁定
 ```
+
+> 这里没有 `index.html` / `page.ts` / `metro_index.css` / `public/`:并入站点后
+> 曾有一个 `/metro_window/` 独立入口页,后来撤掉,车窗只在站点首页 HOME 卡片
+> 挂一次 -- 页面级标记改由 `web/src/ui/window_content.ts` 生成,宿主只留空容器.
+> 运行时贴图也不再单独养一份 `public/`,而是集中到站点唯一的静态资源根
+> `public/metro_window/resource/`(URL 仍是 `/metro_window/resource/*.png`).
 
 **这个目录里没有 `package.json` / `vite.config.ts` / `tsconfig.json` / `build.sh`.**
 并进站点后,这些"独立仓库的边界文件"由站点统一接管(Vite 配置在仓库根,
@@ -144,7 +146,7 @@ CI 侧(`.github/workflows/deploy.yml`)只多两步:`dtolnay/rust-toolchain@stabl
 ## 运行
 
 ```bash
-npm run dev        # 仓库根的 Vite 开发服务器,车窗在 http://127.0.0.1:5173/metro_window/
+npm run dev        # 仓库根的 Vite 开发服务器,车窗在首页 http://127.0.0.1:5173/ 的 HOME 卡片里
 npm run preview    # 预览 dist/ 里的构建产物
 ```
 
@@ -159,7 +161,7 @@ npm run preview    # 预览 dist/ 里的构建产物
 无沙盒模式启动浏览器
 
 ```sh
-chromium-browser --no-sandbox --enable-unsafe-webgpu http://127.0.0.1:5173/metro_window/
+chromium-browser --no-sandbox --enable-unsafe-webgpu http://127.0.0.1:5173/
 # vscode 启用新实例参数无效
 code --no-sandbox --enable-unsafe-webgpu 
 ```
@@ -204,9 +206,11 @@ cargo run --manifest-path metro_window/Cargo.toml --example native_smoke   # 用
 cargo run --manifest-path metro_window/Cargo.toml --example preview        # 用真实城市纹理渲染一帧,输出 preview.png
 ```
 
-> 程序里的相对路径都相对 **crate 根**(`cargo run`/`cargo test` 的 cwd 就是包根):
-> `preview` 读 `public/resource/*.png`,写出的 `preview.png` 也落在 `metro_window/`
-> 下(已被 .gitignore 忽略);`cargo test` 的可视化 ppm 落在 `metro_window/prompt/`.
+> 程序里的输出路径都相对 **crate 根**:`cargo test` 的 cwd 是包根,所以可视化
+> ppm 落在 `metro_window/prompt/`(已 gitignore);`preview` 写出的 `preview.png`
+> 也落在 `metro_window/` 下.注意 `cargo run --example` 的 cwd 是**调用目录**,
+> 所以 `preview` 读城市贴图用的是编译期注入的绝对路径(`CARGO_MANIFEST_DIR`),
+> 指向站点静态资源根 `public/metro_window/resource/*.png`,不受 cwd 影响.
 
 ## 迁移与归档
 
@@ -219,7 +223,8 @@ cargo run --manifest-path metro_window/Cargo.toml --example preview        # 用
 ### 搬过来了什么(上游全部被跟踪文件)
 
 `Cargo.toml` / `Cargo.lock`,`src/`(Rust + WGSL),`examples/`,
-`public/resource/*.png`(4 张城市贴图),`web/`(前端源码 + 设计源文件),
+`public/resource/*.png`(4 张城市贴图,后来挪到站点 `public/metro_window/resource/`,
+见下面"搬进来改了什么"),`web/`(前端源码 + 设计源文件),
 `index.html`,`README.md`.归档前逐项核对过,没有遗漏;尤其是
 `web/design/city_mid.png.kra`(1.5 MB,唯一的设计源文件).
 
@@ -232,11 +237,12 @@ cargo run --manifest-path metro_window/Cargo.toml --example preview        # 用
 | 改动 | 为什么 |
 | --- | --- |
 | 删掉 `package.json` / `package-lock.json` / `vite.config.ts` / `tsconfig.json` / `build.sh` / `.gitignore` | 独立仓库的边界文件,由站点仓库统一接管;`scripts/build_wasm.sh` 保留了 npm 脚本做不到的那部分,`build:all` 步骤序列仍是单一事实源 |
-| 前端入口 `main.ts` -> `metro_window.ts`(行为)+ `metro_window.css`(样式)+ `page.ts`(挂载) | 把行为做成"有标记就能挂"的模块,标记留在 `index.html` 里,不再单独养一个组件标记文件 |
+| 前端入口 `main.ts` -> `metro_window.ts`(行为)+ `metro_window.css`(样式) | 把行为做成"有标记就能挂"的模块,不再养一个页面级入口 |
+| 后来撤掉 `/metro_window/` 独立入口页(`index.html` / `page.ts` / `metro_index.css`),并入站点首页 | 车窗只在首页 HOME 卡片挂一次;页面级标记(标题/副标题/画布)改由 `web/src/ui/window_content.ts` 生成,宿主只留空容器 `#metro-window` |
 | `style.css` 全部选择器加 `.metro-window` 作用域,自定义属性加 `--metro-` 前缀 | 站点有一条 `* { ... }` 通配重置和 bootstrap,原来 `body`/`canvas`/`button` 的裸元素选择器会污染站点的其它页面 |
 | 新增渲染生命周期(IntersectionObserver + visibilitychange) | rAF 不会因为容器 `display:none` 而停,不禁的话切走标签页后 GPU 一直空转 |
 | Rust 里贴图路径 `/resource/...` -> `/metro_window/resource/...`,集中成 `app.rs` 的 `RESOURCE_BASE` | 并进站点后资源挂在子路径下;地址是 Rust 里写死的,必须和产物里的真实路径一致 |
-| 新增 `vite.config.ts` 的 `metroWindowAssets()` 插件 | 站点 Vite 只有一个 `publicDir`,子项目的 `public/` 不会被自动挂载;dev 重写,build 按原路径 emit,两边 URL 一致 |
+| 城市贴图从子项目的 `public/resource/` 挪进站点唯一静态资源根 `public/metro_window/resource/`,删掉 `metroWindowAssets()` 插件 | 站点 Vite 只有一个 `publicDir`,另建 `public/` 就得靠插件在 dev 重写,在 build 手动 emit;放进 `public/` 后 URL 与目录同构,dev/build 行为天然一致 |
 | 删掉上游 `LICENSE`(GPL-3.0) | 站点是 **AGPL-3.0**;作者同为一人,合并后整体按站点许可走,保留一份子目录许可只会让人误以为这个子树单独授权 |
 | 删掉上游 `prompt/` | 未跟踪的本地草稿,不属于仓库内容 |
 
@@ -251,7 +257,8 @@ cargo run --manifest-path metro_window/Cargo.toml --example preview        # 用
 还剩一件事要确认:
 
 1. **上游 project 仓库的 GitHub Pages 是否开着**.`metro_window` 的 Pages 会占
-   `toyosatomiminomiko.github.io/metro_window/`,而本站是 user Pages
-   (`ToyosatomiminoMiko.github.io`),现在也在**同一个路径** `/metro_window/`
-   提供内容 -- 两边都发布就是抢同一个路径.归档**不会**自动关 Pages,
-   要单独去 Settings -> Pages 把 source 置成 None.
+   `toyosatomiminomiko.github.io/metro_window/`.本站是 user Pages
+   (`ToyosatomiminoMiko.github.io`),撤掉独立入口页后本站不再有
+   `/metro_window/index.html`,只在该路径下提供运行时贴图
+   (`/metro_window/resource/*.png`),所以两者已不再抢同一个页面;但如果你希望
+   上游归档仓库彻底停止发布,仍要去它的 Settings -> Pages 把 source 置成 None.

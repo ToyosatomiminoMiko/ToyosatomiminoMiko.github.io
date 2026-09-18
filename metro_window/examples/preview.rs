@@ -26,14 +26,27 @@ const PREVIEW_TIME_SECONDS: f32 = 2.0;
 const PREVIEW_DELTA_SECONDS: f32 = 0.016;
 /// 写入 Uniforms 的样式编号(1 = 第二种样式,便于与默认样式区分).
 const PREVIEW_STYLE_ID: u32 = 1;
-/// 城市背景层贴图(相对 crate 根;与运行时的 /metro_window/resource 指向同一批文件).
-const PREVIEW_CITY_BG: &str = "public/resource/city_bg.png";
-/// 城市远景层贴图.
-const PREVIEW_CITY_FAR: &str = "public/resource/city_far.png";
-/// 城市中景层贴图.
-const PREVIEW_CITY_MID: &str = "public/resource/city_mid.png";
-/// 城市近景层贴图.
-const PREVIEW_CITY_NEAR: &str = "public/resource/city_near.png";
+/// 城市贴图在仓库里的位置(相对站点 `public/`;与运行时的 /metro_window/resource 是同一批文件).
+///
+/// 用 `CARGO_MANIFEST_DIR`(编译期由 cargo 注入的 crate 根绝对路径)而不是相对路径:
+/// `cargo run --example` 的 cwd 是**调用目录**(从仓库根调时就是仓库根),
+/// `cargo test` 的 cwd 才是 crate 根,相对路径在两者间会指向不同地方.
+const PREVIEW_RESOURCE_DIR: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../public/metro_window/resource"
+);
+/// 按文件名拼出城市贴图的绝对路径(与运行时的 `city_png()` 一一对应).
+fn preview_city_png(file: &str) -> String {
+    format!("{PREVIEW_RESOURCE_DIR}/{file}")
+}
+/// 城市背景层贴图文件名.
+const PREVIEW_CITY_BG: &str = "city_bg.png";
+/// 城市远景层贴图文件名.
+const PREVIEW_CITY_FAR: &str = "city_far.png";
+/// 城市中景层贴图文件名.
+const PREVIEW_CITY_MID: &str = "city_mid.png";
+/// 城市近景层贴图文件名.
+const PREVIEW_CITY_NEAR: &str = "city_near.png";
 
 use std::future::Future;
 use std::pin::pin;
@@ -95,13 +108,13 @@ fn main() {
             .await
             .expect("device");
 
-        // 相对 crate 根(cargo run 的 cwd 就是包根):贴图在 public/resource/ 下.
-        // 站点运行时用的是另一套绝对路径(web 下的 /metro_window/resource/),
-        // 见 src/app_params.rs 的 RESOURCE_BASE -- 两者指向的是同一批文件.
-        let bg = load_png(&device, &queue, PREVIEW_CITY_BG);
-        let far = load_png(&device, &queue, PREVIEW_CITY_FAR);
-        let mid = load_png(&device, &queue, PREVIEW_CITY_MID);
-        let near = load_png(&device, &queue, PREVIEW_CITY_NEAR);
+        // 贴图在站点 public/metro_window/resource/ 下(PREVIEW_RESOURCE_DIR 已拼成
+        // 绝对路径,不受 cwd 影响).站点运行时 fetch 的是同一批文件的公开地址
+        // /metro_window/resource/...,见 src/app_params.rs 的 RESOURCE_BASE.
+        let bg = load_png(&device, &queue, &preview_city_png(PREVIEW_CITY_BG));
+        let far = load_png(&device, &queue, &preview_city_png(PREVIEW_CITY_FAR));
+        let mid = load_png(&device, &queue, &preview_city_png(PREVIEW_CITY_MID));
+        let near = load_png(&device, &queue, &preview_city_png(PREVIEW_CITY_NEAR));
         let (dw, dh, dirt_data) = generate_dirt(DIRT_TEXTURE_SIZE.0, DIRT_TEXTURE_SIZE.1);
         let dirt = create_texture(&device, &queue, "dirt", dw, dh, &dirt_data);
         let (fw, fh, fog_data) = generate_fog(FOG_TEXTURE_SIZE.0, FOG_TEXTURE_SIZE.1);

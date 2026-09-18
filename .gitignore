@@ -3,8 +3,6 @@ dist/
 .vscode
 /prompt
 __pycache__/
-.scratch-p34/
-.scratch-451perf-profile/
 
 # metro_window 子项目的生成物(生成过程见 package.json 的 build:wasm)
 /metro_window/target

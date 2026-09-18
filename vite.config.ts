@@ -1,4 +1,3 @@
-import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 // defineConfig 从 vitest/config 拿:它只是给 Vite 的 UserConfig 多加了 test 段,
 // 这样 vitest 的排除规则可以和构建配置写在同一个文件里,不必再养一份 vitest.config.ts
@@ -61,56 +60,23 @@ function fourXXPage(): Plugin {
     };
 }
 
-/**
- * 地铁车窗的城市贴图(`metro_window/public/resource/*.png`).
+/*
+ * 站点只有**一个**静态资源根:`public/`(Vite 的 publicDir).
  *
- * 这四张 PNG 既不进 JS 资源图,也拿不到带 hash 的地址:它们是 Rust 在运行时
- * 自己 fetch 的(路径见 `metro_window/src/app.rs` 的 `RESOURCE_BASE`).
- * 所以地址必须是构建后稳定可访问的,做法沿用上面 fourXXPage() 的双段式:
- *   - dev:   Vite 的 publicDir 只能有一个,子项目的 public/ 不会被自动挂载,
- *            这里把 /metro_window/resource/* 重写到 metro_window/public/resource/*;
- *   - build: 按同名路径 emit 进产物,让 dev 与线上的 URL 完全一致.
+ * 所有按原 URL 直接访问,不参与打包的文件都放这里,dev 直接挂载,build 原样拷贝:
+ *   - 主站图片 `public/images/`,图标 `public/favicon.ico`,样式表 `public/css/`;
+ *   - 地铁车窗的运行时贴图 `public/metro_window/resource/*.png` -- Rust 按
+ *     `/metro_window/resource/...` 自己 fetch(见 `metro_window/src/app_params.rs`
+ *     的 RESOURCE_BASE),所以目录层级必须与 URL 一致,这里不做任何重写.
  *
- * 资源留在 metro_window/public/ 而不是挪进站点 public/,是为了让这个子项目
- * 自身完整:搬迁/回滚/对照上游归档时,不用再去站点 public/ 里翻.
+ * 不变量:public 里的路径 == 线上 URL.Vite 只有一个 publicDir,所以不要再给
+ * 子项目另建 public/(那需要额外插件在 dev 重写,在 build 里手动 emit),
+ * 直接把文件放进这棵树下即可.
  */
-const METRO_PUBLIC_PREFIX = 'metro_window/resource/';
-const METRO_SOURCE_PREFIX = 'metro_window/public/resource/';
-
-function metroWindowAssets(): Plugin {
-    const sourceDir = here(METRO_SOURCE_PREFIX);
-    return {
-        name: 'metro-window-assets',
-
-        // 开发服务器:让 /metro_window/resource/*.png 直接可访问,与线上地址一致
-        configureServer(server) {
-            server.middlewares.use((req, _res, next) => {
-                if (req.url?.startsWith(`/${METRO_PUBLIC_PREFIX}`)) {
-                    req.url = `/${METRO_SOURCE_PREFIX}${req.url.slice(METRO_PUBLIC_PREFIX.length + 1)}`;
-                }
-                next();
-            });
-        },
-
-        // 构建:整目录按原路径写进产物(不 hash -- 地址是 Rust 里写死的)
-        enforce: 'post',
-        generateBundle() {
-            for (const name of readdirSync(sourceDir)) {
-                this.emitFile({
-                    type: 'asset',
-                    fileName: `${METRO_PUBLIC_PREFIX}${name}`,
-                    source: readFileSync(`${sourceDir}${name}`),
-                });
-            }
-        },
-    };
-}
-
 export default defineConfig({
     base: '/',
     plugins: [
         fourXXPage(),
-        metroWindowAssets(),
     ],
     build: {
         rollupOptions: {
@@ -121,8 +87,6 @@ export default defineConfig({
                 '4xx_page/404': here('src/4xx_page/404.html'),
                 '4xx_page/418': here('src/4xx_page/418.html'),
                 '4xx_page/451': here('src/4xx_page/451.html'),
-                // 地铁车窗的独立入口: 产物 -> dist/metro_window/index.html, 地址 /metro_window/
-                'metro_window/index': here('metro_window/index.html'),
             },
         },
     },

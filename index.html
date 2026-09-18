@@ -55,7 +55,12 @@ ToyosatomiminoMiko
                         </div>
                     </div>
                     <div class="card-body">
-                        <!--内容主体-->
+                        <!--
+                        内容主体:地铁车窗(Rust + WASM + WebGPU).
+                        宿主只提供这个空容器 -- 标题/副标题/画布/设置面板全部由
+                        metro_window 组件生成,挂载见 src/main.ts.
+                        -->
+                        <div id="metro-window"></div>
                     </div>
                 </div>
             </div>

@@ -55,8 +55,9 @@ pub(crate) const MAX_STYLE_INDEX: u32 = 2;
 ///
 /// 这四张 PNG 是 Rust 在运行时自己 fetch 的,既不进 wasm 包,也不走 Vite 的
 /// 资源图(拿不到带 hash 的地址),所以这里只能是构建后真实可访问的绝对路径.
-/// 并进本站后资源挂在 `/metro_window/resource/` 下,映射由 `vite.config.ts`
-/// 的 `metroWindowAssets()` 负责(dev 下重写请求,build 下按原路径 emit).
+/// 文件放在站点唯一的静态资源根 `public/metro_window/resource/` 下,Vite 把
+/// `public/` 按原路径挂载(dev)/拷贝(build),因此 URL 与目录层级一致,
+/// 不需要任何重写插件.
 ///
 /// 用绝对路径而不是相对路径:相对路径会随页面 URL 变化(例如 /web/index.html
 /// 这类回退地址),导致 fetch 拿到 HTML 回退页而不是 PNG,从而报
