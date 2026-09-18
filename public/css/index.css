@@ -33,16 +33,166 @@ body {
      */
     background-image: var(--bg-image-active);
     background-attachment: fixed;
+    /*
+     * 首屏(.hero)用 margin-left/right: calc(50% - 50vw) 从 90% 宽的 main 里
+     * 满宽逃逸到 100vw;而 100vw **含纵向滚动条宽度**,所以一定会横向溢出一点,
+     * 这里必须裁掉,否则会多出一条横向滚动条.
+     */
+    overflow-x: hidden;
 }
 
-.nav {
+/* ================================================================
+ * 首屏(hero)
+ *
+ * 只属于 HOME 标签页:视口在页面顶部时,地铁车窗的画布铺满整个屏幕.
+ * 它是**首屏**,不是**背景** -- 全站背景仍然是 body 上的 --bg-image-active
+ * (SETTING 里那两张 GIF),首屏只是盖在它上面的一个区块.
+ *
+ * 画布本身由 metro_window 组件生成:挂载点 #metro-window 在 .hero__stage 里,
+ * 组件给宿主加 .metro-window--stage 之后它是 absolute 铺满的一层.
+ * ================================================================ */
+.hero {
+    /*
+     * 从 90% 宽的 main 里满宽逃逸到视口两侧(左右各外扩 5vw).
+     * 不写 width: 100vw -- 那样会把滚动条宽度也算进内容宽度;用负外边距让块
+     * 自己撑开,配合 body 的 overflow-x: hidden.
+     */
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
     position: relative;
-    /* 导航栏高度 */
+    /* 上一行是不支持 dvh 的浏览器的回退值,这一行才是令牌 */
+    height: 100vh;
+    height: var(--hero-height);
+    /* 画布按"覆盖"放大后必然超出首屏,多出来的部分在这里裁掉 */
+    overflow: hidden;
+}
+
+/* 画布层:组件的挂载点 #metro-window 放在这里,由组件用 absolute 铺满 */
+.hero__stage {
+    position: absolute;
+    inset: 0;
+}
+
+/*
+ * 首屏顶部渐变压暗:导航文字压在画面上时的可读性来源.
+ * 它属于首屏(是画面的一部分),**不属于导航条** -- 所以导航条本身仍然是
+ * "隐形"的:没有底色,没有边框,没有磨砂,只有文字浮在画面上.
+ */
+.hero__scrim {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--hero-scrim-height);
+    background-image: var(--hero-scrim);
+    pointer-events: none;
+}
+
+/* 首屏底部:LED 时钟(风格按钮与下滑指示后面再加) */
+.hero__bottom {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--chrome-gap);
+    padding: var(--chrome-padding-x);
+}
+
+/* ================================================================
+ * 固定导航条
+ *
+ * 首屏要盖到 y=0,所以导航条必须脱离文档流(position: fixed):它还占位的话,
+ * 首屏只能从它下沿开始,顶部那一条就盖不住.
+ *
+ * 默认是**实底**:没有 JS,或者不在首屏上(别的标签页)时必须可读.
+ * 压在首屏画面上时,src/common/header_state.ts 给它加 .is-over-hero,
+ * 底色与边框全部透明 -- 只剩站名与导航文字,这就是"隐形导航条".
+ * ================================================================ */
+.site-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: var(--z-chrome);
+    display: flex;
+    align-items: center;
+    gap: var(--chrome-gap);
     height: var(--nav-height);
+    padding: 0 var(--chrome-padding-x);
+    background-color: var(--chrome-bg-solid);
+    border-bottom: var(--chrome-border-width) solid var(--chrome-border);
+    transition: background-color var(--chrome-transition), border-color var(--chrome-transition);
+}
+
+.site-header.is-over-hero {
+    background-color: var(--chrome-bg-over-hero);
+    border-bottom-color: var(--chrome-border-over-hero);
+}
+
+/* 站名:压在画面左上角(Kali logo 那个位置) */
+.site-brand {
+    color: var(--chrome-text);
+    font-size: var(--chrome-font-size-brand);
+    text-decoration: none;
+    text-shadow: var(--chrome-text-shadow);
+    white-space: nowrap;
+}
+
+/*
+ * 导航项:把 bootstrap 标签页的外观(白底,四边框,下边线)全部去掉,只留文字.
+ * 选择器必须带上 .site-header 才压得住 bootstrap 的 `.nav-tabs .nav-link`:
+ * bootstrap 的 CSS 由 TS import 注入,排在 <link> 之后,同权重时它赢.
+ */
+.site-header .nav-tabs {
+    /* 站名在左,导航项与头像推到右边 */
+    margin-left: auto;
+    border-bottom: none;
+    /*
+     * 不折行:导航条是固定高度的,折行会溢出到首屏上(第二行压着画面).
+     * 窗口窄到放不下时横向滑动,而不是把行高撑破.
+     */
+    flex-wrap: nowrap;
+    overflow-x: auto;
+}
+
+.site-header .nav-tabs .nav-link {
+    border: none;
+    border-radius: 0;
+    background: none;
+    color: var(--chrome-text-muted);
+    font-size: var(--chrome-font-size-nav);
+    text-shadow: var(--chrome-text-shadow);
+    transition: color var(--chrome-transition);
+    /*
+     * 收窄 bootstrap 默认的 1rem 左右内边距,并禁止标签内部换行
+     * (换行会撑高导航条,同样会溢出到首屏上).
+     */
+    padding-right: var(--chrome-nav-padding-x);
+    padding-left: var(--chrome-nav-padding-x);
+    white-space: nowrap;
+}
+
+.site-header .nav-tabs .nav-link:hover,
+.site-header .nav-tabs .nav-link:focus {
+    color: var(--chrome-text);
+}
+
+.site-header .nav-tabs .nav-link.active {
+    /* 选中态只把字点亮,不换底色 -- 否则首屏上会多出一块白 */
+    border: none;
+    background: none;
+    color: var(--chrome-text);
 }
 
 main {
-    margin-top: var(--main-margin-top);
+    /*
+     * 导航条已改为固定定位,不再占位,所以顶部间距从这里挪到各个标签页
+     * (见下面的 .tab-pane):首屏要压到导航条下面,别的标签页则要让开它.
+     */
+    margin-top: 0;
     margin-left: auto;
     margin-right: auto;
     margin-bottom: 0px;
@@ -51,9 +201,14 @@ main {
     background-color: rgba(0, 0, 0, 0);
 }
 
-/*home主页卡片*/
-#home>div {
-    background-color: var(--color-black-transparent);
+/* 固定导航条会盖住内容:除首屏外,每个标签页顶部让出导航条的高度 */
+.tab-pane {
+    padding-top: var(--nav-height);
+}
+
+/* 首屏例外:它要压到导航条下面,所以不留顶部间距 */
+#home {
+    padding-top: 0;
 }
 
 /* 图标 */

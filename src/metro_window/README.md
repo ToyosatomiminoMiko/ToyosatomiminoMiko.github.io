@@ -15,7 +15,7 @@
 
 | | |
 | --- | --- |
-| 站点位置 | 站点首页 `index.html` 的**两个**空宿主:舞台(画布)`#metro-window` 在 HOME 标签页,控制台(设置面板)`#metro-params` 在 SETTING 标签页;挂载见 `src/main.ts`(已没有独立入口页) |
+| 站点位置 | 站点首页 `index.html` 的**三个**空宿主:舞台(画布)`#metro-window` 与风格按钮 `#metro-styles` 在 HOME 标签页的**首屏**(前者在 `.hero__stage` 里铺满整屏,后者在 `.hero__bottom` 里与 LED 时钟同排),其余设置面板 `#metro-params` 在 SETTING 标签页;挂载见 `src/main.ts`(已没有独立入口页) |
 | Rust 源码 | `src/metro_window/rust/`(crate `metro-window`,编译为 wasm32-unknown-unknown) |
 | 前端源码 | `src/metro_window/src/` |
 | 组件行为 | `src/metro_window/src/metro_window.ts`,导出 `mountMetroWindow(points: MetroMountPoints)` / `mountMetroWindowAtMountIds()` |
@@ -24,29 +24,32 @@
 ### 组件形态
 
 前端做成了"挂载函数"而不是页面入口:**宿主只提供空容器**,标记由组件生成;
-组件拆成**舞台**(画布)与**控制台**(设置面板)两块,各挂各的宿主:
+组件拆成**舞台**(画布),**风格按钮行**与**控制台**(其余设置面板)三块,各挂各的宿主:
 
 ```ts
 import { mountMetroWindowAtMountIds } from '@/metro_window/src/metro_window';
 
-mountMetroWindowAtMountIds();   // 找约定的两个挂载点(见 MOUNT_IDS),缺一个就报错
+mountMetroWindowAtMountIds();   // 找约定的三个挂载点(见 MOUNT_IDS),缺一个就报错
 ```
 
 ```ts
-// 或者自己给宿主:舞台必填,控制台可省略(省略则退回一个隐藏容器)
+// 或者自己给宿主:舞台必填,风格按钮与控制台都可省略
 import { mountMetroWindow } from '@/metro_window/src/metro_window';
 
-mountMetroWindow({ stage, panel });   // panel 不给:面板与状态区仍在,只是不显示
+// styles 不给 => 风格按钮留在控制台里;panel 不给 => 面板与状态区仍在,只是不显示
+mountMetroWindow({ stage, styles, panel });
 ```
 
-- **宿主只提供空容器**:站点里只有两个 `<div id="metro-window">` /
-  `<div id="metro-params">`;画布(以及可选的标题 / 副标题,见
+- **宿主只提供空容器**:站点里只有三个 `<div id="metro-window">` /
+  `<div id="metro-styles">` / `<div id="metro-params">`;画布(以及可选的标题 / 副标题,见
   `src/config.ts` 的 `STAGE_COPY_ENABLED`)由 `src/ui/stage_content.ts` 按
-  `src/config.ts` 的分辨率生成,设置面板(风格按钮 / 播放控制 / 滑块 / 状态区)由
-  `src/ui/settings.ts` 按同一份模型生成,插进**另一个**宿主.宿主页不出现任何
+  `src/config.ts` 的分辨率生成,风格按钮行与设置面板(播放控制 / 滑块 / 状态区)由
+  `src/ui/settings.ts` 按同一份模型生成,分别插进各自的宿主 --
+  风格按钮行**只建一份**(给 `styles` 宿主就挂首屏,不给就留在控制台里,
+  两个地方不会各出现一份).宿主页不出现任何
   车窗标记,加一个滑块只需要往 `SLIDER_GROUPS` 里加一条,改文案只动 `config.ts`.
 - **拆分的两条硬约束**:
-  - 样式作用域类 `.metro-window` 由挂载函数往**两个**宿主上都补 --
+  - 样式作用域类 `.metro-window` 由挂载函数往**每个**宿主上都补 --
     `metro_window.css` 的每条选择器都以它开头,面板换了宿主却没这个类,
     样式会**静默失效**(看着"没坏"但全乱);
   - 渲染可见性只看**舞台**:`IntersectionObserver` 观察的是画布所在容器,
@@ -58,8 +61,27 @@ mountMetroWindow({ stage, panel });   // panel 不给:面板与状态区仍在,�
   一处:最外层 `div.slider`,上层滑杆,下层"名称(左) + 数值(右)".
 - `metro_window.ts` 只做行为,`metro_window.css` 只做组件样式.
   `.metro-window` 类名由 `metro_window.ts` 挂上(宿主不用记这个约定),
-  组件只在容器内解析元素.舞台还带一个修饰类 `.metro-window--stage`
-  (重置面板的内边距与底色,让画布铺满宿主),面板宿主不加.
+  组件只在容器内解析元素.
+- **舞台修饰类 `.metro-window--stage`**(由挂载函数固定加在舞台宿主上,
+  面板宿主不加):它把舞台变成"铺满宿主的一层" -- `position: absolute; inset: 0`
+  加去掉面板的内边距与底色;**因此带这个类的舞台,其宿主必须是定位祖先**
+  (站点里是 `.hero__stage`).画布在这一层里用 `object-fit: cover` 铺满:
+
+  ```css
+  .metro-window--stage canvas { width:100%; height:100%; max-width:none;
+                                aspect-ratio:auto; object-fit:cover; }
+  ```
+
+  为什么是 `object-fit` 而不是自己算尺寸:后备缓冲仍是 **16:9**(1344×756,
+  Rust 侧的 `aspect` 也跟着它走),`cover` 让合成器把这张位图按"覆盖"缩放进
+  宿主盒子,超出的部分裁掉 -- 比例不变,所以**水珠仍然是正圆**,而且
+  **首屏铺满这件事还不需要 Rust 的 resize 路径**(那条路是后面为了 1:1 清晰度
+  才要加的:固定分辨率放大到 4K 宽会糊).
+  实测 Chromium 对 `<canvas>` 的 `object-fit` 是生效的(用"正方形画布画正圆,
+  显示盒子做成 4:1"验证过:`cover` 下仍是正圆,上下被裁,`none` 下按原始尺寸居中
+  而不是拉伸).若哪天遇到忽略 canvas `object-fit` 的浏览器,回退写法是
+  `width: max(100%, calc(100dvh * 16 / 9))` + 父层 `overflow: hidden` --
+  代价是画布比例要在站点样式里再写一遍.
 - 组件样式里**没有**页面级选择器:`body { margin: 0 }` 这类规则的宿主是站点,
   由站点的 `public/css/index.css` 负责;写进 `metro_window.css` 就等于让组件去改
   宿主页面的 body.原先独立页用的 `metro_index.css` 随入口页一起删掉了.
@@ -80,6 +102,59 @@ mountMetroWindow({ stage, panel });   // panel 不给:面板与状态区仍在,�
 - `IntersectionObserver` 盯容器(标签页切走时交集为空);
 - `visibilitychange` 盯整个文档(浏览器最小化/切到后台标签);
 - 两者都只影响"能不能跑",不会覆盖用户自己按下的暂停.
+
+## 后备缓冲尺寸(随首屏变化)
+
+首屏要铺满整个视口,而后备缓冲**比例恒为 16:9** -- 城市四层 / 污渍 / 雾气都是拿
+uv 直接铺满画布的(见 `shaders.wgsl` 的 `uvBG` / `fogUv` 等),画布比例一变整幅场景
+就被横向拉伸(21:9 上建筑变胖,竖屏上被压扁);水滴的 `aspect` 也依赖它.
+所以尺寸取"**覆盖宿主所需的 16:9**"再乘 dpr(见 `src/stage_size.ts`,纯函数,有单测):
+
+```text
+w = max(宿主宽, 宿主高 × 16/9) × dpr      ← 两边都至少铺满
+h = w / (16/9)
+```
+
+覆盖多出来的那一部分由 CSS 的 `object-fit: cover` 裁掉(见"组件形态"),
+所以**显示上仍是 1:1 物理像素**:`dpr` 不乘的话,高分屏等于让浏览器把位图放大
+dpr 倍,`shaders.wgsl` 里"边缘恒为约 2 个缓冲像素"的设计就白做了.
+
+触发与代价:
+
+- `ResizeObserver` 观察**舞台宿主**(它 absolute 铺满首屏),**防抖 150ms** --
+  拖动窗口会连续触发,而每次重建都要重新分配画布后备缓冲与折射偏移图;
+- dpr 变化单独用 `matchMedia('(resolution: Xdppx)')` 盯:换显示器时宿主尺寸不变,
+  `ResizeObserver` 不会触发;
+- **宿主不可见时(切走的标签页,量出来 0×0)直接跳过**:否则后备缓冲会被算成 1×1;
+- 顺序是"先改 `<canvas>` 的 `width`/`height`,再调 wasm 的 `resize`",
+  两件事在同一个任务里做完,中间没有帧被提交,不会出现 surface 配置与画布尺寸
+  对不上的那一帧.首次尺寸必须在 `startApp` **之前**算好 --
+  `startApp` 直接读画布当前尺寸建资源,于是不需要"建完再立刻重建一遍".
+
+Rust 侧的 `resize()`(见 `app.rs`)只重建两样 + 一样:
+
+| 重建 | 为什么 |
+| --- | --- |
+| `SurfaceConfiguration` 的宽高 | 必须等于画布的 `width`/`height` 属性,否则 `get_current_texture` 拿到的尺寸对不上 |
+| 折射偏移图(画布 1/8 分辨率) | 它直接由画布尺寸算出来 |
+| 两个绑定组 | 它们都持有折射偏移图的视图 |
+
+**刻意不重建管线**:管线与尺寸无关,走 `create_metro_pipelines` 会把着色器再编译
+一遍(几十毫秒),拖动窗口时一顿一顿的.为此 `pipelines.rs` 把绑定组的构造拆成了
+独立的 `create_bind_groups`,并把两个 `BindGroupLayout` 留在 `MetroPipelines` 里;
+`App` 也因此必须留着与尺寸无关的那 7 个材质纹理视图(重新绑定要用).
+
+像素总数上限(`config.ts` 的 `MAX_BACKING_PIXELS`,0 = 不限)已经埋好:
+要降代价时改成正数即可,它会按 `sqrt(上限 / 实际)` 等比缩小两个方向.
+
+## WebGPU 不可用时
+
+组件给舞台宿主加 `data-state="unavailable"`(`metro_window.css` 据此**藏掉画布**),
+并在首屏底部留一句短提示(`config.ts` 的 `STAGE_NOTE_UNAVAILABLE`).
+首屏露出来的就是站点自己的背景(见根 README 的"首屏与导航条")--
+不需要额外准备静帧图,也不会留一块"什么都不显示的黑框".
+**完整的四步排查说明仍然只进 SETTING 的状态区**:首屏是欢迎页,
+不该被一段开发向的排错文字占满.
 
 ## 架构
 
@@ -105,6 +180,8 @@ src/metro_window/
 ├── src/                 前端源码:配置 / 组件 / 行为 / 样式
 │   ├── config.ts        全部常量 + 标记与设置面板的声明式模型(文案/分辨率/滑块/风格/按钮)
 │   ├── config.test.ts   配置的单测(与 config.ts 同目录)
+│   ├── stage_size.ts    后备缓冲尺寸计算(纯函数:覆盖宿主的 16:9 × dpr)
+│   ├── stage_size.test.ts 上者的单测
 │   ├── metro_window.ts  挂载函数:长出标记/组装面板/交互/WebGPU 适配器检查/生命周期
 │   ├── ui/
 │   │   ├── dom.ts             h():声明式 DOM 构造原语(描述 -> 元素)
@@ -381,6 +458,11 @@ cargo run --package metro-window --example preview        # 用真实城市纹�
 | 样式作用域类由挂载函数往**两个**宿主上都补;新增舞台修饰类 `.metro-window--stage` 与隐藏容器 `.metro-panel-sink` | `metro_window.css` 的选择器**全部**以 `.metro-window` 开头:面板换了宿主却没这个类就是"样式静默失效"(看着没坏但全乱);省略面板宿主时退回隐藏容器,面板 / 状态区 / 事件绑定一个都不少 |
 | `IntersectionObserver` 明确只观察**舞台** | 面板在别的标签页里,它的可见性不代表画面的可见性,不能拿来当暂停依据 |
 | Rust 侧一行未改 | 面板只是换了 DOM 宿主;`startApp(canvas, status)` 要的 `status` 元素在任何宿主里都成立,`setStyle` / `setParam` / `setRunning` / `reset` 仍作用于同一个单例 |
+| 风格按钮行从设置面板里拆出来(`createStyleRow()` + `createSettingsPanel(styleRow)`),新增第三个挂载点 `#metro-styles` | 切风格属于"看",和 LED 时钟一起放在首屏底部最顺手;而"参数"属于"调",留在 SETTING.行仍然**只建一份**,由挂载函数决定放哪(给了 `styles` 宿主就挂首屏,没给就留在控制台里),所以两个地方不会各出现一份 |
+| 新增"裸宿主"修饰类 `.metro-window--bare`,`.metro-window--stage` 从此只负责"铺满父层" | 首屏里的舞台与风格按钮宿主都不要车窗面板的内边距与底色;两件事拆成两条规则,比一条规则兼两职好读 |
+| 后备缓冲从"固定 1344×756"改成"随宿主算的 16:9 × dpr",并给 Rust 加 `resize()` 导出 | 首屏要铺满整屏,还要 1:1 清晰;比例必须锁死 16:9(场景按 uv 铺满画布),所以算的是"覆盖宿主所需的 16:9"而不是宿主本身的形状.`pipelines.rs` 为此把绑定组构造拆成 `create_bind_groups`,`app.rs` 的 `resize` 只重建 surface 配置 / 折射偏移图 / 绑定组,**不重建管线**(重建会重新编译着色器) |
+| 新增 `data-state="unavailable"` 回退 | WebGPU 不可用时藏掉画布,露出站点背景并留一句短提示;首屏不再出现"什么都不显示的黑框",完整排查步骤仍只进 SETTING |
+| 首屏那两个修饰类的选择器改成**把类名写两遍**(`.metro-window.metro-window--stage`) | 它们与基础规则 `.metro-window canvas` 的特异性打平(都是 0,1,1),而基础规则在后面 -- 结果画布被压回 `max-width: 1600px` + `aspect-ratio: 16/9` + 圆角 + 边框,右边与下边露出宿主背景.多写一个类把特异性抬到 0,2,x,顺序就再也影响不到它 |
 
 ### 归档状态与遗留
 

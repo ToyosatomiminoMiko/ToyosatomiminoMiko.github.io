@@ -21,10 +21,11 @@ $there$ $is$ $nothing$ $to$ $do.$
 
 ## 地铁车窗
 
-Rust + WASM + WebGPU 实时渲染的地铁车窗玻璃效果,拆成"舞台"与"控制台"两块:
-画布挂在站点首页的空宿主 `#metro-window` 上,整套设置面板挂在 SETTING 标签页的
-空宿主 `#metro-params` 上(两个挂载点 id 见 `src/metro_window/src/config.ts`
-的 `MOUNT_IDS`;挂载见 `src/main.ts`,源码在 `src/metro_window/`).
+Rust + WASM + WebGPU 实时渲染的地铁车窗玻璃效果,拆成"舞台"与"控制台"两块,
+站点给三个空宿主:画布挂 `#metro-window`(HOME 首屏,铺满整屏),三颗风格按钮挂
+`#metro-styles`(首屏底部,与 LED 时钟同排),其余设置面板挂 `#metro-params`
+(SETTING 标签页).三个挂载点 id 见 `src/metro_window/src/config.ts` 的
+`MOUNT_IDS`;挂载见 `src/main.ts`,源码在 `src/metro_window/`.
 搬入前它是独立仓库
 [metro_window](https://github.com/ToyosatomiminoMiko/metro_window)(上游已归档).
 
@@ -32,6 +33,41 @@ Rust + WASM + WebGPU 实时渲染的地铁车窗玻璃效果,拆成"舞台"与"�
 (作者同一人,子目录不再单独保留一份许可).
 
 源码,架构与迁移记录见 [`src/metro_window/README.md`](src/metro_window/README.md).
+
+## 首屏与导航条
+
+HOME 标签页的最上面是一块**首屏**(`index.html` 的 `.hero`):视口在页面顶部时,
+地铁车窗的画布铺满整个屏幕.它是**首屏**,不是**背景** -- 全站背景仍然是
+`body` 上的 `--bg-image-active`(SETTING 里那两张 GIF),首屏只是盖在它上面的区块.
+
+由此带来两条固定结构,改首页时别绕开:
+
+- **导航条脱离文档流**(`header.site-header` 是 `position: fixed`).它要是还占位,
+  首屏就只能从它下沿开始,顶部那一条盖不住.代价是它会压在内容上,所以除首屏外
+  每个标签页自己用 `padding-top` 让开(见 `public/css/index.css` 的 `.tab-pane`).
+- **导航条在首屏上是"隐形"的**:没有底色,没有边框,没有磨砂,只有站名与导航
+  文字压在画面上.可读性靠两样东西 -- 首屏自己顶部那条渐变压暗(`.hero__scrim`,
+  属于画面,不属于导航条),以及文字投影.滚过首屏或切到别的标签页时它变实底,
+  切换逻辑在 `src/common/header_state.ts`(用 `IntersectionObserver` 而不是
+  `scroll` 事件;`rootMargin` 从 CSS 令牌 `--nav-height` 读,不在 JS 里再写一遍).
+- **首屏满宽是"逃逸"出来的**:`main` 只有 90% 宽,`.hero` 用
+  `margin-left/right: calc(50% - 50vw)` 外扩到视口两侧,所以 `body` 上有
+  `overflow-x: hidden`(`100vw` 含滚动条宽度,必然溢出一点).
+- 画布怎么"覆盖"整屏由组件负责:挂载函数给舞台宿主加
+  `.metro-window--bare`(去掉面板的内边距与底色)与 `.metro-window--stage`
+  (absolute 铺满父层),画布再用 `object-fit: cover` 缩放进这个盒子.
+  注意这两条修饰类的选择器都把类名写了两遍(`.metro-window.metro-window--stage`):
+  要压过后面那条 `.metro-window canvas` 的基础规则,靠的就是多出来的那点特异性.
+- **后备缓冲跟着视口走,但比例恒为 16:9**:城市层是按 uv 直接铺满画布的,
+  画布比例一变整幅场景就被拉伸,所以尺寸取"覆盖宿主所需的 16:9"(见
+  `src/metro_window/src/stage_size.ts`,有单测)再乘 dpr -- 覆盖多出来的部分
+  由 CSS 裁掉,显示上仍是 1:1 物理像素.尺寸变化由 `ResizeObserver` 观察宿主
+  (防抖 150ms),dpr 变化单独用 `matchMedia` 盯(换显示器时宿主尺寸不变).
+  Rust 侧的 `resize()` 只重建 surface 配置,折射偏移图与两个绑定组,
+  **不重建管线**(重建管线会连带重新编译着色器,拖窗口会卡).
+- **WebGPU 不可用时不留黑框**:组件给舞台加 `data-state="unavailable"`,
+  样式藏掉画布,首屏露出的就是本站背景(GIF),并留一句短提示;
+  完整排查步骤仍然只进 SETTING 的状态区.
 
 ## GraphCalc
 
@@ -70,11 +106,11 @@ Rust + WASM + WebGPU 实时渲染的地铁车窗玻璃效果,拆成"舞台"与"�
 
 | 作用域 | 配置文件 | 放什么 |
 | --- | --- | --- |
-| 主站样式 | `public/css/tokens.css` | 站点设计令牌(`:root`):字体栈,调色板,尺寸,圆角,间距,`z-index`,过渡 |
-| 主站脚本 | `src/clock/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,OLED 画板尺寸/通道/文案,红黑树布局与配色,IEEE 754 精度格式与掩码,站点级共用值 |
+| 主站样式 | `public/css/tokens.css` | 站点设计令牌(`:root`):字体栈,调色板,尺寸,圆角,间距,`z-index`,过渡;首屏(`--hero-*`)与固定导航条(`--chrome-*`) |
+| 主站脚本 | `src/clock/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,OLED 画板尺寸/通道/文案,红黑树布局与配色,IEEE 754 精度格式与掩码,站点级共用值(含首屏 id / 导航条选择器与 `is-over-hero` 类名 / `--nav-height` 令牌名) |
 | 4xx 页面样式 | `src/4xx_page/418/418_tokens.css`,`src/4xx_page/451/451_tokens.css`;`404/404.css` 与 `shared/icon.css` 顶部的 `:root` 块 | 各彩蛋页的设计令牌(颜色 / 几何 / 阴影 / 时长 / 字体) |
 | 4xx 页面脚本 | `src/4xx_page/418/teapot/config.ts`,`src/4xx_page/451/boot.config.ts`,`src/4xx_page/451/ember/*.config.ts` | 茶壶交互,启动开关,GPU 计时 / 统计 / 资源 / 能力 / 性能面板参数 |
-| 地铁车窗前端 | `src/metro_window/src/config.ts`,`src/metro_window/src/ui/`,`src/metro_window/src/tokens.css` | DOM id / class,`data-*` 键名,`setParam` 参数名映射,车窗标记与设置面板的声明式模型(标题/副标题/画布分辨率/滑块分组 / 风格 / 按钮 / 文案);声明式 DOM 组件(`h()` + 车窗标记 + 设置面板);组件设计令牌 |
+| 地铁车窗前端 | `src/metro_window/src/config.ts`,`src/metro_window/src/stage_size.ts`,`src/metro_window/src/ui/`,`src/metro_window/src/tokens.css` | DOM id / class / `data-*` 键名,`setParam` 参数名映射,车窗标记与设置面板的声明式模型(画布分辨率/滑块分组 / 风格 / 按钮 / 文案),后备缓冲尺寸与防抖 / dpr 上限;声明式 DOM 组件(`h()` + 舞台标记 + 风格按钮行 + 设置面板);组件设计令牌 |
 | 地铁车窗渲染 | `src/metro_window/rust/src/droplet_params.rs`,`app_params.rs`,`render_params.rs`,`random_params.rs`,`texture_params.rs` | 水滴生成 / 物理 / 折射 / 高光,主循环与资源路径,管线与绑定槽位,白噪声哈希,程序化贴图生成参数 |
 | 构建 | `vite.config.ts` | 多页入口,4xx 产物路径回移前缀 |
 
@@ -102,9 +138,10 @@ Rust + WASM + WebGPU 实时渲染的地铁车窗玻璃效果,拆成"舞台"与"�
 - **设置面板不手写 HTML**:结构与文案由 `src/metro_window/src/config.ts` 的
   声明式模型描述,由 `src/metro_window/src/ui/` 的组件渲染成元素并交回引用;
   加/改滑块只动配置,
-  宿主页(`index.html`)里只有两个空容器(`#metro-window` 舞台 /
-  `#metro-params` 控制台),不要回去改它们.面板放在哪个标签页由挂载点决定,
-  样式作用域类由挂载函数往两个宿主上补,组件本身不关心位置.
+  宿主页(`index.html`)里只有三个空容器(`#metro-window` 舞台 /
+  `#metro-styles` 风格按钮 / `#metro-params` 控制台),不要回去改它们.
+  面板放在哪个标签页由挂载点决定,样式作用域类由挂载函数往每个宿主上补,
+  组件本身不关心位置.
 - 等价性回归网:`cargo test` 与 `vitest` 覆盖参数布局与公式;
   程序化贴图还带 PPM 可视化测试,输出到 `src/metro_window/rust/test_output/`(已 gitignore).
 

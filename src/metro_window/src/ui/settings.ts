@@ -51,11 +51,20 @@ export interface SliderControl {
     readonly number: HTMLInputElement;
 }
 
+/**
+ * 风格按钮行:三颗 `data-style` 按钮 + 承载它们的 `<div class="style-row">`.
+ * 它**不**由面板独占 -- 站点把风格按钮放在首屏底部(与 LED 时钟同排)时,
+ * 面板里就不该再出现第二份,所以这里把它拆成独立组件,由挂载函数决定放哪.
+ */
+export interface StyleRow {
+    readonly root: HTMLDivElement;
+    readonly buttons: readonly HTMLButtonElement[];
+}
+
 /** 整块设置面板,以及行为代码要绑事件的元素引用 */
 export interface SettingsPanel {
     readonly root: HTMLFieldSetElement;
     readonly status: HTMLSpanElement;
-    readonly styleButtons: readonly HTMLButtonElement[];
     readonly startButton: HTMLButtonElement;
     readonly pauseButton: HTMLButtonElement;
     readonly resetButton: HTMLButtonElement;
@@ -105,8 +114,8 @@ function createSliderGroup(group: SliderGroupSpec): { element: HTMLDetailsElemen
 }
 
 /** 三颗风格按钮;当前风格(DEFAULT_STYLE_INDEX)初始即高亮 */
-function createStyleButtons(): HTMLButtonElement[] {
-    return STYLE_PRESETS.map((preset) => {
+export function createStyleRow(): StyleRow {
+    const buttons = STYLE_PRESETS.map((preset) => {
         const active = preset.index === DEFAULT_STYLE_INDEX;
         return h('button', {
             class: active ? `${STYLE_BUTTON_CLASS} ${STYLE_BUTTON_ACTIVE_CLASS}` : STYLE_BUTTON_CLASS,
@@ -114,6 +123,7 @@ function createStyleButtons(): HTMLButtonElement[] {
             dataset: { [STYLE_DATA_KEY]: preset.index },
         });
     });
+    return { root: h('div', { class: 'style-row' }, buttons), buttons };
 }
 
 /** 播放 / 暂停 / 重置;初始禁用状态由配置决定 */
@@ -131,7 +141,7 @@ function createTransportButtons(): Record<TransportAction, HTMLButtonElement> {
  *
  *     <fieldset class="sliders">         <- root,初始 disabled
  *       <legend>🎚 实时参数</legend>
- *       <div class="controls">           <- 风格按钮 + .spacer + 播放控制
+ *       <div class="controls">           <- [风格按钮行?] + .spacer + 播放控制
  *       <details class="slider-group">   <- 每个分组一个(来自 SLIDER_GROUPS)
  *       <div class="gpu_info">           <- 状态 span + 图层说明
  *     </fieldset>
@@ -139,18 +149,20 @@ function createTransportButtons(): Record<TransportAction, HTMLButtonElement> {
  * 所有内容都来自 config.ts 的声明式模型,本函数不写死任何文案或数值;
  * 返回的元素引用供 metro_window.ts 绑事件与切换状态,所以调用方无需再查 DOM.
  * 初始 disabled:wasm 与 WebGPU 就绪前不可操作,挂载流程完成后打开.
+ *
+ * `styleRow` 是**传进来**的,不在这里新建:风格按钮行可能被挂到首屏底部
+ * (切风格属于"看",与时钟同排更顺手),那时面板里就不该再多出第二份.
+ * 传 null 表示风格按钮行挂在别处 -- 此时控制条只剩 .spacer 与播放控制.
  */
-export function createSettingsPanel(): SettingsPanel {
+export function createSettingsPanel(styleRow: StyleRow | null): SettingsPanel {
     // 三个滑块分组,顺序即 config.ts 里的声明顺序(各自带已建好的滑块控件).
     const groups = SLIDER_GROUPS.map(createSliderGroup);
-    // 风格按钮与播放控制分开建:前者按 STYLE_PRESETS,后者按 TRANSPORT_BUTTONS.
-    const styleButtons = createStyleButtons();
     const transport = createTransportButtons();
 
-    // .spacer 是 flex:1 的空 span:把后面的播放/暂停/重置推到右边,与风格按钮分开.
+    // .spacer 是 flex:1 的空 span:把后面的播放/暂停/重置推到右边.
     // 三颗播放按钮的顺序在这里显式写出,和 TRANSPORT_BUTTONS 的声明顺序保持一致.
     const controls = h('div', { class: 'controls' }, [
-        ...styleButtons,
+        ...(styleRow ? [styleRow.root] : []),
         h('span', { class: 'spacer' }),
         transport.start,
         transport.pause,
@@ -184,7 +196,6 @@ export function createSettingsPanel(): SettingsPanel {
     return {
         root,
         status,
-        styleButtons,
         startButton: transport.start,
         pauseButton: transport.pause,
         resetButton: transport.reset,

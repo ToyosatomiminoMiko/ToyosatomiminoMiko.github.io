@@ -21,6 +21,18 @@ pub struct MetroPipelines {
     pub refraction_pipeline: wgpu::ComputePipeline,
     pub render_bind_group: wgpu::BindGroup,
     pub compute_bind_group: wgpu::BindGroup,
+    /// 两个绑定组布局.留着是为了**画布尺寸变化时只重建绑定组**:
+    /// 管线与尺寸无关,重建管线会连带重新编译着色器(几十毫秒的卡顿),
+    /// 而绑定组持有折射偏移图(按画布尺寸建)的视图,尺寸一变就必须换一份.
+    /// 见 `create_bind_groups` 与 `app.rs` 的 `resize`.
+    pub compute_bgl: wgpu::BindGroupLayout,
+    pub render_bgl: wgpu::BindGroupLayout,
+}
+
+/// 只由绑定组持有的那部分资源(尺寸变化时重建的就是它).
+pub struct MetroBindGroups {
+    pub render_bind_group: wgpu::BindGroup,
+    pub compute_bind_group: wgpu::BindGroup,
 }
 
 /// 完整 WGSL 源码:Rust 生成的 struct DropletParams 声明 + 手写着色器.
@@ -185,63 +197,23 @@ pub fn create_metro_pipelines(
         push_constant_ranges: &[],
     });
 
-    let compute_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("metro-compute-bg"),
-        layout: &compute_bgl,
-        entries: &[
-            wgpu::BindGroupEntry {
-                binding: BINDING_UNIFORMS,
-                resource: uniform_buffer.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: BINDING_DROPLETS,
-                resource: droplet_buffer.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: BINDING_REFRACTION_IMAGE,
-                resource: wgpu::BindingResource::TextureView(refraction_view),
-            },
-            wgpu::BindGroupEntry {
-                binding: BINDING_DROPLET_PARAMS,
-                resource: droplet_params_buffer.as_entire_binding(),
-            },
-        ],
-    });
-
-    let mut render_bind_entries: Vec<wgpu::BindGroupEntry<'_>> =
-        Vec::with_capacity(BIND_ENTRY_CAPACITY);
-    render_bind_entries.push(wgpu::BindGroupEntry {
-        binding: BINDING_UNIFORMS,
-        resource: uniform_buffer.as_entire_binding(),
-    });
-    render_bind_entries.push(wgpu::BindGroupEntry {
-        binding: BINDING_DROPLET_PARAMS,
-        resource: droplet_params_buffer.as_entire_binding(),
-    });
-    render_bind_entries.push(wgpu::BindGroupEntry {
-        binding: BINDING_SAMPLER,
-        resource: wgpu::BindingResource::Sampler(sampler),
-    });
-    for (i, view) in texture_views.iter().enumerate() {
-        render_bind_entries.push(wgpu::BindGroupEntry {
-            binding: BINDING_TEXTURE_BASE + i as u32,
-            resource: wgpu::BindingResource::TextureView(view),
-        });
-    }
-    render_bind_entries.push(wgpu::BindGroupEntry {
-        binding: BINDING_REFRACTION_VIEW,
-        resource: wgpu::BindingResource::TextureView(refraction_view),
-    });
-    render_bind_entries.push(wgpu::BindGroupEntry {
-        binding: BINDING_REFRACTION_SAMPLER,
-        resource: wgpu::BindingResource::Sampler(refraction_sampler),
-    });
-    let render_bind_group: wgpu::BindGroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("metro-render-bg"),
-        layout: &render_bgl,
-        entries: &render_bind_entries,
-    });
-
+    let MetroBindGroups {
+        render_bind_group,
+        compute_bind_group,
+    } = create_bind_groups(
+        device,
+        uniform_buffer,
+        droplet_params_buffer,
+        droplet_buffer,
+        MetroTextures {
+            refraction_view,
+            refraction_sampler,
+            sampler,
+            texture_views,
+        },
+        &compute_bgl,
+        &render_bgl,
+    );
     let render_pipeline: wgpu::RenderPipeline =
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("metro-render-pipeline"),
@@ -315,6 +287,97 @@ pub fn create_metro_pipelines(
         render_pipeline,
         physics_pipeline,
         refraction_pipeline,
+        render_bind_group,
+        compute_bind_group,
+        compute_bgl,
+        render_bgl,
+    }
+}
+
+/// 只建两个绑定组(管线和着色器都不动).
+///
+/// 为什么单独拆出来:画布尺寸一变,按尺寸建的**折射偏移图**就必须换,
+/// 而两个绑定组都持有它的视图,于是绑定组也得跟着重建.管线与尺寸无关,
+/// 走 `create_metro_pipelines` 会把着色器再编译一遍,拖动窗口时会一顿一顿的.
+///
+/// 布局由调用方传进来(而不是在这里现建):绑定组布局必须与管线的布局
+/// 是**同一份**(wgpu 校验的是布局的等价性,但复用同一份更省,也更不容易写歪).
+pub fn create_bind_groups(
+    device: &wgpu::Device,
+    uniform_buffer: &wgpu::Buffer,
+    droplet_params_buffer: &wgpu::Buffer,
+    droplet_buffer: &wgpu::Buffer,
+    textures: MetroTextures<'_>,
+    compute_bgl: &wgpu::BindGroupLayout,
+    render_bgl: &wgpu::BindGroupLayout,
+) -> MetroBindGroups {
+    // 按值解构:字段全是对纹理/采样器的引用(本身就是 Copy),拿走一份不影响调用方.
+    let MetroTextures {
+        refraction_view,
+        refraction_sampler,
+        sampler,
+        texture_views,
+    } = textures;
+
+    let compute_bind_group: wgpu::BindGroup =
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("metro-compute-bg"),
+            layout: compute_bgl,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: BINDING_UNIFORMS,
+                    resource: uniform_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: BINDING_DROPLETS,
+                    resource: droplet_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: BINDING_REFRACTION_IMAGE,
+                    resource: wgpu::BindingResource::TextureView(refraction_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: BINDING_DROPLET_PARAMS,
+                    resource: droplet_params_buffer.as_entire_binding(),
+                },
+            ],
+        });
+
+    let mut render_bind_entries: Vec<wgpu::BindGroupEntry<'_>> =
+        Vec::with_capacity(BIND_ENTRY_CAPACITY);
+    render_bind_entries.push(wgpu::BindGroupEntry {
+        binding: BINDING_UNIFORMS,
+        resource: uniform_buffer.as_entire_binding(),
+    });
+    render_bind_entries.push(wgpu::BindGroupEntry {
+        binding: BINDING_DROPLET_PARAMS,
+        resource: droplet_params_buffer.as_entire_binding(),
+    });
+    render_bind_entries.push(wgpu::BindGroupEntry {
+        binding: BINDING_SAMPLER,
+        resource: wgpu::BindingResource::Sampler(sampler),
+    });
+    for (i, view) in texture_views.iter().enumerate() {
+        render_bind_entries.push(wgpu::BindGroupEntry {
+            binding: BINDING_TEXTURE_BASE + i as u32,
+            resource: wgpu::BindingResource::TextureView(view),
+        });
+    }
+    render_bind_entries.push(wgpu::BindGroupEntry {
+        binding: BINDING_REFRACTION_VIEW,
+        resource: wgpu::BindingResource::TextureView(refraction_view),
+    });
+    render_bind_entries.push(wgpu::BindGroupEntry {
+        binding: BINDING_REFRACTION_SAMPLER,
+        resource: wgpu::BindingResource::Sampler(refraction_sampler),
+    });
+    let render_bind_group: wgpu::BindGroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("metro-render-bg"),
+        layout: render_bgl,
+        entries: &render_bind_entries,
+    });
+
+    MetroBindGroups {
         render_bind_group,
         compute_bind_group,
     }

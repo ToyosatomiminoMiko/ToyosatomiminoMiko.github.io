@@ -69,6 +69,20 @@ pub fn set_running(running: bool) {
     });
 }
 
+/// 画布后备缓冲尺寸变化.
+///
+/// 站点先改 `<canvas>` 的 `width`/`height` 属性,再调用这里 --
+/// 前端按"覆盖宿主所需的 16:9 尺寸"算宽高(见 `src/stage_size.ts`),
+/// 所以画布比例恒为 16:9,Rust 侧的 aspect 与美术素材始终对得上.
+/// `App` 还没建好时是空操作(`with_app` 的约定):那种情况下
+/// `startApp` 会直接读画布的当前尺寸建资源,不需要额外补一次.
+#[wasm_bindgen(js_name = resize)]
+pub fn resize(width: u32, height: u32) {
+    with_app(|app| {
+        app.resize(width, height);
+    });
+}
+
 #[wasm_bindgen(js_name = setParam)]
 pub fn set_param(name: &str, value: f32) {
     with_app(|app| {

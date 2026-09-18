@@ -18,8 +18,15 @@ ToyosatomiminoMiko
 </head>
 
 <body>
-    <header>
-        <ul class="nav nav-tabs bg-light">
+    <!--
+    导航条:固定在视口顶部,脱离文档流,这样首屏(hero)能盖到 y=0 并铺满整屏.
+    默认是实底;压在首屏画面上时由 src/common/header_state.ts 加上 .is-over-hero
+    变成完全透明 -- 只剩站名与导航文字浮在画面上,也就是"隐形导航条".
+    样式见 public/css/index.css 的 .site-header.
+    -->
+    <header class="site-header">
+        <a class="site-brand" data-bs-toggle="tab" href="#home">ToyosatomiminoMiko</a>
+        <ul class="nav nav-tabs">
             <li class="nav-item">
                 <a class="nav-link active" data-bs-toggle="tab" href="#home">HOME</a>
             </li>
@@ -47,24 +54,38 @@ ToyosatomiminoMiko
         <div class="tab-content">
             <!-- HOME -->
             <div class="tab-pane fade show active" id="home">
-                <div class="card">
-                    <div class="card-header">
+                <!--
+                首屏:视口在页面顶部时,地铁车窗的画布铺满整个屏幕.
+                它是**首屏**而不是背景 -- 全站背景仍然是 body 上的
+                --bg-image-active(SETTING 里那两张 GIF),首屏只是盖在它上面的区块.
+                中间暂不放文案;底部是 LED 时钟与风格按钮.
+                -->
+                <section class="hero" id="hero">
+                    <div class="hero__stage">
+                        <!--
+                        地铁车窗的**舞台**(Rust + WASM + WebGPU).
+                        宿主只提供这个空容器 -- 画布(以及可选的标题/副标题)由
+                        metro_window 组件生成,并给宿主加 .metro-window--stage
+                        变成铺满首屏的一层;其余设置面板在 SETTING 的 #metro-params 里.
+                        三个挂载点 id 见 src/metro_window/src/config.ts 的 MOUNT_IDS.
+                        -->
+                        <div id="metro-window"></div>
+                    </div>
+                    <!-- 顶部渐变压暗:让导航文字压在画面上时可读(属于首屏,不属于导航条) -->
+                    <div class="hero__scrim"></div>
+                    <div class="hero__bottom">
                         <!-- LED 时钟 -->
                         <div id="app_led_clock">
                             <canvas id="time_canvas" height="8" width="65"></canvas>
                         </div>
-                    </div>
-                    <div class="card-body">
                         <!--
-                        内容主体:地铁车窗的**舞台**(Rust + WASM + WebGPU).
-                        宿主只提供这个空容器 -- 画布由 metro_window 组件生成;
-                        标题 / 副标题当前不生成(config.ts 的 STAGE_COPY_ENABLED = false),
-                        整套设置面板在 SETTING 标签页的 #metro-params 里.
-                        两个挂载点 id 见 src/metro_window/src/config.ts 的 MOUNT_IDS.
+                        风格按钮:空宿主,三颗风格(泡沫时期东京电车 / 赛博朋克 /
+                        上海磁悬浮)由 metro_window 组件生成.切风格属于"看",
+                        和时钟同排最顺手;滑块与 WebGPU 状态仍在 SETTING 里.
                         -->
-                        <div id="metro-window"></div>
+                        <div id="metro-styles"></div>
                     </div>
-                </div>
+                </section>
             </div>
             <!-- OLED_canvas -->
             <div class="tab-pane fade" id="oled">

@@ -26,9 +26,17 @@
 export const WINDOW_CLASS = 'metro-window';
 
 /**
- * 舞台宿主的修饰类:由挂载函数固定加在**舞台**宿主上(面板宿主不加).
- * 它把车窗面板的内边距与底色重置掉,让画布自己铺满宿主 -- 首屏(hero)需要,
- * 卡片内嵌时也无害(只是少一层内边距).画布的显示尺寸仍由 metro_window.css 决定.
+ * "裸宿主"修饰类:去掉车窗面板的内边距与底色,只留组件内容.
+ * 首屏(hero)里的两个宿主都用它 -- 舞台要自己铺满整屏,风格按钮要跟时钟并排,
+ * 都不是"卡片里嵌一个车窗面板"那种形态,多一层内边距就是多一层看不出源头的留白.
+ */
+export const BARE_MODIFIER_CLASS = 'metro-window--bare';
+
+/**
+ * 舞台宿主的修饰类:在"裸宿主"的基础上再**铺满父层**(absolute + inset: 0).
+ * 画布随后用 object-fit: cover 覆盖这一层 -- 首屏要的就是这个.
+ * 因此带这个类的舞台,其宿主必须是**定位祖先**(站点的 .hero__stage 是).
+ * 画布的显示尺寸与裁切都由 metro_window.css 里这条修饰类的规则决定.
  */
 export const STAGE_MODIFIER_CLASS = 'metro-window--stage';
 
@@ -42,15 +50,19 @@ export const PANEL_SINK_CLASS = 'metro-panel-sink';
 /**
  * 宿主必须提供的空容器 id(组件按 id 找,找不到就报错).
  *
- * 组件拆成"舞台"与"控制台"两块以后,一个页面里有两个宿主:
- *   - stage:WebGPU 画布,站点放在首屏;
- *   - panel:整套设置面板,站点放在 SETTING 标签页.
+ * 组件拆成"舞台"与"控制台"两块以后,站点给了三个宿主:
+ *   - stage:WebGPU 画布,放在首屏(要铺满整屏);
+ *   - styles:三颗风格按钮,放在首屏底部(与 LED 时钟同排) -- 切风格是"看"的一部分,
+ *     不该跟滑块一起埋在 SETTING 里;
+ *   - panel:其余整套设置面板(播放控制 / 滑块 / 状态区),放在 SETTING 标签页.
  * 与下面的 ELEMENT_IDS 区别要分清:这里是**宿主必须提供**的,
  * ELEMENT_IDS 是**组件自己生成**的.
  */
 export const MOUNT_IDS = {
     /** 舞台(画布)空宿主 */
     stage: 'metro-window',
+    /** 风格按钮空宿主(首屏底部) */
+    styles: 'metro-styles',
     /** 控制台(设置面板)空宿主 */
     panel: 'metro-params',
 } as const;
@@ -112,6 +124,64 @@ export const CANVAS_WIDTH = 1344;
 
 /** 画布的渲染分辨率(高度,像素),与 CANVAS_WIDTH 同为 16:9 */
 export const CANVAS_HEIGHT = 756;
+
+// ---------- 后备缓冲尺寸(首屏舞台随视口变化) ----------
+
+/*
+ * 画布的后备缓冲尺寸不再是固定值:站点首屏要铺满整个视口,而画布宽高比必须
+ * **恒为 16:9** -- 城市四层是按 uv 直接铺满画布的(见 shaders.wgsl),比例一变
+ * 整幅场景就被拉伸;水滴的 aspect 也依赖它.所以后备缓冲按"覆盖宿主所需的
+ * 16:9 尺寸"算(见 stage_size.ts),覆盖多出来的部分交给 CSS 的 object-fit: cover.
+ */
+
+/**
+ * 设备像素比上限.后备缓冲像素数 = 视口 CSS 尺寸 × dpr × (覆盖倍数),
+ * dpr 再高只是徒增 GPU 负载(4K 屏 + dpr2 = 8K 宽,肉眼分辨不出).
+ */
+export const MAX_DEVICE_PIXEL_RATIO = 2;
+
+/**
+ * 后备缓冲的像素总数上限,0 = 不设上限.
+ * 先按最佳质量跑(1:1 物理像素),要降代价时把这里改成正数即可:
+ * 超过上限会按 sqrt(上限 / 实际) 等比缩小两个方向,画面略软但帧率稳住.
+ */
+export const MAX_BACKING_PIXELS = 0;
+
+/**
+ * 视口尺寸变化后等多久才真正重建后备缓冲(毫秒).
+ * 拖动窗口会连续触发 ResizeObserver,而每次重建都要重新分配画布后备缓冲
+ * 与折射偏移图(以及 Rust 侧的 surface),不防抖就是每帧一次重分配.
+ */
+export const RESIZE_DEBOUNCE_MS = 150;
+
+/** 设备像素比下限:有些环境会报出小于 1 的值,按 1 处理(小于 1 等于故意糊画面) */
+export const MIN_DEVICE_PIXEL_RATIO = 1;
+
+/** 后备缓冲边长的下限(像素):0 会让 GPU 侧的 surface 配置非法 */
+export const MIN_BACKING_DIMENSION = 1;
+
+// ---------- 首屏"不可用"状态 ----------
+
+/**
+ * 舞台宿主上 `data-*` 的键名:值为 STAGE_STATE_UNAVAILABLE 时,
+ * 样式(metro_window.css)会藏掉画布,放出那句短提示.
+ * 与 CSS 的属性选择器是跨语言契约,改这里必须同步改样式.
+ */
+export const STAGE_STATE_DATA_KEY = 'state';
+
+/** 舞台状态值:WebGPU 这条路走不通(没有 API / 没有适配器 / 只有软件渲染 / 初始化失败) */
+export const STAGE_STATE_UNAVAILABLE = 'unavailable';
+
+/** 不可用时组件加到舞台上的短提示的类名 */
+export const STAGE_NOTE_CLASS = 'stage-note';
+
+/**
+ * 不可用时首屏上那句短提示.
+ * 长帮助(四步启用步骤)仍然只进 SETTING 标签页的状态区 -- 首屏是欢迎页,
+ * 不该被一段开发向的排错说明占满.
+ */
+export const STAGE_NOTE_UNAVAILABLE =
+    '实时车窗需要 WebGPU,当前浏览器/设备不可用;完整排查步骤见 SETTING 标签页.';
 
 /** 风格按钮的类名(三颗 data-style 按钮共用) */
 export const STYLE_BUTTON_CLASS = 'style-btn';

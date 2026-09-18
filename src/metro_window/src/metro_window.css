@@ -27,18 +27,74 @@
     color: var(--metro-color-text);
 }
 
-/* 舞台修饰类:由挂载函数固定加在舞台宿主上(面板宿主不加).
-   与默认(卡片内嵌)的区别只在"不要车窗面板的内边距与底色",让画布自己铺满
-   宿主;画布的显示尺寸仍由下面 `.metro-window canvas` 那条规则决定. */
-.metro-window--stage {
+/* "裸宿主"修饰类:去掉车窗面板的内边距与底色,只留组件内容.
+   首屏里的两个宿主都带它 -- 舞台要自己铺满整屏,风格按钮要跟 LED 时钟并排,
+   都不是"卡片里嵌一个车窗面板"那种形态,多一层内边距就是多一层看不出源头的留白.
+
+   选择器写成 `.metro-window.metro-window--xxx`(类名写两遍)不是啰嗦:
+   下面有一条 `.metro-window canvas` 的基础规则(16:9 / max-width / 圆角 / 边框),
+   它和 `.metro-window--stage canvas` 的**特异性完全相同**(都是 0,1,1),
+   于是谁在后面谁赢 -- 基础规则在后面,舞台规则会被它整条压掉:
+   画布退回 1600×900 带圆角,右边与下边露出宿主背景.
+   多写一个类把特异性抬到 0,2,x,顺序就再也影响不到它. */
+.metro-window.metro-window--bare {
     padding: 0;
     background: none;
+}
+
+/* 舞台修饰类:在"裸宿主"的基础上再**铺满父层**(absolute + inset: 0).
+   画布随后用 object-fit: cover 覆盖这一层 -- 首屏要的就是这个.
+   因此带这个类的舞台,其宿主必须是**定位祖先**(站点的 .hero__stage 是). */
+.metro-window.metro-window--stage {
+    position: absolute;
+    inset: 0;
+}
+
+.metro-window.metro-window--stage canvas {
+    /* 画布铺满舞台,而不是按 16:9 排进文档流.
+       object-fit: cover 让**后备缓冲**按"覆盖"缩放进这个盒子:比例保持不变
+       (水珠仍是正圆,Rust 侧的 aspect 也没变),多出来的部分在合成阶段裁掉 --
+       所以这一步还不需要 Rust 的 resize 路径.
+       不写它就得在这里再算一遍 max(宽, 高 × 16/9),把画布比例抄第二份;
+       实测 Chromium 对 canvas 的 object-fit 是生效的(见 metro_window/README.md). */
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    aspect-ratio: auto;
+    object-fit: cover;
+    /* 铺满整屏时不要窗框:边框与圆角都只属于"卡片里的一块画布" */
+    border: none;
+    border-radius: 0;
 }
 
 /* 面板宿主被省略时组件自建的隐藏容器:面板与状态区仍在 DOM 里,事件照常绑,
    只是不显示(只想挂舞台的宿主 / 拆分过程中的中间态). */
 .metro-window .metro-panel-sink {
     display: none;
+}
+
+/* WebGPU 这条路走不通时(组件给舞台宿主加 data-state="unavailable"):
+   把画布藏掉,首屏露出来的就是站点自己的背景 -- 不需要额外准备静帧图;
+   画布那块"什么都不显示的黑框"比没有画布更难解释.
+   属性名与取值是 config.ts 的 STAGE_STATE_* 契约,改这里必须同步改那边. */
+.metro-window.metro-window--stage[data-state="unavailable"] canvas {
+    display: none;
+}
+
+/* 不可用时首屏上的那句短提示(完整排查步骤仍在 SETTING 的状态区里) */
+.metro-window .stage-note {
+    position: absolute;
+    left: 50%;
+    bottom: var(--metro-space-20);
+    max-width: 90%;
+    margin: 0;
+    padding: var(--metro-space-8) var(--metro-space-14);
+    transform: translateX(-50%);
+    border-radius: var(--metro-radius-sm);
+    background: var(--metro-color-panel);
+    color: var(--metro-color-text);
+    font-size: var(--metro-font-size-note);
+    text-align: center;
 }
 
 .metro-window,
@@ -188,6 +244,14 @@
    以前这里是 <span style="flex:1"> 内联样式, 已外置 */
 .metro-window .spacer {
     flex: 1;
+}
+
+/* 风格按钮行:三颗按钮横排.挂在首屏底部时它是独立的一行(不跟滑块挤在一起),
+   挂在控制台里时它正好落在 .controls 行的开头. */
+.metro-window .style-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--metro-space-8);
 }
 
 .metro-window button {

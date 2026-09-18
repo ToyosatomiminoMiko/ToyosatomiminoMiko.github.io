@@ -13,6 +13,8 @@
  *   --rbt-*       红黑树工具
  *   --ieee-*      IEEE 754 面板
  *   --setting-*   SETTING 标签页
+ *   --hero-*      首屏(hero)
+ *   --chrome-*    固定导航条(站名 / 导航项 / 透明↔实底)
  *   --radius-*    圆角
  *   --z-*         层级
  *   --transition-* 过渡
@@ -44,15 +46,11 @@
     --color-black: #000000;
     /* 时钟面板底色:原实现写作 #000(与 --color-black 同色但保持字面量形态) */
     --clock-panel-bg: #000;
-    /* 半透明黑(主页卡片背景,完全透明) */
-    --color-black-transparent: #00000000;
 
     /* ---------- 通用尺寸 / 圆角 / 过渡 ---------- */
     --card-width: 100%;
-    /* 主内容区占视口宽度比例 */
+    /* 主内容区占视口宽度比例(首屏会从这里满宽逃逸到 100vw,见 index.css 的 .hero) */
     --main-width: 90%;
-    /* 主内容区距顶部比例 */
-    --main-margin-top: 3%;
     /* 小圆角(卡片 / 坐标显示条) */
     --radius-sm: 5px;
     /* 中圆角(时钟面板) */
@@ -64,8 +62,7 @@
     /* 像素指示器浮在页面最上层 */
     --z-pixel-indicator: 9999;
 
-    /* ---------- 导航栏 ---------- */
-    --nav-height: 42px;
+    /* ---------- 导航条上的头像 ---------- */
     /* 头像直径 */
     --head-size: 35px;
     /* 头像外边距 */
@@ -75,6 +72,50 @@
     /* 头像悬停辉光模糊半径 */
     --head-glow-blur: 15px;
 
+    /* ---------- 首屏(hero) ---------- */
+    /*
+     * 首屏高度:动态视口高度 -- 移动端地址栏收缩时首屏跟着变,不会露出一条.
+     * 不支持 dvh 的浏览器由 index.css 里的 100vh 回退(令牌无法回退,所以
+     * 那两行必须写在使用处).
+     */
+    --hero-height: 100dvh;
+    /* 首屏顶部渐变压暗的高度:导航文字压在画面上的可读性来源 */
+    --hero-scrim-height: 140px;
+    /* 渐变压暗本身(上深下透明:没有色块边界,所以导航条看起来仍然是"隐形"的) */
+    --hero-scrim: linear-gradient(#00000073, #00000000);
+
+    /* ---------- 固定导航条 ---------- */
+    /* 导航条层级:压在首屏画面之上,但低于 --z-pixel-indicator(OLED 的像素指示器) */
+    --z-chrome: 100;
+    /* 导航条高与左右内边距 */
+    --nav-height: 42px;
+    --chrome-padding-x: 20px;
+    /* 站名与导航项之间的最小间距 */
+    --chrome-gap: 24px;
+    /* 站名字号 */
+    --chrome-font-size-brand: 15px;
+    /* 导航项字号 */
+    --chrome-font-size-nav: 14px;
+    /* 导航项左右内边距(bootstrap 默认 1rem,这里收窄一点让一行放得下更多项) */
+    --chrome-nav-padding-x: 12px;
+    /* 站名 / 导航项文字色(压在画面上,必须不依赖背景亮度) */
+    --chrome-text: #eef3f8;
+    /* 未选中导航项的文字色(半透明) */
+    --chrome-text-muted: #eef3f8b8;
+    /* 文字投影:隐形导航条压在画面上的可读性兜底 */
+    --chrome-text-shadow: 0 1px 3px #000000a6;
+    /* 实底导航条底色(滚过首屏 / 切到别的标签页时) */
+    --chrome-bg-solid: #0a0c10eb;
+    /* 首屏上的导航条底色:全透明(只剩字浮在画面上) */
+    --chrome-bg-over-hero: #00000000;
+    /* 实底导航条的下边框 */
+    --chrome-border-width: 1px;
+    --chrome-border: #ffffff1f;
+    /* 首屏上的导航条边框:同样透明 */
+    --chrome-border-over-hero: #00000000;
+    /* 透明 ↔ 实底的过渡时长与缓动 */
+    --chrome-transition: 180ms ease;
+
     /* ---------- LED 时钟 ---------- */
     --clock-panel-radius: var(--radius-md);
     --clock-panel-padding: 20px;
@@ -82,8 +123,8 @@
     --clock-glow: rgba(0, 255, 255, 0.5);
     /* 时钟面板辉光模糊半径 */
     --clock-glow-blur: 40px;
-    /* 时钟 canvas 显示高度(保持像素锐利) */
-    --clock-canvas-height: 128px;
+    /* 时钟 canvas 显示高度(保持像素锐利:8 行的整数倍,64px = 8 倍) */
+    --clock-canvas-height: 64px;
 
     /* ---------- OLED 像素画板 ---------- */
     /* 画布放大后的显示宽度 */
