@@ -3,12 +3,12 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 
 // --- 导入 JS 依赖 ---
 import 'bootstrap/dist/js/bootstrap.bundle.min.js';
-import { mountClock } from './clock';
-import { mountRBT } from './rbt';
-import { OLEDCanvas } from './oled';
-import { mountIEEE754 } from './ieee754';
-import { mountMetroWindowAtMountId } from './metro_window/web/src/metro_window';
-import { BACKGROUND_IMAGE_CLASS, BACKGROUND_IMAGE_STYLE_PROPERTY } from './site.config';
+import { mountClock } from '@/clock/clock';
+import { mountRBT } from '@/rbt/rbt';
+import { OLEDCanvas } from '@/oled/oled';
+import { mountIEEE754 } from '@/ieee754/ieee754';
+import { mountMetroWindowAtMountId } from '@/metro_window/web/src/metro_window';
+import { BACKGROUND_IMAGE_CLASS, BACKGROUND_IMAGE_STYLE_PROPERTY } from '@/common/site.config';
 
 document.addEventListener('DOMContentLoaded', () => {
     // 背景切换

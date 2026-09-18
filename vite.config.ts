@@ -7,6 +7,14 @@ import type { Plugin } from 'vite';
 const here = (relativePath: string): string => fileURLToPath(new URL(relativePath, import.meta.url));
 
 /**
+ * 源码根别名 `@/` == `src/`.跨目录的模块导入统一用它
+ * (`@/clock/config`,`@/common/utils`,`@/4xx_page/shared/icon`),同目录的兄弟模块
+ * 才继续用 `./x`;HTML 里的 <link>/<script> 不用别名,写相对站点根的 `/src/...`.
+ * tsconfig.json 的 `paths` 必须与这里保持一致(TS 与打包器各认一份).
+ */
+const SRC_ALIAS = here('./src').replace(/\/$/, '');
+
+/**
  * 418 / 451 / 404 的源码放在 src/4xx_page 下(与主页代码分开), 但它们的公开地址
  * 仍然是站点根目录的 /4xx_page/*.html.
  *
@@ -16,8 +24,9 @@ const here = (relativePath: string): string => fileURLToPath(new URL(relativePat
  * 换一层目录不会让任何链接失效.
  *
  * 三个 HTML 因此**必须留在 src/4xx_page/ 这一层**(不能收进 418/ 451/ 子目录):
- * dev 下的地址是 /4xx_page/451.html, 页面里 `./451/451.css` 这类相对引用要能
- * 原样落到 /src/4xx_page/451/451.css, 中间那层映射见下面的 configureServer.
+ * dev 下的公开地址是 /4xx_page/451.html, 而页面里的 <link>/<script> 一律写成
+ * 相对站点根的 /src/4xx_page/451/451.css, 也就是磁盘上的真实路径; 下面
+ * configureServer 只负责把公开地址 /4xx_page/*.html 重写到源码文件上.
  */
 const PUBLIC_PREFIX = '4xx_page/';
 /** 仓库源码根目录名. Vite 的 HTML 入口输出路径 = 相对 root 的路径, 因此以它开头. */
@@ -75,6 +84,9 @@ function fourXXPage(): Plugin {
  */
 export default defineConfig({
     base: '/',
+    resolve: {
+        alias: [{ find: /^@\//, replacement: `${SRC_ALIAS}/` }],
+    },
     plugins: [
         fourXXPage(),
     ],

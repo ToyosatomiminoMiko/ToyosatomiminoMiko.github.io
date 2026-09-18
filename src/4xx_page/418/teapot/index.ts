@@ -2,9 +2,9 @@
  * 418 · 我是个茶壶 -- 交互逻辑
  * 从 418.html 内联脚本拆出,保持原有行为不变.
  * 图标不再是 Font Awesome 字体,而是 418.html 里 sprite 中的 <symbol>.
- * 全部可调常量(id / 选择器 / 时长 / 样式值 / 文案)见 teapot.config.ts.
+ * 全部可调常量(id / 选择器 / 时长 / 样式值 / 文案)见 teapot/config.ts.
  */
-import { icon } from '../shared/icon';
+import { icon } from '@/4xx_page/shared/icon';
 import {
     CLASS_WOBBLE,
     DOM_ID,
@@ -42,7 +42,7 @@ import {
     TOAST_TEA_SUFFIX,
     WELCOME_DELAY_MS,
     WOBBLE_MS,
-} from './teapot.config';
+} from './config';
 
 // 幽默元素:拒绝计数器 (一开始显示42,之后每次按"强行煮咖啡"增加)
 const rejectSpan = document.getElementById(DOM_ID.rejectCount);
@@ -85,7 +85,7 @@ function triggerSteamBoost(): void {
         void span.offsetHeight; // 重绘
         span.style.animation = STEAM_ANIMATION_BOOST;
     });
-    // STEAM_BOOST_MS 后恢复默认时长(见 teapot.config.ts)
+    // STEAM_BOOST_MS 后恢复默认时长(见 teapot/config.ts)
     setTimeout(() => {
         steamSpans.forEach(span => {
             span.style.animation = STEAM_ANIMATION_NORMAL;

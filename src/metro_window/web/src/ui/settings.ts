@@ -37,8 +37,8 @@ import {
     type SliderGroupSpec,
     type SliderSpec,
     type TransportAction,
-} from '../config';
-import { h, type DomChild } from './dom';
+} from '@/metro_window/web/src/config';
+import { h, type DomChild } from '@/metro_window/web/src/ui/dom';
 
 /** 一个滑块组件:根元素 + 两个输入框 + 它的声明式配置(行为代码按 spec 写参数) */
 export interface SliderControl {

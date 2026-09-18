@@ -8,8 +8,8 @@
  * 挂载(root.append)交给 metro_window.ts,和设置面板一样由挂载函数统一负责.
  * 设置面板不在这里:它是"组件",由 ui/settings.ts 生成后插在画布之后.
  */
-import { CANVAS_HEIGHT, CANVAS_WIDTH, ELEMENT_IDS, SUBTITLE_CLASS, WINDOW_SUBTITLE, WINDOW_TITLE } from '../config';
-import { h, type DomChild } from './dom';
+import { CANVAS_HEIGHT, CANVAS_WIDTH, ELEMENT_IDS, SUBTITLE_CLASS, WINDOW_SUBTITLE, WINDOW_TITLE } from '@/metro_window/web/src/config';
+import { h, type DomChild } from '@/metro_window/web/src/ui/dom';
 
 /**
  * 按 config.ts 的声明生成车窗标记,顺序即显示顺序:

@@ -57,7 +57,7 @@ import {
     RBT_TEXT_BASELINE,
     RBT_TREE_EXAMPLE,
     RBT_Y_STEP,
-} from './rbt.config';
+} from './config';
 
 // ============================================================
 // 红黑树节点定义 (支持任意数值/字符串)

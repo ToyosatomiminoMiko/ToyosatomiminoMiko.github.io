@@ -3,7 +3,7 @@
 APP: #app_led_clock
 LED Clock
 */
-import { fmt_time } from './utils';
+import { fmt_time } from '@/common/utils';
 import {
     BACKGROUND_COLOR,
     CLOCK_CANVAS_MISSING_MESSAGE,
@@ -22,7 +22,7 @@ import {
     PUNCT_ADVANCE,
     REFRESH_INTERVAL_MS,
     ROW_BIT_BASE,
-} from './clock.config';
+} from './config';
 
 // 绘制LED数字
 function drawDigit(ctx: CanvasRenderingContext2D, digit: number, x: number): void {

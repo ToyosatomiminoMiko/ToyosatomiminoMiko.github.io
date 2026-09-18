@@ -11,7 +11,7 @@
 404 页(纯 SVG)的样式.
 
 原来是写在 404.html 里的 <style>, 现在外置成这个文件, 由页面用
-<link rel="stylesheet" href="./404/404.css"> 引入(与 418 / 451 一致).
+<link rel="stylesheet" href="/src/4xx_page/404/404.css"> 引入(与 418 / 451 一致).
 */
 
 /* SVG 居中 */

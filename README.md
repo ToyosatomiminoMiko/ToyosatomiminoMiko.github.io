@@ -38,6 +38,17 @@ Rust + WASM + WebGPU 实时渲染的地铁车窗玻璃效果,挂在站点首页 
 
 ## 约定
 
+- **`src/` 下按域分目录,不散放在根上**:每个控件/子项目一个目录
+  (`clock/`,`oled/`,`rbt/`,`ieee754/`,`4xx_page/`,`metro_window/`),
+  跨域复用的公共函数与站点级常量放 `src/common/`;根上只留
+  `main.ts`(入口)与 `vite_env.d.ts`(Vite 全局模块声明).
+  每个目录里 `index.ts` 是薄入口,可调常量在 `config.ts`(或 `*_tokens.css`),
+  类型在 `types.ts`,实现细节收进 `ui/` 之类的子目录.
+- **跨目录导入一律用源码根别名 `@/`**:`@/common/utils`,`@/clock/config`,
+  `@/4xx_page/shared/icon`;只有同目录的兄弟模块才写 `./x`.
+  别名一处定义,两处生效:`vite.config.ts` 的 `resolve.alias` 与
+  `tsconfig.json` 的 `paths`(改一处必须同步另一处).
+  HTML 里的 `<link>`/`<script>` 不用别名,写相对站点根的 `/src/4xx_page/...`.
 - **文件名不用 `-`,一律 `_`**.唯一不能改的是工具写死的两个:
   `package-lock.json`(npm)和 `.githooks/pre-commit`(git 钩子名).
   第三方包路径里的连字符(如 `@fontsource/inter/latin-400.css`)不在此列.
@@ -56,9 +67,9 @@ Rust + WASM + WebGPU 实时渲染的地铁车窗玻璃效果,挂在站点首页 
 | 作用域 | 配置文件 | 放什么 |
 | --- | --- | --- |
 | 主站样式 | `public/css/tokens.css` | 站点设计令牌(`:root`):字体栈,调色板,尺寸,圆角,间距,`z-index`,过渡 |
-| 主站脚本 | `src/clock.config.ts`,`src/oled.config.ts`,`src/rbt.config.ts`,`src/ieee754.config.ts`,`src/site.config.ts` | LED 时钟字形与配色,OLED 画板尺寸/通道/文案,红黑树布局与配色,IEEE 754 精度格式与掩码,站点级共用值 |
+| 主站脚本 | `src/clock/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,OLED 画板尺寸/通道/文案,红黑树布局与配色,IEEE 754 精度格式与掩码,站点级共用值 |
 | 4xx 页面样式 | `src/4xx_page/418/418_tokens.css`,`src/4xx_page/451/451_tokens.css`;`404/404.css` 与 `shared/icon.css` 顶部的 `:root` 块 | 各彩蛋页的设计令牌(颜色 / 几何 / 阴影 / 时长 / 字体) |
-| 4xx 页面脚本 | `src/4xx_page/418/teapot.config.ts`,`src/4xx_page/451/boot.config.ts`,`src/4xx_page/451/ember/*.config.ts` | 茶壶交互,启动开关,GPU 计时 / 统计 / 资源 / 能力 / 性能面板参数 |
+| 4xx 页面脚本 | `src/4xx_page/418/teapot/config.ts`,`src/4xx_page/451/boot.config.ts`,`src/4xx_page/451/ember/*.config.ts` | 茶壶交互,启动开关,GPU 计时 / 统计 / 资源 / 能力 / 性能面板参数 |
 | 地铁车窗前端 | `src/metro_window/web/src/config.ts`,`src/metro_window/web/src/ui/`,`src/metro_window/web/src/tokens.css` | DOM id / class,`data-*` 键名,`setParam` 参数名映射,车窗标记与设置面板的声明式模型(标题/副标题/画布分辨率/滑块分组 / 风格 / 按钮 / 文案);声明式 DOM 组件(`h()` + 车窗标记 + 设置面板);组件设计令牌 |
 | 地铁车窗渲染 | `src/metro_window/rust/src/droplet_params.rs`,`app_params.rs`,`render_params.rs`,`random_params.rs`,`texture_params.rs` | 水滴生成 / 物理 / 折射 / 高光,主循环与资源路径,管线与绑定槽位,白噪声哈希,程序化贴图生成参数 |
 | 构建 | `vite.config.ts` | 多页入口,4xx 产物路径回移前缀 |
@@ -77,7 +88,8 @@ Rust + WASM + WebGPU 实时渲染的地铁车窗玻璃效果,挂在站点首页 
 - **DOM id / class / Rust 参数名**是跨语言契约:改动必须两边同时改,
   写错不会报错,只会静默失效,所以它们集中在配置文件里便于对照.
 - **设置面板不手写 HTML**:结构与文案由 `src/metro_window/web/src/config.ts` 的
-  声明式模型描述,由 `web/src/ui/` 的组件渲染成元素并交回引用;加/改滑块只动配置,
+  声明式模型描述,由 `src/metro_window/web/src/ui/` 的组件渲染成元素并交回引用;
+  加/改滑块只动配置,
   宿主页(`index.html`)里只有一个空容器 `#metro-window`,不要回去改它.
 - 等价性回归网:`cargo test` 与 `vitest` 覆盖参数布局与公式;
   程序化贴图还带 PPM 可视化测试,输出到 `src/metro_window/rust/prompt/`(已 gitignore).

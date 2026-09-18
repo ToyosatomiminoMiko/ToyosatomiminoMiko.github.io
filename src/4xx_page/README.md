@@ -1,6 +1,6 @@
 # HTTP 状态页 · 418 / 451 / 404
 
-三个状态码彩蛋页,源码放在 `src/4xx_page/`(与主页的 `src/*.ts` 分开),
+三个状态码彩蛋页,源码放在 `src/4xx_page/`(与主页各控件目录分开),
 构建产物仍然挂在站点的 `/4xx_page/` 下:
 
 - `418.html` -- 我是茶壶(HTCPCP/1.0),茶壶表情 + 拒绝咖啡交互
@@ -24,7 +24,9 @@ npm run preview    # 预览 dist/ 里的产物
 
 > 构建时同一个插件负责把 `dist/src/4xx_page/*.html` 挪回 `dist/4xx_page/*.html`
 > (Vite 的 HTML 产物路径 = 源文件相对 root 的路径,所以不挪的话会多出一层 `src/`).
-> 这样做安全,是因为 `base` 是 `/`,HTML 里的资源引用本来就是绝对路径.
+> 这样做安全,是因为 `base` 是 `/`,页面里的资源引用本来就写成相对站点根的
+> `/src/4xx_page/451/451.css`(插件把公开地址 `/4xx_page/*.html` 重写到源码 HTML,
+> 页面里的引用指向磁盘真实路径,dev 与 build 含义一致).
 
 ## 依赖策略: 页面本身零 CDN
 
@@ -233,7 +235,9 @@ shared/                     418 / 451 共用
 
 418/                        茶壶页
   index.ts                    入口: 挂载交互
-  teapot.ts                   茶壶交互(只导出 mountTeapot)
+  teapot/                     茶壶交互(对外只暴露 index.ts)
+    index.ts                    交互逻辑(只导出 mountTeapot)
+    config.ts                   调参常量(id / 选择器 / 时长 / 样式值 / 文案)
   418.css
 
 451/                        451 页
@@ -270,6 +274,10 @@ shared/                     418 / 451 共用
 - **入口文件保持薄**:`418/index.ts` 只调 `mountTeapot()`,`451/index.ts` 只调
   `startEmber()`;逻辑都在被调用的模块里,import 本身不产生副作用.
 - **`?raw` 只出现在 `shader_sources.ts`**:换个打包器只需要改这一个文件.
+- **跨目录导入一律写源码根别名 `@/`**(`@/4xx_page/shared/icon`,`@/common/utils`),
+  同目录的兄弟模块才继续用 `./x`;HTML 里的 `<link>`/`<script>` 则写相对站点根的
+  `/src/4xx_page/...`.别名定义在 `vite.config.ts` 的 `resolve.alias` 与
+  `tsconfig.json` 的 `paths`,两处必须一致.
 
 着色器是**真正的 `.wgsl` 文件**,由 `shader_sources.ts` 用 Vite 的
 `import source from './x.wgsl?raw'` 按文本导入.之前的 `*.wgsl.js`
@@ -278,8 +286,9 @@ shared/                     418 / 451 共用
 
 > `418.html` / `451.html` / `404.html` 之所以留在 `src/4xx_page/` 这一层而不是收进
 > 各自的子目录,是因为它们的公开地址是 `/4xx_page/451.html`,而 Vite 的 HTML 产物
-> 路径 = 源文件相对 root 的路径;留在这一层才能让 `./451/451.css` 这类相对引用在
-> dev 和 build 下含义一致.详见 `vite.config.ts` 里 `fourXXPage()` 的注释.
+> 路径 = 源文件相对 root 的路径;留在这一层才能让页面里的
+> `/src/4xx_page/451/451.css` 这类引用在 dev 和 build 下含义一致.
+> 详见 `vite.config.ts` 里 `fourXXPage()` 的注释.
 
 ### 改完 451 的着色器后
 

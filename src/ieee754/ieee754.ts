@@ -46,7 +46,7 @@ IEEE 754 浮点可视化:单精度(float32) / 双精度(float64)
 */
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-import type { IEEE754Class, IEEE754Format, IEEE754Value } from './ieee754.types';
+import type { IEEE754Class, IEEE754Format, IEEE754Value } from './types';
 import {
     FLOAT32,
     FLOAT32_KEY,
@@ -90,10 +90,10 @@ import {
     IEEE754_SPECIAL_TABLE_HEADERS,
     IEEE754_SPECIAL_VALUES,
     IEEE754_ZERO_FIELD,
-} from './ieee754.config';
+} from './config';
 
 // ============================================================
-// 常量(集中定义见 ./ieee754.config)
+// 常量(集中定义见 ./config)
 // ============================================================
 
 /**
@@ -420,7 +420,7 @@ function breakdownHtml(v: IEEE754Value): string {
 }
 
 // ============================================================
-// 特殊值参考表(数据在 ./ieee754.config,构造在本模块;渲染在 UI 层)
+// 特殊值参考表(数据在 ./config,构造在本模块;渲染在 UI 层)
 // ============================================================
 
 /**

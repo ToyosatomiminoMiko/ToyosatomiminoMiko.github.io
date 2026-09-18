@@ -10,7 +10,7 @@
 @import '@fontsource/quicksand/latin-400.css';
 @import '@fontsource/quicksand/latin-600.css';
 @import '@fontsource/quicksand/latin-700.css';
-@import '../shared/icon.css';
+@import '@/4xx_page/shared/icon.css';
 
 * {
     margin: 0;

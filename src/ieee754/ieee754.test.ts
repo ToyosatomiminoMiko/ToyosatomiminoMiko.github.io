@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FLOAT32, FLOAT64 } from './ieee754.config';
+import { FLOAT32, FLOAT64 } from './config';
 import {
     buildIEEE754,
     computeIEEE754,

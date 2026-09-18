@@ -10,7 +10,7 @@ import type {
     OLEDConfig,
     ImportResult,
     BresenhamCallback,
-} from './oled.types';
+} from './types';
 import {
     OLED_BITS_PER_BYTE,
     OLED_BUFFER_BYTES,
@@ -54,10 +54,10 @@ import {
     OLED_VALUE_BLACK,
     OLED_VALUE_WHITE,
     fillRgb,
-} from './oled.config';
+} from './config';
 
 // ---------- 默认配置 ----------
-/** 默认配置(集中定义于 oled.config.ts,保证画布尺寸/预览色只有一处定义) */
+/** 默认配置(集中定义于 oled/config.ts,保证画布尺寸/预览色只有一处定义) */
 const DEFAULT_CONFIG: OLEDConfig = OLED_DEFAULT_CONFIG;
 
 export class OLEDCanvas {

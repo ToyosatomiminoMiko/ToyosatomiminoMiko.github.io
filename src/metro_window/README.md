@@ -25,7 +25,7 @@
 前端做成了"挂载函数"而不是页面入口:**宿主只提供一个空容器**,标记由组件生成:
 
 ```ts
-import { mountMetroWindowAtMountId } from './metro_window/web/src/metro_window';
+import { mountMetroWindowAtMountId } from '@/metro_window/web/src/metro_window';
 
 mountMetroWindowAtMountId();   // 找约定的挂载点 #metro-window,找不到就报错
 ```

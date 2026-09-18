@@ -9,17 +9,17 @@
   (站点里已没有独立入口页,车窗只在首页 HOME 卡片挂一次).
 
 所有字面量(id / 类名 / data-* 键名 / Rust 参数名 / 文案 / 阈值)都集中在
-./config.ts,标记与面板的结构集中在 ./ui/,本文件只保留逻辑与生命周期.
+@/metro_window/web/src/config.ts,标记与面板的结构集中在 @/metro_window/web/src/ui/,本文件只保留逻辑与生命周期.
 
-调用方式(两种等价写法,取一即可;下面按站点入口 src/main.ts 的位置写相对路径):
+调用方式(两种等价写法,取一即可;导入统一用源码根别名 `@/`):
 
     // 1) 宿主自己已经拿到了容器
-    import { mountMetroWindow } from './metro_window/web/src/metro_window';
+    import { mountMetroWindow } from '@/metro_window/web/src/metro_window';
     const el = document.getElementById('metro-window');
     if (el) mountMetroWindow(el);
 
     // 2) 按约定的挂载点 id 找容器(站点首页用这种,省得宿主自己写查找与报错)
-    import { mountMetroWindowAtMountId } from './metro_window/web/src/metro_window';
+    import { mountMetroWindowAtMountId } from '@/metro_window/web/src/metro_window';
     mountMetroWindowAtMountId();
 
 宿主必须是**空容器**:标记全部由组件生成,已有的子节点不会被清掉,重复挂载
@@ -30,7 +30,7 @@ setRunning/reset 全都作用于它,所以一个页面只应挂载一次.
 */
 import './metro_window.css';
 
-import init, { reset, setParam, setRunning, setStyle, startApp } from '../pkg/metro_window.js';
+import init, { reset, setParam, setRunning, setStyle, startApp } from '@/metro_window/web/pkg/metro_window.js';
 
 import {
     ADAPTER_LABEL_SEPARATOR,
@@ -61,8 +61,8 @@ import {
     WEBGPU_HELP_STEPS,
     WINDOW_CLASS,
 } from './config';
-import { createSettingsPanel, type SliderControl } from './ui/settings';
-import { createWindowContent } from './ui/window_content';
+import { createSettingsPanel, type SliderControl } from '@/metro_window/web/src/ui/settings';
+import { createWindowContent } from '@/metro_window/web/src/ui/window_content';
 
 // WebGPU 适配器的最小类型定义(不依赖具体 TypeScript 版本的 DOM 类型)
 interface GpuAdapterInfo {
