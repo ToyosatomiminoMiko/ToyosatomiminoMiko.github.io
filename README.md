@@ -89,6 +89,10 @@ Rust + WASM + WebGPU 实时渲染的地铁车窗玻璃效果,挂在站点首页 
   正圆拉成 W/H 倍的椭圆.判定统一走 `shaders.wgsl` 的 `toIsotropic`,
   比值由 `uniforms.rs` 的 `Uniforms.aspect` 每帧传入(半径语义/验证方法见
   `src/metro_window/README.md` 的"水滴为什么是正圆").
+- **折射偏移不在低分辨率图上存"最终向量"**:低分辨率图只存圆心 / 归一化距离 /
+  偏移大小这三个可无损重建的量,偏移由 `fs_main` 逐像素解析算出,否则水珠轮廓会
+  被压成 1/8 分辨率一级的方块(见 `src/metro_window/README.md` 的
+  "水珠边缘为什么不受低分辨率偏移图影响").
 - **DOM id / class / Rust 参数名**是跨语言契约:改动必须两边同时改,
   写错不会报错,只会静默失效,所以它们集中在配置文件里便于对照.
 - **设置面板不手写 HTML**:结构与文案由 `src/metro_window/web/src/config.ts` 的

@@ -210,8 +210,9 @@ impl App {
         });
 
         // 折射偏移图分辨率 = 画布 1/REFRACTION_DOWNSCALE.
-        // 调大(如 /6//4)水珠边缘更锐利但更耗 GPU;
-        // 调小(如 /10//12)更省性能但水珠会偏模糊
+        // 它只决定"水珠归属判断"的精细度(哪颗水珠管这个像素 / 圆心 / 归一化距离),
+        // 折射偏移本身由片段着色器逐像素解析重建,所以调大只会让多颗水珠重叠处
+        // 变粗,不会把水珠轮廓压成方块(详见 render_params.rs 的 REFRACTION_DOWNSCALE).
         let rw = (width / REFRACTION_DOWNSCALE).max(MIN_TEXTURE_DIMENSION);
         let rh = (height / REFRACTION_DOWNSCALE).max(MIN_TEXTURE_DIMENSION);
         let refraction_texture = device.create_texture(&wgpu::TextureDescriptor {

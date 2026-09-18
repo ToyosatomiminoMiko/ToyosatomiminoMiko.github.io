@@ -2,7 +2,7 @@
 WGSL 着色器
 - vs_main:全屏四边形顶点着色器
 - cs_main:水滴物理模拟(出界重置/重力/滑动)
-- cs_refraction:计算低分辨率斯涅尔折射偏移图
+- cs_refraction:按像素记录"归哪颗水珠管"(圆心 / 归一化距离 / 偏移大小)
 - fs_main:合成 窗外实景 / 折射虚像 / 污渍 / 雾气 / 车厢灯光
 
 struct DropletParams 由 Rust 侧 src/droplet_params.rs 生成并注入,
@@ -11,6 +11,10 @@ struct DropletParams 由 Rust 侧 src/droplet_params.rs 生成并注入,
 水滴形状统一在"各向同性空间"里判定(uv.x 先乘上 uniform 的 aspect),
 否则 [0,1]² 的 uv 会把正圆拉成画布宽高比倍的椭圆;
 半径也因此定义在"画布高度"尺度上.详见 toIsotropic 上方的注释.
+
+折射偏移拆成两半:cs_refraction 只存"可无损重建"的三个量(圆心 / 归一化距离 s /
+偏移大小),真正的偏移量由 fs_main 用 lateralProfile(s) 逐像素解析算出.
+这样水珠边缘的清晰度不再受低分辨率偏移图限制(详见 cs_refraction 上方注释).
 
 贴图通道语义(与 src/textures.rs 的生成代码是一份契约,改一边要改另一边):
 - textureBG / Far / Mid / Near:城市美术素材,RGB = 颜色,A = 该层不透明度;
@@ -215,6 +219,19 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3u) {
     droplets[i] = d;
 }
 
+// "无穷远"哨兵:归一化距离 s(= dist / radius)的初值.
+// 半径最小的水珠在画面最远处 s 也只有个位数,取 1000 足够大到"任何水珠都更近".
+const FAR_DISTANCE: f32 = 1000.0;
+
+// 水滴轮廓的抗锯齿过渡带(用法见 fs_main 的 edgeWidth):
+// EDGE_AA_SCALE:过渡带相对"1 个屏幕像素"的倍率.轮廓附近 s 沿半径方向线性变化,
+//   梯度 ≈ 1/radius,所以 fwidth(s) 差不多就是"1 个屏幕像素"对应的 s 变化量;
+//   1.0 对应总宽约 2 像素;调大 => 轮廓更柔(像蒙了层雾),调小 => 更硬.
+// EDGE_AA_MIN:过渡带半宽的下限(无量纲).正常情况下不生效,只在 s 退化成常数
+//   (附近没有水珠 / 正好在圆心,fwidth = 0)时兜底,避免 smoothstep 两端相等而除零.
+const EDGE_AA_SCALE: f32 = 1.0;
+const EDGE_AA_MIN: f32 = 0.0005;
+
 // ===== 水滴的形状:uv 空间 -> 各向同性空间 =====
 // uv ∈ [0,1]² 是归一化坐标:x 方向 1 个单位跨画布宽 W 像素,y 方向 1 个单位跨
 // 画布高 H 像素,所以两根轴的"单位长度"不相等.直接比较 |Δuv| < r 时,屏幕上的
@@ -235,76 +252,54 @@ fn toUvOffset(offset: vec2f) -> vec2f {
     return vec2f(offset.x / uniforms.aspect, offset.y);
 }
 
-// 斯涅尔折射:把水滴当成球面水透镜,计算光线穿过后的横向偏移.
-// 球面单位法线 n = (dir * s, sqrt(1 - s²)),其中 s = d/R ∈ [0,1).
+// 斯涅尔折射:把水滴当成球面水透镜,算出"沿圆心方向"的横向偏移量(标量,带符号).
+// 球面单位法线 n = (dir2 * s, sqrt(1 - s²)),其中 s = dist / R ∈ [0, 1).
 // 相对折射率 η = n_air / n_water = 1.0 / refraction_eta_water ≈ 0.7502.
 // 斯涅尔向量公式:
 //   k = 1 - η² * (1 - cos²θ_i) = 1 - η² * sin²θ_i
 //   t = η * i - (η * cosθ_i + sqrt(k)) * n
+// 横向偏移 lateral = t.xy / -t.z:把折射方向投影到 z = -1 平面.
+// t.xy 恒与 dir2 平行(球面法线的水平分量只能是 dir2 方向),所以向量可以拆成
+//
+//   lateral = dir2 * lateralProfile(s)
+//
+// 这里只算后面那个标量(靠近轮廓处它会变号:光线被往反方向偏).
+// 拆开的意义:偏移场对位置的依赖只剩"圆心方向"和 s,两者都能在片段着色器里
+// 逐像素精确重建(圆心在一颗水珠内是常数,s 沿半径线性),于是低分辨率的折射
+// 偏移图不再决定水珠边缘的清晰度 -- 它只负责"哪颗水珠管这个像素".
 // 若 k ≤ 0 发生全反射,水滴边缘看不到窗外光线,返回无偏移.
-fn dropletOffset(uv: vec2f, d: Droplet) -> vec2f {
-    // 距离与半径都在各向同性空间里比较,水珠才是正圆(见 toIsotropic).
-    let delta = toIsotropic(uv) - toIsotropic(d.posVel.xy);
-    let dist = length(delta);
-    let radius = d.radiusStrength.x * dropletParams.droplet_size;
-    // radius_epsilon:半径过小时跳过,避免后续除零;dist >= radius 时像素在水滴外.
-    if (dist >= radius || radius <= dropletParams.radius_epsilon) {
-        return vec2f(0.0);
+fn lateralProfile(s: f32) -> f32 {
+    // s ≥ 1:像素在水滴外.
+    if (s >= 1.0) {
+        return 0.0;
     }
-    // s = dist / radius ∈ [0,1):0 = 水滴中心, 1 = 边缘.
-    let s = dist / radius;
-    // dir2:像素相对圆心的单位方向;dist < radius_epsilon 时取 (0,1)
-    // 避免 0/0;radius_epsilon 是"圆心附近"的判定阈值.
-    let dir2 = select(delta / dist, vec2f(0.0, 1.0), dist < dropletParams.radius_epsilon);
     // nz = sqrt(max(0, 1 - s²)):单位球面在高度 s 处的 z 分量,
     // 来自球面方程 x² + y² + z² = 1;max 防止浮点误差产生负数.
     let nz = sqrt(max(0.0, 1.0 - s * s));
-    // n = (dir2 * s, nz) 是单位球面法线,长度 = sqrt(s² + nz²) = 1.
-    let n = vec3f(dir2 * s, nz);
-    // i:入射光方向,窗外光线沿 -z 射向眼睛.
-    let i = vec3f(0.0, 0.0, -1.0);
     // η = 1.0 / refraction_eta_water:空气折射率 1.0 除以水折射率.
     let eta = 1.0 / dropletParams.refraction_eta_water;
-    // cosθ_i = n · i:入射角余弦.
-    let cosI = dot(n, i);
-    // k = 1 - η² * (1 - cos²θ_i):斯涅尔公式的判别式.
-    let k = 1.0 - eta * eta * (1.0 - cosI * cosI);
+    // 入射光 i = (0, 0, -1),于是 cosθ_i = n · i = -nz,
+    // 判别式 k = 1 - η²(1 - cos²θ_i) 化简成 1 - η² s².
+    let k = 1.0 - eta * eta * s * s;
     if (k <= 0.0) {
-        return vec2f(0.0);
-    }
-    // t = η * i - (η * cosθ_i + sqrt(k)) * n:折射光方向向量.
-    let t = eta * i - (eta * cosI + sqrt(k)) * n;
-    // lateral = t.xy / -t.z:把折射方向投影到 z = -1 平面,
-    // 得到单位距离处的横向偏移;lateral_z_epsilon 防止 t.z ≈ 0 时除零.
-    let lateral = t.xy / max(-t.z, dropletParams.lateral_z_epsilon);
-    // 最终偏移 = lateral * R * (1 + s * refraction_strength_per) * refraction_scale:
-    //   R = radius 把无量纲方向放大成"画面高度"尺度的偏移,再换算回 uv 偏移;
-    //   (1 + s * refraction_strength_per):强度放大因子.
-    //   refraction_scale:实时滑块控制的整体折射强度.
-    //   半径自动跟随 radiusStrength.x,强度自动跟随 radiusStrength.y.
-    return toUvOffset(lateral)
-        * radius
-        * (1.0 + d.radiusStrength.y * dropletParams.refraction_strength_per)
-        * dropletParams.refraction_scale;
-}
-
-// 水滴覆盖度 coverage = (1 - s)²:
-//   中心 s = 0 时为 1,边缘 s = 1 时为 0,二次衰减.
-fn dropletCoverage(uv: vec2f, d: Droplet) -> f32 {
-    // 同 dropletOffset:距离必须在各向同性空间里量,覆盖度边界才是正圆.
-    let delta = toIsotropic(uv) - toIsotropic(d.posVel.xy);
-    let dist = length(delta);
-    let radius = d.radiusStrength.x * dropletParams.droplet_size;
-    if (dist >= radius) {
         return 0.0;
     }
-    let s = dist / radius;
-    let t = 1.0 - s;
-    return t * t;
+    let sqrtK = sqrt(k);
+    // t.xy 的标量部分 = (η·nz - sqrt(k))·s;
+    // -t.z = η·s² + sqrt(k)·nz,lateral_z_epsilon 防止 t.z ≈ 0 时除零.
+    let denominator = max(eta * s * s + sqrtK * nz, dropletParams.lateral_z_epsilon);
+    return (eta * nz - sqrtK) * s / denominator;
 }
 
-// 低分辨率折射偏移图:把水滴的折射写进纹理,
-// 片段着色器只需一次采样,避免逐像素循环导致的卡顿.
+// 低分辨率折射偏移图:只负责回答"这个像素归哪颗水珠管,以及它离圆心多远",
+// 真正的折射偏移由片段着色器逐像素解析算出来(见 fs_main).
+//
+// 为什么这么拆:偏移场 = dir2 * lateralProfile(s) * 半径强度(见 lateralProfile),
+// 其中 "圆心" 在一颗水珠内是常数,"s" 沿半径线性,两者都能从低分辨率图里无损
+// 重建;而"最终偏移向量"是随位置快速变化的量,直接把它按 1/8 分辨率存进纹理,
+// 再双线性放大,会把水珠轮廓上原本圆滑的弧线压成 8 像素一级的方块(实测:同一颗
+// 水珠,1/8 分辨率的偏移图把建物边缘的圆弧挤成矩形,全分辨率则是圆滑弧线).
+// 所以这里只存可无损重建的三个量,边缘清晰度就不再受这个分辨率影响.
 @compute @workgroup_size(8, 8, 1) // 每个 workgroup 处理 8×8 个低分辨率像素
 fn cs_refraction(@builtin(global_invocation_id) gid: vec3u) {
     let dims = textureDimensions(refractionOffset);
@@ -313,41 +308,39 @@ fn cs_refraction(@builtin(global_invocation_id) gid: vec3u) {
     }
     // 像素中心坐标:uv = (gid + 0.5) / dims,0.5 用于对齐纹素中心.
     let uv = (vec2f(gid.xy) + 0.5) / vec2f(dims);
-    var offset = vec2f(0.0);
-    var coverage = 0.0;
+    // 胜出的水珠:取"归一化距离最小"的那颗 = 旧实现的"覆盖度最强",
+    // 多颗重叠时只留一颗,避免把偏移叠加糊成一大片.
+    var winnerCenter = vec2f(0.0);
+    var winnerS = FAR_DISTANCE;
+    // winnerMagnitude = 半径 × 强度放大因子,即偏移向量的整体大小.
+    var winnerMagnitude = 0.0;
     // 遍历全部 64 颗水滴,与 DROPLET_COUNT 保持一致.
     for (var i = 0u; i < 64u; i = i + 1u) {
         let d = droplets[i];
         let radius = d.radiusStrength.x * dropletParams.droplet_size;
-        // radius_epsilon:半径过小直接跳过,避免无意义计算.
+        // radius_epsilon:半径过小直接跳过,避免无意义计算与除零.
         if (radius <= dropletParams.radius_epsilon) {
             continue;
         }
-        // 同样换算到各向同性空间:这里的 radius 是"画布高度"尺度的半径,
-        // 只有各向同性的 delta 才能直接和它比.
+        // 距离换算到各向同性空间(见 toIsotropic),水珠才是正圆.
         let delta = toIsotropic(uv) - toIsotropic(d.posVel.xy);
-        // AABB 快速剔除:圆心与当前像素的 x/y 距离任一个超过半径,
-        // 就一定不在水滴内,直接跳过,避免对每颗水滴都做 length/sqrt.
-        if (abs(delta.x) >= radius || abs(delta.y) >= radius) {
-            continue;
-        }
-        // 取覆盖度最强的一颗水滴,而不是把所有水滴叠加,
-        // 避免重叠区域糊成一大片.
-        let o = dropletOffset(uv, d);
-        let w = dropletCoverage(uv, d);
-        if (w > coverage) {
-            coverage = w;
-            offset = o;
+        let s = length(delta) / radius;
+        if (s < winnerS) {
+            winnerS = s;
+            winnerCenter = d.posVel.xy;
+            // (1 + 强度 × refraction_strength_per) 是原来的强度放大因子,
+            // 半径自动跟随 radiusStrength.x,强度自动跟随 radiusStrength.y.
+            winnerMagnitude =
+                radius * (1.0 + d.radiusStrength.y * dropletParams.refraction_strength_per);
         }
     }
-    // 偏移上限:offset = clamp(raw, -refraction_offset_clamp, refraction_offset_clamp),
-    // 防止折射把画面拉得太远.
-    offset = clamp(
-        offset,
-        vec2f(-dropletParams.refraction_offset_clamp),
-        vec2f(dropletParams.refraction_offset_clamp),
+    // 通道语义(与 fs_main 一一对应):
+    //   rg = 胜出水珠的圆心(uv),b = 归一化距离 s,a = 偏移整体大小.
+    textureStore(
+        refractionOffset,
+        vec2i(gid.xy),
+        vec4f(winnerCenter, winnerS, winnerMagnitude),
     );
-    textureStore(refractionOffset, vec2i(gid.xy), vec4f(offset, coverage, 1.0));
 }
 
 fn applyStyle(c: vec3f, uv: vec2f, time: f32, id: u32) -> vec3f {
@@ -382,10 +375,46 @@ fn applyStyle(c: vec3f, uv: vec2f, time: f32, id: u32) -> vec3f {
 fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
     let time = uniforms.time;
 
-    // Layer 1: 窗外虚像 - 采样低分辨率折射偏移图(斯涅尔折射)
+    // Layer 1: 窗外虚像 - 折射偏移逐像素解析重建(斯涅尔折射)
+    // 通道语义见 cs_refraction:rg = 胜出圆心,b = 归一化距离 s,a = 偏移整体大小.
     let refr = textureSample(textureRefraction, refractionSampler, uv);
-    let offset = refr.rg;
-    let dropletCover = refr.b;
+    let center = refr.rg;
+    let s = refr.b;
+    let magnitude = refr.a;
+    // ===== 边缘:把轮廓收敛成 1~2 像素宽的清晰边缘 =====
+    // s = dist / radius:圆内 s < 1,圆外 s > 1.轮廓附近 s 沿半径方向线性变化,
+    // 用屏幕空间导数 fwidth(s) 当过渡带半宽,过渡带就恒为"约 2 个屏幕像素",
+    // 与折射偏移图的分辨率无关.
+    // EDGE_AA_SCALE 决定过渡带相对 1 像素的倍率;EDGE_AA_MIN 兜底:s 在
+    // "附近没有水珠"(恒为 FAR_DISTANCE)或正好落在圆心时导数为 0,
+    // 而 smoothstep(e, e, x) 会除零算出 NaN.
+    let edgeWidth = max(fwidth(s) * EDGE_AA_SCALE, EDGE_AA_MIN);
+    let inside = 1.0 - smoothstep(1.0 - edgeWidth, 1.0 + edgeWidth, s);
+    // 圆心方向:各向同性空间里从圆心指向当前像素的单位向量.
+    // 圆心在一颗水珠内是常数(低分辨率采样得到的就是精确值),所以这个方向
+    // 是逐像素精确的,不像"直接存偏移向量"那样被打成 8 像素的格子.
+    let radial = toIsotropic(uv) - toIsotropic(center);
+    let radialLength = length(radial);
+    let dir2 = select(
+        radial / radialLength,
+        vec2f(0.0, 1.0),
+        radialLength < dropletParams.radius_epsilon,
+    );
+    // 偏移 = 圆心方向 × 斯涅尔横向偏移量 × 整体大小 × 强度倍率,
+    // 再换算回 uv 空间并限制上限(防止折射把画面拉得太远).
+    let rawOffset =
+        toUvOffset(dir2 * lateralProfile(s) * inside)
+        * magnitude
+        * dropletParams.refraction_scale;
+    let offset = clamp(
+        rawOffset,
+        vec2f(-dropletParams.refraction_offset_clamp),
+        vec2f(dropletParams.refraction_offset_clamp),
+    );
+    // 覆盖度 coverage = (1 - s)²(中心 1,边缘 0,二次衰减),
+    // 只在圆内非零;公式与旧实现一致,只是现在由解析的 s 算出来,更平滑.
+    let coverage = clamp(1.0 - s, 0.0, 1.0);
+    let dropletCover = coverage * coverage;
 
     // Layer 0: 窗外实景,多层城市按不同速度滚动.
     // 速度 = 基础速度 × 车速倍率 / 该层距离;

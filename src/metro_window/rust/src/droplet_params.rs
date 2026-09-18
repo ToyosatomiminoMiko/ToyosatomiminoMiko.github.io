@@ -81,9 +81,10 @@ define_droplet_params! {
     drag_radius_sensitivity = 8.0;
 
     // ===== 折射渲染 =====
-    // radius_epsilon:半径过小时跳过,同时用作圆心附近除零保护的阈值;
-    // refraction_eta_water:水折射率,用于斯涅尔公式;
-    // refraction_strength_per:强度对折射放大因子的增益;
+    // radius_epsilon:半径过小时跳过(cs_refraction);同时用作"圆心附近"的除零
+    //   保护阈值(fs_main 重建圆心方向时);
+    // refraction_eta_water:水折射率,用于斯涅尔公式(fs_main 的 lateralProfile);
+    // refraction_strength_per:强度对折射放大因子的增益(cs_refraction 存进偏移大小);
     // refraction_offset_clamp:折射偏移上限(uv 比例:x 按画布宽,y 按画布高);
     // lateral_z_epsilon:折射方向投影到 z = -1 平面时防止除零的阈值.
     radius_epsilon = 0.0001;

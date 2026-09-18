@@ -401,10 +401,10 @@ fn main() {
             .expect("refraction map 回调未触发")
             .expect("refraction map 失败");
         let rdata = rslice.get_mapped_range();
-        let mut min_r: f32 = f32::MAX;
-        let mut max_r: f32 = f32::MIN;
-        let mut min_g: f32 = f32::MAX;
-        let mut max_g: f32 = f32::MIN;
+        // 通道语义见 shaders.wgsl 的 cs_refraction:
+        //   r,g = 胜出水珠的圆心(uv),b = 归一化距离 s,a = 偏移整体大小.
+        let mut min_s: f32 = f32::MAX;
+        let mut max_magnitude: f32 = 0.0;
         for row in 0..SMOKE_REFRACTION_SIZE as usize {
             let base: usize = row * SMOKE_REFRACTION_ROW_BYTES as usize;
             let row_bytes = SMOKE_REFRACTION_ROW_BYTES as usize;
@@ -412,19 +412,25 @@ fn main() {
                 .as_chunks::<{ RGBA16F_BYTES_PER_PIXEL as usize }>()
                 .0
             {
-                let r = half_to_f32(u16::from_le_bytes([chunk[0], chunk[1]]));
-                let g = half_to_f32(u16::from_le_bytes([chunk[2], chunk[3]]));
-                min_r = min_r.min(r);
-                max_r = max_r.max(r);
-                min_g = min_g.min(g);
-                max_g = max_g.max(g);
+                let s = half_to_f32(u16::from_le_bytes([chunk[4], chunk[5]]));
+                let magnitude = half_to_f32(u16::from_le_bytes([chunk[6], chunk[7]]));
+                min_s = min_s.min(s);
+                max_magnitude = max_magnitude.max(magnitude);
             }
         }
         drop(rdata);
-        println!("斯涅尔折射偏移图 ({SMOKE_REFRACTION_SIZE}x{SMOKE_REFRACTION_SIZE}): r=[{min_r:.5}, {max_r:.5}] g=[{min_g:.5}, {max_g:.5}]");
+        println!(
+            "折射偏移图 ({SMOKE_REFRACTION_SIZE}x{SMOKE_REFRACTION_SIZE}): 最小 s={min_s:.5} 最大偏移大小={max_magnitude:.5}"
+        );
+        // 有像素落在水珠内 => s < 1;有像素拿到过水珠 => 偏移大小 > 0.
+        // 水滴位置是随机的,所以两张图都取"存在性"断言(见 SMOKE_REFRACTION_SIZE 的说明).
         assert!(
-            max_r.abs() > REFRACTION_NONZERO_EPSILON || max_g.abs() > REFRACTION_NONZERO_EPSILON,
-            "折射偏移全为零"
+            min_s < 1.0,
+            "折射偏移图里没有任何像素落在水珠内(s 全都 >= 1):水滴物理或折射计算没有跑"
+        );
+        assert!(
+            max_magnitude > REFRACTION_NONZERO_EPSILON,
+            "折射偏移图的偏移大小全为 0:没有一颗水珠参与折射"
         );
         println!("native smoke 测试通过: 水滴物理 + 斯涅尔折射 + 渲染管线可用");
     });
