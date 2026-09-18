@@ -318,6 +318,17 @@ export function unbiasedExponent(v: IEEE754Value): number {
     return 0;
 }
 
+/**
+ * 无偏指数的"代入二进制"算式(如 `1027-1023` / `1-1023`),给公式与分解说明共用.
+ * 只此一处拼这个算式,免得 Latex 链与 HTML 分解各写一份,改一处漏一处.
+ * 仅对有限值有意义,调用方已先按 classification 分流.
+ */
+function exponentSubstitution(v: IEEE754Value): string {
+    return v.classification === 'subnormal'
+        ? `${1}-${v.format.bias}`
+        : `${v.exponentField}-${v.format.bias}`;
+}
+
 // ============================================================
 // KaTeX 递等链生成(有限值)
 // ============================================================
@@ -333,15 +344,15 @@ export function unbiasedExponent(v: IEEE754Value): number {
 function finiteLatex(v: IEEE754Value): string {
     const sign = v.sign ? '-' : '';
     const leading = v.classification === 'subnormal' ? '0' : '1';
-    const expFormula = v.classification === 'subnormal'
-        ? `${1}-${v.format.bias}`
-        : `${v.exponentField}-${v.format.bias}`;
+    // 指数显示的是"代入二进制"的算式(与 unbiasedExponent 同源),
+    // 值本身由 unbiasedExponent 负责,这里只做展开式的排版.
+    const exponent = exponentSubstitution(v);
 
     const binaryMantissa = `\\left(${leading}.${v.fractionBits}\\right)_{2}`;
 
     const rows: string[] = [
-        `& ${sign}2^{${expFormula}} \\times ${binaryMantissa}`,
-        `& = ${sign}2^{${expFormula}} \\times ${mantissaDecimal(v)}`,
+        `& ${sign}2^{${exponent}} \\times ${binaryMantissa}`,
+        `& = ${sign}2^{${exponent}} \\times ${mantissaDecimal(v)}`,
         `& = ${exactValueDecimal(v)}`,
     ];
 
@@ -401,10 +412,10 @@ function breakdownHtml(v: IEEE754Value): string {
             expInfo = 'NaN (E 全 1, M≠0)';
             break;
         case 'subnormal':
-            expInfo = `非规格化, 指数 = 2<sup>${1 - v.format.bias}</sup>`;
+            expInfo = `非规格化, 指数 = 2<sup>${unbiasedExponent(v)}</sup>`;
             break;
         default:
-            expInfo = `规格化, 指数 = 2<sup>${v.exponentField - v.format.bias}</sup> ` +
+            expInfo = `规格化, 指数 = 2<sup>${unbiasedExponent(v)}</sup> ` +
                 `(E=${v.exponentField}, bias=${v.format.bias})`;
             break;
     }

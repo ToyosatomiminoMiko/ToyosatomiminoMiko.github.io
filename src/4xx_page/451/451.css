@@ -2,13 +2,15 @@
 
 /* ------------------------------------------------------------------
    字体: 由 @fontsource 自托管, 不再请求 Google Fonts CDN.
-   字重与原来 <link> 里请求的完全一致: Inter 300/400/600/800/900, Space Mono 400/700.
+   字重按 451_tokens.css 的 --fire-weight-* 取用: Inter 300/400/500/600/900,
+   Space Mono 400/700.注意 500(medium)是 .tagline 在用的字重, 必须导入,
+   否则浏览器会拿 400 顶上; 800 没有任何令牌引用, 不要导入.
    只取 latin 子集 -- 这几款字体都没有 CJK 字形, 页面里的中文本来就落回系统字体.
    ------------------------------------------------------------------ */
 @import '@fontsource/inter/latin-300.css';
 @import '@fontsource/inter/latin-400.css';
+@import '@fontsource/inter/latin-500.css';
 @import '@fontsource/inter/latin-600.css';
-@import '@fontsource/inter/latin-800.css';
 @import '@fontsource/inter/latin-900.css';
 @import '@fontsource/space-mono/latin-400.css';
 @import '@fontsource/space-mono/latin-700.css';
@@ -72,7 +74,9 @@ body {
     box-shadow: var(--fire-card-shadow);
     padding: var(--fire-card-padding);
     text-align: center;
-    transition: var(--fire-card-transition);
+    /* transition 也不要留: 它原本只为 cardGlow 的 border-color 服务,
+       动画删掉后没有任何规则再改 .card 的 border-color, 留着是空转.
+       (对应的 --fire-card-transition / --fire-card-duration 令牌已一并删除) */
     /*
         这里原来挂着 cardGlow: 关键帧里改 border-color(以及更早版本改三条
         box-shadow).边框一改, 整张卡片就要重画一遍 -- 包括那条 50px 模糊的

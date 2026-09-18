@@ -8,7 +8,6 @@
 import {
     COMPOSITE_BINDING_SAMPLER,
     COMPOSITE_BINDING_SCENE,
-    COMPOSITE_BINDING_UNIFORMS,
     COMPUTE_BINDING_PARTICLES,
     COMPUTE_BINDING_UNIFORMS,
     COMPUTE_ENTRY_POINT,
@@ -131,11 +130,6 @@ export async function buildPipelines(device: GPUDevice, format: GPUTextureFormat
                 binding: COMPOSITE_BINDING_SAMPLER,
                 visibility: GPUShaderStage.FRAGMENT,
                 sampler: { type: 'filtering' },
-            },
-            {
-                binding: COMPOSITE_BINDING_UNIFORMS,
-                visibility: GPUShaderStage.FRAGMENT,
-                buffer: { type: 'uniform' },
             },
         ],
     });

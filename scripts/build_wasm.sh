@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Rust -> wasm32-unknown-unknown,再用 wasm-bindgen 生成 src/metro_window/pkg/.
 #
-# 归属:脚本本体在仓库的 tools 目录 scripts/ 下,**由仓库根目录的 package.json 调用**
+# 归属:脚本本体在仓库的 scripts/ 目录下,**由仓库根目录的 package.json 调用**
 # (`npm run build:wasm`).这样做是为了保住"构建步骤序列只有 package.json 一处
 # 事实源"这条约定:根 build.sh 仍然只负责装依赖 + 调 `npm run build:all`,
 # 不在 shell 里另排一遍步骤.

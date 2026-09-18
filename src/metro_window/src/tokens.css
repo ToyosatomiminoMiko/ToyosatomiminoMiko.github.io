@@ -1,7 +1,7 @@
 /*
 地铁车窗的设计令牌(design tokens).
 
-这里集中 metro_window.css / metro_index.css 会用到的**全部可调数值**:
+这里集中 metro_window.css 会用到的**全部可调数值**:
 颜色,透明度,尺寸,间距,圆角,字体,动效时长与缓动.
 
 约定:
@@ -120,9 +120,6 @@
 
     /** 数字输入框的等宽字体栈 */
     --metro-font-family-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
-
-    /** 22px:页面主标题 */
-    --metro-font-size-title: 22px;
 
     /** 14px:参数面板 legend */
     --metro-font-size-legend: 14px;

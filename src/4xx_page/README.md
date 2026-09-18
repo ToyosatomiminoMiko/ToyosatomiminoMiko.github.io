@@ -224,9 +224,9 @@ WIN=420,300 npm run perf:451                      # 换窗口尺寸
 ```text
 404.html                    404 页(纯 SVG, 无脚本)
 418.html                    418 页的标记 + 内联图标 sprite
-451.html                    451 页的标记 + 内联图标 sprite
+451.html                    451 页的标记(图标已全换成 emoji, 无 sprite)
 
-shared/                     418 / 451 共用
+shared/                     只给 418 用(451 改用 emoji, 不再引入)
   icon.css                    .icon 基础规则 + .icon-sprite(sprite 宿主)
   icon.ts                     icon() -> <use href="#i-..."> 片段(JS 动态拼 HTML 时用)
 
@@ -239,12 +239,15 @@ shared/                     418 / 451 共用
     index.ts                    交互逻辑(只导出 mountTeapot)
     config.ts                   调参常量(id / 选择器 / 时长 / 样式值 / 文案)
   418.css
+  418_tokens.css              418 的设计令牌(由 418.css 顶部 @import)
 
 451/                        451 页
   index.ts                    入口(薄): 起引擎
   boot.ts                     启动 / 超时 / 降级 / data-ember 上报 / window.* 开关
+  boot.config.ts              启动相关常量(超时 / 状态名 / STATUS_EVENT_NAME 等)
   window.d.ts                 window.__ember* 的类型
   451.css
+  451_tokens.css              451 的设计令牌(由 451.css 顶部 @import)
   ember/                      粒子引擎(对外只暴露 index.ts)
     index.ts                    EmberWebGPU 门面: 生命周期 + 每帧录制命令 + 帧率上限
     config.ts                   调参常量(FIXED_DT / MAX_DPR / MAX_PIXELS / MAX_FPS ...)

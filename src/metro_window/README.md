@@ -41,9 +41,9 @@ mountMetroWindow({ stage, styles, panel });
 ```
 
 - **宿主只提供空容器**:站点里只有三个 `<div id="metro-window">` /
-  `<div id="metro-styles">` / `<div id="metro-params">`;画布(以及可选的标题 / 副标题,见
-  `src/config.ts` 的 `STAGE_COPY_ENABLED`)由 `src/ui/stage_content.ts` 按
-  `src/config.ts` 的分辨率生成,风格按钮行与设置面板(播放控制 / 滑块 / 状态区)由
+  `<div id="metro-styles">` / `<div id="metro-params">`;画布由
+  `src/ui/stage_content.ts` 按 `src/config.ts` 的分辨率生成,风格按钮行与设置面板
+  (播放控制 / 滑块 / 状态区)由
   `src/ui/settings.ts` 按同一份模型生成,分别插进各自的宿主 --
   风格按钮行**只建一份**(给 `styles` 宿主就挂首屏,不给就留在控制台里,
   两个地方不会各出现一份).宿主页不出现任何
@@ -333,9 +333,9 @@ toUvOffset(o)   = (o.x / aspect, o.y)       折射偏移要加回 uv 上采样�
   前后**纵向直径不变,横向从 2r·W 收到 2r·H**:radius 0.006..0.024 在
   1344×756 上由 16.1×9.1 .. 64.5×36.3 px 变成 9.1×9.1 .. 36.3×36.3 px,
   横竖比 1.778 -> 1.000.嫌小就抬 `radius_min`/`radius_span` 或用"水滴大小"滑块
-- 画布分辨率是 HTML 上的固定属性(`src/config.ts` 的 CANVAS_WIDTH/HEIGHT),
-  没有 resize 路径,所以 aspect 只算一次;以后若要支持 resize/DPR,必须让
-  表面配置与 aspect 同步更新
+- 画布分辨率现在是**随宿主算出来的**(见 `src/stage_size.ts` 与 `App::aspect()`):
+  `resize()` 会同步更新 surface 配置与折射偏移图,aspect 每帧由 surface 尺寸现算,
+  所以 resize/DPR 变化不会让两者漂移(旧版"固定 1344×756,无 resize 路径"的说法已作废)
 
 验证方式(软件 Vulkan 实渲):固定随机种子让同一颗水珠跑两次,只把 aspect 切成
 1.0(复现旧椭圆)与 W/H(修正后),两次渲染的差异像素应只剩水珠左右两侧的竖直
@@ -454,7 +454,7 @@ cargo run --package metro-window --example preview        # 用真实城市纹�
 | 改动 | 为什么 |
 | --- | --- |
 | `MOUNT_ID` -> `MOUNT_IDS { stage, panel }`;`mountMetroWindow(root)` -> `mountMetroWindow({ stage, panel? })`;`mountMetroWindowAtMountId()` -> `mountMetroWindowAtMountIds()` | 一个页面两个宿主:画布在首屏,设置面板在 SETTING 标签页."面板放哪"从此是站点的决定,组件不再假设两者同屏 |
-| `ui/window_content.ts` -> `ui/stage_content.ts`,`createWindowContent()` -> `createStageContent()`;新增 `STAGE_COPY_ENABLED` | 这个文件只管舞台;首屏文案(标题 / 副标题)当前不由组件生成(站名在导航左上角,中央文案待定),但两个字符串仍留在 `config.ts` 里,开关一开就回来 |
+| `ui/window_content.ts` -> `ui/stage_content.ts`,`createWindowContent()` -> `createStageContent()`;一度新增 `STAGE_COPY_ENABLED` | 这个文件只管舞台;首屏文案后来改由站点页面负责(站名在导航左上角),组件不再生成标题 / 副标题.该开关连同 `WINDOW_TITLE` / `WINDOW_SUBTITLE` / `SUBTITLE_CLASS`,`metro_window.css` 的 `h1`/`.subtitle` 规则与 `--metro-font-size-title` **已整体删除**(开关长期为关,四处都没有消费者) |
 | 样式作用域类由挂载函数往**两个**宿主上都补;新增舞台修饰类 `.metro-window--stage` 与隐藏容器 `.metro-panel-sink` | `metro_window.css` 的选择器**全部**以 `.metro-window` 开头:面板换了宿主却没这个类就是"样式静默失效"(看着没坏但全乱);省略面板宿主时退回隐藏容器,面板 / 状态区 / 事件绑定一个都不少 |
 | `IntersectionObserver` 明确只观察**舞台** | 面板在别的标签页里,它的可见性不代表画面的可见性,不能拿来当暂停依据 |
 | Rust 侧一行未改 | 面板只是换了 DOM 宿主;`startApp(canvas, status)` 要的 `status` 元素在任何宿主里都成立,`setStyle` / `setParam` / `setRunning` / `reset` 仍作用于同一个单例 |

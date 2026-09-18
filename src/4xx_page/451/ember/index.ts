@@ -294,7 +294,6 @@ export class EmberWebGPU {
                     // 合成时读的是"另一张"历史纹理, 由此形成逐帧反馈拖尾
                     { binding: 0, resource: this.historyViews[i === 0 ? 1 : 0] },
                     { binding: 1, resource: pipelines.sampler },
-                    { binding: 2, resource: { buffer: simBuffer } },
                 ],
             })
         );

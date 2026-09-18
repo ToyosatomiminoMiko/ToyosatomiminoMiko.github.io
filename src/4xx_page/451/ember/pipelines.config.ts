@@ -27,9 +27,6 @@ export const COMPOSITE_BINDING_SCENE = 0;
 /** composite pass:画面采样器 */
 export const COMPOSITE_BINDING_SAMPLER = 1;
 
-/** composite pass:合成参数 uniform buffer */
-export const COMPOSITE_BINDING_UNIFORMS = 2;
-
 // ---------- 着色器入口点(必须与 WGSL 的 fn 名一致) ----------
 
 /** 顶点着色器入口(render / composite 共用同名入口) */

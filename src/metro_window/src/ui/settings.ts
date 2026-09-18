@@ -30,7 +30,6 @@ import {
     STATUS_INITIAL,
     STATUS_LABEL,
     STYLE_BUTTON_ACTIVE_CLASS,
-    STYLE_BUTTON_CLASS,
     STYLE_DATA_KEY,
     STYLE_PRESETS,
     TRANSPORT_BUTTONS,
@@ -118,7 +117,7 @@ export function createStyleRow(): StyleRow {
     const buttons = STYLE_PRESETS.map((preset) => {
         const active = preset.index === DEFAULT_STYLE_INDEX;
         return h('button', {
-            class: active ? `${STYLE_BUTTON_CLASS} ${STYLE_BUTTON_ACTIVE_CLASS}` : STYLE_BUTTON_CLASS,
+            class: active ? STYLE_BUTTON_ACTIVE_CLASS : '',
             text: preset.label,
             dataset: { [STYLE_DATA_KEY]: preset.index },
         });

@@ -89,32 +89,18 @@ export const ELEMENT_IDS = {
 // ---------- 车窗自身的页面级标记 ----------
 
 /*
- * 画布(以及可选的标题 / 副标题)由 ui/stage_content.ts 生成,不再是页面 HTML.
+ * 画布由 ui/stage_content.ts 生成,不再是页面 HTML.
  *
- * 原因:宿主只提供空容器,文案与画布尺寸集中在这里定义一次 -- 宿主页不重复
- * 任何标记,改文案只动这一个文件.
+ * 原因:宿主只提供空容器,画布尺寸集中在这里定义一次 -- 宿主页不重复任何标记.
  *
  * 注意与上面的区别:上面是"宿主必须提供的 id",这里是"组件自己生成的内容".
- */
-
-/**
- * 舞台是否生成首屏文案(标题 + 副标题).
  *
- * false = 只出画布:站点把首屏(hero)文案交给页面自己负责(站名在导航左上角,
- * 中央文案待定),组件不再往画面里塞字;WINDOW_TITLE / WINDOW_SUBTITLE 两个
- * 字符串仍然保留在本文件里,以后要把文案交回组件,改这一个开关即可.
+ * 这里曾经还有一套"组件生成标题 / 副标题"的开关(STAGE_COPY_ENABLED=false)
+ * 连同 WINDOW_TITLE / WINDOW_SUBTITLE / SUBTITLE_CLASS 与 metro_window.css 的
+ * `h1`/`.subtitle` 规则,以及只为 h1 服务的 `--metro-font-size-title`.开关一直
+ * 是关的,四处都没有消费者,已整体删除.若将来要把文案交回组件,再重新引入,
+ * 不要只恢复其中一半(只留常量没规则,或只留规则没生成代码,都是死重量).
  */
-export const STAGE_COPY_ENABLED = false;
-
-/** 车窗标题 <h1> 文案 */
-export const WINDOW_TITLE = '🚇 地铁车窗 · Rust + WebGPU';
-
-/** 车窗副标题 <p> 文案 */
-export const WINDOW_SUBTITLE =
-    'Rust/WASM 驱动 WebGPU:水滴物理/折射虚像/玻璃污渍/冷凝雾气/车厢灯光反射,三种风格实时切换';
-
-/** 副标题的类名(metro_window.css 的 `.metro-window .subtitle`) */
-export const SUBTITLE_CLASS = 'subtitle';
 
 /**
  * 画布的渲染分辨率(宽度,像素).Rust 侧直接读 canvas.width/height 建 surface,
@@ -183,10 +169,11 @@ export const STAGE_NOTE_CLASS = 'stage-note';
 export const STAGE_NOTE_UNAVAILABLE =
     '实时车窗需要 WebGPU,当前浏览器/设备不可用;完整排查步骤见 SETTING 标签页.';
 
-/** 风格按钮的类名(三颗 data-style 按钮共用) */
-export const STYLE_BUTTON_CLASS = 'style-btn';
-
-/** 风格按钮"选中"态的类名,由 JS 切换 */
+/**
+ * 风格按钮"选中"态的类名,由 JS 切换.
+ * 基础样式走 `.metro-window button`(见 metro_window.css),所以没有基础类名;
+ * 这里只有"选中"这一个可切换状态.
+ */
 export const STYLE_BUTTON_ACTIVE_CLASS = 'active';
 
 /** 风格按钮上 data-* 的键名(读取 dataset.style,取值 0/1/2) */

@@ -21,8 +21,9 @@ pub struct Uniforms {
     /// 各向同性空间后再算距离,水珠才会是正圆(见 shaders.wgsl 的
     /// `toIsotropic` / `toUvOffset`).
     ///
-    /// 取值来源:src/app.rs 初始化时由 `canvas.width / canvas.height` 算出;
-    /// 画布分辨率是 HTML 上的固定属性且没有 resize 路径,所以只算一次.
+    /// 取值来源:`App::aspect()` 由 surface_config 的宽高现算,每帧写 uniform 时
+    /// 都取一次,所以 resize 之后不需要单独同步这个字段--尺寸与 aspect 永远同源,
+    /// 不存在"改了尺寸忘了改 aspect"的漂移.
     /// 这个字段同时把结构体填满 16 字节(uniform 结构按 16 字节对齐),
     /// 因此不再需要单独的 `_padding`.
     aspect: f32,
