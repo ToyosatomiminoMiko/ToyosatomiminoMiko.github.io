@@ -20,19 +20,28 @@
 
 ### 组件形态
 
-前端做成了"挂载函数"而不是页面入口,标记留在页面里,宿主只负责把它交上来:
+前端做成了"挂载函数"而不是页面入口,宿主只负责把容器交上来:
 
 ```ts
-import { mountMetroWindow } from '../metro_window/web/src/metro-window';
+import { mountMetroWindow } from './metro_window';
 
 const host = document.getElementById('metro-window');
 if (host) mountMetroWindow(host);
 ```
 
-- **标记在页面里**(`index.html` 的 `#metro-window`),`metro_window.ts` 只做行为,
-  `metro_window.css` 只做组件样式,`page.css`(只有独立页引)只做页面级样式,
-  `page.ts` 只做挂载.容器必须带 `.metro-window` 类名,组件按 id 查元素且只在容器内解析.
-- 组件样式与页面样式**分开**:`body { margin: 0 }` 这种只能进 `page.css` --
+- **页面只留页面级标记**:`index.html` 里是容器 `#metro-window`,标题,副标题和
+  画布;设置面板(风格按钮 / 播放控制 / 滑块 / 状态区)由 `web/src/ui/settings.ts`
+  按 `web/src/config.ts` 的声明式模型生成,插在画布之后 -- 标记不再手写进 HTML,
+  加一个滑块只需要往 `SLIDER_GROUPS` 里加一条.
+- **声明式组件**:`web/src/ui/dom.ts` 的 `h()` 是唯一的 DOM 构造原语(描述 -> 元素),
+  `web/src/ui/settings.ts` 的每个组件都是纯函数(props -> 元素),不读页面,不改全局;
+  `metro_window.ts` 拿到组件交回的元素引用后绑事件,不再按 id 去 DOM 里找.
+  滑块布局只在 `createSlider()` 里定义一处:最外层 `div.slider`,上层滑杆,
+  下层"名称(左) + 数值(右)".
+- `metro_window.ts` 只做行为,`metro_window.css` 只做组件样式,
+  `metro_index.css`(只有独立页引)只做页面级样式,`page.ts` 只做挂载.
+  容器必须带 `.metro-window` 类名,组件只在容器内解析元素.
+- 组件样式与页面样式**分开**:`body { margin: 0 }` 这种只能进 `metro_index.css` --
   放进 `metro_window.css` 就等于让组件去改宿主页面的 body.
 - 样式**全部**以 `.metro-window` 作用域开头.站点首页引了 bootstrap,还有一条
   `* { margin:0; padding:0; border:0; background:none }` 的通配重置,
@@ -69,15 +78,20 @@ metro_window/
 ├── examples/        本地验证与预览程序
 ├── scripts/
 │   └── build_wasm.sh    Rust -> wasm 的构建脚本(由仓库根的 npm 脚本调用)
-├── index.html       页面:车窗的全部标记 + 一个入口脚本
+├── index.html       页面:容器 + 标题/副标题/画布 + 一个入口脚本
 ├── public/          运行时贴图,按 /metro_window/resource/ 公开
 │   └── resource/    城市纹理 PNG(Rust 在运行时按 URL fetch)
 ├── web/             前端源码
-│   ├── src/             行为与样式
-│   │   ├── metro_window.ts  挂载函数:交互/WebGPU 适配器检查/生命周期
-│   │   ├── metro_window.css  组件样式(全部以 .metro-window 作用域)
-│   │   ├── .css          页面级样式(只有去 body 外边距)
-│   │   └── page.ts           入口脚本(引 .css + 调用挂载函数)
+│   ├── src/             配置 / 组件 / 行为 / 样式
+│   │   ├── config.ts        全部常量 + 设置面板的声明式模型(滑块/风格/按钮/文案)
+│   │   ├── metro_window.ts  挂载函数:组装面板/交互/WebGPU 适配器检查/生命周期
+│   │   ├── ui/
+│   │   │   ├── dom.ts       h():声明式 DOM 构造原语(描述 -> 元素)
+│   │   │   └── settings.ts  设置面板组件(按 config.ts 的模型生成并交回元素引用)
+│   │   ├── tokens.css       设计令牌(全部可调数值)
+│   │   ├── metro_window.css 组件样式(全部以 .metro-window 作用域)
+│   │   ├── metro_index.css  页面级样式(只有去 body 外边距)
+│   │   └── page.ts          入口脚本(引 .css + 调用挂载函数)
 │   ├── design/          设计源文件(.kra),不参与构建
 │   └── pkg/             生成:wasm-bindgen 输出(gitignore)
 ├── Cargo.toml       Rust 依赖

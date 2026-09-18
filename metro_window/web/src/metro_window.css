@@ -94,13 +94,26 @@
     margin-top: var(--metro-space-6);
 }
 
-.metro-window .slider-row {
-    display: grid;
-    grid-template-columns: var(--metro-size-slider-label-col) var(--metro-size-slider-range-col) var(--metro-size-slider-value-col);
-    align-items: center;
-    gap: var(--metro-space-8);
+/* 单个滑块:最外层是 div,内边距/间距/圆角/底色都只在这一层统一控制.
+   内部固定两层:上层滑杆,下层"名称(左) + 数值(右)". */
+.metro-window .slider {
+    display: flex;
+    flex-direction: column;
+    gap: var(--metro-space-6);
+    min-width: 0;
+    padding: var(--metro-space-8);
+    border-radius: var(--metro-radius-sm);
+    background: var(--metro-color-panel);
     font-size: var(--metro-font-size-base);
     color: var(--metro-color-text);
+}
+
+.metro-window .slider-meta {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--metro-space-8);
+    min-width: 0;
 }
 
 .metro-window .slider-label {
@@ -124,7 +137,9 @@
 }
 
 .metro-window .slider-value {
-    width: 100%;
+    flex: none;
+    width: var(--metro-size-slider-value-col);
+    text-align: right;
     background: var(--metro-color-input-bg);
     color: var(--metro-color-text);
     border: var(--metro-size-border) solid var(--metro-color-border);

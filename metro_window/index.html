@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <!--
 地铁车窗页面,线上地址 /metro_window/.
-- 标记直接写在本页里;行为与样式在 web/src/:metro_window.ts 负责交互与 WebGPU,
-  metro_window.css 负责样式,page.ts 只负责把它挂到 #metro-window 上.
+- 页面只留页面级标记(标题/副标题/画布);设置面板(风格按钮/播放控制/滑块/
+  状态区)由 web/src/ui/settings.ts 按 web/src/config.ts 的声明式模型生成.
+- 行为与样式在 web/src/:metro_window.ts 负责交互与 WebGPU,metro_window.css
+  负责样式,page.ts 只负责把它挂到 #metro-window 上.
 - Rust/WASM + WebGPU 实时渲染,支持三种风格切换
 -->
 <html lang="zh-CN">
@@ -16,135 +18,16 @@
 
 <body>
     <!--
-    车窗的全部标记.两条约定:
+    车窗的容器与页面级标记.三条约定:
       - 容器必须带 .metro-window 类名,样式全靠它作用域;
-      - 组件按 id 查元素,所有 id 都只在容器内解析.
+      - 组件按 id 查画布(canvas),所有 id 都只在容器内解析;
+      - 设置面板由 ui/settings.ts 生成后插到 canvas 之后,不写在这里.
     -->
     <div class="metro-window" id="metro-window">
         <h1>🚇 地铁车窗 · Rust + WebGPU</h1>
         <p class="subtitle">Rust/WASM 驱动 WebGPU:水滴物理/折射虚像/玻璃污渍/冷凝雾气/车厢灯光反射,三种风格实时切换</p>
 
         <canvas id="webgpu-canvas" width="1344" height="756"></canvas>
-
-        <fieldset class="sliders" id="paramPanel" disabled>
-            <legend>🎚 实时参数</legend>
-            <div class="controls">
-                <button class="style-btn" data-style="0">泡沫时期东京电车</button>
-                <button class="style-btn" data-style="1">赛博朋克</button>
-                <button class="style-btn" data-style="2">上海磁悬浮</button>
-                <span class="spacer"></span>
-                <button id="startBtn">▶ 播放</button>
-                <button id="pauseBtn" disabled>⏸ 暂停</button>
-                <button id="resetBtn">🔄 重置</button>
-            </div>
-            <details class="slider-group" open>
-                <summary>🚄 车速与背景距离</summary>
-                <div class="slider-grid">
-                    <div class="slider-row">
-                        <label class="slider-label" for="vehicleSpeed">车速 <small>倍率</small></label>
-                        <input class="slider-range" id="vehicleSpeed" type="range" min="0" max="3" step="0.01"
-                            value="1">
-                        <input class="slider-value" id="vehicleSpeedNum" type="number" min="0" max="3" step="0.01"
-                            value="1">
-                    </div>
-                    <div class="slider-row">
-                        <label class="slider-label" for="farDistance">远景距离 <small>越大越慢</small></label>
-                        <input class="slider-range" id="farDistance" type="range" min="0.2" max="3" step="0.01"
-                            value="1">
-                        <input class="slider-value" id="farDistanceNum" type="number" min="0.2" max="3" step="0.01"
-                            value="1">
-                    </div>
-                    <div class="slider-row">
-                        <label class="slider-label" for="midDistance">中景距离 <small>越大越慢</small></label>
-                        <input class="slider-range" id="midDistance" type="range" min="0.2" max="3" step="0.01"
-                            value="1">
-                        <input class="slider-value" id="midDistanceNum" type="number" min="0.2" max="3" step="0.01"
-                            value="1">
-                    </div>
-                    <div class="slider-row">
-                        <label class="slider-label" for="nearDistance">近景距离 <small>越大越慢</small></label>
-                        <input class="slider-range" id="nearDistance" type="range" min="0.2" max="3" step="0.01"
-                            value="1">
-                        <input class="slider-value" id="nearDistanceNum" type="number" min="0.2" max="3" step="0.01"
-                            value="1">
-                    </div>
-                </div>
-            </details>
-
-            <details class="slider-group" open>
-                <summary>💧 水滴与风</summary>
-                <div class="slider-grid">
-                    <div class="slider-row">
-                        <label class="slider-label" for="dropletSize">水滴大小 <small>倍率</small></label>
-                        <input class="slider-range" id="dropletSize" type="range" min="0.2" max="2.5" step="0.01"
-                            value="1">
-                        <input class="slider-value" id="dropletSizeNum" type="number" min="0.2" max="2.5" step="0.01"
-                            value="1">
-                    </div>
-                    <div class="slider-row">
-                        <label class="slider-label" for="windBackward">向后风 <small>随车速</small></label>
-                        <input class="slider-range" id="windBackward" type="range" min="0" max="1" step="0.01"
-                            value="0.15">
-                        <input class="slider-value" id="windBackwardNum" type="number" min="0" max="1" step="0.01"
-                            value="0.15">
-                    </div>
-                    <div class="slider-row">
-                        <label class="slider-label" for="windSway">摇摆风 <small>倍率</small></label>
-                        <input class="slider-range" id="windSway" type="range" min="0" max="2" step="0.01" value="1">
-                        <input class="slider-value" id="windSwayNum" type="number" min="0" max="2" step="0.01"
-                            value="1">
-                    </div>
-                    <div class="slider-row">
-                        <label class="slider-label" for="gravityScale">下落速度 <small>倍率</small></label>
-                        <input class="slider-range" id="gravityScale" type="range" min="0" max="3" step="0.01"
-                            value="1">
-                        <input class="slider-value" id="gravityScaleNum" type="number" min="0" max="3" step="0.01"
-                            value="1">
-                    </div>
-                    <div class="slider-row">
-                        <label class="slider-label" for="refractionScale">折射强度 <small>倍率</small></label>
-                        <input class="slider-range" id="refractionScale" type="range" min="0" max="3" step="0.01"
-                            value="1">
-                        <input class="slider-value" id="refractionScaleNum" type="number" min="0" max="3" step="0.01"
-                            value="1">
-                    </div>
-                </div>
-            </details>
-
-            <details class="slider-group" open>
-                <summary>🪟 玻璃质感</summary>
-                <div class="slider-grid">
-                    <div class="slider-row">
-                        <label class="slider-label" for="dirtOpacity">污渍浓度</label>
-                        <input class="slider-range" id="dirtOpacity" type="range" min="0" max="1" step="0.01"
-                            value="0.55">
-                        <input class="slider-value" id="dirtOpacityNum" type="number" min="0" max="1" step="0.01"
-                            value="0.55">
-                    </div>
-                    <div class="slider-row">
-                        <label class="slider-label" for="fogOpacity">雾气浓度</label>
-                        <input class="slider-range" id="fogOpacity" type="range" min="0" max="1" step="0.01"
-                            value="0.30">
-                        <input class="slider-value" id="fogOpacityNum" type="number" min="0" max="1" step="0.01"
-                            value="0.30">
-                    </div>
-                    <div class="slider-row">
-                        <label class="slider-label" for="interiorOpacity">车厢灯光</label>
-                        <input class="slider-range" id="interiorOpacity" type="range" min="0" max="1" step="0.01"
-                            value="0.55">
-                        <input class="slider-value" id="interiorOpacityNum" type="number" min="0" max="1" step="0.01"
-                            value="0.55">
-                    </div>
-                </div>
-            </details>
-            <div class="gpu_info">
-                <strong>WebGPU 状态:</strong> <span id="status">初始化中...</span>
-                <div class="layers">
-                    Layer 0 窗外实景 · Layer 1 水珠折射虚像 · Layer 2 玻璃污渍 ·
-                    Layer 3 冷凝雾气 · Layer 4 车厢灯光与倒影
-                </div>
-            </div>
-        </fieldset>
     </div>
     <script type="module" src="/metro_window/web/src/page.ts"></script>
 </body>

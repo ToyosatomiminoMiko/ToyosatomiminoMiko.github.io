@@ -71,13 +71,7 @@
     /** 滑块网格自动换行时单列的最小宽度 */
     --metro-size-slider-grid-min: 320px;
 
-    /** 滑块行的三列宽度:标签列(最小 96px,占 1.1 份) */
-    --metro-size-slider-label-col: minmax(96px, 1.1fr);
-
-    /** 滑块行的三列宽度:滑杆列(最小 140px,占 2 份) */
-    --metro-size-slider-range-col: minmax(140px, 2fr);
-
-    /** 滑块行的三列宽度:数字输入框列(固定 64px) */
+    /** 滑块"数值"输入框的固定宽度(在名称右侧,右对齐) */
     --metro-size-slider-value-col: 64px;
 
     /* ---------- 间距(按像素值命名,同一像素值只定义一次) ---------- */

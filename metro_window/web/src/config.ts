@@ -1,22 +1,23 @@
 /*
-地铁车窗前端的集中配置(纯常量,不含业务逻辑).
+地铁车窗前端的集中配置(纯声明式数据,不含业务逻辑).
 
-metro_window/index.html 提供标记,metro_window.ts / page.ts 只负责行为;两边靠
-id / class / data-* / Rust 参数名这些字符串对齐,一旦散落在代码里,改一处漏一处
-就是"静默失效",所以统一收到这里:
+页面只提供容器 / 标题 / 画布这些页面级标记,设置面板(风格按钮 / 播放控制 /
+滑块 / 状态区)由 web/src/ui/ 下的声明式组件按本文件的模型生成;两边靠下面这些
+字符串对齐,一旦散落在代码里,改一处漏一处就是"静默失效",所以统一收到这里:
 
-  - DOM 挂载点,元素 id,类名,data-* 键名  -- 必须与 metro_window/index.html 一致;
-  - setParam / setStyle 的参数名            -- 必须与 metro_window/src/lib.rs 一致;
+  - 页面提供的元素 id,组件生成的类名 / data-* 键名;
+  - setParam / setStyle 的参数名        -- 必须与 metro_window/src/lib.rs 一致;
+  - 设置面板的完整结构模型(分组 / 顺序 / 文案 / 范围);
   - WebGPU 适配器识别规则与请求参数;
   - 全部状态 / 报错 / 帮助文案.
 
 约定:
   - 每个值都是重构前字面量的逐字拷贝,只做"起名",不改数值与行为;
-  - 对象与数组用 `as const` 收窄成字面量类型,防止被当成可变结构误改;
+  - 对象与数组用 `as const satisfies` 收窄成字面量类型并校验结构;
   - 禁止在这里改动任何 id / class / 参数名,否则运行时静默失效.
 */
 
-// ---------- DOM 契约(必须与 metro_window/index.html 一致) ----------
+// ---------- DOM 契约 ----------
 
 /** 容器必须带的作用域类名:组件样式的选择器全靠它作用域 */
 export const WINDOW_CLASS = 'metro-window';
@@ -24,13 +25,7 @@ export const WINDOW_CLASS = 'metro-window';
 /** 挂载点 id:page.ts 用它 getElementById,index.html 里也是这个值 */
 export const MOUNT_ID = 'metro-window';
 
-/** 风格按钮的类名(三颗 data-style 按钮共用) */
-export const STYLE_BUTTON_CLASS = 'style-btn';
-
-/** 风格按钮"选中"态的类名,由 JS 切换 */
-export const STYLE_BUTTON_ACTIVE_CLASS = 'active';
-
-/** 按 id 查元素时的选择器前缀:`#status` 里的 `#` */
+/** 按 id 查元素时的选择器前缀:`#webgpu-canvas` 里的 `#` */
 export const ID_SELECTOR_PREFIX = '#';
 
 /** 找不到元素时抛错的文案前缀,后面直接拼 id */
@@ -40,66 +35,163 @@ export const MISSING_ELEMENT_MESSAGE_PREFIX = '找不到页面元素 #';
 export const MISSING_MOUNT_MESSAGE_PREFIX = '找不到挂载点 #';
 
 /**
- * 组件依赖的全部元素 id(与 metro_window/index.html 一一对应).
+ * 页面(index.html)必须提供的元素 id.设置面板由组件生成,不在其中.
  * 键名是用途,值必须与 HTML 里的 id 完全一致,不得改动.
  */
 export const ELEMENT_IDS = {
-    /** WebGPU 状态文字 <span> */
-    status: 'status',
     /** WebGPU 渲染画布 <canvas> */
     canvas: 'webgpu-canvas',
-    /** ▶ 播放按钮 */
-    startButton: 'startBtn',
-    /** ⏸ 暂停按钮 */
-    pauseButton: 'pauseBtn',
-    /** 🔄 重置按钮 */
-    resetButton: 'resetBtn',
-    /** 滑块面板 <fieldset>,加载完成后才启用 */
-    paramPanel: 'paramPanel',
 } as const;
 
-/** 数字输入框 id = 滑块 id + 此后缀(如 vehicleSpeed -> vehicleSpeedNum) */
-export const NUMBER_INPUT_ID_SUFFIX = 'Num';
+/** 风格按钮的类名(三颗 data-style 按钮共用) */
+export const STYLE_BUTTON_CLASS = 'style-btn';
+
+/** 风格按钮"选中"态的类名,由 JS 切换 */
+export const STYLE_BUTTON_ACTIVE_CLASS = 'active';
 
 /** 风格按钮上 data-* 的键名(读取 dataset.style,取值 0/1/2) */
 export const STYLE_DATA_KEY = 'style';
 
-/** data-style 缺失时回退的风格序号(0 = 泡沫时期东京电车) */
+/** data-style 缺失时回退的风格序号(0 = 泡沫时期东京电车),也是初始选中项 */
 export const DEFAULT_STYLE_INDEX = 0;
 
-// ---------- Rust 参数契约 ----------
+// ---------- 设置面板的声明式模型 ----------
+
+/** 设置面板 <legend> 文案 */
+export const PANEL_LEGEND = '🎚 实时参数';
+
+/** 状态区"WebGPU 状态:"标签文案 */
+export const STATUS_LABEL = 'WebGPU 状态:';
+
+/** 状态区初始文案(wasm 加载前) */
+export const STATUS_INITIAL = '初始化中...';
+
+/** 状态区下方图层说明文案 */
+export const LAYERS_NOTE =
+    'Layer 0 窗外实景 · Layer 1 水珠折射虚像 · Layer 2 玻璃污渍 · ' +
+    'Layer 3 冷凝雾气 · Layer 4 车厢灯光与倒影';
 
 /**
- * 滑块 <-> Rust 参数名的映射.param 必须与 metro_window/src/lib.rs 的
- * set_param 分支一致,写错不会报错,只会静默不生效,所以集中在这里便于对照.
- * id 必须与 index.html 里滑块的 id 一致.
+ * 单个实时滑块的声明式描述:既是标记(css 类名 / 范围 / 初始值),
+ * 也是行为(param 名 / clamp 区间)的唯一来源.
+ *
+ * id       -- 生成 <input type="range"> 的 id,<label for> 靠它关联;
+ * param    -- setParam 参数名,必须与 metro_window/src/app_params.rs 的 SLIDERS 一致;
+ * label    -- 滑杆下方的名称(左);
+ * hint     -- 名称后的小字注释(可选),为空不渲染;
+ * min/max  -- 前端可调区间(与 Rust 侧 clamp 区间各自独立,前端先夹一次);
+ * step     -- 步长,同时决定显示小数位数;
+ * value    -- 初始值.
  */
-export const SLIDERS = [
-    /** 车速(倍率) */
-    { id: 'vehicleSpeed', param: 'vehicle_speed' },
-    /** 远景距离(越大越慢) */
-    { id: 'farDistance', param: 'far_distance' },
-    /** 中景距离(越大越慢) */
-    { id: 'midDistance', param: 'mid_distance' },
-    /** 近景距离(越大越慢) */
-    { id: 'nearDistance', param: 'near_distance' },
-    /** 水滴大小(倍率) */
-    { id: 'dropletSize', param: 'droplet_size' },
-    /** 向后风(随车速) */
-    { id: 'windBackward', param: 'wind_backward_factor' },
-    /** 摇摆风(倍率) */
-    { id: 'windSway', param: 'wind_sway_scale' },
-    /** 下落速度(倍率) */
-    { id: 'gravityScale', param: 'gravity_scale' },
-    /** 折射强度(倍率) */
-    { id: 'refractionScale', param: 'refraction_scale' },
-    /** 玻璃污渍浓度 */
-    { id: 'dirtOpacity', param: 'dirt_opacity' },
-    /** 冷凝雾气浓度 */
-    { id: 'fogOpacity', param: 'fog_opacity' },
-    /** 车厢灯光强度 */
-    { id: 'interiorOpacity', param: 'interior_opacity' },
-] as const;
+export interface SliderSpec {
+    readonly id: string;
+    readonly param: string;
+    readonly label: string;
+    readonly hint?: string;
+    readonly min: number;
+    readonly max: number;
+    readonly step: number;
+    readonly value: number;
+}
+
+/** 一个可折叠的滑块分组(<details class="slider-group">) */
+export interface SliderGroupSpec {
+    /** <summary> 文案 */
+    readonly title: string;
+    /** 是否默认展开 */
+    readonly open: boolean;
+    readonly sliders: readonly SliderSpec[];
+}
+
+/**
+ * 全部实时滑块,按分组与显示顺序声明.
+ * param 必须与 metro_window/src/app_params.rs 的 SLIDERS 逐字一致(前端按名字调用,
+ * 名字写错不会报错,只会静默不生效).
+ */
+export const SLIDER_GROUPS = [
+    {
+        title: '🚄 车速与背景距离',
+        open: true,
+        sliders: [
+            /** 车速(倍率) */
+            { id: 'vehicleSpeed', param: 'vehicle_speed', label: '车速', hint: '倍率', min: 0, max: 3, step: 0.01, value: 1 },
+            /** 远景距离(越大越慢) */
+            { id: 'farDistance', param: 'far_distance', label: '远景距离', hint: '越大越慢', min: 0.2, max: 3, step: 0.01, value: 1 },
+            /** 中景距离(越大越慢) */
+            { id: 'midDistance', param: 'mid_distance', label: '中景距离', hint: '越大越慢', min: 0.2, max: 3, step: 0.01, value: 1 },
+            /** 近景距离(越大越慢) */
+            { id: 'nearDistance', param: 'near_distance', label: '近景距离', hint: '越大越慢', min: 0.2, max: 3, step: 0.01, value: 1 },
+        ],
+    },
+    {
+        title: '💧 水滴与风',
+        open: true,
+        sliders: [
+            /** 水滴大小(倍率) */
+            { id: 'dropletSize', param: 'droplet_size', label: '水滴大小', hint: '倍率', min: 0.2, max: 2.5, step: 0.01, value: 1 },
+            /** 向后风(随车速) */
+            { id: 'windBackward', param: 'wind_backward_factor', label: '向后风', hint: '随车速', min: 0, max: 1, step: 0.01, value: 0.15 },
+            /** 摇摆风(倍率) */
+            { id: 'windSway', param: 'wind_sway_scale', label: '摇摆风', hint: '倍率', min: 0, max: 2, step: 0.01, value: 1 },
+            /** 下落速度(倍率) */
+            { id: 'gravityScale', param: 'gravity_scale', label: '下落速度', hint: '倍率', min: 0, max: 3, step: 0.01, value: 1 },
+            /** 折射强度(倍率) */
+            { id: 'refractionScale', param: 'refraction_scale', label: '折射强度', hint: '倍率', min: 0, max: 3, step: 0.01, value: 1 },
+        ],
+    },
+    {
+        title: '🪟 玻璃质感',
+        open: true,
+        sliders: [
+            /** 玻璃污渍浓度 */
+            { id: 'dirtOpacity', param: 'dirt_opacity', label: '污渍浓度', min: 0, max: 1, step: 0.01, value: 0.55 },
+            /** 冷凝雾气浓度 */
+            { id: 'fogOpacity', param: 'fog_opacity', label: '雾气浓度', min: 0, max: 1, step: 0.01, value: 0.3 },
+            /** 车厢灯光强度 */
+            { id: 'interiorOpacity', param: 'interior_opacity', label: '车厢灯光', min: 0, max: 1, step: 0.01, value: 0.55 },
+        ],
+    },
+] as const satisfies readonly SliderGroupSpec[];
+
+/** 一种可切换的渲染风格(生成一颗 data-style 按钮) */
+export interface StylePresetSpec {
+    /** 传给 setStyle 的风格编号,必须与 Rust 的 MAX_STYLE_INDEX 区间一致 */
+    readonly index: number;
+    readonly label: string;
+}
+
+/** 三颗风格按钮,顺序即界面顺序 */
+export const STYLE_PRESETS = [
+    { index: 0, label: '泡沫时期东京电车' },
+    { index: 1, label: '赛博朋克' },
+    { index: 2, label: '上海磁悬浮' },
+] as const satisfies readonly StylePresetSpec[];
+
+/** 播放控制按钮的用途,行为代码按它绑定事件 */
+export type TransportAction = 'start' | 'pause' | 'reset';
+
+/** 一颗播放控制按钮 */
+export interface TransportButtonSpec {
+    readonly action: TransportAction;
+    /** 生成元素的 id(便于调试/自动化定位) */
+    readonly id: string;
+    readonly label: string;
+    /** 初始是否禁用(加载完成前不可用) */
+    readonly disabled?: boolean;
+}
+
+/** 播放 / 暂停 / 重置,顺序即界面顺序(中间由 .spacer 与风格按钮分开) */
+export const TRANSPORT_BUTTONS = [
+    { action: 'start', id: 'startBtn', label: '▶ 播放', disabled: false },
+    { action: 'pause', id: 'pauseBtn', label: '⏸ 暂停', disabled: true },
+    { action: 'reset', id: 'resetBtn', label: '🔄 重置', disabled: false },
+] as const satisfies readonly TransportButtonSpec[];
+
+/** 状态 <span> 的 id(便于调试/自动化定位) */
+export const STATUS_ID = 'status';
+
+/** 设置面板 <fieldset> 的 id(便于调试/自动化定位) */
+export const PANEL_ID = 'paramPanel';
 
 // ---------- WebGPU 适配器 ----------
 

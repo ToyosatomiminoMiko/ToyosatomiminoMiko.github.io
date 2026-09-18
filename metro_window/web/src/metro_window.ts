@@ -1,16 +1,17 @@
 /*
 地铁车窗组件(可挂载)
 
-- 标记写在页面里(metro_window/index.html 的 #metro-window),本模块负责:
-  引入样式(metro_window.css),绑定交互,加载 wasm,启动 WebGPU 渲染;
+- 页面只提供容器与画布(metro_window/index.html 的 #metro-window / canvas),
+  设置面板由 ui/settings.ts 按 config.ts 的声明式模型生成;本模块负责:
+  引入样式,组装面板,绑定交互,加载 wasm,启动 WebGPU 渲染;
 - 做成"挂载函数"而不是页面入口,是把"标记放哪,什么时候挂"留给宿主决定.
 
 所有字面量(id / 类名 / data-* 键名 / Rust 参数名 / 文案 / 阈值)都集中在
-./config.ts,本文件只保留逻辑与结构.
+./config.ts,设置面板的结构集中在 ./ui/,本文件只保留逻辑与生命周期.
 
 调用方式:
 
-    import { mountMetroWindow } from '../metro_window/web/src/metro-window';
+    import { mountMetroWindow } from '../metro_window/web/src/metro_window';
     const el = document.getElementById('metro-window');
     if (el) mountMetroWindow(el);
 
@@ -35,15 +36,12 @@ import {
     LAST_ENTRY_OFFSET,
     LOG_ADAPTER_PREFIX,
     MISSING_ELEMENT_MESSAGE_PREFIX,
-    NUMBER_INPUT_ID_SUFFIX,
-    SLIDERS,
     SOFTWARE_ADAPTER_PATTERN,
     STATUS_HTML_SEPARATOR,
     STATUS_LOADING_WASM,
     STATUS_NO_ADAPTER,
     STATUS_NO_WEBGPU_API,
     STYLE_BUTTON_ACTIVE_CLASS,
-    STYLE_BUTTON_CLASS,
     STYLE_DATA_KEY,
     UNKNOWN_ADAPTER_LABEL,
     WARN_ADAPTER_INFO_UNAVAILABLE,
@@ -51,6 +49,7 @@ import {
     WEBGPU_HELP_STEPS,
     WINDOW_CLASS,
 } from './config';
+import { createSettingsPanel, type SliderControl } from './ui/settings';
 
 // WebGPU 适配器的最小类型定义(不依赖具体 TypeScript 版本的 DOM 类型)
 interface GpuAdapterInfo {
@@ -95,15 +94,25 @@ function mustFind<T extends HTMLElement>(root: ParentNode, id: string): T {
     return element;
 }
 
+/** step(如 0.01)的小数位数,用于数值框夹取后的显示精度 */
+function decimalPlaces(step: number): number {
+    const fraction = String(step).split(DECIMAL_SEPARATOR)[DECIMAL_FRACTION_INDEX];
+    return fraction === undefined ? 0 : fraction.length;
+}
+
 export function mountMetroWindow(root: HTMLElement): void {
     // 标记由页面提供(metro_window/index.html).这里只补类名:样式全靠它作用域,
     // 漏写就是"样式静默失效",补一下比报错划算.
     root.classList.add(WINDOW_CLASS);
 
-    const status = mustFind(root, ELEMENT_IDS.status);
     const canvas = mustFind<HTMLCanvasElement>(root, ELEMENT_IDS.canvas);
+
+    // 设置面板整体由声明式组件生成,紧跟在画布之后.
+    const settings = createSettingsPanel();
+    canvas.after(settings.root);
+
     const setStatus = (message: string): void => {
-        status.textContent = message;
+        settings.status.textContent = message;
         console.log(message);
     };
 
@@ -163,13 +172,13 @@ export function mountMetroWindow(root: HTMLElement): void {
                 return;
             }
 
-            await startApp(canvas, status);
+            await startApp(canvas, settings.status);
             booted = true;
-            root.querySelectorAll<HTMLButtonElement>(`.${STYLE_BUTTON_CLASS}`).forEach((btn) => {
+            settings.styleButtons.forEach((btn) => {
                 btn.disabled = false;
             });
-            mustFind<HTMLButtonElement>(root, ELEMENT_IDS.pauseButton).disabled = false;
-            mustFind<HTMLFieldSetElement>(root, ELEMENT_IDS.paramPanel).disabled = false;
+            settings.pauseButton.disabled = false;
+            settings.root.disabled = false;
             // startApp 里的 App 默认就是 running,这里按当前可见性同步一次,
             // 免得在隐藏的标签页里挂载时白跑 (IntersectionObserver 的首次回调
             // 可能早于 booted = true,不能只依赖它)
@@ -186,60 +195,61 @@ export function mountMetroWindow(root: HTMLElement): void {
     }
 
     function showWebGpuHelp(message: string): void {
-        status.innerHTML = `${message}${STATUS_HTML_SEPARATOR}${WEBGPU_HELP_STEPS}`;
+        settings.status.innerHTML = `${message}${STATUS_HTML_SEPARATOR}${WEBGPU_HELP_STEPS}`;
+    }
+
+    /** 绑定一个滑块:拖动实时写入 Rust 参数,数值框输入反向同步并夹取 */
+    function bindSlider({ spec, range, number }: SliderControl): void {
+        const decimals = decimalPlaces(spec.step);
+        const clamp = (value: number): number =>
+            Number(Math.min(spec.max, Math.max(spec.min, value)).toFixed(decimals));
+
+        const syncFromRange = (): void => {
+            const value = Number(range.value);
+            number.value = String(value);
+            if (booted) {
+                setParam(spec.param, value);
+            }
+        };
+        const syncFromNumber = (): void => {
+            const raw = Number(number.value);
+            if (!Number.isFinite(raw)) return;
+            const value = clamp(raw);
+            range.value = String(value);
+            number.value = String(value);
+            if (booted) {
+                setParam(spec.param, value);
+            }
+        };
+
+        range.addEventListener(EVENTS.input, syncFromRange);
+        number.addEventListener(EVENTS.input, syncFromNumber);
+        number.addEventListener(EVENTS.change, syncFromNumber);
+        syncFromRange();
     }
 
     function setup(): void {
-        const styleButtons = root.querySelectorAll<HTMLButtonElement>(`.${STYLE_BUTTON_CLASS}`);
-        styleButtons.forEach((btn) => {
+        settings.styleButtons.forEach((btn) => {
             btn.disabled = true;
             btn.addEventListener(EVENTS.click, () => {
                 if (!booted) return;
                 setStyle(Number(btn.dataset[STYLE_DATA_KEY] ?? DEFAULT_STYLE_INDEX));
-                styleButtons.forEach((b) => b.classList.toggle(STYLE_BUTTON_ACTIVE_CLASS, b === btn));
+                settings.styleButtons.forEach((b) => b.classList.toggle(STYLE_BUTTON_ACTIVE_CLASS, b === btn));
             });
         });
 
-        mustFind(root, ELEMENT_IDS.startButton).addEventListener(EVENTS.click, () => {
+        settings.startButton.addEventListener(EVENTS.click, () => {
             wantRunning = true;
             bootedRunning();
         });
-        mustFind(root, ELEMENT_IDS.pauseButton).addEventListener(EVENTS.click, () => {
+        settings.pauseButton.addEventListener(EVENTS.click, () => {
             wantRunning = false;
             bootedRunning();
         });
-        mustFind(root, ELEMENT_IDS.resetButton).addEventListener(EVENTS.click, () => {
+        settings.resetButton.addEventListener(EVENTS.click, () => {
             if (booted) reset();
         });
 
-        // 滑块:拖动时实时写入 Rust 参数,下一帧立即生效
-        SLIDERS.forEach(({ id, param }) => {
-            const input = mustFind<HTMLInputElement>(root, id);
-            const numberInput = mustFind<HTMLInputElement>(root, `${id}${NUMBER_INPUT_ID_SUFFIX}`);
-            const min = Number(input.min);
-            const max = Number(input.max);
-            const decimals = (Number(input.step).toString().split(DECIMAL_SEPARATOR)[DECIMAL_FRACTION_INDEX] ?? '').length;
-            const syncFromSlider = (): void => {
-                const value = Number(input.value);
-                numberInput.value = String(value);
-                if (booted) {
-                    setParam(param, value);
-                }
-            };
-            const syncFromNumber = (): void => {
-                const raw = Number(numberInput.value);
-                if (!Number.isFinite(raw)) return;
-                const clamped = Number(Math.min(max, Math.max(min, raw)).toFixed(decimals));
-                input.value = String(clamped);
-                numberInput.value = String(clamped);
-                if (booted) {
-                    setParam(param, clamped);
-                }
-            };
-            input.addEventListener(EVENTS.input, syncFromSlider);
-            numberInput.addEventListener(EVENTS.input, syncFromNumber);
-            numberInput.addEventListener(EVENTS.change, syncFromNumber);
-            syncFromSlider();
-        });
+        settings.sliders.forEach(bindSlider);
     }
 }
