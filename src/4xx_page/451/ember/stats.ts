@@ -64,9 +64,6 @@ export interface FrameStatsSnapshot {
     gpu: GpuPassTimings | null;
 }
 
-/** 统计窗口容量(帧), 默认值见 stats.config.ts; 这里转出以保持既有导入路径可用 */
-export { STATS_CAPACITY };
-
 /**
  * 最近秩(nearest-rank)分位: 返回"第 ceil(q * n) 小"的样本.
  * 样本量小的时候它比插值更贴近"实际发生过的最坏帧", 正合打点的用途.

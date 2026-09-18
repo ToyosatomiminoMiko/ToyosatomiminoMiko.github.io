@@ -6,8 +6,9 @@
 use metro_window::{
     create_metro_pipelines, create_texture, make_droplets, DropletParams, MetroTextures, Uniforms,
     FULLSCREEN_QUAD_INDICES, FULLSCREEN_QUAD_VERTICES, QUAD_INDEX_FORMAT,
-    REFRACTION_TEXTURE_FORMAT, RENDER_TARGET_FORMAT, RGBA_BYTES_PER_PIXEL,
-    SAMPLER_ADDRESS_MODE_CLAMP, SAMPLER_ADDRESS_MODE_REPEAT, SAMPLER_FILTER_MODE,
+    REFRACTION_TEXTURE_FORMAT, REFRACTION_WORKGROUP_EDGE, RENDER_TARGET_FORMAT,
+    RGBA_BYTES_PER_PIXEL, SAMPLER_ADDRESS_MODE_CLAMP, SAMPLER_ADDRESS_MODE_REPEAT,
+    SAMPLER_FILTER_MODE,
 };
 use wgpu::util::DeviceExt;
 
@@ -17,11 +18,20 @@ const SMOKE_TEXTURE_SIZE: u32 = 4;
 /// 渲染目标边长(像素):256 便于读回后统计非零像素.
 const SMOKE_TARGET_SIZE: u32 = 256;
 /// 折射偏移图边长(像素).
-const SMOKE_REFRACTION_SIZE: u32 = 4;
+///
+/// 不能取小值:水滴位置是随机的,4×4 只有 16 个采样点,而水滴半径只有
+/// 0.006..0.024,随机跑起来经常一个采样点都没被覆盖,断言"折射偏移非零"就会
+/// 假失败(实测约 1/6 次).64×64 = 4096 个采样点,而且正好是折射计算着色器
+/// 一个 8×8 workgroup 覆盖的尺寸,非零几乎是必然事件.
+const SMOKE_REFRACTION_SIZE: u32 = 64;
 /// 纹理->缓冲区复制时每行字节的对齐要求(wgpu COPY_BYTES_PER_ROW_ALIGNMENT).
 const COPY_ROW_ALIGNMENT: u32 = 256;
 /// Rgba16Float 每像素字节数.
 const RGBA16F_BYTES_PER_PIXEL: u32 = 8;
+/// 折射偏移图每行字节数:64 像素 × 8 字节 = 512,恰是 256 的整数倍,无需补位.
+const SMOKE_REFRACTION_ROW_BYTES: u32 = SMOKE_REFRACTION_SIZE * RGBA16F_BYTES_PER_PIXEL;
+// 行距必须满足 wgpu 的对齐要求,否则 copy_texture_to_buffer 会校验失败.
+const _: () = assert!(SMOKE_REFRACTION_ROW_BYTES.is_multiple_of(COPY_ROW_ALIGNMENT));
 /// 纯白测试贴图的字节数(宽 × 高 × RGBA).
 const SMOKE_TEXTURE_BYTES: usize =
     (SMOKE_TEXTURE_SIZE * SMOKE_TEXTURE_SIZE * RGBA_BYTES_PER_PIXEL) as usize;
@@ -170,13 +180,8 @@ fn main() {
                 usage: wgpu::BufferUsages::INDEX,
             });
 
-        let uniforms: Uniforms = Uniforms::new(
-            SMOKE_TIME_SECONDS,
-            SMOKE_DELTA_SECONDS,
-            SMOKE_STYLE_ID,
-            SMOKE_TARGET_SIZE,
-            SMOKE_TARGET_SIZE,
-        );
+        let uniforms: Uniforms =
+            Uniforms::new(SMOKE_TIME_SECONDS, SMOKE_DELTA_SECONDS, SMOKE_STYLE_ID);
         let uniform_buffer: wgpu::Buffer =
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("uniforms"),
@@ -279,7 +284,13 @@ fn main() {
             pass.set_bind_group(0, &pipelines.compute_bind_group, &[]);
             pass.dispatch_workgroups(1, 1, 1);
             pass.set_pipeline(&pipelines.refraction_pipeline);
-            pass.dispatch_workgroups(1, 1, 1);
+            // 折射偏移图 64×64,一个 workgroup 只覆盖 8×8 像素:
+            // 必须铺满 8×8 个 workgroup,否则只有左上角一小块被计算,断言会假失败.
+            pass.dispatch_workgroups(
+                SMOKE_REFRACTION_SIZE.div_ceil(REFRACTION_WORKGROUP_EDGE),
+                SMOKE_REFRACTION_SIZE.div_ceil(REFRACTION_WORKGROUP_EDGE),
+                1,
+            );
         }
         {
             let mut pass: wgpu::RenderPass<'_> =
@@ -312,7 +323,7 @@ fn main() {
         });
         let refraction_readback: wgpu::Buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("refraction-readback"),
-            size: (SMOKE_REFRACTION_SIZE * COPY_ROW_ALIGNMENT) as u64,
+            size: (SMOKE_REFRACTION_SIZE * SMOKE_REFRACTION_ROW_BYTES) as u64,
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
         });
@@ -348,7 +359,7 @@ fn main() {
                 buffer: &refraction_readback,
                 layout: wgpu::TexelCopyBufferLayout {
                     offset: 0,
-                    bytes_per_row: Some(COPY_ROW_ALIGNMENT),
+                    bytes_per_row: Some(SMOKE_REFRACTION_ROW_BYTES),
                     rows_per_image: Some(SMOKE_REFRACTION_SIZE),
                 },
             },
@@ -388,8 +399,8 @@ fn main() {
         let mut min_g: f32 = f32::MAX;
         let mut max_g: f32 = f32::MIN;
         for row in 0..SMOKE_REFRACTION_SIZE as usize {
-            let base: usize = row * COPY_ROW_ALIGNMENT as usize;
-            let row_bytes = (SMOKE_REFRACTION_SIZE * RGBA16F_BYTES_PER_PIXEL) as usize;
+            let base: usize = row * SMOKE_REFRACTION_ROW_BYTES as usize;
+            let row_bytes = SMOKE_REFRACTION_ROW_BYTES as usize;
             for chunk in rdata[base..base + row_bytes]
                 .as_chunks::<{ RGBA16F_BYTES_PER_PIXEL as usize }>()
                 .0
@@ -403,7 +414,7 @@ fn main() {
             }
         }
         drop(rdata);
-        println!("斯涅尔折射偏移图 (4x4): r=[{min_r:.5}, {max_r:.5}] g=[{min_g:.5}, {max_g:.5}]");
+        println!("斯涅尔折射偏移图 ({SMOKE_REFRACTION_SIZE}x{SMOKE_REFRACTION_SIZE}): r=[{min_r:.5}, {max_r:.5}] g=[{min_g:.5}, {max_g:.5}]");
         assert!(
             max_r.abs() > REFRACTION_NONZERO_EPSILON || max_g.abs() > REFRACTION_NONZERO_EPSILON,
             "折射偏移全为零"

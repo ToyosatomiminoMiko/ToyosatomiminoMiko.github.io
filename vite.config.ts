@@ -66,7 +66,7 @@ function fourXXPage(): Plugin {
  * 所有按原 URL 直接访问,不参与打包的文件都放这里,dev 直接挂载,build 原样拷贝:
  *   - 主站图片 `public/images/`,图标 `public/favicon.ico`,样式表 `public/css/`;
  *   - 地铁车窗的运行时贴图 `public/metro_window/resource/*.png` -- Rust 按
- *     `/metro_window/resource/...` 自己 fetch(见 `metro_window/src/app_params.rs`
+ *     `/metro_window/resource/...` 自己 fetch(见 `src/metro_window/rust/src/app_params.rs`
  *     的 RESOURCE_BASE),所以目录层级必须与 URL 一致,这里不做任何重写.
  *
  * 不变量:public 里的路径 == 线上 URL.Vite 只有一个 publicDir,所以不要再给
@@ -90,11 +90,21 @@ export default defineConfig({
             },
         },
     },
-    // 测试只需要 src/ 下的纯 TS 单测.排除 metro_window/ 是必须的而不是洁癖:
-    // 那边有 cargo 的 target/(构建后体积以 GB 计,文件数十万),
-    // 让 vitest 去 glob 一遍会白白卡住整条流水线.
+    // 开发服务器:不要把 cargo 的构建目录交给文件监听器.
+    // 地铁车窗的 Rust crate 放在 src/metro_window/rust/ 下,它的 target/ 是
+    // 十几万个文件 / GB 级的构建缓存;让 chokidar 去遍历,轻则拖慢启动,
+    // 重则吃满 inotify watch.它和站点源码无关,直接忽略.
+    server: {
+        watch: {
+            ignored: ['**/src/metro_window/rust/target/**'],
+        },
+    },
+    // 测试只需要纯 TS 单测(src/ 下,含地铁车窗前端的 config.test.ts).
+    // 排除 src/metro_window/rust/ 是必须的而不是洁癖:那边有 cargo 的 target/
+    // (构建后体积以 GB 计,文件数十万),让 vitest 去 glob 一遍会白白卡住整条流水线.
+    // 只排 rust/ 不排 web/:前端单测就在 src/metro_window/web/src 下,要照常收集.
     test: {
         include: ['src/**/*.test.ts'],
-        exclude: ['node_modules/**', 'dist/**', 'metro_window/**'],
+        exclude: ['node_modules/**', 'dist/**', 'src/metro_window/rust/**'],
     },
 });

@@ -1,6 +1,7 @@
 # 地铁车窗 · Rust + WASM + WebGPU
 
-> **本目录已并入站点仓库** `ToyosatomiminoMiko.github.io`,不再是独立项目.
+> **本子项目已并入站点仓库** `ToyosatomiminoMiko.github.io`,不再是独立项目,
+> 源码整体位于 `src/metro_window/`(Rust 在 `rust/`,前端在 `web/`).
 > 上游仓库 `ToyosatomiminoMiko/metro_window` 已归档(只读),本地 clone 已删除 --
 > 本目录现在是唯一的可写副本;迁移范围,改了什么,为什么这么改,
 > 见文末[「迁移与归档」](#迁移与归档).
@@ -14,6 +15,8 @@
 | | |
 | --- | --- |
 | 站点位置 | 站点首页 `index.html` 的 HOME 卡片体:空宿主 `#metro-window`,挂载见 `src/main.ts`(已没有独立入口页) |
+| Rust 源码 | `src/metro_window/rust/`(crate `metro-window`,编译为 wasm32-unknown-unknown) |
+| 前端源码 | `src/metro_window/web/src/` |
 | 组件行为 | `web/src/metro_window.ts`,导出 `mountMetroWindow(root: HTMLElement)` / `mountMetroWindowAtMountId()` |
 | 运行时贴图 | 源码 `public/metro_window/resource/*.png`(站点 public),公开地址 `/metro_window/resource/*.png` |
 
@@ -22,7 +25,7 @@
 前端做成了"挂载函数"而不是页面入口:**宿主只提供一个空容器**,标记由组件生成:
 
 ```ts
-import { mountMetroWindowAtMountId } from './metro_window';
+import { mountMetroWindowAtMountId } from './metro_window/web/src/metro_window';
 
 mountMetroWindowAtMountId();   // 找约定的挂载点 #metro-window,找不到就报错
 ```
@@ -64,23 +67,29 @@ mountMetroWindowAtMountId();   // 找约定的挂载点 #metro-window,找不到�
 ## 架构
 
 ```text
-metro_window/
-├── src/             Rust 渲染核心(编译为 wasm32-unknown-unknown)
-│   ├── lib.rs           入口:wasm 导出/动画循环/线程局部状态
-│   ├── app.rs           App 状态机/帧循环/WebGPU 设备/表面
-│   ├── pipelines.rs     渲染/计算管线与绑定组
-│   ├── textures.rs      纹理加载/PNG 解码/程序化材质生成
-│   ├── droplet_params.rs 水滴全部可调参数(Rust/WGSL 共享,WGSL 声明由 Rust 生成)
-│   ├── droplets.rs      水滴结构与初始化
-│   ├── uniforms.rs      uniform 布局
-│   ├── random.rs        哈希噪声工具
-│   └── shaders.wgsl     WGSL 着色器
-├── examples/        本地验证与预览程序
-├── scripts/
-│   └── build_wasm.sh    Rust -> wasm 的构建脚本(由仓库根的 npm 脚本调用)
-├── web/             前端源码
+src/metro_window/
+├── rust/                   Rust 渲染核心(编译为 wasm32-unknown-unknown)
+│   ├── Cargo.toml / Cargo.lock   Rust 依赖与锁定
+│   ├── src/
+│   │   ├── lib.rs           入口:wasm 导出/动画循环/线程局部状态
+│   │   ├── app.rs           App 状态机/帧循环/WebGPU 设备/表面
+│   │   ├── pipelines.rs     渲染/计算管线与绑定组
+│   │   ├── textures.rs      纹理加载/PNG 解码/程序化材质生成
+│   │   ├── droplet_params.rs 水滴全部可调参数(Rust/WGSL 共享,WGSL 声明由 Rust 生成)
+│   │   ├── droplets.rs      水滴结构与初始化
+│   │   ├── uniforms.rs      uniform 布局
+│   │   ├── random.rs / random_params.rs  哈希噪声工具与常量
+│   │   ├── app_params.rs    主循环/资源路径/滑块参数表
+│   │   ├── render_params.rs GPU 管线参数与绑定槽位
+│   │   ├── texture_params.rs 程序化贴图生成参数
+│   │   └── shaders.wgsl     WGSL 着色器
+│   ├── examples/        本地验证与预览程序
+│   ├── target/          生成:cargo 构建缓存(gitignore)
+│   └── prompt/          生成:cargo test 的可视化 ppm 素材(gitignore)
+├── web/                 前端
 │   ├── src/             配置 / 组件 / 行为 / 样式
 │   │   ├── config.ts        全部常量 + 标记与设置面板的声明式模型(文案/分辨率/滑块/风格/按钮)
+│   │   ├── config.test.ts   配置的单测(与 config.ts 同目录)
 │   │   ├── metro_window.ts  挂载函数:长出标记/组装面板/交互/WebGPU 适配器检查/生命周期
 │   │   ├── ui/
 │   │   │   ├── dom.ts             h():声明式 DOM 构造原语(描述 -> 元素)
@@ -88,11 +97,13 @@ metro_window/
 │   │   │   └── settings.ts        设置面板组件(按 config.ts 的模型生成并交回元素引用)
 │   │   ├── tokens.css       设计令牌(全部可调数值)
 │   │   └── metro_window.css 组件样式(全部以 .metro-window 作用域)
-│   ├── design/          设计源文件(.kra),不参与构建
 │   └── pkg/             生成:wasm-bindgen 输出(gitignore)
-├── Cargo.toml       Rust 依赖
-└── Cargo.lock       Rust 依赖锁定
+└── .cargo-tools/        生成:按 Cargo.lock 对齐版本的 wasm-bindgen CLI(gitignore)
 ```
+
+Rust -> wasm 的构建脚本放在**仓库的 tools 目录** `scripts/build_wasm.sh`(和
+`scripts/check_wasm.mjs`, `scripts/perf/451.mjs` 一起),因为它要做 npm 脚本做不到
+的事:探测/补装 wasm32 target,并按 `Cargo.lock` 对齐 wasm-bindgen CLI 版本.
 
 > 这里没有 `index.html` / `page.ts` / `metro_index.css` / `public/`:并入站点后
 > 曾有一个 `/metro_window/` 独立入口页,后来撤掉,车窗只在站点首页 HOME 卡片
@@ -100,15 +111,14 @@ metro_window/
 > 运行时贴图也不再单独养一份 `public/`,而是集中到站点唯一的静态资源根
 > `public/metro_window/resource/`(URL 仍是 `/metro_window/resource/*.png`).
 
-**这个目录里没有 `package.json` / `vite.config.ts` / `tsconfig.json` / `build.sh`.**
+**这个子项目里没有 `package.json` / `vite.config.ts` / `tsconfig.json` / `build.sh`.**
 并进站点后,这些"独立仓库的边界文件"由站点统一接管(Vite 配置在仓库根,
-构建步骤序列在根 `package.json` 的 `build:all`),子项目只保留一个
-`scripts/build_wasm.sh`,因为它要做 npm 脚本做不到的事(探测 wasm32 target,
-按 `Cargo.lock` 对齐 wasm-bindgen CLI 版本).这样"构建步骤只有一处事实源"
+构建步骤序列在根 `package.json` 的 `build:all`).这样"构建步骤只有一处事实源"
 这条约定仍然成立.
 
-生成物(`target/` / `web/pkg/` / `.cargo-tools/`)均已在仓库根 `.gitignore` 排除;
-前端源码(`web/src/`)与生成产物(`web/pkg/`)严格分离,不手工维护生成文件.
+生成物(`rust/target/` / `web/pkg/` / `.cargo-tools/` / `rust/prompt/`)均已在仓库根
+`.gitignore` 排除;前端源码(`web/src/`)与生成产物(`web/pkg/`)严格分离,
+不手工维护生成文件.
 
 > 说明:更早的架构用 `tsc` 直接编译出 `web/main.js`,再用 Python 静态服务器
 > 托管整个目录;后来改为 Vite:TypeScript/CSS/HTML 由 Vite 统一处理,
@@ -121,7 +131,7 @@ metro_window/
 ```bash
 ./build.sh          # 完整构建:检查工具链 -> npm ci -> 跑完整流水线
 npm run build:all   # 跳过依赖安装,只跑流水线(CI 与本地完全一致的步骤序列)
-npm run build:wasm  # 只重新编译 Rust->wasm(等价于 bash metro_window/scripts/build_wasm.sh)
+npm run build:wasm  # 只重新编译 Rust->wasm(等价于 bash scripts/build_wasm.sh)
 ```
 
 流水线步骤定义在仓库根 `package.json` 的 `build:all`(单一事实源),顺序如下:
@@ -129,19 +139,20 @@ npm run build:wasm  # 只重新编译 Rust->wasm(等价于 bash metro_window/scr
 | 步骤 | 命令 | 说明 |
 | --- | --- | --- |
 | 1 | `npm run lint:rs` | `cargo fmt --check` + `cargo clippy --all-targets -- -D warnings` |
-| 2 | `npm run clean` | 删除 `dist/` 与 `metro_window/web/pkg/`,避免改名后残留旧产物 |
+| 2 | `npm run clean` | 删除 `dist/` 与 `src/metro_window/web/pkg/`,避免改名后残留旧产物 |
 | 3 | `npm run build:wasm` | `cargo build --release --target wasm32-unknown-unknown`,再用与 `Cargo.lock` 同版本的 wasm-bindgen 生成 `web/pkg/` |
-| 4 | `npm test` | `vitest run`(站点侧单测) |
+| 4 | `npm test` | `vitest run`(站点 + 前端单测) |
 | 5 | `npm run test:rs` | `cargo test`(原生单元测试,wgpu 那部分不需要 GPU) |
 | 6 | `npm run build:app` | `check:wasm` + `tsc -p tsconfig.json --noEmit` + `vite build` 输出 `dist/` |
 
 工具链要求:`node` / `npm` / `cargo` / `rustc`,以及 `wasm32-unknown-unknown`
 target(缺了构建脚本会 `rustup target add` 补装).`wasm-bindgen` CLI **不需要**
-预先安装:版本与 `Cargo.lock` 不一致时,脚本会装到本目录的 `.cargo-tools/`.
+预先安装:版本与 `Cargo.lock` 不一致时,脚本会装到 `src/metro_window/.cargo-tools/`.
 
 CI 侧(`.github/workflows/deploy.yml`)只多两步:`dtolnay/rust-toolchain@stable`
 装 Rust + wasm32 target + rustfmt/clippy,`Swatinem/rust-cache` 缓存
-`metro_window/target` 与 `metro_window/.cargo-tools`.wasm 产物不入库.
+`src/metro_window/rust/target` 与 `src/metro_window/.cargo-tools`;wasm 产物
+(`web/pkg/`)同样不入库.
 
 ## 运行
 
@@ -155,6 +166,8 @@ npm run preview    # 预览 dist/ 里的构建产物
 
 > 开发时改动 `web/src/` 下的 TypeScript/CSS 会自动热更新;改动 Rust/WGSL
 > 需要重新运行 `npm run build:wasm`(会重新生成 `web/pkg/`,Vite 会自动加载新产物).
+> `vite.config.ts` 已把 `rust/target/` 排除出文件监听,避免 chokidar 去遍历 GB 级的
+> 构建缓存.
 
 [启用WebGPU](chrome://flags/#enable-unsafe-webgpu)
 
@@ -201,15 +214,15 @@ code --no-sandbox --enable-unsafe-webgpu
 ## 本地验证
 
 ```bash
-cargo run --manifest-path metro_window/Cargo.toml --example validate_wgsl  # WGSL 语法/校验
-cargo run --manifest-path metro_window/Cargo.toml --example native_smoke   # 用软件 Vulkan 实际跑一遍计算+渲染管线
-cargo run --manifest-path metro_window/Cargo.toml --example preview        # 用真实城市纹理渲染一帧,输出 preview.png
+cargo run --manifest-path src/metro_window/rust/Cargo.toml --example validate_wgsl  # WGSL 语法/校验
+cargo run --manifest-path src/metro_window/rust/Cargo.toml --example native_smoke   # 用软件 Vulkan 实际跑一遍计算+渲染管线
+cargo run --manifest-path src/metro_window/rust/Cargo.toml --example preview        # 用真实城市纹理渲染一帧,输出 preview.png
 ```
 
-> 程序里的输出路径都相对 **crate 根**:`cargo test` 的 cwd 是包根,所以可视化
-> ppm 落在 `metro_window/prompt/`(已 gitignore);`preview` 写出的 `preview.png`
-> 也落在 `metro_window/` 下.注意 `cargo run --example` 的 cwd 是**调用目录**,
-> 所以 `preview` 读城市贴图用的是编译期注入的绝对路径(`CARGO_MANIFEST_DIR`),
+> `cargo test` 的 cwd 是 crate 根,所以可视化 ppm 落在
+> `src/metro_window/rust/prompt/`(已 gitignore);`preview` 写出的 `preview.png`
+> 落在**调用目录**(`cargo run` 不改 cwd,从仓库根调就落在仓库根,已 gitignore).
+> `preview` 读城市贴图用的是编译期注入的绝对路径(`CARGO_MANIFEST_DIR` 向上三级),
 > 指向站点静态资源根 `public/metro_window/resource/*.png`,不受 cwd 影响.
 
 ## 迁移与归档
@@ -225,8 +238,7 @@ cargo run --manifest-path metro_window/Cargo.toml --example preview        # 用
 `Cargo.toml` / `Cargo.lock`,`src/`(Rust + WGSL),`examples/`,
 `public/resource/*.png`(4 张城市贴图,后来挪到站点 `public/metro_window/resource/`,
 见下面"搬进来改了什么"),`web/`(前端源码 + 设计源文件),
-`index.html`,`README.md`.归档前逐项核对过,没有遗漏;尤其是
-`web/design/city_mid.png.kra`(1.5 MB,唯一的设计源文件).
+`index.html`,`README.md`.归档前逐项核对过,没有遗漏.
 
 上游 `.gitignore` 里的 `/prompt` 是本地草稿目录(未跟踪),不在归档范围内:
 其中 `prompt/prompt.md` 记录了本项目的总体目标与演进过程,本地 clone 删除后
@@ -237,8 +249,10 @@ cargo run --manifest-path metro_window/Cargo.toml --example preview        # 用
 | 改动 | 为什么 |
 | --- | --- |
 | 删掉 `package.json` / `package-lock.json` / `vite.config.ts` / `tsconfig.json` / `build.sh` / `.gitignore` | 独立仓库的边界文件,由站点仓库统一接管;`scripts/build_wasm.sh` 保留了 npm 脚本做不到的那部分,`build:all` 步骤序列仍是单一事实源 |
+| 整个子项目从仓库根 `metro_window/` 挪进 `src/metro_window/`(Rust -> `rust/`,前端 -> `web/`) | 站点约定"代码在 `src/`":并入后不再留一个与 `src/` 平级的源码树;按语言/角色分成 `rust/` 与 `web/` 两个子目录,构建脚本归到仓库 tools 目录 `scripts/` |
 | 前端入口 `main.ts` -> `metro_window.ts`(行为)+ `metro_window.css`(样式) | 把行为做成"有标记就能挂"的模块,不再养一个页面级入口 |
 | 后来撤掉 `/metro_window/` 独立入口页(`index.html` / `page.ts` / `metro_index.css`),并入站点首页 | 车窗只在首页 HOME 卡片挂一次;页面级标记(标题/副标题/画布)改由 `web/src/ui/window_content.ts` 生成,宿主只留空容器 `#metro-window` |
+| 删掉 `web/design/city_mid.png.kra`(1.5 MB 的设计源文件) | 它只在独立页时代有用;入口页撤掉后不再参与构建,随后从仓库删除 |
 | `style.css` 全部选择器加 `.metro-window` 作用域,自定义属性加 `--metro-` 前缀 | 站点有一条 `* { ... }` 通配重置和 bootstrap,原来 `body`/`canvas`/`button` 的裸元素选择器会污染站点的其它页面 |
 | 新增渲染生命周期(IntersectionObserver + visibilitychange) | rAF 不会因为容器 `display:none` 而停,不禁的话切走标签页后 GPU 一直空转 |
 | Rust 里贴图路径 `/resource/...` -> `/metro_window/resource/...`,集中成 `app.rs` 的 `RESOURCE_BASE` | 并进站点后资源挂在子路径下;地址是 Rust 里写死的,必须和产物里的真实路径一致 |

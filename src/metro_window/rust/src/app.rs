@@ -34,7 +34,6 @@ pub(crate) struct App {
     pub(crate) device: wgpu::Device,
     pub(crate) queue: wgpu::Queue,
     pub(crate) surface: wgpu::Surface<'static>,
-    pub(crate) config: wgpu::SurfaceConfiguration,
     pub(crate) render_pipeline: wgpu::RenderPipeline,
     pub(crate) physics_pipeline: wgpu::ComputePipeline,
     pub(crate) refraction_pipeline: wgpu::ComputePipeline,
@@ -46,10 +45,6 @@ pub(crate) struct App {
     pub(crate) droplet_params_buffer: wgpu::Buffer,
     pub(crate) droplet_buffer: wgpu::Buffer,
     pub(crate) droplet_params: DropletParams,
-    #[allow(dead_code)]
-    pub(crate) refraction_texture: wgpu::Texture,
-    #[allow(dead_code)]
-    pub(crate) refraction_view: wgpu::TextureView,
     pub(crate) refraction_size: (u32, u32),
     pub(crate) time: f32,
     pub(crate) last: f64,
@@ -186,8 +181,6 @@ impl App {
             INITIAL_TIME_SECONDS,
             INITIAL_DELTA_SECONDS,
             INITIAL_STYLE_ID,
-            width,
-            height,
         );
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("uniforms"),
@@ -248,6 +241,9 @@ impl App {
         let fog_view = fog.create_view(&Default::default());
         let interior_view = interior.create_view(&Default::default());
 
+        // 这里创建的纹理视图(包括折射偏移图)全部只在建绑定时用到;
+        // wgpu 的 BindGroup 会持有资源的强引用,所以建完之后不需要再把它们
+        // 塞进 App 里"保命"(旧代码为此留了两个 #[allow(dead_code)] 字段).
         let pipelines = create_metro_pipelines(
             &device,
             format,
@@ -276,7 +272,6 @@ impl App {
             device,
             queue,
             surface,
-            config,
             render_pipeline: pipelines.render_pipeline,
             physics_pipeline: pipelines.physics_pipeline,
             refraction_pipeline: pipelines.refraction_pipeline,
@@ -288,8 +283,6 @@ impl App {
             droplet_params_buffer,
             droplet_buffer,
             droplet_params,
-            refraction_texture,
-            refraction_view,
             refraction_size: (rw, rh),
             time: 0.0,
             last: performance_now(),
@@ -319,13 +312,7 @@ impl App {
         }
         self.frame_accumulator %= FRAME_INTERVAL_MS;
 
-        let uniforms: Uniforms = Uniforms::new(
-            self.time,
-            delta,
-            self.style,
-            self.config.width,
-            self.config.height,
-        );
+        let uniforms: Uniforms = Uniforms::new(self.time, delta, self.style);
         self.queue
             .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
         self.queue.write_buffer(

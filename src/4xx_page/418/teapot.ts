@@ -85,7 +85,7 @@ function triggerSteamBoost(): void {
         void span.offsetHeight; // 重绘
         span.style.animation = STEAM_ANIMATION_BOOST;
     });
-    // 3.5秒后恢复默认时长
+    // STEAM_BOOST_MS 后恢复默认时长(见 teapot.config.ts)
     setTimeout(() => {
         steamSpans.forEach(span => {
             span.style.animation = STEAM_ANIMATION_NORMAL;

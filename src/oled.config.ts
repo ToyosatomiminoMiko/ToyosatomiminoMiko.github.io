@@ -90,9 +90,6 @@ export const OLED_IMPORT_FORMAT_ERROR =
 
 // ---------- 覆盖层 / 离屏画布 ----------
 
-/** 预览用的离屏 canvas 标识名(便于调试,不插入 DOM) */
-export const OLED_TEMP_CANVAS_ID = 'oled-preview-canvas';
-
 /** 预览叠加的混合模式(保持二值化核心,不改变主画布) */
 export const OLED_PREVIEW_COMPOSITE_OPERATION = 'source-over';
 

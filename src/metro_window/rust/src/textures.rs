@@ -462,8 +462,8 @@ pub fn generate_interior(w: u32, h: u32) -> (u32, u32, Vec<u8>) {
 /*
 测试用的 ppm 可视化输出
 - 统一写到本 crate 根下的 prompt/(cargo test 的 cwd 就是 crate 根,即
-  metro_window/prompt):这些图是给 prompt 当素材看的,该目录已被仓库根
-  .gitignore 的 /metro_window/prompt 忽略,不往仓库里丢生成物;
+  src/metro_window/rust/prompt):这些图是给 prompt 当素材看的,该目录已被仓库根
+  .gitignore 的 /src/metro_window/rust/prompt 忽略,不往仓库里丢生成物;
 - 目录不存在时自动创建,单独跑某个测试也不会失败.
 */
 #[cfg(test)]

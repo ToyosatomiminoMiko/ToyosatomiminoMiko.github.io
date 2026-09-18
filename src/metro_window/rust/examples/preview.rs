@@ -33,7 +33,8 @@ const PREVIEW_STYLE_ID: u32 = 1;
 /// `cargo test` 的 cwd 才是 crate 根,相对路径在两者间会指向不同地方.
 const PREVIEW_RESOURCE_DIR: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../public/metro_window/resource"
+    // crate 根 = <repo>/src/metro_window/rust,向下三级就是仓库根
+    "/../../../public/metro_window/resource"
 );
 /// 按文件名拼出城市贴图的绝对路径(与运行时的 `city_png()` 一一对应).
 fn preview_city_png(file: &str) -> String {
@@ -151,8 +152,6 @@ fn main() {
             PREVIEW_TIME_SECONDS,
             PREVIEW_DELTA_SECONDS,
             PREVIEW_STYLE_ID,
-            width,
-            height,
         );
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("uniforms"),

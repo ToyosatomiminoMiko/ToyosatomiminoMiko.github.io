@@ -7,7 +7,7 @@ import { mountClock } from './clock';
 import { mountRBT } from './rbt';
 import { OLEDCanvas } from './oled';
 import { mountIEEE754 } from './ieee754';
-import { mountMetroWindowAtMountId } from '../metro_window/web/src/metro_window';
+import { mountMetroWindowAtMountId } from './metro_window/web/src/metro_window';
 import { BACKGROUND_IMAGE_CLASS, BACKGROUND_IMAGE_STYLE_PROPERTY } from './site.config';
 
 document.addEventListener('DOMContentLoaded', () => {

@@ -11,15 +11,15 @@
 所有字面量(id / 类名 / data-* 键名 / Rust 参数名 / 文案 / 阈值)都集中在
 ./config.ts,标记与面板的结构集中在 ./ui/,本文件只保留逻辑与生命周期.
 
-调用方式(两种等价写法,取一即可):
+调用方式(两种等价写法,取一即可;下面按站点入口 src/main.ts 的位置写相对路径):
 
     // 1) 宿主自己已经拿到了容器
-    import { mountMetroWindow } from '../metro_window/web/src/metro_window';
+    import { mountMetroWindow } from './metro_window/web/src/metro_window';
     const el = document.getElementById('metro-window');
     if (el) mountMetroWindow(el);
 
     // 2) 按约定的挂载点 id 找容器(站点首页用这种,省得宿主自己写查找与报错)
-    import { mountMetroWindowAtMountId } from '../metro_window/web/src/metro_window';
+    import { mountMetroWindowAtMountId } from './metro_window/web/src/metro_window';
     mountMetroWindowAtMountId();
 
 宿主必须是**空容器**:标记全部由组件生成,已有的子节点不会被清掉,重复挂载

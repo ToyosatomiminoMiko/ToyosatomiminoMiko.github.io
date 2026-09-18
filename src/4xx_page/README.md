@@ -220,9 +220,6 @@ WIN=420,300 npm run perf:451                      # 换窗口尺寸
 ## 文件结构
 
 ```text
-vite_env.d.ts               4xx 页的 ambient 声明壳(`?raw` 的声明在项目级
-                            `src/vite_env.d.ts`)
-
 404.html                    404 页(纯 SVG, 无脚本)
 418.html                    418 页的标记 + 内联图标 sprite
 451.html                    451 页的标记 + 内联图标 sprite

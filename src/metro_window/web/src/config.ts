@@ -8,7 +8,7 @@ web/src/ui/window_content.ts 生成,设置面板(风格按钮 / 播放控制 / �
 
   - 宿主提供的挂载点 id,组件生成 / 查找的元素 id,类名 / data-* 键名;
   - 车窗标记的文案与画布渲染分辨率;
-  - setParam / setStyle 的参数名        -- 必须与 metro_window/src/lib.rs 一致;
+  - setParam / setStyle 的参数名        -- 必须与 src/metro_window/rust/src/lib.rs 一致;
   - 设置面板的完整结构模型(分组 / 顺序 / 文案 / 范围);
   - WebGPU 适配器识别规则与请求参数;
   - 全部状态 / 报错 / 帮助文案.
@@ -123,7 +123,7 @@ export const SLIDER_WIDTH_DEFAULT = 'var(--metro-size-slider-width)';
  * 也是行为(param 名 / clamp 区间)的唯一来源.
  *
  * id       -- 生成 <input type="range"> 的 id,<label for> 靠它关联;
- * param    -- setParam 参数名,必须与 metro_window/src/app_params.rs 的 SLIDERS 一致;
+ * param    -- setParam 参数名,必须与 src/metro_window/rust/src/app_params.rs 的 SLIDERS 一致;
  * label    -- 滑杆下方的名称(左);
  * hint     -- 名称后的小字注释(可选),为空不渲染;
  * min/max  -- 前端可调区间(与 Rust 侧 clamp 区间各自独立,前端先夹一次);
@@ -160,7 +160,7 @@ export interface SliderGroupSpec {
 
 /**
  * 全部实时滑块,按分组与显示顺序声明.
- * param 必须与 metro_window/src/app_params.rs 的 SLIDERS 逐字一致(前端按名字调用,
+ * param 必须与 src/metro_window/rust/src/app_params.rs 的 SLIDERS 逐字一致(前端按名字调用,
  * 名字写错不会报错,只会静默不生效).
  */
 export const SLIDER_GROUPS = [

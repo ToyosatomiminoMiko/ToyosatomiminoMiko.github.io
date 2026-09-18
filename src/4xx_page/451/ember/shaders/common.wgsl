@@ -52,13 +52,6 @@ fn hash11(p : f32) -> f32 {
     return fract(x);
 }
 
-fn hash21(p : vec2<f32>) -> f32 {
-    var x = fract(p * vec2<f32>(0.1031, 0.1030));
-    let d = dot(x, x + 33.33);
-    x = x + d;
-    return fract((x.x + x.y) * x.x);
-}
-
 // ---------- 暖色火色调色板 (对应原 CPU 版的 colorPalette) ----------
 fn emberPalette(t : f32) -> vec3<f32> {
     let p0 = vec3<f32>(1.000, 0.494, 0.227); // #ff7e3a

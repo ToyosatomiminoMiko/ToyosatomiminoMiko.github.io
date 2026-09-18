@@ -47,11 +47,3 @@ export interface ImportResult {
  *  每走到一个像素点调用一次
  */
 export type BresenhamCallback = (x: number, y: number) => void;
-
-/** 导出的 C 数据格式 */
-export interface ExportedData {
-    /** 原始字节数组 (1024 字节 / 128×64 像素) */
-    buffer: Uint8Array;
-    /** 格式化后的 C 源码字符串 */
-    cSource: string;
-}

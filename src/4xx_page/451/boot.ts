@@ -68,6 +68,8 @@ function perfEnabled(): boolean {
 
 /** 页面入口调用;自身不会 reject */
 export async function startEmber(): Promise<void> {
+    // 在 try 之外持有引擎: catch 里也要能把它停掉(见 catch 注释)
+    let ember: EmberWebGPU | null = null;
     try {
         const canvas = document.getElementById(CANVAS_ID);
         if (!(canvas instanceof HTMLCanvasElement)) return;
@@ -82,12 +84,13 @@ export async function startEmber(): Promise<void> {
         const perf = perfEnabled();
         if (perf) options.hud = true;
 
-        const ember = new EmberWebGPU(canvas, options);
+        const engine = new EmberWebGPU(canvas, options);
+        ember = engine;
 
-        const ready = await withTimeout(ember.init(), options.initTimeoutMs ?? INIT_TIMEOUT_MS);
+        const ready = await withTimeout(engine.init(), options.initTimeoutMs ?? INIT_TIMEOUT_MS);
         if (!ready) {
             // 用户明确要求: WebGPU 调用失败就放弃绘制, 不做 Canvas2D/WebGL 降级
-            ember.dispose();
+            engine.dispose();
             reportStatus(EMBER_STATUS.unavailable, STATUS_DETAIL_INIT_FAILED);
             return;
         }
@@ -95,8 +98,8 @@ export async function startEmber(): Promise<void> {
         if (perf) {
             // HUD 打开时顺手把摘要打到控制台, 限频到 1 秒一条, 免得刷屏
             let lastLog = 0;
-            const report = ember.reportStats.bind(ember);
-            ember.onStats = () => {
+            const report = engine.reportStats.bind(engine);
+            engine.onStats = () => {
                 const now = performance.now();
                 if (now - lastLog < PERF_LOG_INTERVAL_MS) return;
                 lastLog = now;
@@ -104,17 +107,24 @@ export async function startEmber(): Promise<void> {
             };
         }
 
-        ember.start();
-        reportStatus(EMBER_STATUS.running, ember.textureFormat);
+        engine.start();
+        reportStatus(EMBER_STATUS.running, engine.textureFormat);
         // 方便调试: window.__ember.dispose()
-        window.__ember = ember;
+        window.__ember = engine;
         // 打点读数: window.__emberStats() 取快照, window.__emberReport() 取一行摘要
-        window.__emberStats = () => ember.getStats();
-        window.__emberReport = () => ember.reportStats();
+        window.__emberStats = () => engine.getStats();
+        window.__emberReport = () => engine.reportStats();
     } catch (error: unknown) {
         const reason = error instanceof Error ? error.message : STATUS_DETAIL_BOOT_ERROR;
         log('启动异常, 放弃绘制:', reason);
-        document.getElementById(CANVAS_ID)?.remove();
+        // 超时/异常也必须停掉引擎: init() 是异步的, 超时后它可能仍然跑完并注册
+        // window / ResizeObserver 监听; 只删 canvas 会把这些监听留在页面上.
+        // dispose() 自己会移除 canvas, 所以只有"引擎还没建起来"时才手动删.
+        if (ember) {
+            ember.dispose();
+        } else {
+            document.getElementById(CANVAS_ID)?.remove();
+        }
         reportStatus(EMBER_STATUS.unavailable, reason);
     }
 }

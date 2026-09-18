@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Rust -> wasm32-unknown-unknown,再用 wasm-bindgen 生成 web/pkg/.
 #
-# 归属:本脚本属于 metro_window 子项目,但**由仓库根目录的 package.json 调用**
+# 归属:脚本本体在仓库的 tools 目录 scripts/ 下,**由仓库根目录的 package.json 调用**
 # (`npm run build:wasm`).这样做是为了保住"构建步骤序列只有 package.json 一处
 # 事实源"这条约定:根 build.sh 仍然只负责装依赖 + 调 `npm run build:all`,
 # 不在 shell 里另排一遍步骤.
@@ -12,16 +12,25 @@
 #     版本得从 Cargo.lock 解析;版本不符时装到本子项目的 .cargo-tools/,
 #     不污染全局,也不需要手工维护版本常量.
 #
+# 涉及的三个目录(全部在 src/metro_window/ 下):
+#   rust/    Rust crate(Cargo.toml / src/ / examples/),编译目标
+#   web/     前端源码(src/)与生成物(pkg/)
+#   .cargo-tools/  版本对齐用的 wasm-bindgen CLI 安装位置
+#
 # 单独运行(只改了 Rust/WGSL 时):
-#   bash metro_window/scripts/build_wasm.sh
+#   bash scripts/build_wasm.sh
 # 等价于在仓库根跑:
 #   npm run build:wasm
 
 set -Eeuo pipefail
 
-# 脚本在 metro_window/scripts/ 下,项目根是它的上一级
-METRO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$METRO_ROOT"
+# 脚本在 scripts/ 下,仓库根是它的上一级
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+METRO_ROOT="${REPO_ROOT}/src/metro_window"
+CRATE_DIR="${METRO_ROOT}/rust"
+WEB_DIR="${METRO_ROOT}/web"
+
+cd "$CRATE_DIR"
 
 log() {
     printf '[WASM][%s] %s\n' "$(date '+%Y.%m.%d.%H:%M:%S')" "$*"
@@ -89,10 +98,10 @@ log "wasm-bindgen ${wb_version} (${wb})"
 
 # web/pkg 先清空再生成:改了 --out-name 后不会残留旧文件
 # (build:all 里的 clean 已经删过一次,这里保证单独执行也干净)
-rm -rf web/pkg
-mkdir -p web/pkg
+rm -rf "$WEB_DIR/pkg"
+mkdir -p "$WEB_DIR/pkg"
 log "生成 web/pkg/(wasm-bindgen --target web)"
-"$wb" --target web --out-dir web/pkg --out-name metro_window \
-    "target/${target}/release/metro_window.wasm"
+"$wb" --target web --out-dir "$WEB_DIR/pkg" --out-name metro_window \
+    "${CRATE_DIR}/target/${target}/release/metro_window.wasm"
 
-log "wasm 产物: ${METRO_ROOT}/web/pkg"
+log "wasm 产物: ${WEB_DIR}/pkg"

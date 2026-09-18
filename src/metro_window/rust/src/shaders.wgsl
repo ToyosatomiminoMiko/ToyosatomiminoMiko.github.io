@@ -17,11 +17,11 @@ struct DropletParams 由 Rust 侧 src/droplet_params.rs 生成并注入,
   否则会出现贯穿画面,随 time 缓慢横扫的竖直硬缝.
 */
 struct Uniforms {
-    modelMatrix: mat4x4f,
     time: f32,
     deltaTime: f32,
     styleId: u32,
-    resolution: vec2f,
+    // 补齐到 16 字节:与 Rust `uniforms.rs` 的 `_padding` 一一对应.
+    _padding: u32,
 };
 
 struct Droplet {

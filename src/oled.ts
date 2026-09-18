@@ -10,7 +10,6 @@ import type {
     OLEDConfig,
     ImportResult,
     BresenhamCallback,
-    ExportedData,
 } from './oled.types';
 import {
     OLED_BITS_PER_BYTE,
@@ -52,7 +51,6 @@ import {
     OLED_PREVIEW_HALF_PIXEL,
     OLED_PREVIEW_STROKE_WIDTH,
     OLED_RESIZE_DEBOUNCE_MS,
-    OLED_TEMP_CANVAS_ID,
     OLED_VALUE_BLACK,
     OLED_VALUE_WHITE,
     fillRgb,
@@ -257,11 +255,11 @@ export class OLEDCanvas {
 
     /** 数据导出 */
     exportData(): string {
-        const data = this.generateEmbeddedData();
+        const cSource = this.generateEmbeddedData();
         if (this.exportTextarea) {
-            this.exportTextarea.value = data.cSource;
+            this.exportTextarea.value = cSource;
         }
-        return data.cSource;
+        return cSource;
     }
 
     /** 下载PNG */
@@ -383,7 +381,6 @@ export class OLEDCanvas {
 
         // 2. 创建临时canvas实现预览效果
         const tempCanvas = document.createElement('canvas');
-        tempCanvas.id = OLED_TEMP_CANVAS_ID;
         tempCanvas.width = this.canvas.width;
         tempCanvas.height = this.canvas.height;
         const tempCtx = tempCanvas.getContext('2d')!;
@@ -437,7 +434,6 @@ export class OLEDCanvas {
         // 它和主画布没有任何关系
         // ===========================================
         const tempCanvas = document.createElement('canvas');
-        tempCanvas.id = OLED_TEMP_CANVAS_ID;
         tempCanvas.width = this.canvas.width;   // 128
         tempCanvas.height = this.canvas.height; // 64
         const tempCtx = tempCanvas.getContext('2d')!;
@@ -470,7 +466,7 @@ export class OLEDCanvas {
     // ======================
     // 数据生成模块
     // ======================
-    private generateEmbeddedData(): ExportedData {
+    private generateEmbeddedData(): string {
         const buffer = new Uint8Array(this.canvas.width * (this.canvas.height / OLED_PAGE_ROWS)); // 128列 x 8页
         // 遍历每个页(8页,每页8行)
         for (let page = 0; page < this.canvas.height / OLED_PAGE_ROWS; page++) {
@@ -504,7 +500,7 @@ export class OLEDCanvas {
         });
         cSource += '\n};';
 
-        return { buffer, cSource };
+        return cSource;
     }
 
     // ======================

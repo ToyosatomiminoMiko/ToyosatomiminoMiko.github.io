@@ -57,13 +57,13 @@ import { createGpuTimer, type GpuTimer } from './gpu_timing';
 import { createPerfOverlay, type PerfOverlay } from './perf_overlay';
 
 export interface EmberOptions {
-    /** 粒子数量,默认 180 */
+    /** 粒子数量,默认见 config.ts 的 PARTICLE_COUNT(560) */
     particleCount?: number;
     /** 左上角性能 HUD(等价于地址栏 ?perf=1) */
     hud?: boolean;
 }
 
-export type { FrameStatsSnapshot, GpuPassTimings, Distribution } from './stats';
+export type { FrameStatsSnapshot } from './stats';
 
 /** 系统是否要求"减少动态效果" */
 function prefersReducedMotion(): boolean {
@@ -203,6 +203,9 @@ export class EmberWebGPU {
                 log('GPU 未捕获错误:', gpuError?.message ?? gpuError);
             });
 
+            // 若外部已经因启动超时 dispose() 过, 这里就不要再注册监听:
+            // init() 是异步的, 超时后它仍可能跑完, 不拦的话监听会留在页面上.
+            if (this.disposed) return false;
             this.bindInput();
             return true;
         } catch (error) {

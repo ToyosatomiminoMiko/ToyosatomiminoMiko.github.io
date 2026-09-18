@@ -1,9 +1,9 @@
 /*
 地铁车窗前端配置的回归网.
 
-配置集中在 metro_window/web/src/config.ts,但 vitest 的 include 只有站点侧的
-src/**,所以这份测试放在这里,import 子项目的配置模块做纯数据断言(不碰 DOM,
-也不需要 wasm 产物):
+测试与配置同一个目录(config.ts),因为它已经是站点 src/ 树的一部分:
+vitest 的 include 覆盖 src/ 下所有单测,这里天然被收集.断言仍是纯数据
+(不碰 DOM,也不需要 wasm 产物):
 
   - 滑块 id / setParam 参数名唯一,且参数名与 Rust 侧的清单一一对应
     (Rust 的 app_params.rs 有自己的镜像单测,两边同时改才不漂移);
@@ -18,7 +18,7 @@ import {
     STYLE_PRESETS,
     type SliderGroupSpec,
     type SliderSpec,
-} from '../metro_window/web/src/config';
+} from './config';
 
 /** Rust 侧 app_params.rs 单测里的同一份参数名清单(跨语言契约). */
 const EXPECTED_PARAMS = [

@@ -4,12 +4,14 @@ dist/
 /prompt
 __pycache__/
 
-# metro_window 子项目的生成物(生成过程见 package.json 的 build:wasm)
-/metro_window/target
-/metro_window/web/pkg
+# metro_window 子项目(src/metro_window/)的生成物,生成过程见 package.json 的 build:wasm
+/src/metro_window/rust/target
+/src/metro_window/web/pkg
 # wasm-bindgen CLI 版本必须与 Cargo.lock 一致,不一致时由构建脚本装到这里
-/metro_window/.cargo-tools
-# cargo test 会把可视化用的 ppm 素材写到这里(cwd = crate 根)
-/metro_window/prompt
-# examples/preview 渲染出的单帧(cwd = crate 根)
-/metro_window/preview.png
+/src/metro_window/.cargo-tools
+# cargo test 的可视化 ppm 素材写在 crate 根(cargo test 的 cwd = crate 根)
+/src/metro_window/rust/prompt
+# examples/preview 把单帧写到**调用目录**(cargo run 不改 cwd),从仓库根跑就落在这里
+/preview.png
+# scripts/perf/451.mjs 起的 headless Chromium 用户目录
+/.scratch-451perf-profile
