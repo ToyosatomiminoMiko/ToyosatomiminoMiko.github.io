@@ -201,6 +201,10 @@ impl SliderSpec {
             "wind_sway_scale" => params.wind_sway_scale = v,
             "gravity_scale" => params.gravity_scale = v,
             "refraction_scale" => params.refraction_scale = v,
+            // 背景景深(水珠是清晰岛)
+            "blur_max_lod" => params.blur_max_lod = v,
+            "blur_min_lod" => params.blur_min_lod = v,
+            "droplet_clear" => params.droplet_clear = v,
             // 玻璃材质浓度
             "dirt_opacity" => params.dirt_opacity = v,
             "fog_opacity" => params.fog_opacity = v,
@@ -273,6 +277,25 @@ pub(crate) const SLIDERS: &[SliderSpec] = &[
         min: 0.0,
         max: 3.0,
     },
+    // ===== 背景景深(水珠是清晰岛)=====
+    // 无水处的 mip 级:0 = 完全不糊,越大背景越糊(水珠越显眼).
+    SliderSpec {
+        name: "blur_max_lod",
+        min: 0.0,
+        max: 7.0,
+    },
+    // 水珠内部的 mip 级:0 = 水珠里最清晰.
+    SliderSpec {
+        name: "blur_min_lod",
+        min: 0.0,
+        max: 4.0,
+    },
+    // 水珠对雾气/污渍的擦除比例.
+    SliderSpec {
+        name: "droplet_clear",
+        min: 0.0,
+        max: 1.0,
+    },
     // ===== 玻璃材质浓度 =====
     // 污渍混合强度.
     SliderSpec {
@@ -303,9 +326,9 @@ pub(crate) fn slider_spec(name: &str) -> Option<SliderSpec> {
 mod tests {
     use super::*;
 
-    /// 前端实际使用的 12 个参数名(与 src/metro_window/src/config.ts 的 SLIDER_GROUPS 一致).
+    /// 前端实际使用的参数名(与 src/metro_window/src/config.ts 的 SLIDER_GROUPS 一致).
     /// 这份清单是断言用的期望集合:表里多一个/少一个都会失败.
-    const EXPECTED_SLIDER_NAMES: [&str; 12] = [
+    const EXPECTED_SLIDER_NAMES: [&str; 15] = [
         "vehicle_speed",
         "far_distance",
         "mid_distance",
@@ -315,6 +338,9 @@ mod tests {
         "wind_sway_scale",
         "gravity_scale",
         "refraction_scale",
+        "blur_max_lod",
+        "blur_min_lod",
+        "droplet_clear",
         "dirt_opacity",
         "fog_opacity",
         "interior_opacity",

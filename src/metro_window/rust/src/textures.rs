@@ -123,27 +123,35 @@ pub fn decode_png(data: &[u8]) -> Result<(u32, u32, Vec<u8>), String> {
     Ok((w, h, rgba))
 }
 
-pub fn create_texture(
+/// 只写 level 0 的公共部分(建纹理 + 上传像素).
+fn create_texture_with_levels(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     label: &str,
     width: u32,
     height: u32,
     rgba: &[u8],
+    mip_level_count: u32,
 ) -> wgpu::Texture {
     let size = wgpu::Extent3d {
         width,
         height,
         depth_or_array_layers: 1,
     };
+    // 只有多级 mip 的纹理才需要当渲染目标(逐级 blit 生成,见 mipmaps.rs):
+    // 单级的材质贴图(污渍/雾气/车厢)不该多要这个 usage,免得 wgpu 分配额外内存.
+    let mut usage = wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST;
+    if mip_level_count > 1 {
+        usage |= wgpu::TextureUsages::RENDER_ATTACHMENT;
+    }
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some(label),
         size,
-        mip_level_count: 1,
+        mip_level_count,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
         format: RENDER_TARGET_FORMAT,
-        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        usage,
         view_formats: &[],
     });
     queue.write_texture(
@@ -164,17 +172,98 @@ pub fn create_texture(
     texture
 }
 
+pub fn create_texture(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    label: &str,
+    width: u32,
+    height: u32,
+    rgba: &[u8],
+) -> wgpu::Texture {
+    create_texture_with_levels(device, queue, label, width, height, rgba, 1)
+}
+
+/// 完整 mip 链的级数:`floor(log2(max(w, h))) + 1`.
+///
+/// 例:1920x1080 => 11 级(1024 <= 1920 < 2048);1x1 => 1 级.
+/// 生成 mip 的逐级 blit 见 src/mipmaps.rs,这里的级数只决定纹理要分多少层.
+pub fn mip_level_count_for(width: u32, height: u32) -> u32 {
+    // leading_zeros 版本的整数 log2:先把 0 兜成 1(wgpu 不允许 0 尺寸),
+    // 于是 32 - leading_zeros 正好是 floor(log2(n)) + 1.
+    32 - width.max(height).max(1).leading_zeros()
+}
+
+/// 预乘 alpha:把颜色乘上自己的 alpha,就地改写 RGBA8 像素.
+///
+/// 为什么城市远景/中景/近景必须预乘:生成 mip 时逐级做的是**算术平均**,而这批
+/// PNG 的透明像素是 (0,0,0,0)(实测 city_far / city_mid / city_near 的透明区全是纯黑).
+/// 直乘 alpha 的图在边缘平均后颜色会被"拉黑",放大到 LOD 4 就是建筑轮廓外一圈黑边;
+/// 预乘之后平均才有意义(颜色按覆盖率加权).
+///
+/// 合成侧对应的是 `c = c * (1 - a) + rgb`(见 shaders.wgsl 的 fs_main):
+/// 在 LOD 0(a 非 0 即 1)上它与直乘 alpha 的 `mix(c, rgb, a)` 逐位等价,
+/// 所以这次预乘不改变未模糊时的画面.
+pub fn premultiply_alpha(rgba: &mut [u8]) {
+    // 通道满值(u8 的定义值,不是可调参数)与四舍五入项 255/2:
+    // 整数除法直接截断会把透明边缘越乘越暗,加半个满值再除才是四舍五入.
+    const CHANNEL_FULL: u32 = u8::MAX as u32;
+    const ROUNDING: u32 = CHANNEL_FULL / 2;
+    // 每像素 RGBA 四个通道;用 as_chunks_mut 而不是按 4 取模下标:
+    // 缓冲区长度不是 4 的倍数时尾部会被忽略,不会越界.
+    for px in rgba.as_chunks_mut::<4>().0 {
+        let a: u32 = px[3] as u32;
+        for channel in px.iter_mut().take(3) {
+            *channel = ((*channel as u32 * a + ROUNDING) / CHANNEL_FULL) as u8;
+        }
+    }
+}
+
+/// 建一张带完整 mip 链的城市层纹理.
+///
+/// `premultiply` 只对**有 alpha 的城市层**为 true:污渍/雾气/车厢那三张的 RGB 语义
+/// 不是"颜色"(污渍 RGB 是乘性颜色,雾气 RGB 是颜色而 A 是浓度),预乘会把它们改坏.
+/// mip 也只给城市层生成:其余三张的采样坐标都被 fract 折回后放大,不需要缩小过滤.
+pub fn create_texture_mipped(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    label: &str,
+    width: u32,
+    height: u32,
+    rgba: &[u8],
+    premultiply: bool,
+) -> wgpu::Texture {
+    let levels: u32 = mip_level_count_for(width, height);
+    let pixels: std::borrow::Cow<'_, [u8]> = if premultiply {
+        let mut owned: Vec<u8> = rgba.to_vec();
+        premultiply_alpha(&mut owned);
+        std::borrow::Cow::Owned(owned)
+    } else {
+        std::borrow::Cow::Borrowed(rgba)
+    };
+    create_texture_with_levels(device, queue, label, width, height, &pixels, levels)
+}
+
+/// 读取 PNG 并建成带 mip 链的纹理(mip 的**生成**由调用方 submit,见 mipmaps.rs).
 pub(crate) async fn create_png_texture(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     label: &str,
     url: &str,
+    premultiply: bool,
 ) -> Result<wgpu::Texture, String> {
     // get PNG
     let bytes: Vec<u8> = fetch_bytes(url).await?;
     // PNG decode
     let (w, h, rgba) = decode_png(&bytes)?;
-    Ok(create_texture(device, queue, label, w, h, &rgba))
+    Ok(create_texture_mipped(
+        device,
+        queue,
+        label,
+        w,
+        h,
+        &rgba,
+        premultiply,
+    ))
 }
 
 /**
@@ -491,6 +580,41 @@ mod tests {
     const PPM_CHANNELS: u32 = 3;
     // 灰度量化上限:浮点 [0,1] 乘它取整得到 u8.
     const CHANNEL_SCALE: f32 = 255.0;
+
+    /*
+    mip 级数 = floor(log2(max(w, h))) + 1.
+    算错的后果不报错,只是画面错:少一级则最糊的那档被夹到次一级(景深变浅),
+    多一级则白建一层全无人采样的 mip.所以用几个真实尺寸把它钉住.
+    */
+    #[test]
+    fn mip_level_count_covers_full_chain() {
+        // 0 尺寸在 wgpu 里是非法的,这里只要求它不 panic 且至少 1 级.
+        assert_eq!(super::mip_level_count_for(0, 0), 1);
+        assert_eq!(super::mip_level_count_for(1, 1), 1);
+        assert_eq!(super::mip_level_count_for(2, 1), 2);
+        assert_eq!(super::mip_level_count_for(1920, 1080), 11);
+        assert_eq!(super::mip_level_count_for(1920, 1200), 11);
+        // 正好 2 的幂:2048 = 2^11 => 12 级(2^0 .. 2^11).
+        assert_eq!(super::mip_level_count_for(2048, 1024), 12);
+    }
+
+    /*
+    预乘 alpha:颜色乘自己的 alpha,alpha 通道不动.
+    三条不变量:alpha = 255 原样;半透明严格按 128/255 缩放(四舍五入);
+    全透明像素的颜色必须清零,否则生成 mip 时黑色会渗进不透明区.
+    */
+    #[test]
+    fn premultiply_alpha_scales_color_by_alpha() {
+        let mut pixels: Vec<u8> = vec![
+            255, 128, 0, 255, // 不透明:不变
+            255, 255, 255, 128, // 半透明:严格折半
+            10, 20, 30, 0, // 全透明:颜色清零
+        ];
+        super::premultiply_alpha(&mut pixels);
+        assert_eq!(&pixels[0..4], &[255, 128, 0, 255]);
+        assert_eq!(&pixels[4..8], &[128, 128, 128, 128]);
+        assert_eq!(&pixels[8..12], &[0, 0, 0, 0]);
+    }
 
     /*
     污渍贴图的 RGB 是"乘性颜色"而不是遮罩:

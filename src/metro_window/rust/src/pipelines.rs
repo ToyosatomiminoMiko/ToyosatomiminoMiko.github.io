@@ -45,6 +45,16 @@ pub fn shader_source() -> String {
     )
 }
 
+/// mip 生成着色器的源码.
+///
+/// 与 `shader_source` 分开的两个理由:
+///   1. 它不需要 DropletParams 声明,也没有 uniform/storage 绑定;
+///   2. 它是**独立**的着色器模块(mip.wgsl 里的 @binding 0/1 与主着色器的
+///      uniforms / 水滴 buffer 撞车,不能合并成一个模块).
+pub fn mip_shader_source() -> &'static str {
+    include_str!("mip.wgsl")
+}
+
 /// 渲染管线用到的纹理资源.
 /// 参数偏多,打包成结构体:调用处一眼看清"传了哪些纹理",
 /// 也避免 create_metro_pipelines 参数列表过长.

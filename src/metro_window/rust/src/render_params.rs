@@ -50,6 +50,14 @@ pub(crate) const FRAGMENT_ENTRY_POINT: &str = "fs_main";
 pub(crate) const PHYSICS_ENTRY_POINT: &str = "cs_main";
 pub(crate) const REFRACTION_ENTRY_POINT: &str = "cs_refraction";
 
+/// mip 生成着色器(src/mip.wgsl)的入口点,必须与文件里的 `fn` 名一致(由单测校验).
+///
+/// 注意它是**独立**的着色器模块:WGSL 的 @group/@binding 是模块级命名空间,
+/// 主着色器的 binding 0/1 已被 uniforms 与水滴 storage buffer 占用,blit 用不了,
+/// 所以不复用主模块(理由见 src/mip.wgsl 头部注释).
+pub(crate) const MIP_VERTEX_ENTRY_POINT: &str = "vs_blit";
+pub(crate) const MIP_FRAGMENT_ENTRY_POINT: &str = "fs_blit";
+
 /// 索引缓冲格式,必须与 [`FULLSCREEN_QUAD_INDICES`] 的 u16 元素类型一致.
 pub const QUAD_INDEX_FORMAT: wgpu::IndexFormat = wgpu::IndexFormat::Uint16;
 
@@ -170,6 +178,14 @@ pub(crate) const BINDING_REFRACTION_VIEW: u32 = 18;
 /// 折射偏移图采样器槽位.
 pub(crate) const BINDING_REFRACTION_SAMPLER: u32 = 19;
 
+// ===== mip 生成着色器(src/mip.wgsl)的绑定槽位 =====
+// 它是独立模块,绑定空间不与主着色器共用,所以从 0 开始编号;
+// 主着色器的那张槽位表(0..19)与它无关.
+/// mip blit 的源纹理(上一级 mip)槽位.
+pub(crate) const BINDING_MIP_SOURCE: u32 = 0;
+/// mip blit 的采样器槽位.
+pub(crate) const BINDING_MIP_SAMPLER: u32 = 1;
+
 /// 背景 / 材质纹理层数(bg / far / mid / near / dirt / fog / interior).
 ///
 /// 必须与 [`crate::pipelines::MetroTextures::texture_views`] 的数组长度以及
@@ -238,6 +254,24 @@ mod tests {
         for location in [VERTEX_POSITION_LOCATION, VERTEX_UV_LOCATION] {
             let decl = format!("@location({location})");
             assert!(source.contains(&decl), "shaders.wgsl 缺少顶点属性 {decl}");
+        }
+    }
+
+    /*
+    mip 生成着色器是独立模块,槽位不与主着色器共用:
+    这里把"入口点名 + 绑定槽位"钉在同一个文件里,改一边漏一边会在编译期外的
+    单测里直接失败(管线建不出来时 wgpu 的报错很难一眼看出是槽位写错).
+    */
+    #[test]
+    fn mip_shader_matches_entry_points_and_bindings() {
+        let source = crate::pipelines::mip_shader_source();
+        for entry in [MIP_VERTEX_ENTRY_POINT, MIP_FRAGMENT_ENTRY_POINT] {
+            let decl = format!("fn {entry}(");
+            assert!(source.contains(&decl), "mip.wgsl 缺少入口点: {entry}");
+        }
+        for slot in [BINDING_MIP_SOURCE, BINDING_MIP_SAMPLER] {
+            let decl = format!("@binding({slot})");
+            assert!(source.contains(&decl), "mip.wgsl 缺少绑定槽位 {decl}");
         }
     }
 

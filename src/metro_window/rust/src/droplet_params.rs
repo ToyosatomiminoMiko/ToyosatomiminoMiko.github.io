@@ -125,6 +125,22 @@ define_droplet_params! {
     gravity_scale = 1.0;
     refraction_scale = 1.0;
 
+    // ===== 背景景深(水珠是清晰岛)=====
+    // 业界做法(见 REF/01-分析报告):整幅背景先被 mip 糊掉,水珠所在处采清晰的原图,
+    // 雨痕是"逐渐清晰"的一条.这里用同一个"归一化距离 s = 距离/半径"驱动:
+    //   focus = mix(blur_max_lod, blur_min_lod, dropSharp),
+    //   dropSharp = 1 - smoothstep(blur_focus_inner, 1, s)
+    // 没有水珠覆盖的像素 s 是 FAR_DISTANCE(1000),dropSharp = 0 => 取 blur_max_lod.
+    //
+    // blur_min_lod:水珠内部(清晰岛)的 mip 级,0 = 原图最锐;
+    // blur_max_lod:无水处的 mip 级,越大越糊;上限受纹理自带的级数自动夹住;
+    // blur_focus_inner:s 小于它算"完全清晰",越大清晰岛越小(1.0 = 整个珠子都清晰);
+    // droplet_clear:水珠对雾气/污渍的擦除比例(雾被水珠"擦掉"而不是叠上去).
+    blur_min_lod = 1.0;
+    blur_max_lod = 4.5;
+    blur_focus_inner = 0.55;
+    droplet_clear = 0.8;
+
     // ===== 玻璃材质浓度(实时滑块) =====
     // dirt_opacity / fog_opacity / interior_opacity:
     // 污渍,雾气,车厢灯光反射的混合强度.
@@ -196,6 +212,10 @@ mod tests {
             "wind_sway_scale",
             "gravity_scale",
             "refraction_scale",
+            "blur_min_lod",
+            "blur_max_lod",
+            "blur_focus_inner",
+            "droplet_clear",
             "dirt_opacity",
             "fog_opacity",
             "interior_opacity",

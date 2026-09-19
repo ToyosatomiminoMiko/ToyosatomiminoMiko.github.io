@@ -294,6 +294,18 @@ export const SLIDER_GROUPS = [
         ],
     },
     {
+        title: '🔭 背景景深',
+        open: false,
+        sliders: [
+            /** 无水处的背景模糊(mip 级,越大越糊) */
+            { id: 'blurMaxLod', param: 'blur_max_lod', label: '背景模糊', hint: '水珠外', min: 0, max: 7, step: 0.01, value: 4.5 },
+            /** 水珠内部的背景清晰度(mip 级,0 = 最清晰) */
+            { id: 'blurMinLod', param: 'blur_min_lod', label: '水珠清晰度', hint: '越小越清', min: 0, max: 4, step: 0.01, value: 1 },
+            /** 水珠对雾气/污渍的擦除比例 */
+            { id: 'dropletClear', param: 'droplet_clear', label: '水珠擦雾', hint: '擦掉雾气/污渍', min: 0, max: 1, step: 0.01, value: 0.8 },
+        ],
+    },
+    {
         title: '🪟 玻璃质感',
         open: true,
         sliders: [

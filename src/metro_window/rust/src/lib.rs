@@ -7,6 +7,7 @@ mod app;
 mod app_params;
 mod droplet_params;
 mod droplets;
+mod mipmaps;
 mod pipelines;
 mod random;
 mod random_params;
@@ -17,7 +18,10 @@ mod uniforms;
 
 pub use droplet_params::DropletParams;
 pub use droplets::{make_droplets, Droplet, DROPLET_COUNT};
-pub use pipelines::{create_metro_pipelines, shader_source, MetroPipelines, MetroTextures};
+pub use mipmaps::{create_mip_pipeline, generate_mipmaps, MipPipeline};
+pub use pipelines::{
+    create_metro_pipelines, mip_shader_source, shader_source, MetroPipelines, MetroTextures,
+};
 // 下面几组常量同时被 examples/ 使用:导出同一份定义,避免示例与运行时数值漂移.
 pub use render_params::{
     FULLSCREEN_QUAD_INDICES, FULLSCREEN_QUAD_VERTICES, MIN_TEXTURE_DIMENSION, QUAD_INDEX_FORMAT,
@@ -26,7 +30,10 @@ pub use render_params::{
     SAMPLER_FILTER_MODE,
 };
 pub use texture_params::{DIRT_TEXTURE_SIZE, FOG_TEXTURE_SIZE, INTERIOR_TEXTURE_SIZE};
-pub use textures::{create_texture, decode_png, generate_dirt, generate_fog, generate_interior};
+pub use textures::{
+    create_texture, create_texture_mipped, decode_png, generate_dirt, generate_fog,
+    generate_interior, mip_level_count_for, premultiply_alpha,
+};
 pub use uniforms::Uniforms;
 
 use std::cell::RefCell;

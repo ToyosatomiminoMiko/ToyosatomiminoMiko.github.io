@@ -4,12 +4,13 @@
 - 方便在没有 WebGPU 浏览器时离线查看玻璃效果
 */
 use metro_window::{
-    create_metro_pipelines, create_texture, decode_png, generate_dirt, generate_fog,
-    generate_interior, make_droplets, DropletParams, MetroTextures, Uniforms, DIRT_TEXTURE_SIZE,
-    FOG_TEXTURE_SIZE, FULLSCREEN_QUAD_INDICES, FULLSCREEN_QUAD_VERTICES, INTERIOR_TEXTURE_SIZE,
-    MIN_TEXTURE_DIMENSION, QUAD_INDEX_FORMAT, REFRACTION_TEXTURE_FORMAT, REFRACTION_WORKGROUP_EDGE,
-    RENDER_TARGET_FORMAT, RGBA_BYTES_PER_PIXEL, SAMPLER_ADDRESS_MODE_CLAMP,
-    SAMPLER_ADDRESS_MODE_REPEAT, SAMPLER_FILTER_MODE,
+    create_metro_pipelines, create_mip_pipeline, create_texture, create_texture_mipped, decode_png,
+    generate_dirt, generate_fog, generate_interior, generate_mipmaps, make_droplets, DropletParams,
+    MetroTextures, Uniforms, DIRT_TEXTURE_SIZE, FOG_TEXTURE_SIZE, FULLSCREEN_QUAD_INDICES,
+    FULLSCREEN_QUAD_VERTICES, INTERIOR_TEXTURE_SIZE, MIN_TEXTURE_DIMENSION, QUAD_INDEX_FORMAT,
+    REFRACTION_TEXTURE_FORMAT, REFRACTION_WORKGROUP_EDGE, RENDER_TARGET_FORMAT,
+    RGBA_BYTES_PER_PIXEL, SAMPLER_ADDRESS_MODE_CLAMP, SAMPLER_ADDRESS_MODE_REPEAT,
+    SAMPLER_FILTER_MODE,
 };
 use wgpu::util::DeviceExt;
 
@@ -76,10 +77,15 @@ fn block_on<F: Future>(future: F) -> F::Output {
     }
 }
 
-fn load_png(device: &wgpu::Device, queue: &wgpu::Queue, path: &str) -> wgpu::Texture {
+fn load_png(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    path: &str,
+    premultiply: bool,
+) -> wgpu::Texture {
     let bytes = std::fs::read(path).expect(path);
     let (w, h, rgba) = decode_png(&bytes).expect("decode png");
-    create_texture(device, queue, path, w, h, &rgba)
+    create_texture_mipped(device, queue, path, w, h, &rgba, premultiply)
 }
 
 fn main() {
@@ -112,10 +118,10 @@ fn main() {
         // 贴图在站点 public/metro_window/resource/ 下(PREVIEW_RESOURCE_DIR 已拼成
         // 绝对路径,不受 cwd 影响).站点运行时 fetch 的是同一批文件的公开地址
         // /metro_window/resource/...,见 src/app_params.rs 的 RESOURCE_BASE.
-        let bg = load_png(&device, &queue, &preview_city_png(PREVIEW_CITY_BG));
-        let far = load_png(&device, &queue, &preview_city_png(PREVIEW_CITY_FAR));
-        let mid = load_png(&device, &queue, &preview_city_png(PREVIEW_CITY_MID));
-        let near = load_png(&device, &queue, &preview_city_png(PREVIEW_CITY_NEAR));
+        let bg = load_png(&device, &queue, &preview_city_png(PREVIEW_CITY_BG), false);
+        let far = load_png(&device, &queue, &preview_city_png(PREVIEW_CITY_FAR), true);
+        let mid = load_png(&device, &queue, &preview_city_png(PREVIEW_CITY_MID), true);
+        let near = load_png(&device, &queue, &preview_city_png(PREVIEW_CITY_NEAR), true);
         let (dw, dh, dirt_data) = generate_dirt(DIRT_TEXTURE_SIZE.0, DIRT_TEXTURE_SIZE.1);
         let dirt = create_texture(&device, &queue, "dirt", dw, dh, &dirt_data);
         let (fw, fh, fog_data) = generate_fog(FOG_TEXTURE_SIZE.0, FOG_TEXTURE_SIZE.1);
@@ -243,6 +249,21 @@ fn main() {
         let target_view = target.create_view(&Default::default());
 
         let mut encoder = device.create_command_encoder(&Default::default());
+        {
+            // 城市层的 mip 链:与运行时一样,加载后一次性生成(见 src/mipmaps.rs).
+            // 预览里同样需要它 -- 背景景深就是按水珠覆盖度挑一级 mip.
+            let mip = create_mip_pipeline(&device);
+            for texture in [&bg, &far, &mid, &near] {
+                generate_mipmaps(
+                    &device,
+                    &mut encoder,
+                    &mip,
+                    &sampler,
+                    texture,
+                    texture.mip_level_count(),
+                );
+            }
+        }
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("preview-compute-pass"),

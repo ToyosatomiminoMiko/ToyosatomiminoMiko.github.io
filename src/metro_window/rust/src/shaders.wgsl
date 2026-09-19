@@ -4,6 +4,7 @@ WGSL 着色器
 - cs_main:水滴物理模拟(出界重置/重力/滑动)
 - cs_refraction:按像素记录"归哪颗水珠管"(圆心 / 归一化距离 / 偏移大小)
 - fs_main:合成 窗外实景 / 折射虚像 / 污渍 / 雾气 / 车厢灯光
+  (mip 生成用的 blit 着色器是**另一个模块**,见 src/mip.wgsl)
 
 struct DropletParams 由 Rust 侧 src/droplet_params.rs 生成并注入,
 不要在本文件重复声明,以免与 Rust 字段清单漂移.
@@ -18,11 +19,14 @@ struct DropletParams 由 Rust 侧 src/droplet_params.rs 生成并注入,
 
 贴图通道语义(与 src/textures.rs 的生成代码是一份契约,改一边要改另一边):
 - textureBG / Far / Mid / Near:城市美术素材,RGB = 颜色,A = 该层不透明度;
+  Far / Mid / Near 的 RGB 是**预乘 alpha** 的(合成写成 c*(1-a) + rgb,见 fs_main);
 - textureDirt:RGB = 污渍的"乘性颜色"(接近 1 的暖灰,不是遮罩),A = 浓度,
   所以下面写的是 c * dirt.rgb;
 - textureFog / textureInterior:RGB = 颜色,A = 浓度;
 - 用 textureSampler 采样的程序化贴图都必须在 x 上可平铺(u 方向是 Repeat),
   否则会出现贯穿画面,随 time 缓慢横扫的竖直硬缝.
+- 城市四层带完整 mip 链(由 src/mipmaps.rs 在加载时生成一次),背景景深就是
+  "按水珠覆盖度挑一个 mip 级"(fs_main 的 focus),运行期零额外采样.
 */
 struct Uniforms {
     time: f32,
@@ -223,6 +227,11 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3u) {
 // 半径最小的水珠在画面最远处 s 也只有个位数,取 1000 足够大到"任何水珠都更近".
 const FAR_DISTANCE: f32 = 1000.0;
 
+// 背景景深里"清晰岛"的外沿(归一化距离 s = 距离 / 半径).
+// s = 1 就是水珠轮廓本身,这是定义而不是可调量,所以写成常量;
+// 内侧边界(清晰岛多大)是可调的,见 dropletParams.blur_focus_inner.
+const FOCUS_OUTER_S: f32 = 1.0;
+
 // 水滴轮廓的抗锯齿过渡带(用法见 fs_main 的 edgeWidth):
 // EDGE_AA_SCALE:过渡带相对"1 个屏幕像素"的倍率.轮廓附近 s 沿半径方向线性变化,
 //   梯度 ≈ 1/radius,所以 fwidth(s) 差不多就是"1 个屏幕像素"对应的 s 变化量;
@@ -416,9 +425,27 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
     let coverage = clamp(1.0 - s, 0.0, 1.0);
     let dropletCover = coverage * coverage;
 
+    // ===== 背景景深:水珠是"清晰岛" =====
+    // 业界做法里最要紧的一条观感(见 REF/01-分析报告/雨窗效果业界做法.md 第 2.5 节):
+    // 雾玻璃上的水珠之所以一眼可辨,不是因为水珠里有什么,而是因为**周围什么都看不清**.
+    // 所以整幅城市背景先被 mip 糊掉,水珠所在处才采清晰的原图.
+    //
+    // dropSharp 与上面的 dropletCover 是**两个不同用途**的权重,别合并:
+    //   - dropletCover = (1-s)² 给高光用,到轮廓才衰减到 0;
+    //   - dropSharp 是阶跃式过渡(s < blur_focus_inner 就是 1),因为"清晰岛"要覆盖
+    //     水珠的大部分面积,否则只有中心一个小点清晰,看起来像整幅画没对上焦.
+    let dropSharp = 1.0 - smoothstep(dropletParams.blur_focus_inner, FOCUS_OUTER_S, s);
+    // 采城市层用的 mip 级:无水珠覆盖的像素 s = FAR_DISTANCE(1000)=> dropSharp = 0,
+    // 取 blur_max_lod(最糊);水珠内部取 blur_min_lod(最清晰).
+    let focus = mix(dropletParams.blur_max_lod, dropletParams.blur_min_lod, dropSharp);
+    // 水珠把雾气与污渍"擦掉"的比例:湿的地方是干净的,而不是在雾上再叠一层水.
+    let dropletClear = 1.0 - dropSharp * dropletParams.droplet_clear;
+
     // Layer 0: 窗外实景,多层城市按不同速度滚动.
     // 速度 = 基础速度 × 车速倍率 / 该层距离;
     // 距离滑块越大,该层看起来越远,滚动越慢.
+    // 四层都用 textureSampleLevel 显式指定 mip 级:同一帧内四层取同一级,
+    // 层次之间不会出现"远层比近层还糊"的错位.
     let uvBG = uv + offset;
     let uvFar = uv
         + vec2f(
@@ -439,13 +466,17 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
         )
         + offset;
 
-    var c = textureSample(textureBG, textureSampler, uvBG).rgb;
-    let far = textureSample(textureFar, textureSampler, uvFar);
-    let mid = textureSample(textureMid, textureSampler, uvMid);
-    let near = textureSample(textureNear, textureSampler, uvNear);
-    c = mix(c, far.rgb, far.a);
-    c = mix(c, mid.rgb, mid.a);
-    c = mix(c, near.rgb, near.a);
+    var c = textureSampleLevel(textureBG, textureSampler, uvBG, focus).rgb;
+    let far = textureSampleLevel(textureFar, textureSampler, uvFar, focus);
+    let mid = textureSampleLevel(textureMid, textureSampler, uvMid, focus);
+    let near = textureSampleLevel(textureNear, textureSampler, uvNear, focus);
+    // 远景/中景/近景的 RGB 是**预乘 alpha** 的(见 textures.rs 的 premultiply_alpha):
+    // 生成 mip 时逐级做的是算术平均,而这批 PNG 的透明像素是 (0,0,0,0),
+    // 直乘 alpha 的图在建筑轮廓外会被拉出一圈黑边.
+    // LOD 0 上本式与直乘 alpha 的 mix(c, rgb, a) 逐位等价,所以不影响未模糊时的画面.
+    c = c * (1.0 - far.a) + far.rgb;
+    c = c * (1.0 - mid.a) + mid.rgb;
+    c = c * (1.0 - near.a) + near.rgb;
 
     // 水滴边缘高光:
     //   edge = smoothstep(highlight_edge0, highlight_edge1, 1.0 - coverage)
@@ -476,17 +507,24 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
     // 坐标放大 2 倍后 v 会超过 1,而 textureSampler 的 v 是 ClampToEdge:
     // 不折回的话下半屏会一直采到贴图最后一行,被水平拉成一道竖条纹,
     // 所以先 fract 折回 [0,1);generate_dirt 的贴图双向可平铺,折回处无缝.
+    // dropletClear:水珠覆盖处把污渍一并擦掉(水把灰冲走),不是把污渍叠在水珠上.
     let dirtUv = fract(uv * vec2f(2.0, 2.0));
     let dirt = textureSample(textureDirt, textureSampler, dirtUv);
-    c = mix(c, c * dirt.rgb, dirt.a * dropletParams.dirt_opacity);
+    c = mix(c, c * dirt.rgb, dirt.a * dropletParams.dirt_opacity * dropletClear);
 
     // Layer 3: 窗内雾气(冷凝水汽)
     // 同理:u 被 time 无限向右推(不折回会在平铺点留下一条竖缝),
     // v 也会被推过 1(1.3 倍 => 画面 77% 以下会被 ClampToEdge 拉伸成横条),
     // 两个方向都靠 fract 折回 + generate_fog 的双向平铺解决.
+    // 雾气同样被水珠擦掉:这一条(整幅糊 + 水珠清晰)比任何折射公式都更能
+    // 让人一眼认出"雨水打在雾玻璃上"(见 REF 第 2.5 节).
     let fogUv = fract(uv * vec2f(1.6, 1.3) + vec2f(time * 0.004, -time * 0.002));
     let fog = textureSample(textureFog, textureSampler, fogUv);
-    c = mix(c, vec3f(fog.rgb * 0.80 + 0.20), fog.a * dropletParams.fog_opacity);
+    c = mix(
+        c,
+        vec3f(fog.rgb * 0.80 + 0.20),
+        fog.a * dropletParams.fog_opacity * dropletClear,
+    );
 
     // Layer 4: 窗内灯光与乘客倒影
     let interiorUv = uv + vec2f(sin(time * 0.4 + uv.y * 4.0) * 0.002, 0.0);

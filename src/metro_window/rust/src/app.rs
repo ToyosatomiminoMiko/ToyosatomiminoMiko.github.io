@@ -10,6 +10,7 @@ use crate::app_params::{
 };
 use crate::droplet_params::DropletParams;
 use crate::droplets::make_droplets;
+use crate::mipmaps::{create_mip_pipeline, generate_mipmaps, MipPipeline};
 use crate::performance_now;
 use crate::pipelines::{
     create_bind_groups, create_metro_pipelines, create_render_bind_group, MetroTextures,
@@ -23,7 +24,8 @@ use crate::render_params::{
 };
 use crate::texture_params::{DIRT_TEXTURE_SIZE, FOG_TEXTURE_SIZE, INTERIOR_TEXTURE_SIZE};
 use crate::textures::{
-    create_png_texture, create_texture, generate_dirt, generate_fog, generate_interior,
+    create_png_texture, create_texture, create_texture_mipped, generate_dirt, generate_fog,
+    generate_interior,
 };
 use crate::uniforms::Uniforms;
 use web_sys::{console, HtmlCanvasElement, HtmlElement};
@@ -62,6 +64,11 @@ pub(crate) struct App {
     pub(crate) default_material_textures: [wgpu::Texture; TEXTURE_LAYER_COUNT as usize],
     pub(crate) sampler: wgpu::Sampler,
     pub(crate) refraction_sampler: wgpu::Sampler,
+    /// mip 生成管线(逐级 blit,见 src/mipmaps.rs).
+    ///
+    /// 留着不只是为了启动时那四张城市图:前端上传替换某一层后,新纹理同样要
+    /// 现生成一遍 mip(否则那一层在模糊区里退化成 LOD 0,和其它三层对不上).
+    pub(crate) mip_pipeline: MipPipeline,
     /// 折射偏移图本体.**按画布尺寸**建,尺寸一变就换一份,所以必须留在 App 里.
     ///
     /// 与上面那批材质纹理不同,它不是"保命"用的:前端上传替换贴图时只重建
@@ -151,15 +158,28 @@ impl App {
         // 用绝对路径(见 RESOURCE_BASE)而不是相对路径:
         // 相对路径会随页面 URL 变化(例如 /4xx_page/404.html 这类回退地址),
         // 导致 fetch 拿到 HTML 回退页而不是 PNG,从而报 Invalid PNG signature.
+        //
+        // 城市层建的是**带 mip 链**的纹理(背景景深靠它,见 shaders.wgsl 的 focus);
+        // 除 city_bg 外都预乘 alpha(city_bg 实测 alpha 恒为 255,是底层实景).
+        // 预乘的理由见 textures.rs 的 premultiply_alpha.
         set_status(&status, "正在加载城市纹理 (1/4)...");
-        let bg = create_png_texture(&device, &queue, "city_bg", &city_png(CITY_BG_FILE)).await?;
+        let bg =
+            create_png_texture(&device, &queue, "city_bg", &city_png(CITY_BG_FILE), false).await?;
         set_status(&status, "正在加载城市纹理 (2/4)...");
-        let far = create_png_texture(&device, &queue, "city_far", &city_png(CITY_FAR_FILE)).await?;
+        let far =
+            create_png_texture(&device, &queue, "city_far", &city_png(CITY_FAR_FILE), true).await?;
         set_status(&status, "正在加载城市纹理 (3/4)...");
-        let mid = create_png_texture(&device, &queue, "city_mid", &city_png(CITY_MID_FILE)).await?;
+        let mid =
+            create_png_texture(&device, &queue, "city_mid", &city_png(CITY_MID_FILE), true).await?;
         set_status(&status, "正在加载城市纹理 (4/4)...");
-        let near =
-            create_png_texture(&device, &queue, "city_near", &city_png(CITY_NEAR_FILE)).await?;
+        let near = create_png_texture(
+            &device,
+            &queue,
+            "city_near",
+            &city_png(CITY_NEAR_FILE),
+            true,
+        )
+        .await?;
 
         set_status(&status, "正在生成玻璃材质纹理...");
         let (dw, dh, dirt_data) = generate_dirt(DIRT_TEXTURE_SIZE.0, DIRT_TEXTURE_SIZE.1);
@@ -195,6 +215,31 @@ impl App {
             mipmap_filter: SAMPLER_FILTER_MODE,
             ..Default::default()
         });
+
+        // 城市四层的 mip 链在这里**一次性**生成(逐级 blit,见 src/mipmaps.rs).
+        // 为什么放在这里而不是建纹理的地方:blit 要开 render pass,得有命令编码器,
+        // 而且必须等采样器建好(靠它的双线性过滤做 2x2 盒式平均);
+        // 为什么只生成一次:城市层的滚动只改采样坐标,纹理本身不动 --
+        // 这正是"用 mip 做景深"相对"逐像素多抽几个点做模糊"的最大优势:
+        // 运行期零额外开销,每帧只是换一个 LOD 数字.
+        let mip_pipeline: MipPipeline = create_mip_pipeline(&device);
+        {
+            let mut encoder: wgpu::CommandEncoder =
+                device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("city-mipmap-generation"),
+                });
+            for texture in [&bg, &far, &mid, &near] {
+                generate_mipmaps(
+                    &device,
+                    &mut encoder,
+                    &mip_pipeline,
+                    &sampler,
+                    texture,
+                    texture.mip_level_count(),
+                );
+            }
+            queue.submit(Some(encoder.finish()));
+        }
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("fullscreen-quad-vertices"),
@@ -301,6 +346,7 @@ impl App {
             default_material_textures,
             sampler,
             refraction_sampler,
+            mip_pipeline,
             refraction_texture,
             vertex_buffer,
             index_buffer,
@@ -406,6 +452,10 @@ impl App {
     /// 字节数);这里只负责建纹理,换掉对应的视图,重建渲染绑定组.
     /// 管线与着色器一行不动,所以换图不会重新编译着色器(不会有拖动窗口时
     /// 那种卡顿);被换下来的旧纹理随旧视图一起释放.
+    ///
+    /// 上传的图**按城市层的规格**建:预乘 alpha + 生成完整 mip 链.
+    /// 少了 mip,那一层在模糊区里会一直是最锐的 LOD 0(和其它三层对不上);
+    /// 少了预乘,模糊它的边缘会渗出黑边(见 textures.rs 的 premultiply_alpha).
     pub(crate) fn set_layer_texture(
         &mut self,
         layer: u32,
@@ -414,16 +464,33 @@ impl App {
         rgba: &[u8],
     ) -> Result<(), String> {
         let index = upload_target(layer, width, height, rgba.len())?;
-        let texture = create_texture(
+        // 槽位 0 是 city_bg(实测 alpha 恒为 255,不预乘);1..=3 是带 alpha 的远景层.
+        let premultiply: bool = index != 0;
+        let texture = create_texture_mipped(
             &self.device,
             &self.queue,
             "uploaded-layer",
             width,
             height,
             rgba,
+            premultiply,
         );
         // write_texture 在这行返回前就已经把像素拷进暂存区,所以调用方的
         // Uint8Array 之后随便被回收,不会影响已经排队的上传.
+        let mut encoder: wgpu::CommandEncoder =
+            self.device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("uploaded-layer-mipmap-generation"),
+                });
+        generate_mipmaps(
+            &self.device,
+            &mut encoder,
+            &self.mip_pipeline,
+            &self.sampler,
+            &texture,
+            texture.mip_level_count(),
+        );
+        self.queue.submit(Some(encoder.finish()));
         self.material_views[index] = texture.create_view(&Default::default());
         self.rebuild_render_bind_group();
         Ok(())
