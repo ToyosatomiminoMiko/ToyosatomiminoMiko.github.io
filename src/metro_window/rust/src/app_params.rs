@@ -203,6 +203,8 @@ impl SliderSpec {
             "refraction_scale" => params.refraction_scale = v,
             // 形状(滑动中的拉长倍数)
             "elongation_max" => params.elongation_max = v,
+            // 静止阈值(小珠被表面张力钉住)
+            "pin_radius" => params.pin_radius = v,
             // 背景景深(水珠是清晰岛)
             "blur_max_lod" => params.blur_max_lod = v,
             "blur_min_lod" => params.blur_min_lod = v,
@@ -285,6 +287,12 @@ pub(crate) const SLIDERS: &[SliderSpec] = &[
         min: 1.0,
         max: 6.0,
     },
+    // 静止阈值:半径小于它的小珠子被钉住(不滑,只在原地长大又消失).
+    SliderSpec {
+        name: "pin_radius",
+        min: 0.0,
+        max: 0.03,
+    },
     // ===== 背景景深(水珠是清晰岛)=====
     // 无水处的 mip 级:0 = 完全不糊,越大背景越糊(水珠越显眼).
     SliderSpec {
@@ -352,7 +360,7 @@ mod tests {
 
     /// 前端实际使用的参数名(与 src/metro_window/src/config.ts 的 SLIDER_GROUPS 一致).
     /// 这份清单是断言用的期望集合:表里多一个/少一个都会失败.
-    const EXPECTED_SLIDER_NAMES: [&str; 16] = [
+    const EXPECTED_SLIDER_NAMES: [&str; 17] = [
         "vehicle_speed",
         "far_distance",
         "mid_distance",
@@ -363,6 +371,7 @@ mod tests {
         "gravity_scale",
         "refraction_scale",
         "elongation_max",
+        "pin_radius",
         "blur_max_lod",
         "blur_min_lod",
         "droplet_clear",

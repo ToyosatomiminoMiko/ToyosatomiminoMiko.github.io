@@ -37,6 +37,7 @@ const EXPECTED_PARAMS = [
     'gravity_scale',
     'refraction_scale',
     'elongation_max',
+    'pin_radius',
     'blur_max_lod',
     'blur_min_lod',
     'droplet_clear',

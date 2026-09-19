@@ -112,22 +112,34 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3u) {
     //   防止页面切走/掉帧后 ΔT 过大,让 Euler 积分数值爆炸.
     let dt = min(uniforms.deltaTime, dropletParams.dt_max);
     // ===== 水滴物理参数 =====
-    // 重力加速度 g = (0, gravity_y):
-    //   0.0:水平方向没有重力分量;
-    //   y 向下为正;数值越大下落越快.
-    // gravity_scale:实时倍率,用于"下落速度"滑块.
-    let gravity = vec2f(0.0, dropletParams.gravity_y * dropletParams.gravity_scale);
     // per = 水滴强度,来自 radiusStrength.y,
     // 同时影响风力个性与折射强度.
     let per = d.radiusStrength.y;
     // 实际半径 = 基础半径 × droplet_size,由"水滴大小"滑块实时缩放.
     let radius = d.radiusStrength.x * dropletParams.droplet_size;
+    // 钉扎:半径小于 pin_radius 的小珠子被表面张力按住(毛细长度那一档).
+    // 它们不滑,也几乎不受风,只在原地经历"长大 -> 缩小消失"的生命周期
+    // (生命周期不写回水滴数据,而是在 cs_refraction 里按时间与序号现算).
+    // 为什么必须有这一群:真实窗面上绝大多数水珠是**不动**的,只有少数大颗会滑;
+    // 少了它们,画面里就只剩"雨在流",没有任何静止的参照物(见 REF 的 P3).
+    let pinned = radius < dropletParams.pin_radius;
+    // 重力加速度 g = (0, gravity_y):
+    //   0.0:水平方向没有重力分量;
+    //   y 向下为正;数值越大下落越快.
+    // gravity_scale:实时倍率,用于"下落速度"滑块.
+    // 钉住的珠子重力置零.
+    let gravity = select(
+        vec2f(0.0, dropletParams.gravity_y * dropletParams.gravity_scale),
+        vec2f(0.0),
+        pinned,
+    );
     // 后吹风 w_back = -车速 × wind_backward_factor:
     //   车速越快,水滴被风向后吹得越明显(屏幕向左);
     // 横向风 w_x = w_back + A * sin(ω * t + φ) * wind_sway_scale:
     //   ω = wind_frequency_base + per * wind_frequency_per
     //   φ = i * wind_phase_step
     //   A = wind_amplitude_base + per * wind_amplitude_per
+    // 钉住的珠子只保留 pin_sway_scale 倍的风(默认 0.15:还会轻轻晃,但不走).
     let wind = vec2f(
         -dropletParams.vehicle_speed * dropletParams.wind_backward_factor
             + sin(
@@ -137,7 +149,7 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3u) {
             ) * (dropletParams.wind_amplitude_base + per * dropletParams.wind_amplitude_per)
                 * dropletParams.wind_sway_scale,
         0.0 // y 方向不施加风,保持 0
-    );
+    ) * select(1.0, dropletParams.pin_sway_scale, pinned);
     var vel = d.posVel.zw;
     // v' = v + (g + w) * dt:先施加重力与风力(半隐式 Euler).
     vel = vel + (gravity + wind) * dt;
@@ -152,6 +164,9 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3u) {
     );
     // v'' = v' * (1 - c_drag * dt):线性阻尼,阻力越大速度衰减越快.
     vel = vel * (1.0 - drag * dt);
+    // 钉住的珠子速度直接清零:只靠阻尼衰减会留下一点残余漂移(几十年也走不完一屏,
+    // 但"静止"这件事在画面上要一眼看得出来 -- 残余漂移会让静态珠缓慢滑走).
+    vel = select(vel, vec2f(0.0), pinned);
     // p' = p + v'' * dt:按阻尼后的速度推进位置.
     var pos = d.posVel.xy + vel * dt;
 
@@ -310,8 +325,24 @@ fn cs_refraction(@builtin(global_invocation_id) gid: vec3u) {
     // 遍历全部 64 颗水滴,与 DROPLET_COUNT 保持一致.
     for (var i = 0u; i < 64u; i = i + 1u) {
         let d = droplets[i];
-        let radius = d.radiusStrength.x * dropletParams.droplet_size;
-        // radius_epsilon:半径过小直接跳过,避免无意义计算与除零.
+        // 基准半径 = 基础半径 × droplet_size(与 cs_main 的判断用同一个式子,
+        // 否则"钉扎判定"与"渲染半径"会分成两套).
+        let baseRadius = d.radiusStrength.x * dropletParams.droplet_size;
+        // 静态珠的生命周期:钉住的珠子(见 cs_main 的 pinned)不移动,而是在原地
+        // 缓慢长大,再缩小消失,然后重新开始 -- 相当于冷凝水珠的出现与蒸发.
+        // 相位 = 时间 × pin_life_rate + 序号 × pin_phase_step:每颗珠子的节奏与
+        // 起点都不同,所以不会整屏一起呼吸(这正是 Heartfelt 里 n.z 那一项的用处).
+        //   phase < 0.3 长得可见,0.3~0.7 满大,> 0.7 缩回去消失.
+        // 只改**渲染用的半径**,不写回水滴数据:水滴数组仍然只有位置/速度/半径/强度,
+        // 生命周期是纯观感,不需要跨帧状态.
+        let phase = fract(
+            uniforms.time * dropletParams.pin_life_rate + f32(i) * dropletParams.pin_phase_step,
+        );
+        let pinned = baseRadius < dropletParams.pin_radius;
+        let grow = smoothstep(0.0, 0.3, phase) * (1.0 - smoothstep(0.7, 1.0, phase));
+        let radius = baseRadius * select(1.0, grow, pinned);
+        // radius_epsilon:半径过小直接跳过,避免无意义计算与除零
+        // (生命周期把半径缩到 0 的静态珠也走这条路:它这一帧不存在).
         if (radius <= dropletParams.radius_epsilon) {
             continue;
         }

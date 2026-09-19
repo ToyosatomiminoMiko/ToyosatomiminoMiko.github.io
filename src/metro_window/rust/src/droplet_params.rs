@@ -102,6 +102,20 @@ define_droplet_params! {
     elongation_max = 4.0;
     elongation_speed = 0.06;
 
+    // ===== 静态珠(钉扎与生命周期)=====
+    // 真实窗面上**绝大多数水珠是不动的**:它们出现,缓慢长大,消失,只有少数大颗
+    // 才会滑下去.没有这一群,画面里就只剩"雨在流",缺少"挂着的珠"作对比.
+    //
+    // pin_radius:钉扎阈值(半径).小于它的珠子被表面张力按住 -- 量级就是毛细长度
+    //   那一档(√(γ/ρg) ≈ 2.7mm);重力与风对它基本失效,原地经历一次生命周期;
+    // pin_sway_scale:钉扎时的风倍率(1 = 与滑动珠一样受风,0 = 完全不动);
+    // pin_life_rate:生命周期速度(次/秒),0.06 => 一轮约 17 秒;
+    // pin_phase_step:相邻两颗静态珠的相位差(0.37 是无理数近似,避免整屏同步呼吸).
+    pin_radius = 0.010;
+    pin_sway_scale = 0.15;
+    pin_life_rate = 0.06;
+    pin_phase_step = 0.37;
+
     // ===== 水滴边缘高光 =====
     // highlight_edge0/1:高光随覆盖度衰减的起止阈值;
     // highlight_strength:高光叠加强度;
@@ -206,6 +220,10 @@ mod tests {
             "refraction_offset_clamp",
             "elongation_max",
             "elongation_speed",
+            "pin_radius",
+            "pin_sway_scale",
+            "pin_life_rate",
+            "pin_phase_step",
             "highlight_edge0",
             "highlight_edge1",
             "highlight_strength",

@@ -293,6 +293,8 @@ export const SLIDER_GROUPS = [
             { id: 'refractionScale', param: 'refraction_scale', label: '折射强度', hint: '倍率', min: 0, max: 3, step: 0.01, value: 1 },
             /** 滑动中水珠的拉长倍数(1 = 正圆) */
             { id: 'elongationMax', param: 'elongation_max', label: '垂坠拉长', hint: '1 = 正圆', min: 1, max: 6, step: 0.01, value: 4 },
+            /** 静止阈值:半径小于它的小珠子被钉住,不滑 */
+            { id: 'pinRadius', param: 'pin_radius', label: '静止阈值', hint: '小珠挂住', min: 0, max: 0.03, step: 0.001, value: 0.01 },
         ],
     },
     {
