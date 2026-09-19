@@ -19,13 +19,16 @@ import type {
 } from './types';
 import { createOledPanel, type OledPanel } from './ui/oled_panel';
 import {
+    OLED_ALPHA_OPAQUE,
     OLED_BITS_PER_BYTE,
     OLED_BUFFER_BYTES,
     OLED_BYTE_ORDER_TEXT,
     OLED_BYTES_PER_PIXEL,
     OLED_BYTES_PER_SOURCE_LINE,
     OLED_CHANNEL_A_OFFSET,
+    OLED_COLOR_LIT,
     OLED_COLOR_MODES,
+    OLED_COLOR_UNLIT,
     OLED_CONTEXT_UNAVAILABLE,
     OLED_COORDS_EMPTY,
     OLED_COORDS_PREFIX,
@@ -56,8 +59,6 @@ import {
     OLED_PREVIEW_HALF_PIXEL,
     OLED_PREVIEW_STROKE_WIDTH,
     OLED_RESIZE_DEBOUNCE_MS,
-    OLED_VALUE_BLACK,
-    OLED_VALUE_WHITE,
     fillRgb,
 } from './config';
 
@@ -101,7 +102,7 @@ export class OLEDCanvas {
     // 存储预览前的画布
     private previewImageData: ImageData | null = null;
 
-    // 初始化白色画布
+    // 初始化画布(未绘制处 = 屏幕未亮起的中性灰,见 OLED_COLOR_UNLIT)
     private imageData: ImageData;
 
     // 坐标转换系统
@@ -140,18 +141,21 @@ export class OLEDCanvas {
         this.canvas.width = this.config.width;   // Embedded 的典型宽度
         this.canvas.height = this.config.height; // Embedded 的典型高度
 
-        // 初始化白色画布
+        // 初始化画布:未绘制处铺成"屏幕未亮起"的中性灰
         this.imageData = this.ctx.createImageData(this.canvas.width, this.canvas.height);
-        // 填充白色背景(RGBA格式)
+        // 填充未亮起的底色(RGBA格式)
         for (let i = 0; i < this.imageData.data.length; i += OLED_BYTES_PER_PIXEL) {
-            fillRgb(this.imageData.data, i, OLED_VALUE_WHITE);
+            fillRgb(this.imageData.data, i, OLED_COLOR_UNLIT);
             // A(完全不透明)
-            this.imageData.data[i + OLED_CHANNEL_A_OFFSET] = OLED_VALUE_WHITE;
+            this.imageData.data[i + OLED_CHANNEL_A_OFFSET] = OLED_ALPHA_OPAQUE;
         }
         this.ctx.putImageData(this.imageData, 0, 0);
 
         // 获取初始边界矩形
         this.canvasRect = this.canvas.getBoundingClientRect();
+
+        // 颜色按钮一开始就显示当前模式(默认 dark)的文案与底色,不必等第一次点击
+        this.applyColorMode();
 
         // 绑定事件
         this.bindEvents();
@@ -212,22 +216,29 @@ export class OLEDCanvas {
     // ======================
     // 工具控制区
     // ======================
-    /** 清除画板 */
+    /** 清除画板(整块铺成当前画笔颜色:暗 = 全部未亮,亮 = 全部点亮) */
     refill(): void {
-        const val = OLED_COLOR_MODES[this.pixelColorMode].pixelValue;
+        const color = OLED_COLOR_MODES[this.pixelColorMode].pixelColor;
         for (let i = 0; i < this.imageData.data.length; i += OLED_BYTES_PER_PIXEL) {
-            fillRgb(this.imageData.data, i, val);
+            fillRgb(this.imageData.data, i, color);
         }
         this.ctx.putImageData(this.imageData, 0, 0);
+    }
+
+    /**
+     * 把当前画笔模式的文案与底色刷到颜色按钮上.
+     * 按钮文字颜色不在这里设(由 index.css 的 `#change-color` 定),构造与切换共用这一处.
+     */
+    private applyColorMode(): void {
+        const mode = OLED_COLOR_MODES[this.pixelColorMode];
+        this.colorBtn.textContent = mode.buttonText;
+        this.colorBtn.style.backgroundColor = mode.buttonBackgroundColor;
     }
 
     /** 画笔颜色切换 */
     toggleColor(): void {
         this.pixelColorMode = this.pixelColorMode === 'dark' ? 'light' : 'dark';
-        const mode = OLED_COLOR_MODES[this.pixelColorMode];
-        this.colorBtn.textContent = mode.buttonText;
-        this.colorBtn.style.color = mode.buttonTextColor;
-        this.colorBtn.style.backgroundColor = mode.buttonBackgroundColor;
+        this.applyColorMode();
     }
 
     /** 工具切换 */
@@ -310,9 +321,9 @@ export class OLEDCanvas {
      */
     private setPixel(x: number, y: number): void {
         const index = (y * this.canvas.width + x) * OLED_BYTES_PER_PIXEL;
-        const val = OLED_COLOR_MODES[this.pixelColorMode].pixelValue;
+        const color = OLED_COLOR_MODES[this.pixelColorMode].pixelColor;
         // 注意:保留Alpha通道不变
-        fillRgb(this.imageData.data, index, val);
+        fillRgb(this.imageData.data, index, color);
     }
 
     // Bresenham 直线通用迭代器 (核心抽离)
@@ -467,13 +478,13 @@ export class OLEDCanvas {
                         ? page * OLED_PAGE_ROWS + bit           // LSB
                         : page * OLED_PAGE_ROWS + (OLED_MSB_TOP_BIT - bit);      // MSB
                     const idx = (y * this.canvas.width + x) * OLED_BYTES_PER_PIXEL;
-                    // 判断像素颜色(黑色为1)
-                    const isBlack =
-                        this.imageData.data[idx] === OLED_VALUE_BLACK &&
-                        this.imageData.data[idx + 1] === OLED_VALUE_BLACK &&
-                        this.imageData.data[idx + 2] === OLED_VALUE_BLACK;
+                    // 判断像素颜色(屏幕亮起的青为 1,未亮的中性灰为 0)
+                    const isLit =
+                        this.imageData.data[idx] === OLED_COLOR_LIT.r &&
+                        this.imageData.data[idx + 1] === OLED_COLOR_LIT.g &&
+                        this.imageData.data[idx + 2] === OLED_COLOR_LIT.b;
                     // 要求最高位bit7对应页顶部的像素
-                    byte |= (isBlack ? 1 : 0) << bit;
+                    byte |= (isLit ? 1 : 0) << bit;
                 }
                 buffer[page * this.canvas.width + x] = byte;
             }
@@ -495,9 +506,9 @@ export class OLEDCanvas {
     // 缓冲数据转画布图像
     // ======================
     private updateCanvasFromBuffer(buffer: Uint8Array): void {
-        // 重置画布为白色
+        // 重置画布为未亮起的中性灰
         for (let i = 0; i < this.imageData.data.length; i += OLED_BYTES_PER_PIXEL) {
-            fillRgb(this.imageData.data, i, OLED_VALUE_WHITE);
+            fillRgb(this.imageData.data, i, OLED_COLOR_UNLIT);
         }
         // 解析缓冲数据
         for (let page = 0; page < this.canvas.height / OLED_PAGE_ROWS; page++) {
@@ -507,9 +518,9 @@ export class OLEDCanvas {
                     const y = this.byteOrderMode === 'lsb'
                         ? page * OLED_PAGE_ROWS + bit           // LSB
                         : page * OLED_PAGE_ROWS + (OLED_MSB_TOP_BIT - bit);      // MSB
-                    const isBlack = (byte & (1 << bit)) !== 0; // 注意位顺序
+                    const isLit = (byte & (1 << bit)) !== 0; // 注意位顺序
                     const index = (y * this.canvas.width + x) * OLED_BYTES_PER_PIXEL;
-                    fillRgb(this.imageData.data, index, isBlack ? OLED_VALUE_BLACK : OLED_VALUE_WHITE);
+                    fillRgb(this.imageData.data, index, isLit ? OLED_COLOR_LIT : OLED_COLOR_UNLIT);
                 }
             }
         }

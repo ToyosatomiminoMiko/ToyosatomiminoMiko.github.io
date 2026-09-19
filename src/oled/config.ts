@@ -6,6 +6,8 @@
 // 数值与拆分前的字面量逐位一致,不改变任何行为.
 // ================================================================
 
+import type { OledRgb } from './types';
+
 // ---------- 默认配置对象 ----------
 
 /**
@@ -24,7 +26,7 @@ export const OLED_DEFAULT_CONFIG = {
     width: 128,
     /** 物理像素高度,默认 64 */
     height: 64,
-    /** 预览线/矩形的颜色 (CSS 颜色),默认 '#FF0000' */
+    /** 预览线/矩形的颜色 (CSS 颜色) */
     previewColor: '#FF0000',
     /** 预览透明度 0~1,默认 0.6 */
     previewOpacity: 0.6,
@@ -32,11 +34,20 @@ export const OLED_DEFAULT_CONFIG = {
 
 // ---------- 像素取值 / 通道 ----------
 
-/** 黑色像素的通道值(画笔为"暗"时的着色值) */
-export const OLED_VALUE_BLACK = 0;
+/**
+ * 屏幕"未亮起"(未绘制)的像素颜色:中性灰 #333333.
+ * 既作画布初始底色,也是"暗"画笔写入的颜色(等于把像素关掉).
+ */
+export const OLED_COLOR_UNLIT: OledRgb = { r: 0x33, g: 0x33, b: 0x33 };
 
-/** 白色像素的通道值(画布底色 / 画笔为"亮"时的着色值) */
-export const OLED_VALUE_WHITE = 255;
+/**
+ * 屏幕"亮起"(已绘制)的像素颜色:青色 #00ffff.
+ * "亮"画笔写入这个颜色;导出位图里 bit=1 也对应它.
+ */
+export const OLED_COLOR_LIT: OledRgb = { r: 0x00, g: 0xff, b: 0xff };
+
+/** 完全不透明的 Alpha 通道值(画布始终不透明) */
+export const OLED_ALPHA_OPAQUE = 0xff;
 
 /** 每个像素在 ImageData 中占 4 个字节(RGBA) */
 export const OLED_BYTES_PER_PIXEL = 4;
@@ -54,11 +65,11 @@ const OLED_CHANNEL_B_OFFSET = 2;
 /** A(Alpha)通道在像素 4 字节中的偏移 */
 export const OLED_CHANNEL_A_OFFSET = 3;
 
-/** 用画笔值填充 R/G/B 三个通道(逐位保留原实现:三通道写同一个值,Alpha 不动) */
-export const fillRgb = (data: Uint8ClampedArray, base: number, value: number): void => {
-    data[base + OLED_CHANNEL_R_OFFSET] = value;
-    data[base + OLED_CHANNEL_G_OFFSET] = value;
-    data[base + OLED_CHANNEL_B_OFFSET] = value;
+/** 把一个 RGB 颜色写进 ImageData 的某个像素(R/G/B 三通道,Alpha 不动) */
+export const fillRgb = (data: Uint8ClampedArray, base: number, color: OledRgb): void => {
+    data[base + OLED_CHANNEL_R_OFFSET] = color.r;
+    data[base + OLED_CHANNEL_G_OFFSET] = color.g;
+    data[base + OLED_CHANNEL_B_OFFSET] = color.b;
 };
 
 /** 每个字节的位数(导出/导入时的页内位宽) */
@@ -113,8 +124,8 @@ export const OLED_COPY_FEEDBACK_MS = 4000;
 
 // ---------- 工具 / 颜色模式取值 ----------
 
-/** 默认画笔颜色模式:'dark' 表示画笔为黑色 */
-export const OLED_DEFAULT_COLOR_MODE = 'dark';
+/** 默认画笔颜色模式亮 表示画笔把像素置为未亮(见 OLED_COLOR_UNLIT) */
+export const OLED_DEFAULT_COLOR_MODE = 'light';
 
 /** 默认字节序模式:'lsb' 表示低位在前 */
 export const OLED_DEFAULT_BYTE_ORDER = 'lsb';
@@ -123,32 +134,44 @@ export const OLED_DEFAULT_BYTE_ORDER = 'lsb';
 export const OLED_DEFAULT_TOOL = 'free';
 
 /**
+ * 把一个 RGB 颜色写成 CSS 颜色(如 {51,51,51).
+ * 画板像素与按钮底色共用同一个颜色对象,以后改颜色两处一起变.
+ */
+const rgbToCssColor = ({ r, g, b }: OledRgb): string =>
+    `#${[r, g, b].map(v => v.toString(OLED_HEX_RADIX).padStart(OLED_HEX_DIGITS_PER_BYTE, '0')).join('')}`;
+
+/** 画板"未亮起"像素的 CSS 颜色(由 OLED_COLOR_UNLIT 推出) */
+export const OLED_UNLIT_CSS_COLOR = rgbToCssColor(OLED_COLOR_UNLIT);
+
+/** 画板"亮起"像素的 CSS 颜色(由 OLED_COLOR_LIT 推出) */
+export const OLED_LIT_CSS_COLOR = rgbToCssColor(OLED_COLOR_LIT);
+
+/**
  * 颜色模式相关的文案与配色.
- * 每个模式给出:按钮文案,文字色,按钮底色,画笔像素通道值.
- * 画笔值 0 = 黑,255 = 白,与画面像素逐位一致.
+ * 每个模式给出:按钮文案,按钮底色,画笔写入的像素颜色.
+ * 画笔颜色与画面像素共用 OLED_COLOR_UNLIT / OLED_COLOR_LIT,
+ * 按钮底色也由同一对颜色推出(OLED_UNLIT_CSS_COLOR / OLED_LIT_CSS_COLOR),
+ * 保证"按钮显示什么颜色,画笔就写什么颜色".
+ * 按钮文字颜色不在这里声明(由 public/css/index.css 的 `#change-color` 定).
  */
 export const OLED_COLOR_MODES = {
-    /** 暗色模式:画笔为黑底白字按钮 */
+    /** 暗色模式:画笔把像素关掉(中性灰) */
     dark: {
         /** 按钮文案(暗色) */
-        buttonText: '🔄️暗⬛',
-        /** 按钮文字颜色 */
-        buttonTextColor: '#ffffff',
-        /** 按钮背景颜色 */
-        buttonBackgroundColor: '#000000',
-        /** 画笔写入的通道值(0 = 黑) */
-        pixelValue: 0,
+        buttonText: '🔄️',
+        /** 按钮背景颜色(与画板未亮像素同源) */
+        buttonBackgroundColor: OLED_UNLIT_CSS_COLOR,
+        /** 画笔写入的像素颜色(未亮起的中性灰) */
+        pixelColor: OLED_COLOR_UNLIT,
     },
-    /** 亮色模式:画笔为白底黑字按钮 */
+    /** 亮色模式:画笔把像素点亮(青) */
     light: {
         /** 按钮文案(亮色) */
-        buttonText: '🔄️亮⬜',
-        /** 按钮文字颜色 */
-        buttonTextColor: '#000000',
-        /** 按钮背景颜色 */
-        buttonBackgroundColor: '#ffffff',
-        /** 画笔写入的通道值(255 = 白) */
-        pixelValue: 255,
+        buttonText: '🔄️',
+        /** 按钮背景颜色(与画板亮起像素同源) */
+        buttonBackgroundColor: OLED_LIT_CSS_COLOR,
+        /** 画笔写入的像素颜色(亮起的青) */
+        pixelColor: OLED_COLOR_LIT,
     },
 } as const;
 
@@ -276,6 +299,9 @@ export const OLED_PANEL_INDICATOR_CLASS = 'pixel-indicator';
 
 /** 工具控制区类名(CSS 的 `.tools`) */
 export const OLED_PANEL_TOOLS_CLASS = 'tools';
+
+/** 画笔颜色按钮前面的说明文字(说明它旁边那颗按钮就是画笔) */
+export const OLED_PANEL_BRUSH_LABEL_TEXT = '画笔:';
 
 /** 数据输入输出行类名(CSS 的 `.area-data` 提供上下外边距) */
 export const OLED_PANEL_ROW_CLASS = 'area-data';

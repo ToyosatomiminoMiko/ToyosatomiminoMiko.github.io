@@ -8,6 +8,18 @@ export interface PixelPos {
     y: number;
 }
 
+/**
+ * 一个像素的 RGB 颜色(每通道 0~255).
+ * OLED 面板只有"亮起 / 未亮起"两种像素颜色,但每种颜色是真正的 RGB --
+ * 亮起是青色(见 oled/config.ts 的 OLED_COLOR_LIT),不再是三通道同值的灰度,
+ * 所以画布不再能用"一个通道值"表示.
+ */
+export interface OledRgb {
+    readonly r: number;
+    readonly g: number;
+    readonly b: number;
+}
+
 /** 绘制工具类型 */
 export type DrawTool = 'free' | 'line' | 'rectangle';
 
@@ -18,8 +30,8 @@ export type DrawTool = 'free' | 'line' | 'rectangle';
 export type ByteOrderMode = 'lsb' | 'msb';
 
 /** 像素颜色模式
- *  - 'dark'  : 画笔为黑色 (默认)
- *  - 'light' : 画笔为白色
+ *  - 'dark'  : 画笔把像素置为"未亮起"(中性灰 #333,默认)
+ *  - 'light' : 画笔把像素点亮(青 #00ffff)
  */
 export type PixelColorMode = 'dark' | 'light';
 

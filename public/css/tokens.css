@@ -135,6 +135,8 @@
     --oled-border: #00785c;
     /* 工具区与上方元素的间距 */
     --oled-tools-margin-top: 15px;
+    /* 面板里每颗按钮的外边距(全局 `*` 已把 margin 归零,这里统一补回来) */
+    --oled-button-margin: 4px;
     /* 坐标显示条的背景 */
     --oled-coords-bg: #f0f0f0;
     /* 坐标显示条的内边距 */

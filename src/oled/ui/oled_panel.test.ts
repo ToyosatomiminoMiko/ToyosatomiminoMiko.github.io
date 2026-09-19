@@ -24,6 +24,7 @@ import {
     OLED_DOM,
     OLED_PANEL_CARD_BODY_CLASS,
     OLED_PANEL_BUTTON_CLASS,
+    OLED_PANEL_BRUSH_LABEL_TEXT,
     OLED_PANEL_CARD_CLASS,
     OLED_PANEL_CARD_HEADER_CLASS,
     OLED_PANEL_COORDS_CLASS,
@@ -139,6 +140,13 @@ describe('OLED:工具控制区', () => {
         expect(tools?.querySelectorAll('input[type="radio"]')).toHaveLength(OLED_PANEL_TOOL_OPTIONS.length);
         expect(panel.root.querySelectorAll(`.${OLED_PANEL_ROW_CLASS}`)).toHaveLength(2);
         expect(panel.root.querySelectorAll(`textarea.${OLED_PANEL_TEXTAREA_CLASS}`)).toHaveLength(2);
+    });
+
+    it('画笔颜色按钮左边紧挨说明文字(它是"画笔"的按钮,不是又一个工具)', () => {
+        const panel = render();
+        expect(panel.colorButton.previousSibling?.textContent).toBe(OLED_PANEL_BRUSH_LABEL_TEXT);
+        // 说明文字是纯文本节点,不是按钮/元素
+        expect(panel.colorButton.previousSibling?.nodeType).toBe(3);
     });
 });
 

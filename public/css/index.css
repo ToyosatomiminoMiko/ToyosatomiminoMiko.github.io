@@ -245,6 +245,16 @@ canvas#pixelCanvas {
     color: var(--color-white);
 }
 
+/*
+ * 面板里的按钮统一留出外边距.
+ * 令牌 --oled-button-margin 是**默认值**,工具区与数据区的按钮一视同仁;
+ * 某颗按钮要有自己的间距时,在它自己的规则(如 #change-color)里另声明即可
+ * -- 届时那条规则的选择器更具体,会盖过这一条.
+ */
+.oled-card button {
+    margin: var(--oled-button-margin);
+}
+
 /* 状态指示器样式 */
 .coords-display {
     background: var(--oled-coords-bg);

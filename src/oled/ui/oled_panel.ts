@@ -40,6 +40,7 @@ import {
     OLED_DEFAULT_TOOL,
     OLED_DOM,
     OLED_PANEL_BUTTON_CLASS,
+    OLED_PANEL_BRUSH_LABEL_TEXT,
     OLED_PANEL_CARD_BODY_CLASS,
     OLED_PANEL_CARD_CLASS,
     OLED_PANEL_CARD_HEADER_CLASS,
@@ -62,31 +63,31 @@ import {
 export interface OledPanel {
     /** 整块面板:div.card.oled-card(插进挂载宿主的那一个) */
     readonly root: HTMLElement;
-    /** 主画布(物理像素 128x64 由 oled.ts 写到 width/height 上) */
+    /** 主画布:canvas#pixelCanvas(128x64 物理像素由 oled.ts 写到 width/height 上) */
     readonly canvas: HTMLCanvasElement;
-    /** 坐标文本显示 */
+    /** 坐标文本显示:div#coordsDisplay */
     readonly coordsDisplay: HTMLElement;
-    /** 鼠标位置指示器(红框) */
+    /** 鼠标位置指示器(跟随光标的红框):div#pixelIndicator */
     readonly indicator: HTMLElement;
-    /** 颜色重置按钮 */
+    /** 重置按钮:清空画布,文案 = OLED_PANEL_REFILL_BUTTON_TEXT,id 'refill-btn' */
     readonly refillButton: HTMLButtonElement;
-    /** 画笔颜色切换按钮 */
+    /** 画笔颜色按钮:文案 = 当前模式的 buttonText,id 'change-color'(左边紧挨 OLED_PANEL_BRUSH_LABEL_TEXT) */
     readonly colorButton: HTMLButtonElement;
-    /** 导出数据按钮 */
+    /** 导出按钮:生成 C 源码,文案 = OLED_PANEL_EXPORT_BUTTON_TEXT,id 'export-btn' */
     readonly exportButton: HTMLButtonElement;
-    /** 下载 PNG 按钮 */
+    /** PNG 按钮:下载画布,文案 = OLED_PANEL_PNG_BUTTON_TEXT,id 'output-png-btn' */
     readonly pngButton: HTMLButtonElement;
-    /** 字节序切换按钮 */
+    /** 字节序按钮:LSB / MSB 切换,文案 = OLED_BYTE_ORDER_TEXT,id 'byte-order-btn' */
     readonly byteOrderButton: HTMLButtonElement;
-    /** 复制到剪贴板按钮 */
+    /** 复制按钮:把导出文本送进剪贴板,文案 = OLED_COPY_BUTTON_TEXT,id 'output-button' */
     readonly copyButton: HTMLButtonElement;
-    /** 导入数据按钮 */
+    /** 导入按钮:解析导入框里的十六进制字节,文案 = OLED_PANEL_IMPORT_BUTTON_TEXT,id 'import-btn' */
     readonly importButton: HTMLButtonElement;
-    /** 导出结果 textarea */
+    /** 导出结果输入框:textarea#exportOutput(放生成的 C 源码) */
     readonly exportTextarea: HTMLTextAreaElement;
-    /** 导入数据 textarea */
+    /** 导入输入框:textarea#importData(粘贴 1024 个十六进制字节) */
     readonly importTextarea: HTMLTextAreaElement;
-    /** 绘图工具 radio(顺序与 OLED_PANEL_TOOL_OPTIONS 一致,默认项已 checked) */
+    /** 绘图工具 radio:input[name="tools"](顺序 = OLED_PANEL_TOOL_OPTIONS,默认项已 checked) */
     readonly toolRadios: readonly HTMLInputElement[];
 }
 
@@ -126,62 +127,81 @@ function createToolToggle(option: OledToolOption, radio: HTMLInputElement): DomC
 /** 按 config.ts 的 DOM 契约生成整块 OLED 面板,并把所有引用交给调用方 */
 export function createOledPanel(): OledPanel {
     // --- 工具控制区:按钮与 radio 按原标记的先后次序 ---
+    // 屏幕上这一排从左到右:重置按钮 -> 画笔:<颜色按钮> -> 三个工具 radio -> 导出按钮 -> PNG 按钮 -> 字节序按钮
+    /** 重置按钮:清空画布,文案 = OLED_PANEL_REFILL_BUTTON_TEXT,id 'refill-btn' */
     const refillButton = createButton(OLED_DOM.refillBtnId, OLED_PANEL_REFILL_BUTTON_TEXT);
+    /** 画笔颜色按钮:文案 = 当前模式的 buttonText(由 oled.ts 切换),id 'change-color' */
     const colorButton = createButton(
         OLED_DOM.colorBtnId,
         OLED_COLOR_MODES[OLED_DEFAULT_COLOR_MODE].buttonText,
     );
+    /** 导出按钮:生成 C 源码,文案 = OLED_PANEL_EXPORT_BUTTON_TEXT,id 'export-btn' */
     const exportButton = createButton(OLED_DOM.exportBtnId, OLED_PANEL_EXPORT_BUTTON_TEXT);
+    /** PNG 按钮:下载画布,文案 = OLED_PANEL_PNG_BUTTON_TEXT,id 'output-png-btn' */
     const pngButton = createButton(OLED_DOM.pngBtnId, OLED_PANEL_PNG_BUTTON_TEXT);
+    /** 字节序按钮:LSB / MSB 切换,文案 = OLED_BYTE_ORDER_TEXT,id 'byte-order-btn' */
     const byteOrderButton = createButton(
         OLED_DOM.byteOrderBtnId,
         OLED_BYTE_ORDER_TEXT[OLED_DEFAULT_BYTE_ORDER],
     );
 
     // radio 与交回的引用共用同一批元素(不能建两份)
+    /** 三个工具 radio(绘制 / 直线 / 矩形,文案见 OLED_PANEL_TOOL_OPTIONS;默认 'free' 已勾选) */
     const toolOptions = OLED_PANEL_TOOL_OPTIONS.map((option) => ({
         option,
         radio: createToolRadio(option.value),
     }));
+    /** 交回给 oled.ts 的三个 radio,顺序同上(绘制 / 直线 / 矩形) */
     const toolRadios = toolOptions.map(({ radio }) => radio);
 
     // --- 状态指示区 / 主画布 ---
+    /** 坐标文本:'coordinate:(X:-,Y:-)' 起,鼠标移动时由 oled.ts 改写,id 'coordsDisplay' */
     const coordsDisplay = h('div', {
         class: OLED_PANEL_COORDS_CLASS,
         text: OLED_PANEL_COORDS_TEXT,
         attrs: { id: OLED_DOM.coordsDisplayId },
     });
+    /** 主画布:128x64 物理像素(width/height 由 oled.ts 写上),id 'pixelCanvas' */
     const canvas = h('canvas', { attrs: { id: OLED_DEFAULT_CONFIG.canvasId } });
+    /** 鼠标位置指示器(跟随光标的红框,不属于画布像素),id 'pixelIndicator' */
     const indicator = h('div', {
         class: OLED_PANEL_INDICATOR_CLASS,
         attrs: { id: OLED_DOM.indicatorId },
     });
 
     // --- 数据输入输出区 ---
+    /** 导出结果输入框:放导出按钮生成的 C 源码,id 'exportOutput' */
     const exportTextarea = h('textarea', {
         class: OLED_PANEL_TEXTAREA_CLASS,
         attrs: { id: OLED_DOM.exportTextareaId },
     });
+    /** 导入输入框:粘贴 1024 个十六进制字节,id 'importData' */
     const importTextarea = h('textarea', {
         class: OLED_PANEL_TEXTAREA_CLASS,
         attrs: { id: OLED_DOM.importTextareaId },
     });
+    /** 复制按钮:把导出文本送进剪贴板,文案 = OLED_COPY_BUTTON_TEXT,id 'output-button' */
     const copyButton = createButton(OLED_DOM.copyBtnId, OLED_COPY_BUTTON_TEXT);
+    /** 导入按钮:解析导入框里的十六进制字节,文案 = OLED_PANEL_IMPORT_BUTTON_TEXT,id 'import-btn' */
     const importButton = createButton(OLED_DOM.importBtnId, OLED_PANEL_IMPORT_BUTTON_TEXT);
 
+    /** 导出区一行:导出输入框 + 换行 + 复制按钮 */
     const exportRow = h('div', { class: OLED_PANEL_ROW_CLASS }, [
         exportTextarea,
         h('br'),
         copyButton,
     ]);
+    /** 导入区一行:导入输入框 + 换行 + 导入按钮 */
     const importRow = h('div', { class: OLED_PANEL_ROW_CLASS }, [
         importTextarea,
         h('br'),
         importButton,
     ]);
 
+    /** 工具控制区:按屏幕上的从左到右顺序排(上面的按钮声明顺序即此顺序) */
     const tools = h('div', { class: OLED_PANEL_TOOLS_CLASS }, [
         refillButton,
+        OLED_PANEL_BRUSH_LABEL_TEXT,
         colorButton,
         ...toolOptions.flatMap(({ option, radio }) => createToolToggle(option, radio)),
         exportButton,
@@ -189,6 +209,7 @@ export function createOledPanel(): OledPanel {
         byteOrderButton,
     ]);
 
+    /** 卡片主体:坐标显示 -> 画布 -> 指示器 -> 工具区 -> 数据区(自上而下) */
     const body = h('div', { class: OLED_PANEL_CARD_BODY_CLASS }, [
         coordsDisplay,
         h('br'),
@@ -200,12 +221,15 @@ export function createOledPanel(): OledPanel {
         h('div', {}, [exportRow, importRow]),
     ]);
 
+    /** 卡片标题栏:只有 <h4>'OLED Canvas' */
     const header = h('div', { class: OLED_PANEL_CARD_HEADER_CLASS }, [
         h('h4', { text: OLED_PANEL_TITLE_TEXT }),
     ]);
 
+    /** 整块面板:div.card.oled-card,由 oled.ts 插进宿主窗格 */
     const root = h('div', { class: OLED_PANEL_CARD_CLASS }, [header, body]);
 
+    // 交回的引用与上面创建的变量一一对应(名字相同,不另起别名)
     return {
         root,
         canvas,

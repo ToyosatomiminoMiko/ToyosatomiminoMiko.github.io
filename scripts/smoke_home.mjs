@@ -189,13 +189,16 @@ const report = await cdp.eval(`(() => {
         } catch (e) { clockPixels = -1; }
         ok('LED 时钟真的画了点阵', clockPixels > 10, clockPixels + ' 个亮点');
 
-        // OLED:构造时把画布铺成白色底(证明 OLEDCanvas 真的建起来了)
-        let oledWhite = -1;
+        // OLED:构造时把画布铺成"未亮起"的中性灰 #333(证明 OLEDCanvas 真的建起来了)
+        // 期望的 0x33 与 src/oled/config.ts 的 OLED_COLOR_UNLIT 同值(本脚本在浏览器里,读不到 TS 常量)
+        let oledPixel = '未读到';
+        let oledUnlit = false;
         try {
             const d = q('#pixelCanvas').getContext('2d').getImageData(0, 0, 1, 1).data;
-            oledWhite = d[0] + d[1] + d[2];
-        } catch (e) { oledWhite = -1; }
-        ok('OLED 画布已初始化(左上角白底)', oledWhite === 765, oledWhite);
+            oledPixel = 'rgb(' + d[0] + ',' + d[1] + ',' + d[2] + ')';
+            oledUnlit = d[0] === 0x33 && d[1] === 0x33 && d[2] === 0x33;
+        } catch (e) { oledPixel = '读取失败'; }
+        ok('OLED 画布已初始化(左上角未亮的中性灰 #333)', oledUnlit, oledPixel);
 
         // 红黑树:示例树真的被解析并画出了红节点
         const tree = q('#rbCanvas');
@@ -221,6 +224,10 @@ const report = await cdp.eval(`(() => {
         ok('首屏铺满视口高度(hero 的 100dvh 令牌生效)',
             q('#hero').getBoundingClientRect().height > 200,
             Math.round(q('#hero').getBoundingClientRect().height) + 'px');
+        // 令牌 --oled-button-margin 若写错名字,var() 会退化成 margin:0(不报错),所以这里验真值
+        const btnMargin = getComputedStyle(q('#refill-btn')).marginTop;
+        ok('OLED 面板的按钮真的吃到了外边距令牌(--oled-button-margin)',
+            btnMargin !== '0px' && btnMargin !== '', btnMargin);
 
         return out;
     } catch (e) {
