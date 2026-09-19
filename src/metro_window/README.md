@@ -13,9 +13,9 @@
 合成全部运行在 Rust + WGSL 中.
 
 > **水珠(雨滴)那套效果已经拆走.** 车窗剩下的是"一块起雾/有污渍的玻璃 + 窗外
-> 城市";水珠(物理 / 折射 / 高光 / 背景景深 + 它依赖的 mip 链)现在住在仓库根目录的
-> [`water_droplet_demo/`](../../water_droplet_demo/README.md),是一个自包含的
-> 可运行 demo.本目录里不再有任何水珠代码,拆分边界见文末[「水珠拆分」](#水珠拆分).
+> 城市";水珠(物理 / 折射 / 高光 / 背景景深 + 它依赖的 mip 链)现在住在
+> `water_droplet_demo/`(自包含的可运行 demo,但**已整体移出本仓库单独维护**,
+> 不再随本站一起构建).本目录里不再有任何水珠代码,拆分边界见文末[「水珠拆分」](#水珠拆分).
 
 ## 在站点里的位置
 
@@ -206,8 +206,9 @@ src/metro_window/
 ├── Cargo.lock           全仓库唯一的依赖锁定(workspace 级,所有 crate 共用)
 └── target/              生成:cargo 构建缓存(workspace 级,gitignore)
 
-仓库根(水珠 demo,已经与本子项目解耦):
-└── water_droplet_demo/  独立 cargo workspace + 独立前端工程,见它自己的 README
+水珠 demo 曾经由本子项目拆出到仓库根目录 `water_droplet_demo/`,现在**已经整体移出
+本仓库单独维护**:它是独立 cargo workspace + 独立前端工程,与本目录没有任何互相引用,
+所以搬走后这里不会有任何悬空引用.
 ```
 
 Rust -> wasm 的构建脚本放在**仓库的 tools 目录** `scripts/build_wasm.sh`(和
