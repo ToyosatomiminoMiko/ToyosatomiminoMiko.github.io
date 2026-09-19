@@ -52,19 +52,30 @@ export const FLOAT64_KEY = 'f64';
 // 分类阈值
 // ============================================================
 
+/**
+ * 某位宽的全 1 值:2^n - 1.
+ * 这里必须用 2**n,不能用 1<<n:JS 的移位量按 mod 32 取,float64 的尾数是 52 位,
+ * `1 << 52` 会退化成 `1 << 20`(算出 1048575 而非 4503599627370495),
+ * 于是"最大有限值"被算成一个远小于真值的数.29 位以内两者同值,故只有 float64
+ * 的尾数露了这个雷.(n>53 时 number 本身不再精确,但那已不是 f32/f64 的范围.)
+ */
+function allOnes(bits: number): number {
+    return 2 ** bits - 1;
+}
+
 /** 指数域全 1 时的值(全 1 表示 ±∞ 或 NaN) */
 export function exponentFieldAllOnes(format: IEEE754Format): number {
-    return (1 << format.exponentBits) - 1;
+    return allOnes(format.exponentBits);
 }
 
 /** 最大有限值对应的指数域(全 1 减 1) */
 export function exponentFieldMaxFinite(format: IEEE754Format): number {
-    return (1 << format.exponentBits) - 1 - 1;
+    return exponentFieldAllOnes(format) - 1;
 }
 
 /** 尾数域全 1 时的值(最大有效位模式) */
 export function fractionFieldAllOnes(format: IEEE754Format): number {
-    return (1 << format.fractionBits) - 1;
+    return allOnes(format.fractionBits);
 }
 
 /**
