@@ -66,8 +66,9 @@ ToyosatomiminoMiko
                         地铁车窗的**舞台**(Rust + WASM + WebGPU).
                         宿主只提供这个空容器 -- 画布(以及可选的标题/副标题)由
                         metro_window 组件生成,并给宿主加 .metro-window--stage
-                        变成铺满首屏的一层;其余设置面板在 SETTING 的 #metro-params 里.
-                        三个挂载点 id 见 src/metro_window/src/config.ts 的 MOUNT_IDS.
+                        变成铺满首屏的一层;其余设置面板在 SETTING 的 #metro-params 里,
+                        图层贴图上传面板在它下方的 #metro-uploads 里.
+                        四个挂载点 id 见 src/metro_window/src/config.ts 的 MOUNT_IDS.
                         -->
                         <div id="metro-window"></div>
                     </div>
@@ -224,10 +225,19 @@ ToyosatomiminoMiko
                     <!--
                     地铁车窗控制台:空宿主,整套设置面板(风格按钮 / 播放控制 /
                     全部滑块 / WebGPU 状态与图层说明)由 metro_window 组件生成.
-                    车窗的舞台(画布)在 HOME 标签页;两个挂载点 id 见
+                    车窗的舞台(画布)在 HOME 标签页;四个挂载点 id 见
                     src/metro_window/src/config.ts 的 MOUNT_IDS.
                     -->
                     <div id="metro-params"></div>
+                    <!--
+                    图层贴图上传:空宿主,四行"层名 + 选文件 + 恢复默认"由
+                    metro_window 组件生成(城市背景 / 远景 / 中景 / 近景各一行).
+                    它是**另一块** fieldset,紧接在设置面板下方而不是并进去:
+                    一边调渲染参数,一边换美术素材,两件事不混在一起.
+                    没上传时用 public/metro_window/resource/ 里的原图;
+                    上传只在本会话生效(没有后端,刷新即还原).
+                    -->
+                    <div id="metro-uploads"></div>
                 </div>
             </div>
         </div>

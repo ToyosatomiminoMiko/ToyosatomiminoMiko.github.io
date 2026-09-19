@@ -50,11 +50,14 @@ export const PANEL_SINK_CLASS = 'metro-panel-sink';
 /**
  * 宿主必须提供的空容器 id(组件按 id 找,找不到就报错).
  *
- * 组件拆成"舞台"与"控制台"两块以后,站点给了三个宿主:
+ * 组件拆成"舞台"与"控制台"两块以后,站点给了四个宿主:
  *   - stage:WebGPU 画布,放在首屏(要铺满整屏);
  *   - styles:三颗风格按钮,放在首屏底部(与 LED 时钟同排) -- 切风格是"看"的一部分,
  *     不该跟滑块一起埋在 SETTING 里;
- *   - panel:其余整套设置面板(播放控制 / 滑块 / 状态区),放在 SETTING 标签页.
+ *   - panel:其余整套设置面板(播放控制 / 滑块 / 状态区),放在 SETTING 标签页;
+ *   - uploads:图层贴图上传面板,放在 SETTING 标签页里**紧接 panel 的下方** --
+ *     它和"调参"是两件事(一个改渲染参数,一个换素材),所以各自一个宿主 / 一块
+ *     fieldset,不合并进设置面板.
  * 与下面的 ELEMENT_IDS 区别要分清:这里是**宿主必须提供**的,
  * ELEMENT_IDS 是**组件自己生成**的.
  */
@@ -65,6 +68,8 @@ export const MOUNT_IDS = {
     styles: 'metro-styles',
     /** 控制台(设置面板)空宿主 */
     panel: 'metro-params',
+    /** 图层贴图上传面板空宿主(设置面板正下方) */
+    uploads: 'metro-uploads',
 } as const;
 
 /** 按 id 查元素时的选择器前缀:`#webgpu-canvas` 里的 `#` */
@@ -341,6 +346,106 @@ export const STATUS_ID = 'status';
 
 /** 设置面板 <fieldset> 的 id(便于调试/自动化定位) */
 export const PANEL_ID = 'paramPanel';
+
+// ---------- 图层贴图上传 ----------
+
+/*
+ * 上传面板只做三件事:选文件 / 把文件解码成 RGBA8 像素 / 调 wasm 的
+ * setLayerImage 换掉某个材质槽位的贴图.真正的"换图"发生在 wasm 里 --
+ * 那些纹理是 wgpu 的 GPU 资源,JS 没有别的途径写进去.
+ *
+ * **没有后端**:文件不上传服务器,只在浏览器内存里转成像素喂给 wasm;
+ * 刷新页面即恢复站点自带素材(要持久化得另说,不在这块范围内).
+ *
+ * 槽位号 / 名字必须与 Rust 的 src/app_params.rs 的 UPLOADABLE_LAYERS 一致
+ * (跨语言契约,两侧各有单测).当前只放开城市背景那四层:它们的原图是
+ * public/metro_window/resource/ 下按层分开交付的 PNG,一层一个文件;
+ * 效果贴图(污渍 / 雾气 / 车厢)是程序化生成的,不在这一批里.
+ */
+
+/** 一个可上传替换的图层(生成一行"层名 + 选文件 + 恢复默认") */
+export interface UploadLayerSpec {
+    /** 材质槽位号(wasm 侧 material_views 下标),必须与 Rust 名单一致 */
+    readonly slot: number;
+    /** 槽位名,与 Rust 的 UPLOADABLE_LAYERS 逐字一致;同时用来拼输入框 id */
+    readonly name: string;
+    /** 界面上的层名 */
+    readonly label: string;
+    /** 层名后的小字说明(可选),为空不渲染 */
+    readonly hint?: string;
+    /** 站点自带素材的文件名(public/metro_window/resource/ 下),仅用于提示 */
+    readonly file: string;
+}
+
+/**
+ * 可上传的四层,顺序即界面顺序.
+ * slot 与前四项材质槽位(bg / far / mid / near)一一对应:
+ * 换掉其中一层不影响另外三层,视差滚动照旧.
+ */
+export const UPLOAD_LAYERS = [
+    { slot: 0, name: 'city_bg', label: '城市背景', hint: '最远一层,不滚动', file: 'city_bg.png' },
+    { slot: 1, name: 'city_far', label: '城市远景', hint: '滚动最慢', file: 'city_far.png' },
+    { slot: 2, name: 'city_mid', label: '城市中景', hint: '滚动中等', file: 'city_mid.png' },
+    { slot: 3, name: 'city_near', label: '城市近景', hint: '滚动最快', file: 'city_near.png' },
+] as const satisfies readonly UploadLayerSpec[];
+
+/** 上传面板 <legend> 文案 */
+export const UPLOAD_LEGEND = '🖼 图层贴图';
+
+/**
+ * 上传面板顶部的一句话说明.
+ * 重点说清两件用户会踩的事:改动只在本会话生效(刷新即还原),
+ * 以及 alpha 的含义(城市层是 alpha 混合,不透明的图会把下层整片盖住).
+ */
+export const UPLOAD_NOTE =
+    '上传后立即替换该层贴图,只改内存里的纹理,不写文件,刷新页面恢复自带素材;' +
+    '请用带透明通道的 PNG:alpha 决定下层是否透出.';
+
+/**
+ * 只收 PNG:四张原素材都是 PNG,画师也按层分开交付.
+ * 顺带挡掉没有 alpha 通道的格式(JPEG 换上去会把下面几层全盖住).
+ * 注意 accept 只是文件选择框的过滤器,真正的判断还是按 MIME 再查一次.
+ */
+export const UPLOAD_ACCEPT = 'image/png';
+
+/** 允许的 MIME 类型(与 UPLOAD_ACCEPT 对应) */
+export const UPLOAD_MIME_TYPE = 'image/png';
+
+/** 顶层素材文件名前的目录提示(拼在小字里,告诉用户换的是哪个文件) */
+export const UPLOAD_FILE_HINT_PREFIX = '默认 ';
+
+/** 上传输入框 id 前缀:`<label for>` 与 `<input id>` 都靠它拼(前缀 + 槽位名) */
+export const UPLOAD_INPUT_ID_PREFIX = 'upload-';
+
+/** 上传面板 <fieldset> 的 id(便于调试/自动化定位) */
+export const UPLOADS_PANEL_ID = 'uploadPanel';
+
+/** "恢复默认"按钮文案 */
+export const UPLOAD_RESET_LABEL = '恢复默认';
+
+/** 每层状态:还没上传,用的是自带素材 */
+export const UPLOAD_STATUS_DEFAULT = '默认素材';
+
+/** 每层状态:正在解码图片 */
+export const UPLOAD_STATUS_DECODING = '解码中...';
+
+/** 每层状态:选了非 PNG 文件 */
+export const UPLOAD_STATUS_NOT_PNG = '只支持 PNG(自带素材是带透明通道的 PNG)';
+
+/** 每层状态:图片边长超上限,带上尺寸插值 */
+export const buildUploadStatusTooLarge = (width: number, height: number): string =>
+    `图片过大(${width}×${height}),单边上限 ${MAX_UPLOAD_DIMENSION}px`;
+
+/** 每层状态:替换成功,带上最终尺寸插值 */
+export const buildUploadStatusApplied = (width: number, height: number): string =>
+    `已应用 ${width}×${height}`;
+
+/**
+ * 图片边长上限(像素).
+ * 与 Rust 的 src/render_params.rs 的 MAX_TEXTURE_DIMENSION 是同一个值:
+ * 前端先筛一遍给出可读的报错,Rust 侧再挡一次(导出函数是公开 API).
+ */
+export const MAX_UPLOAD_DIMENSION = 8192;
 
 // ---------- WebGPU 适配器 ----------
 

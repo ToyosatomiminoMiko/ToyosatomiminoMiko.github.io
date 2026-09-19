@@ -69,6 +69,17 @@ pub const RGBA_BYTES_PER_PIXEL: u32 = 4;
 /// wgpu 不允许 0 尺寸资源,所有从画布尺寸派生的纹理都用它兜底.
 pub const MIN_TEXTURE_DIMENSION: u32 = 1;
 
+/// 单张材质贴图的边长上限(像素).
+///
+/// `wgpu::Limits::default()` 的 `max_texture_dimension_2d` 就是 8192,
+/// 超过它 `create_texture` 会被 wgpu 的校验拦下(-- 在 wasm 里那不是可恢复的
+/// `Err`,而是抛异常/panic),所以上传前必须先在 Rust 侧挡一次.
+///
+/// 前端(src/metro_window/src/config.ts 的 MAX_UPLOAD_DIMENSION)按同一个值
+/// 先筛一遍,给的是可读的报错;这里再挡一次是因为导出函数是公开 API,
+/// 不能假设调用方一定守规矩.
+pub(crate) const MAX_TEXTURE_DIMENSION: u32 = 8192;
+
 /// 折射偏移图相对画布的下采样倍数.
 ///
 /// 公式:`rw = max(width / REFRACTION_DOWNSCALE, MIN_TEXTURE_DIMENSION)`,

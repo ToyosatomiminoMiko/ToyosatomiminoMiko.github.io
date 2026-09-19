@@ -7,6 +7,7 @@
   水滴物理参数见 src/droplet_params.rs.
 */
 use crate::droplet_params::DropletParams;
+use crate::render_params::{MAX_TEXTURE_DIMENSION, RGBA_BYTES_PER_PIXEL};
 
 /// 渲染帧率上限 60fps 对应的最小帧间隔(毫秒).
 ///
@@ -76,6 +77,89 @@ pub(crate) const CITY_NEAR_FILE: &str = "city_near.png";
 /// 拼出某张城市贴图的公开地址(约定见 [`RESOURCE_BASE`]).
 pub(crate) fn city_png(file: &str) -> String {
     format!("{RESOURCE_BASE}/{file}")
+}
+
+// ---------- 前端上传替换贴图 ----------
+
+/// 允许前端上传替换的材质槽位:`(material_views 下标, 槽位名)`.
+///
+/// 槽位号就是 `App::material_views` 的下标(见 src/app.rs 里那张表的构建顺序:
+/// bg / far / mid / near / dirt / fog / interior),所以 0..=3 正好是城市背景四层,
+/// 也就是 `public/metro_window/resource/` 下按层分开交付的那四张 PNG --
+/// 前端一层给一个上传按钮,换掉其中一层不影响另外三层(视差照旧).
+///
+/// 效果贴图(污渍 / 雾气 / 车厢倒影)是程序化生成的,与背景贴图的原理不同,
+/// **不在当前范围内**:它们的槽位在这里没有登记,`upload_slot` 会直接拒绝.
+/// 宁可报错也不要出现"前端以为在换污渍,实际换了城市层"这种静默错配.
+/// 将来要放开某一层:在下面加一行,并在前端 config.ts 的 `UPLOAD_LAYERS`
+/// 同步加一条(两侧各有单测守着这份跨语言契约).
+pub(crate) const UPLOADABLE_LAYERS: &[(u32, &str)] = &[
+    (0, "city_bg"),
+    (1, "city_far"),
+    (2, "city_mid"),
+    (3, "city_near"),
+];
+
+// 编译期不变量:槽位号必须等于它在表里的下标.
+// 上传路径按"表里的下标 -> material_views 下标"取用,槽位号又会被前端写死,
+// 两者一旦不一致,前端传 2 就可能落到别的层;这条断言把它变成编译错误.
+const _: () = {
+    let mut i = 0;
+    while i < UPLOADABLE_LAYERS.len() {
+        assert!(UPLOADABLE_LAYERS[i].0 == i as u32);
+        i += 1;
+    }
+};
+
+/// 查"可上传槽位"白名单,返回 `(material_views 下标, 槽位名)`.
+///
+/// 单独拆出来是因为"恢复默认"不需要校验尺寸与像素字节数,只需要白名单;
+/// 真正的上传再走 [`upload_target`] 补齐这两项.
+pub(crate) fn upload_slot(layer: u32) -> Result<(usize, &'static str), String> {
+    if let Some(&(slot, name)) = UPLOADABLE_LAYERS.iter().find(|(slot, _)| *slot == layer) {
+        return Ok((slot as usize, name));
+    }
+    let allowed: Vec<String> = UPLOADABLE_LAYERS
+        .iter()
+        .map(|(slot, name)| format!("{slot}={name}"))
+        .collect();
+    Err(format!(
+        "不支持上传的材质槽位: {layer}(可上传: {})",
+        allowed.join(", ")
+    ))
+}
+
+/// 校验一次"上传替换贴图"的入参,返回 `material_views` 下标.
+///
+/// 单独拆成纯函数(不碰设备 / 纹理)是为了能在**没有 GPU** 的单测里覆盖全部
+/// 拒绝分支:真正的上传路径要建 wgpu 纹理,而建纹理必须有设备.
+///
+/// `byte_len` 是前端传来的 RGBA8 缓冲区长度,必须与 `width * height * 4` 严格相等:
+/// 少了会越界读,多了会被 wgpu 当成行距不匹配 -- 两种都在这里挡掉.
+pub(crate) fn upload_target(
+    layer: u32,
+    width: u32,
+    height: u32,
+    byte_len: usize,
+) -> Result<usize, String> {
+    let (slot, name) = upload_slot(layer)?;
+    if width == 0 || height == 0 {
+        return Err(format!("{name}: 图片尺寸非法({width}x{height})"));
+    }
+    // 先比边长再算像素总数:上限内 8192 * 8192 * 4 = 256MiB 仍在 usize(32 位 wasm)
+    // 范围内,但更早拒绝可以少一次乘法,也顺带避免将来放宽上限时溢出.
+    if width > MAX_TEXTURE_DIMENSION || height > MAX_TEXTURE_DIMENSION {
+        return Err(format!(
+            "{name}: 图片边长超过上限 {MAX_TEXTURE_DIMENSION}px({width}x{height})"
+        ));
+    }
+    let expected: usize = width as usize * height as usize * RGBA_BYTES_PER_PIXEL as usize;
+    if byte_len != expected {
+        return Err(format!(
+            "{name}: 像素字节数与尺寸不符,期望 {expected},实际 {byte_len}"
+        ));
+    }
+    Ok(slot)
 }
 
 /// 单个实时滑块的配置.
@@ -265,6 +349,68 @@ mod tests {
                 DropletParams::DEFAULT,
                 "滑块 {} 没有写入任何字段",
                 spec.name
+            );
+        }
+    }
+
+    /// 前端 config.ts 的 UPLOAD_LAYERS 里的槽位名(跨语言契约,逐字一致).
+    const EXPECTED_UPLOAD_LAYERS: [&str; 4] = ["city_bg", "city_far", "city_mid", "city_near"];
+
+    #[test]
+    fn uploadable_layers_match_frontend() {
+        assert_eq!(UPLOADABLE_LAYERS.len(), EXPECTED_UPLOAD_LAYERS.len());
+        for (i, name) in EXPECTED_UPLOAD_LAYERS.iter().enumerate() {
+            assert_eq!(
+                UPLOADABLE_LAYERS[i].1, *name,
+                "上传槽位 {i} 的名字与前端不一致"
+            );
+        }
+    }
+
+    /*
+     上传槽位的名字必须与启动时真正 fetch 的那四张 PNG 对应:
+     名字只是给前端看的,真正决定"换的是哪张图"的是槽位号 -> material_views 下标,
+     而 material_views 的前四项就是 App::new 里按 CITY_*_FILE 顺序建出来的纹理.
+     这条测试把"名字 <-> 文件名"钉死,前端清单又用同样的名字做契约,两边同时改才漂移.
+    */
+    #[test]
+    fn uploadable_layers_match_city_files() {
+        let files: [&str; 4] = [CITY_BG_FILE, CITY_FAR_FILE, CITY_MID_FILE, CITY_NEAR_FILE];
+        for ((slot, name), file) in UPLOADABLE_LAYERS.iter().zip(files) {
+            assert_eq!(
+                format!("{name}.png"),
+                file,
+                "槽位 {slot} 的名字与城市贴图文件名对不上"
+            );
+        }
+    }
+
+    #[test]
+    fn upload_slot_rejects_unknown_layer() {
+        assert!(upload_slot(0).is_ok());
+        // 4..=6 是污渍 / 雾气 / 车厢:程序化贴图,当前不允许上传.
+        for layer in [4, 5, 6, 7, 99] {
+            let error = upload_slot(layer).expect_err("越界槽位必须被拒绝");
+            assert!(error.contains("不支持上传"), "报错文案不对: {error}");
+        }
+    }
+
+    #[test]
+    fn upload_target_validates_size_and_length() {
+        // 合法:64x32 的 RGBA8 像素
+        assert_eq!(upload_target(2, 64, 32, 64 * 32 * 4).unwrap(), 2);
+        // 尺寸为 0 / 边长超上限 / 字节数对不上,三种都要拒绝
+        for (w, h, len) in [
+            (0_u32, 32_u32, 0_usize),
+            (32, 0, 0),
+            (MAX_TEXTURE_DIMENSION + 1, 1, 0),
+            (1, MAX_TEXTURE_DIMENSION + 1, 0),
+            (64, 32, 64 * 32 * 4 - 1),
+            (64, 32, 64 * 32 * 4 + 4),
+        ] {
+            assert!(
+                upload_target(0, w, h, len).is_err(),
+                "{w}x{h} / {len} 字节应该被拒绝"
             );
         }
     }

@@ -23,9 +23,9 @@ document.addEventListener('DOMContentLoaded', () => {
     mountRBT();
     new OLEDCanvas();
     mountIEEE754();
-    // 地铁车窗拆成两块:舞台(画布)挂在 HOME 的空宿主 #metro-window 上,
-    // 控制台(整套设置面板)挂在 SETTING 的空宿主 #metro-params 上(挂载点 id
-    // 见其 config.ts 的 MOUNT_IDS).组件内部按可见性自动暂停/恢复,
-    // 切走标签页不会让 GPU 空转.
+    // 地铁车窗拆成三块:舞台(画布)挂在 HOME 的空宿主 #metro-window 上,
+    // 控制台(整套设置面板)与上传面板(图层贴图替换)分别挂在 SETTING 的
+    // #metro-params 与它下方的 #metro-uploads 上(挂载点 id 见其 config.ts
+    // 的 MOUNT_IDS).组件内部按可见性自动暂停/恢复,切走标签页不会让 GPU 空转.
     mountMetroWindowAtMountIds();
 });

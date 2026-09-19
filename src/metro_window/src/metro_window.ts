@@ -1,16 +1,24 @@
 /*
 地铁车窗组件(可挂载)
 
-拆成两块,各挂各的宿主:
+拆成三块,各挂各的宿主:
 
 - **舞台**(挂载点的 `stage`):宿主只提供一个**空容器**,画布由 ui/stage_content.ts 生成;
 - **控制台**(挂载点的 `panel`):整套设置面板(风格按钮 / 播放控制 / 全部滑块 /
   状态区)由 ui/settings.ts 按 config.ts 的声明式模型生成,插进面板宿主;
-  省略面板宿主时退回一个隐藏容器,面板与状态区仍然存在,只是不显示.
+  省略面板宿主时退回一个隐藏容器,面板与状态区仍然存在,只是不显示;
+- **上传面板**(挂载点的 `uploads`):图层贴图替换(每层一个上传按钮 + 恢复默认)
+  由 ui/uploads.ts 生成,站点把它放在控制台**正下方**的另一个宿主里 --
+  它换的是"素材",和"调参"是两件事,所以两块 fieldset 不合并;
+  省略上传宿主时落进控制台宿主内部(仍在设置面板之后).
 
-两个宿主都会由挂载函数补上样式作用域类 `.metro-window`:**样式全靠它作用域**,
+每个宿主都会由挂载函数补上样式作用域类 `.metro-window`:**样式全靠它作用域**,
 面板换了宿主却没这个类就是"样式静默失效".本模块负责:引入样式,长出标记,
 组装面板,绑定交互,加载 wasm,启动 WebGPU 渲染.
+
+上传这条链路值得一提:文件由前端解码成 RGBA8 像素(浏览器自带解码器),
+再调 wasm 的 setLayerImage 换掉某个材质槽位的贴图 -- 那些纹理是 wgpu 的
+GPU 资源,只有 wasm 内部能改.**没有后端**:文件不上传服务器,刷新即还原.
 
 所有字面量(id / 类名 / data-* 键名 / Rust 参数名 / 文案 / 阈值)都集中在
 @/metro_window/src/config.ts,标记与面板的结构集中在 @/metro_window/src/ui/,本文件只保留逻辑与生命周期.
@@ -21,9 +29,10 @@
     import { mountMetroWindow } from '@/metro_window/src/metro_window';
     const stage = document.getElementById('metro-window');
     const panel = document.getElementById('metro-params');
-    if (stage) mountMetroWindow({ stage, panel });
+    const uploads = document.getElementById('metro-uploads');
+    if (stage) mountMetroWindow({ stage, panel, uploads });
 
-    // 2) 按约定的两个挂载点 id 找容器(站点入口用这种,省得宿主自己写查找与报错)
+    // 2) 按约定的四个挂载点 id 找容器(站点入口用这种,省得宿主自己写查找与报错)
     import { mountMetroWindowAtMountIds } from '@/metro_window/src/metro_window';
     mountMetroWindowAtMountIds();
 
@@ -35,12 +44,23 @@ setRunning/reset 全都作用于它,所以一个页面只应挂载一次(舞台�
 */
 import './metro_window.css';
 
-import init, { reset, resize as resizeApp, setParam, setRunning, setStyle, startApp } from '@/metro_window/pkg/metro_window.js';
+import init, {
+    reset,
+    resetLayerImage,
+    resize as resizeApp,
+    setLayerImage,
+    setParam,
+    setRunning,
+    setStyle,
+    startApp,
+} from '@/metro_window/pkg/metro_window.js';
 
 import {
     ADAPTER_LABEL_SEPARATOR,
     BARE_MODIFIER_CLASS,
     buildSoftwareAdapterMessage,
+    buildUploadStatusApplied,
+    buildUploadStatusTooLarge,
     DECIMAL_FRACTION_INDEX,
     DECIMAL_SEPARATOR,
     DEFAULT_STYLE_INDEX,
@@ -51,6 +71,7 @@ import {
     ID_SELECTOR_PREFIX,
     LAST_ENTRY_OFFSET,
     LOG_ADAPTER_PREFIX,
+    MAX_UPLOAD_DIMENSION,
     MISSING_ELEMENT_MESSAGE_PREFIX,
     MISSING_MOUNT_MESSAGE_PREFIX,
     MOUNT_IDS,
@@ -69,14 +90,20 @@ import {
     STYLE_BUTTON_ACTIVE_CLASS,
     STYLE_DATA_KEY,
     UNKNOWN_ADAPTER_LABEL,
+    UPLOAD_MIME_TYPE,
+    UPLOAD_STATUS_DECODING,
+    UPLOAD_STATUS_DEFAULT,
+    UPLOAD_STATUS_NOT_PNG,
     WARN_ADAPTER_INFO_UNAVAILABLE,
     WEBGPU_ADAPTER_ERROR_KEYWORD,
     WEBGPU_HELP_STEPS,
     WINDOW_CLASS,
+    type UploadLayerSpec,
 } from './config';
 import { h } from '@/metro_window/src/ui/dom';
 import { createSettingsPanel, createStyleRow, type SliderControl } from '@/metro_window/src/ui/settings';
 import { createStageContent } from '@/metro_window/src/ui/stage_content';
+import { createUploadPanel, decodeImageToRgba, type UploadControl } from '@/metro_window/src/ui/uploads';
 import { computeBackingSize } from '@/metro_window/src/stage_size';
 
 // WebGPU 适配器的最小类型定义(不依赖具体 TypeScript 版本的 DOM 类型)
@@ -129,6 +156,15 @@ function decimalPlaces(step: number): number {
 }
 
 /**
+ * 把 catch 到的东西变成一句可显示的话.
+ * 状态区 / 上传状态行都只接字符串:Error 取 message,其余(wasm 抛的字符串,
+ * Promise 拒绝值)一律 String() -- 不这样兜底,`${error}` 会打出 "[object Object]".
+ */
+function errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
+
+/**
  * 盯着设备像素比:把窗口拖到另一块缩放比例不同的显示器上时,宿主尺寸没变,
  * 但 dpr 变了,`ResizeObserver` 不会触发,后备缓冲就会停在旧密度上(画面发糊).
  *
@@ -151,7 +187,7 @@ function watchDevicePixelRatio(onChange: () => void): void {
     arm();
 }
 
-/** 三个挂载点的元素引用:舞台必需;风格按钮与控制台省略时各自退回默认位置 */
+/** 四个挂载点的元素引用:舞台必需;风格按钮 / 控制台 / 上传面板省略时各退回默认位置 */
 export interface MetroMountPoints {
     /** 舞台宿主:承接画布(必填) */
     readonly stage: HTMLElement;
@@ -159,18 +195,22 @@ export interface MetroMountPoints {
     readonly styles?: HTMLElement;
     /** 控制台宿主:承接整套设置面板;不给则退回隐藏容器 */
     readonly panel?: HTMLElement;
+    /** 上传面板宿主(设置面板正下方);不给则落在控制台宿主里(仍在设置面板之后) */
+    readonly uploads?: HTMLElement;
 }
 
 /**
- * 按约定的三个挂载点 id 找空宿主,再挂载车窗.
+ * 按约定的四个挂载点 id 找空宿主,再挂载车窗.
  * 站点入口 src/main.ts 用这一条,省得宿主自己写一遍"找元素 + 报错".
- * 三个 id 定义在 config.ts 的 MOUNT_IDS:舞台与风格按钮在首屏,控制台在 SETTING.
+ * 四个 id 定义在 config.ts 的 MOUNT_IDS:舞台与风格按钮在首屏,
+ * 控制台与上传面板在 SETTING 标签页.
  */
 export function mountMetroWindowAtMountIds(): void {
     mountMetroWindow({
         stage: mustFindMount(MOUNT_IDS.stage),
         styles: mustFindMount(MOUNT_IDS.styles),
         panel: mustFindMount(MOUNT_IDS.panel),
+        uploads: mustFindMount(MOUNT_IDS.uploads),
     });
 }
 
@@ -228,6 +268,14 @@ export function mountMetroWindow(points: MetroMountPoints): void {
     // 开头,面板换了宿主却没有这个类,样式会静默失效(看着"没坏"但全乱).
     panel.classList.add(WINDOW_CLASS);
     panel.append(settings.root);
+
+    // 上传面板:与设置面板**分开放**(站点把宿主紧接在 #metro-params 下方),
+    // 它换的是素材(贴图),不是渲染参数,合成一块会让两件事混在一起.
+    // 省略宿主时退回控制台宿主内部 -- 仍然在设置 fieldset 之后,不会静默消失.
+    const uploads = createUploadPanel();
+    const uploadsHost = points.uploads ?? panel;
+    uploadsHost.classList.add(WINDOW_CLASS);
+    uploadsHost.append(uploads.root);
 
     const setStatus = (message: string): void => {
         settings.status.textContent = message;
@@ -342,12 +390,14 @@ export function mountMetroWindow(points: MetroMountPoints): void {
             });
             settings.pauseButton.disabled = false;
             settings.root.disabled = false;
+            // 上传同样要等 WebGPU 就绪:wasm 没初始化好时 setLayerImage 会直接报错.
+            uploads.root.disabled = false;
             // startApp 里的 App 默认就是 running,这里按当前可见性同步一次,
             // 免得在隐藏的标签页里挂载时白跑 (IntersectionObserver 的首次回调
             // 可能早于 booted = true,不能只依赖它)
             bootedRunning();
         } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
+            const message = errorMessage(error);
             if (message.includes(WEBGPU_ADAPTER_ERROR_KEYWORD)) {
                 showWebGpuHelp(`${ERROR_LABEL}${message}`);
             } else {
@@ -396,6 +446,67 @@ export function mountMetroWindow(points: MetroMountPoints): void {
         syncFromRange();
     }
 
+    /**
+     * 绑定一层上传:选文件 -> 解码 -> 交给 wasm 换贴图;"恢复默认"换回自带素材.
+     * 每层各自一行状态文案,一层失败不影响另外几层.
+     */
+    function bindUpload(control: UploadControl): void {
+        const { spec, input, status, reset } = control;
+        const setUploadStatus = (message: string): void => {
+            status.textContent = message;
+        };
+
+        input.addEventListener(EVENTS.change, () => {
+            const file = input.files?.[0];
+            // 立刻清空 value:用户改完图再选同一个文件也要能触发 change,
+            // 不清空的话第二次选同一个文件浏览器不会发事件(看着像"没反应").
+            input.value = '';
+            if (!file || !booted) return;
+            void applyUpload(spec, file, setUploadStatus);
+        });
+
+        reset.addEventListener(EVENTS.click, () => {
+            if (!booted) return;
+            try {
+                resetLayerImage(spec.slot);
+                setUploadStatus(UPLOAD_STATUS_DEFAULT);
+            } catch (error) {
+                setUploadStatus(`${ERROR_LABEL}${errorMessage(error)}`);
+            }
+        });
+    }
+
+    /**
+     * 替换一层的贴图.
+     *
+     * 顺序:先在**前端**筛类型与边长(给的是可读的中文报错),再解码成 RGBA8,
+     * 最后交给 wasm -- 这一步才真正碰 GPU.失败只写在这一行的状态上,
+     * 不打断渲染,也不影响其他层(上传是局部操作).
+     */
+    async function applyUpload(
+        spec: UploadLayerSpec,
+        file: File,
+        setUploadStatus: (message: string) => void,
+    ): Promise<void> {
+        if (file.type !== UPLOAD_MIME_TYPE) {
+            setUploadStatus(UPLOAD_STATUS_NOT_PNG);
+            return;
+        }
+        setUploadStatus(UPLOAD_STATUS_DECODING);
+        try {
+            const image = await decodeImageToRgba(file);
+            if (image.width > MAX_UPLOAD_DIMENSION || image.height > MAX_UPLOAD_DIMENSION) {
+                setUploadStatus(buildUploadStatusTooLarge(image.width, image.height));
+                return;
+            }
+            setLayerImage(spec.slot, image.width, image.height, image.rgba);
+            setUploadStatus(buildUploadStatusApplied(image.width, image.height));
+        } catch (error) {
+            setUploadStatus(`${ERROR_LABEL}${errorMessage(error)}`);
+            console.error(error);
+        }
+    }
+
     function setup(): void {
         styleButtons.forEach((btn) => {
             btn.disabled = true;
@@ -419,5 +530,6 @@ export function mountMetroWindow(points: MetroMountPoints): void {
         });
 
         settings.sliders.forEach(bindSlider);
+        uploads.controls.forEach(bindUpload);
     }
 }

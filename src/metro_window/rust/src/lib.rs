@@ -106,12 +106,45 @@ pub fn reset() {
     });
 }
 
+/// 用前端上传的图片像素替换某个材质槽位的贴图.
+///
+/// - `layer`:材质槽位号,当前只放开城市背景四层(见 app_params::UPLOADABLE_LAYERS);
+/// - `rgba` :已经解码好的 RGBA8 像素,长度必须恰好 `width * height * 4`.
+///
+/// 解码放在前端做(createImageBitmap + canvas):浏览器本来就支持 PNG/JPEG/WebP,
+/// 而 Rust 侧只有 png crate,再养一套解码器纯属重复.这样也意味着**没有后端**:
+/// 文件不上传服务器,只在浏览器内存里转成像素.
+///
+/// 失败(槽位越界 / 尺寸非法 / 像素长度不匹配 / wasm 还没初始化好)返回 `Err`,
+/// 由前端显示在该层的状态行上 -- 上传是用户动作,静默失败等于"点了没反应".
+#[wasm_bindgen(js_name = setLayerImage)]
+pub fn set_layer_image(layer: u32, width: u32, height: u32, rgba: &[u8]) -> Result<(), JsValue> {
+    with_app_result(|app| app.set_layer_texture(layer, width, height, rgba))
+}
+
+/// 把某个材质槽位恢复成站点自带的默认贴图(用留在 App 里的那份原图,不重新 fetch).
+#[wasm_bindgen(js_name = resetLayerImage)]
+pub fn reset_layer_image(layer: u32) -> Result<(), JsValue> {
+    with_app_result(|app| app.reset_layer_texture(layer))
+}
+
 fn with_app<F: FnOnce(&mut App)>(f: F) {
     APP.with(|cell| {
         if let Some(app) = cell.borrow_mut().as_mut() {
             f(app);
         }
     });
+}
+
+/// 与 `with_app` 的区别:"App 还没建好"在这里是**错误**,而不是空操作.
+///
+/// 给上传这类用户主动触发的操作使用:初始化失败或还没跑完时,前端要把
+/// "暂时不可用"显示出来,而不是让用户看着点了没反应.
+fn with_app_result<F: FnOnce(&mut App) -> Result<(), String>>(f: F) -> Result<(), JsValue> {
+    APP.with(|cell| match cell.borrow_mut().as_mut() {
+        Some(app) => f(app).map_err(|e| JsValue::from_str(&e)),
+        None => Err(JsValue::from_str("车窗尚未初始化完成,贴图替换暂时不可用")),
+    })
 }
 
 pub(crate) fn performance_now() -> f64 {

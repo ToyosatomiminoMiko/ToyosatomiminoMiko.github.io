@@ -15,7 +15,7 @@
 
 | | |
 | --- | --- |
-| 站点位置 | 站点首页 `index.html` 的**三个**空宿主:舞台(画布)`#metro-window` 与风格按钮 `#metro-styles` 在 HOME 标签页的**首屏**(前者在 `.hero__stage` 里铺满整屏,后者在 `.hero__bottom` 里与 LED 时钟同排),其余设置面板 `#metro-params` 在 SETTING 标签页;挂载见 `src/main.ts`(已没有独立入口页) |
+| 站点位置 | 站点首页 `index.html` 的**四个**空宿主:舞台(画布)`#metro-window` 与风格按钮 `#metro-styles` 在 HOME 标签页的**首屏**(前者在 `.hero__stage` 里铺满整屏,后者在 `.hero__bottom` 里与 LED 时钟同排),其余设置面板 `#metro-params` 与它下方的图层贴图上传面板 `#metro-uploads` 在 SETTING 标签页;挂载见 `src/main.ts`(已没有独立入口页) |
 | Rust 源码 | `src/metro_window/rust/`(crate `metro-window`,编译为 wasm32-unknown-unknown) |
 | 前端源码 | `src/metro_window/src/` |
 | 组件行为 | `src/metro_window/src/metro_window.ts`,导出 `mountMetroWindow(points: MetroMountPoints)` / `mountMetroWindowAtMountIds()` |
@@ -24,30 +24,39 @@
 ### 组件形态
 
 前端做成了"挂载函数"而不是页面入口:**宿主只提供空容器**,标记由组件生成;
-组件拆成**舞台**(画布),**风格按钮行**与**控制台**(其余设置面板)三块,各挂各的宿主:
+组件拆成**舞台**(画布),**风格按钮行**,**控制台**(其余设置面板)与
+**上传面板**(图层贴图替换)四块,各挂各的宿主:
 
 ```ts
 import { mountMetroWindowAtMountIds } from '@/metro_window/src/metro_window';
 
-mountMetroWindowAtMountIds();   // 找约定的三个挂载点(见 MOUNT_IDS),缺一个就报错
+mountMetroWindowAtMountIds();   // 找约定的四个挂载点(见 MOUNT_IDS),缺一个就报错
 ```
 
 ```ts
-// 或者自己给宿主:舞台必填,风格按钮与控制台都可省略
+// 或者自己给宿主:舞台必填,风格按钮 / 控制台 / 上传面板都可省略
 import { mountMetroWindow } from '@/metro_window/src/metro_window';
 
-// styles 不给 => 风格按钮留在控制台里;panel 不给 => 面板与状态区仍在,只是不显示
-mountMetroWindow({ stage, styles, panel });
+// styles 不给 => 风格按钮留在控制台里;panel 不给 => 面板与状态区仍在,只是不显示;
+// uploads 不给 => 上传面板落在控制台宿主内部(仍在设置面板之后)
+mountMetroWindow({ stage, styles, panel, uploads });
 ```
 
-- **宿主只提供空容器**:站点里只有三个 `<div id="metro-window">` /
-  `<div id="metro-styles">` / `<div id="metro-params">`;画布由
+- **宿主只提供空容器**:站点里有四个 `<div id="metro-window">` /
+  `<div id="metro-styles">` / `<div id="metro-params">` /
+  `<div id="metro-uploads">`(最后两个在 SETTING 标签页里上下相邻);画布由
   `src/ui/stage_content.ts` 按 `src/config.ts` 的分辨率生成,风格按钮行与设置面板
   (播放控制 / 滑块 / 状态区)由
-  `src/ui/settings.ts` 按同一份模型生成,分别插进各自的宿主 --
+  `src/ui/settings.ts` 按同一份模型生成,上传面板由 `src/ui/uploads.ts` 按
+  `UPLOAD_LAYERS` 生成,分别插进各自的宿主 --
   风格按钮行**只建一份**(给 `styles` 宿主就挂首屏,不给就留在控制台里,
   两个地方不会各出现一份).宿主页不出现任何
-  车窗标记,加一个滑块只需要往 `SLIDER_GROUPS` 里加一条,改文案只动 `config.ts`.
+  车窗标记,加一个滑块只需要往 `SLIDER_GROUPS` 里加一条,加一层可上传贴图只需要往
+  `UPLOAD_LAYERS` 里加一条(还要在 Rust 的 `UPLOADABLE_LAYERS` 同步登记),
+  改文案只动 `config.ts`.
+- **"调参"与"换素材"分两块**:设置面板与上传面板是**两个 fieldset,两个宿主**,
+  不合并 -- 前者改渲染参数,后者换美术素材,混在一起会让两件事都不好找;
+  两者的"卡片"外观由 `metro_window.css` 里写在一起的选择器统一(改一处两块一起变).
 - **拆分的两条硬约束**:
   - 样式作用域类 `.metro-window` 由挂载函数往**每个**宿主上都补 --
     `metro_window.css` 的每条选择器都以它开头,面板换了宿主却没这个类,
@@ -304,6 +313,42 @@ code --no-sandbox --enable-unsafe-webgpu
 - 水滴形状与边缘:形状按画布宽高比换算到各向同性空间后再判定,屏幕上始终是
   正圆;折射偏移由片段着色器逐像素解析重建,轮廓清晰度不受低分辨率偏移图限制
   (原因/改法/验证见下面两节)
+- 图层贴图上传(SETTING 标签页):城市背景四层各一个上传按钮 + 恢复默认,
+  前端把 PNG 解码成 RGBA8 后交给 wasm 侧的 `setLayerImage` 换掉对应材质槽位的
+  纹理(只重建渲染绑定组,不动管线与着色器);详见下面"图层贴图上传"一节
+
+### 图层贴图上传(没有后端的一条链路)
+
+站点自带素材是 `public/metro_window/resource/` 下的四张 PNG(城市背景 / 远景 /
+中景 / 近景),画师按层分开交付;SETTING 标签页里每层一个上传按钮,换掉其中一层
+不影响另外三层(视差照旧).整条链路是:
+
+1. **前端选文件**(`src/ui/uploads.ts` 的 `createUploadPanel()`):`accept="image/png"`,
+   再按 MIME 复查一次(JPEG 没有 alpha,换上去会把下面几层整片盖住);
+2. **前端解码**(`decodeImageToRgba`):`createImageBitmap` + canvas 的 `getImageData`
+   -- 浏览器自带解码器,而 wasm 侧只有 `png` crate,不必再养一套;拿到的是**未预乘**
+   的 RGBA8,与 `textures::decode_png` 喂给 `create_texture` 的字节语义一致;
+3. **wasm 换图**(`setLayerImage(layer, width, height, rgba)` ->
+   `App::set_layer_texture`):校验槽位白名单 / 尺寸 / 像素字节数,建新纹理,换掉
+   `material_views[layer]`,再用 `create_render_bind_group` 只重建**渲染**绑定组.
+   计算绑定组只持有 uniforms / 水滴 buffer / 折射 storage texture,与材质纹理无关;
+   管线与着色器更是完全不动 -- 所以换图不会重新编译着色器(没有拖动窗口那种卡顿);
+4. **恢复默认**(`resetLayerImage`):默认纹理一直留在 `App::default_material_textures`
+   里,这里只是重新建一个视图换回去,不重新 fetch(断网也能用).
+
+几条硬约束:
+
+- **没有后端**:文件不上传服务器,只在浏览器内存里转成像素喂给 wasm;
+  **刷新页面即还原**(要持久化得另说,当前不做);
+- 槽位号与名字是**跨语言契约**:Rust 的 `app_params::UPLOADABLE_LAYERS` 与前端
+  `config.ts` 的 `UPLOAD_LAYERS` 逐字一致,两侧各有单测.没登记的槽位(污渍 /
+  雾气 / 车厢等程序化贴图)会被 Rust 侧直接拒绝 -- 宁可报错,也不要出现
+  "前端以为在换污渍,实际换了城市层"这种静默错配;
+- 采样器仍是 `u=Repeat, v=ClampToEdge`(见"玻璃材质贴图的约定"):城市图横向
+  不可平铺时滚动会出现竖缝,所以提示语写的是"请用带透明通道的 PNG";
+- 单边上限 8192px(wgpu `max_texture_dimension_2d` 的默认值),前端与 Rust 各挡一次;
+- 上传面板与设置面板是**两块 fieldset / 两个宿主**:一边调渲染参数,一边换素材,
+  不合并(见 `config.ts` 的 `MOUNT_IDS`).
 
 ### 水滴为什么是正圆(坐标空间契约)
 
@@ -463,6 +508,17 @@ cargo run --package metro-window --example preview        # 用真实城市纹�
 | 后备缓冲从"固定 1344×756"改成"随宿主算的 16:9 × dpr",并给 Rust 加 `resize()` 导出 | 首屏要铺满整屏,还要 1:1 清晰;比例必须锁死 16:9(场景按 uv 铺满画布),所以算的是"覆盖宿主所需的 16:9"而不是宿主本身的形状.`pipelines.rs` 为此把绑定组构造拆成 `create_bind_groups`,`app.rs` 的 `resize` 只重建 surface 配置 / 折射偏移图 / 绑定组,**不重建管线**(重建会重新编译着色器) |
 | 新增 `data-state="unavailable"` 回退 | WebGPU 不可用时藏掉画布,露出站点背景并留一句短提示;首屏不再出现"什么都不显示的黑框",完整排查步骤仍只进 SETTING |
 | 首屏那两个修饰类的选择器改成**把类名写两遍**(`.metro-window.metro-window--stage`) | 它们与基础规则 `.metro-window canvas` 的特异性打平(都是 0,1,1),而基础规则在后面 -- 结果画布被压回 `max-width: 1600px` + `aspect-ratio: 16/9` + 圆角 + 边框,右边与下边露出宿主背景.多写一个类把特异性抬到 0,2,x,顺序就再也影响不到它 |
+
+### 图层贴图上传(新增第四个挂载点)
+
+| 改动 | 为什么 |
+| --- | --- |
+| 新增第四个挂载点 `#metro-uploads`:独立 `<fieldset class="uploads">`,紧接设置面板下方,不并进去 | 换素材与调参是两件事,合成一块会让"这个滑块管哪一层"和"这张图换的是哪一层"混在一起;组件这边多一块声明式面板(`src/ui/uploads.ts` 的 `createUploadPanel()`) |
+| Rust 新增导出 `setLayerImage` / `resetLayerImage`,并新增 `app_params::UPLOADABLE_LAYERS` 白名单 | 材质纹理是 wasm 内部的 wgpu GPU 资源,JS 没有别的途径写进去 -- 所以"只在前端做"做不到,必须有这一对导出;白名单让未登记的层(污渍 / 雾气 / 车厢等程序化贴图)直接报错,而不是静默换错层 |
+| `pipelines.rs` 把绑定组构造再拆一层:`create_render_bind_group` 独立出来 | 换贴图只需要重建**渲染**绑定组(计算组只持有 uniforms / 水滴 buffer / 折射 storage texture,与材质纹理无关),不必两个一起重建 |
+| `App` 新增 `refraction_texture` 与 `default_material_textures` 两个字段 | 前者是重建渲染绑定组时唯一能取到折射图视图的地方(原先建完视图就把纹理丢掉);后者是"恢复默认"的来源 -- 重新建视图即可,不重新 fetch,断网也能还原 |
+| 解码放前端(`createImageBitmap` + canvas `getImageData`) | 浏览器自带 PNG 解码器,wasm 侧只有 `png` crate,再养一套纯属重复;顺带拿到"文件不出浏览器"这条性质(整条链路**没有后端**) |
+| 上传面板与设置面板共用同一套卡片样式(选择器写在一起) | 两块面板分属两个宿主,外观必须一致;复制一份迟早漂移 |
 
 ### 归档状态与遗留
 

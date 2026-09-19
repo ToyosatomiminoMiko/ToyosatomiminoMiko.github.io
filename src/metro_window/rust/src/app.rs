@@ -4,14 +4,16 @@ WebGPU 应用主体
 - 每帧更新 Uniforms,依次执行 水滴物理 -> 折射偏移 -> 渲染 三个 Pass
 */
 use crate::app_params::{
-    city_png, CITY_BG_FILE, CITY_FAR_FILE, CITY_MID_FILE, CITY_NEAR_FILE, FRAME_INTERVAL_MS,
-    INITIAL_DELTA_SECONDS, INITIAL_STYLE_ID, INITIAL_TIME_SECONDS, MAX_FRAME_DELTA_SECONDS,
-    MS_PER_SECOND,
+    city_png, upload_slot, upload_target, CITY_BG_FILE, CITY_FAR_FILE, CITY_MID_FILE,
+    CITY_NEAR_FILE, FRAME_INTERVAL_MS, INITIAL_DELTA_SECONDS, INITIAL_STYLE_ID,
+    INITIAL_TIME_SECONDS, MAX_FRAME_DELTA_SECONDS, MS_PER_SECOND,
 };
 use crate::droplet_params::DropletParams;
 use crate::droplets::make_droplets;
 use crate::performance_now;
-use crate::pipelines::{create_bind_groups, create_metro_pipelines, MetroTextures};
+use crate::pipelines::{
+    create_bind_groups, create_metro_pipelines, create_render_bind_group, MetroTextures,
+};
 use crate::render_params::{
     ADAPTER_POWER_PREFERENCE, CLEAR_COLOR, FULLSCREEN_QUAD_INDICES, FULLSCREEN_QUAD_VERTICES,
     MIN_TEXTURE_DIMENSION, QUAD_INDEX_FORMAT, REFRACTION_DOWNSCALE, REFRACTION_TEXTURE_FORMAT,
@@ -49,9 +51,22 @@ pub(crate) struct App {
     /// 与两个采样器:重建绑定组时要把它们重新绑一遍,所以必须留在 App 里.
     /// (早先它们是纯局部变量 -- 绑定组自己持有强引用就够"保命";
     /// 现在多了一个"重建绑定组"的用处,所以留下来.)
+    ///
+    /// 这个数组会被前端上传替换其中一项(见 [`App::set_layer_texture`]);
+    /// 站点自带的原图始终留在 [`App::default_material_textures`] 里不动,
+    /// 所以"恢复默认"只是把视图换回去,不需要重新联网 fetch.
     pub(crate) material_views: [wgpu::TextureView; TEXTURE_LAYER_COUNT as usize],
+    /// 站点自带的默认材质贴图,下标与 [`App::material_views`] 一一对应
+    /// (bg / far / mid / near / dirt / fog / interior),顺序也是
+    /// `app_params::UPLOADABLE_LAYERS` 里槽位号的来源.
+    pub(crate) default_material_textures: [wgpu::Texture; TEXTURE_LAYER_COUNT as usize],
     pub(crate) sampler: wgpu::Sampler,
     pub(crate) refraction_sampler: wgpu::Sampler,
+    /// 折射偏移图本体.**按画布尺寸**建,尺寸一变就换一份,所以必须留在 App 里.
+    ///
+    /// 与上面那批材质纹理不同,它不是"保命"用的:前端上传替换贴图时只重建
+    /// 渲染绑定组,而重建需要再取一个有效的折射图视图 -- 纹理本体不留着就取不到.
+    pub(crate) refraction_texture: wgpu::Texture,
     pub(crate) vertex_buffer: wgpu::Buffer,
     pub(crate) index_buffer: wgpu::Buffer,
     pub(crate) uniform_buffer: wgpu::Buffer,
@@ -238,21 +253,22 @@ impl App {
             ..Default::default()
         });
 
-        // 材质纹理视图存成数组:既喂给绑定组,也留在 App 里,
-        // 尺寸变化时重建绑定组要把它们重新绑一遍(城市层等与画布尺寸无关).
-        let material_views: [wgpu::TextureView; TEXTURE_LAYER_COUNT as usize] = [
-            bg.create_view(&Default::default()),
-            far.create_view(&Default::default()),
-            mid.create_view(&Default::default()),
-            near.create_view(&Default::default()),
-            dirt.create_view(&Default::default()),
-            fog.create_view(&Default::default()),
-            interior.create_view(&Default::default()),
-        ];
+        // 默认材质纹理存成数组:既从中建出绑定组要用的视图,也留在 App 里 --
+        // 前端上传替换掉某一层后,"恢复默认"要能原样换回来(见 App::reset_layer_texture),
+        // 所以原图必须一直活着.顺序 = 材质槽位 0..6(bg/far/mid/near/dirt/fog/interior),
+        // 也是 app_params::UPLOADABLE_LAYERS 里槽位号的来源:前四项正好是城市四层.
+        let default_material_textures: [wgpu::Texture; TEXTURE_LAYER_COUNT as usize] =
+            [bg, far, mid, near, dirt, fog, interior];
+        // 视图从上面那份纹理派生:上传替换只改这个数组,不动默认纹理.
+        let material_views: [wgpu::TextureView; TEXTURE_LAYER_COUNT as usize] =
+            std::array::from_fn(|i| default_material_textures[i].create_view(&Default::default()));
 
-        // 这里创建的纹理视图(包括折射偏移图)全部只在建绑定时用到;
-        // wgpu 的 BindGroup 会持有资源的强引用,所以建完之后不需要再把"纹理"
-        // 塞进 App 里保命 -- 但材质视图本身要留着,重建绑定时还得用(见字段注释).
+        // 这里创建的纹理视图(包括折射偏移图的)全部只在建绑定时用到;
+        // wgpu 的 BindGroup 会持有资源的强引用,所以建完之后不需要再靠 App
+        // 替它们"保命".但有两样必须留下:
+        //   - 材质视图:上传替换贴图后要重建绑定组,得把它们重新绑一遍;
+        //   - 默认材质纹理与折射偏移图:前者是"恢复默认"的来源,后者是重建
+        //     渲染绑定组时唯一能取到折射图视图的地方(见字段注释).
         let pipelines = create_metro_pipelines(
             &device,
             format,
@@ -282,8 +298,10 @@ impl App {
             compute_bgl: pipelines.compute_bgl,
             render_bgl: pipelines.render_bgl,
             material_views,
+            default_material_textures,
             sampler,
             refraction_sampler,
+            refraction_texture,
             vertex_buffer,
             index_buffer,
             uniform_buffer,
@@ -331,9 +349,18 @@ impl App {
         let (refraction_texture, refraction_size) =
             create_refraction_texture(&self.device, width, height);
         self.refraction_size = refraction_size;
-        // 纹理本体交出去也没关系:绑定组会持有它的强引用.
-        let refraction_view = refraction_texture.create_view(&Default::default());
+        // 折射偏移图本体留在 App 里:尺寸再变要换掉它,上传换贴图时又要靠它
+        // 重建渲染绑定组(见字段注释).
+        self.refraction_texture = refraction_texture;
+        self.rebuild_bind_groups();
+    }
 
+    /// 用当前的材质视图与折射图重建**两个**绑定组.
+    ///
+    /// 画布尺寸变化时用:折射偏移图是按画布尺寸建的,而两个绑定组都持有它的
+    /// 视图(计算组写入它,渲染组采样它),所以两个都得重建.
+    fn rebuild_bind_groups(&mut self) {
+        let refraction_view = self.refraction_texture.create_view(&Default::default());
         let groups = create_bind_groups(
             &self.device,
             &self.uniform_buffer,
@@ -350,6 +377,68 @@ impl App {
         );
         self.render_bind_group = groups.render_bind_group;
         self.compute_bind_group = groups.compute_bind_group;
+    }
+
+    /// 只重建渲染绑定组(前端上传替换材质贴图时用).
+    ///
+    /// 计算绑定组与材质纹理无关(只持有 uniforms / 水滴 buffer / 折射 storage
+    /// texture / 水滴参数),换图后它仍然有效,不必跟着重建.
+    fn rebuild_render_bind_group(&mut self) {
+        let refraction_view = self.refraction_texture.create_view(&Default::default());
+        let bind_group = create_render_bind_group(
+            &self.device,
+            &self.uniform_buffer,
+            &self.droplet_params_buffer,
+            MetroTextures {
+                refraction_view: &refraction_view,
+                refraction_sampler: &self.refraction_sampler,
+                sampler: &self.sampler,
+                texture_views: std::array::from_fn(|i| &self.material_views[i]),
+            },
+            &self.render_bgl,
+        );
+        self.render_bind_group = bind_group;
+    }
+
+    /// 用前端上传的 RGBA8 像素替换某个材质槽位的贴图.
+    ///
+    /// 槽位与像素的校验全在 `app_params::upload_target` 里(白名单 / 尺寸 /
+    /// 字节数);这里只负责建纹理,换掉对应的视图,重建渲染绑定组.
+    /// 管线与着色器一行不动,所以换图不会重新编译着色器(不会有拖动窗口时
+    /// 那种卡顿);被换下来的旧纹理随旧视图一起释放.
+    pub(crate) fn set_layer_texture(
+        &mut self,
+        layer: u32,
+        width: u32,
+        height: u32,
+        rgba: &[u8],
+    ) -> Result<(), String> {
+        let index = upload_target(layer, width, height, rgba.len())?;
+        let texture = create_texture(
+            &self.device,
+            &self.queue,
+            "uploaded-layer",
+            width,
+            height,
+            rgba,
+        );
+        // write_texture 在这行返回前就已经把像素拷进暂存区,所以调用方的
+        // Uint8Array 之后随便被回收,不会影响已经排队的上传.
+        self.material_views[index] = texture.create_view(&Default::default());
+        self.rebuild_render_bind_group();
+        Ok(())
+    }
+
+    /// 把某个材质槽位恢复成站点自带的默认贴图.
+    ///
+    /// 不重新 fetch:默认纹理一直留在 [`App::default_material_textures`] 里,
+    /// 这里只是重新建一个视图换回去(线上断网也能用).
+    pub(crate) fn reset_layer_texture(&mut self, layer: u32) -> Result<(), String> {
+        let (index, _) = upload_slot(layer)?;
+        self.material_views[index] =
+            self.default_material_textures[index].create_view(&Default::default());
+        self.rebuild_render_bind_group();
+        Ok(())
     }
 
     pub(crate) fn frame(&mut self) {

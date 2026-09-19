@@ -312,12 +312,26 @@ pub fn create_bind_groups(
     render_bgl: &wgpu::BindGroupLayout,
 ) -> MetroBindGroups {
     // 按值解构:字段全是对纹理/采样器的引用(本身就是 Copy),拿走一份不影响调用方.
+    // 渲染组由 create_render_bind_group 建(它要用同一组纹理),所以这里先解构再重组.
     let MetroTextures {
         refraction_view,
         refraction_sampler,
         sampler,
         texture_views,
     } = textures;
+
+    let render_bind_group = create_render_bind_group(
+        device,
+        uniform_buffer,
+        droplet_params_buffer,
+        MetroTextures {
+            refraction_view,
+            refraction_sampler,
+            sampler,
+            texture_views,
+        },
+        render_bgl,
+    );
 
     let compute_bind_group: wgpu::BindGroup =
         device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -342,6 +356,32 @@ pub fn create_bind_groups(
                 },
             ],
         });
+
+    MetroBindGroups {
+        render_bind_group,
+        compute_bind_group,
+    }
+}
+
+/// 只建渲染绑定组(材质纹理 / 折射图 / uniform / 采样器).
+///
+/// 与 [`create_bind_groups`] 拆开是为了"只换贴图"这条路径:前端上传替换某个材质
+/// 槽位后,计算绑定组仍然有效 -- 它只持有 uniforms / 水滴 buffer / 折射 storage
+/// texture / 水滴参数,和材质纹理无关 -- 没必要跟着重建(重建要重新校验一遍绑定,
+/// 每换一张图都做一次纯属浪费).
+pub fn create_render_bind_group(
+    device: &wgpu::Device,
+    uniform_buffer: &wgpu::Buffer,
+    droplet_params_buffer: &wgpu::Buffer,
+    textures: MetroTextures<'_>,
+    render_bgl: &wgpu::BindGroupLayout,
+) -> wgpu::BindGroup {
+    let MetroTextures {
+        refraction_view,
+        refraction_sampler,
+        sampler,
+        texture_views,
+    } = textures;
 
     let mut render_bind_entries: Vec<wgpu::BindGroupEntry<'_>> =
         Vec::with_capacity(BIND_ENTRY_CAPACITY);
@@ -371,14 +411,9 @@ pub fn create_bind_groups(
         binding: BINDING_REFRACTION_SAMPLER,
         resource: wgpu::BindingResource::Sampler(refraction_sampler),
     });
-    let render_bind_group: wgpu::BindGroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
+    device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("metro-render-bg"),
         layout: render_bgl,
         entries: &render_bind_entries,
-    });
-
-    MetroBindGroups {
-        render_bind_group,
-        compute_bind_group,
-    }
+    })
 }
