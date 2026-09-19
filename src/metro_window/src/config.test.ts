@@ -36,6 +36,7 @@ const EXPECTED_PARAMS = [
     'wind_sway_scale',
     'gravity_scale',
     'refraction_scale',
+    'elongation_max',
     'blur_max_lod',
     'blur_min_lod',
     'droplet_clear',

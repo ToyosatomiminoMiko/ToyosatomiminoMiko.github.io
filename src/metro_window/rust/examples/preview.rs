@@ -2,17 +2,56 @@
 原生预览示例
 - 使用 lavapipe(软件 Vulkan)运行完整管线,输出 preview.png
 - 方便在没有 WebGPU 浏览器时离线查看玻璃效果
+- 可用环境变量覆盖任意滑块参数做 A/B,例如:
+    PREVIEW_PARAM=refraction_scale=0 PREVIEW_PARAM=blur_max_lod=0 cargo run --example preview
+  参数名与线上 setParam 完全同一张表(见 app_params::apply_param),所以示例里
+  调出来的数值可以直接抄回滑块.
 */
 use metro_window::{
-    create_metro_pipelines, create_mip_pipeline, create_texture, create_texture_mipped, decode_png,
-    generate_dirt, generate_fog, generate_interior, generate_mipmaps, make_droplets, DropletParams,
-    MetroTextures, Uniforms, DIRT_TEXTURE_SIZE, FOG_TEXTURE_SIZE, FULLSCREEN_QUAD_INDICES,
-    FULLSCREEN_QUAD_VERTICES, INTERIOR_TEXTURE_SIZE, MIN_TEXTURE_DIMENSION, QUAD_INDEX_FORMAT,
-    REFRACTION_TEXTURE_FORMAT, REFRACTION_WORKGROUP_EDGE, RENDER_TARGET_FORMAT,
-    RGBA_BYTES_PER_PIXEL, SAMPLER_ADDRESS_MODE_CLAMP, SAMPLER_ADDRESS_MODE_REPEAT,
-    SAMPLER_FILTER_MODE,
+    apply_param, create_metro_pipelines, create_mip_pipeline, create_texture,
+    create_texture_mipped, decode_png, generate_dirt, generate_fog, generate_interior,
+    generate_mipmaps, make_droplets_seeded, DropletParams, MetroTextures, Uniforms,
+    DIRT_TEXTURE_SIZE, FOG_TEXTURE_SIZE, FULLSCREEN_QUAD_INDICES, FULLSCREEN_QUAD_VERTICES,
+    INTERIOR_TEXTURE_SIZE, MIN_TEXTURE_DIMENSION, QUAD_INDEX_FORMAT, REFRACTION_TEXTURE_FORMAT,
+    REFRACTION_WORKGROUP_EDGE, RENDER_TARGET_FORMAT, RGBA_BYTES_PER_PIXEL,
+    SAMPLER_ADDRESS_MODE_CLAMP, SAMPLER_ADDRESS_MODE_REPEAT, SAMPLER_FILTER_MODE,
 };
 use wgpu::util::DeviceExt;
+
+/// 覆盖单个参数的入口:环境变量 `PREVIEW_PARAM`,写成 `名字=数值`.
+///
+/// 为什么需要它:预览是**唯一**能在没有 WebGPU 浏览器时看到画面的手段,而水滴的
+/// 观感(偏移量级 / 景深档位 / 拉长倍数)只能靠并排比图来判断.没有覆盖入口时,
+/// 每比一个数值就要改一次源码,重编一次,再撤销,既慢又容易漏删.
+///
+/// 未登记的参数名会打印警告并跳过(与线上 setParam 的行为一致).
+fn apply_preview_overrides(params: &mut DropletParams) {
+    const KEY: &str = "PREVIEW_PARAM";
+    const SEPARATOR: char = '=';
+    let Ok(raw) = std::env::var(KEY) else {
+        return;
+    };
+    for item in raw.split(',') {
+        let Some((name, value)) = item.split_once(SEPARATOR) else {
+            eprintln!("[PREVIEW] 忽略无法解析的覆盖项: {item}(应为 名字=数值)");
+            continue;
+        };
+        match value.trim().parse::<f32>() {
+            Ok(v) if apply_param(params, name.trim(), v) => {
+                println!("[PREVIEW] {name} = {v}");
+            }
+            Ok(v) => eprintln!("[PREVIEW] 未知参数: {name} = {v}"),
+            Err(e) => eprintln!("[PREVIEW] 数值无法解析: {item}({e})"),
+        }
+    }
+}
+
+/// 预览使用的水滴参数:默认值 + 环境变量覆盖.
+fn preview_params() -> DropletParams {
+    let mut params = DropletParams::DEFAULT;
+    apply_preview_overrides(&mut params);
+    params
+}
 
 // ===== 原生预览参数(仅本示例使用)=====
 /// 预览画布宽度(像素):比运行时画布大,便于观察折射细节.
@@ -27,6 +66,12 @@ const PREVIEW_TIME_SECONDS: f32 = 2.0;
 const PREVIEW_DELTA_SECONDS: f32 = 0.016;
 /// 写入 Uniforms 的样式编号(1 = 第二种样式,便于与默认样式区分).
 const PREVIEW_STYLE_ID: u32 = 1;
+/// 水滴初值的随机种子:固定值 => 每次跑出来的水滴位置 / 半径完全一样.
+///
+/// 粒子系统本来每次刷新都换一批初值(线上如此),但预览要的是**可比性**:
+/// 改一个参数再跑一次,如果连水滴位置都变了,两张图并排看就没有意义.
+/// 换一个种子即可换一批布局.
+const PREVIEW_SEED: u64 = 20260919;
 /// 城市贴图在仓库里的位置(相对站点 `public/`;与运行时的 /metro_window/resource 是同一批文件).
 ///
 /// 用 `CARGO_MANIFEST_DIR`(编译期由 cargo 注入的 crate 根绝对路径)而不是相对路径:
@@ -166,13 +211,13 @@ fn main() {
             contents: bytemuck::bytes_of(&uniforms),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
-        let droplet_params = DropletParams::DEFAULT;
+        let droplet_params = preview_params();
         let droplet_params_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("droplet-params"),
             contents: bytemuck::bytes_of(&droplet_params),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
-        let droplets = make_droplets(&droplet_params);
+        let droplets = make_droplets_seeded(&droplet_params, PREVIEW_SEED);
         let droplet_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("droplets"),
             contents: bytemuck::cast_slice(&droplets),

@@ -291,6 +291,8 @@ export const SLIDER_GROUPS = [
             { id: 'gravityScale', param: 'gravity_scale', label: '下落速度', hint: '倍率', min: 0, max: 3, step: 0.01, value: 1 },
             /** 折射强度(倍率) */
             { id: 'refractionScale', param: 'refraction_scale', label: '折射强度', hint: '倍率', min: 0, max: 3, step: 0.01, value: 1 },
+            /** 滑动中水珠的拉长倍数(1 = 正圆) */
+            { id: 'elongationMax', param: 'elongation_max', label: '垂坠拉长', hint: '1 = 正圆', min: 1, max: 6, step: 0.01, value: 4 },
         ],
     },
     {

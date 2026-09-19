@@ -29,20 +29,37 @@ pub struct Droplet {
 }
 
 pub fn make_droplets(params: &DropletParams) -> Vec<Droplet> {
-    // 随机源:rand crate 的线程局部 RNG,每次启动都不同;
-    // 每个 r_k 都是独立均匀随机数 ∈ [0, 1).
-    // 每颗水滴按同一组插值公式初始化:
-    //   x  = spawn_x_min + r1 * spawn_x_span
-    //   y  = spawn_y_min + r2 * spawn_y_span
-    //   vx = (r3 - 0.5) * velocity_x_span - vehicle_speed * wind_backward_factor
-    //   vy = velocity_y_min + r4 * velocity_y_span
-    //   r  = radius_min + r5 * radius_span
-    //   s  = strength_min + r6 * strength_span
-    // 以上数值全部来自 DropletParams,WGSL 出界重置使用同一份参数,
-    // 由 src/droplet_params.rs 统一维护.
+    // 随机源:rand crate 的线程局部 RNG,每次启动都不同(每次刷新页面都换一批水滴).
     let mut rng = rand::rng();
+    make_droplets_with(params, &mut rng)
+}
+
+/// 确定性版本:同一个 seed 一定得到同一批水滴.
+///
+/// 给离线预览用(examples/preview.rs).粒子系统的初值是随机的,改一个参数再跑一次
+/// 时如果连水滴位置都变了,两张图就没法并排比较 -- 分不清差异来自参数还是来自初值.
+/// 线上仍然走 `make_droplets`(随机源),保持"每次刷新不一样".
+pub fn make_droplets_seeded(params: &DropletParams, seed: u64) -> Vec<Droplet> {
+    use rand::SeedableRng;
+    let mut rng: rand::rngs::StdRng = rand::rngs::StdRng::seed_from_u64(seed);
+    make_droplets_with(params, &mut rng)
+}
+
+/// 两个入口共用的生成逻辑(随机源由调用方给,便于换成确定性种子).
+///
+/// 每颗水滴按同一组插值公式初始化:
+///   x  = spawn_x_min + r1 * spawn_x_span
+///   y  = spawn_y_min + r2 * spawn_y_span
+///   vx = (r3 - 0.5) * velocity_x_span - vehicle_speed * wind_backward_factor
+///   vy = velocity_y_min + r4 * velocity_y_span
+///   r  = radius_min + r5 * radius_span
+///   s  = strength_min + r6 * strength_span
+/// 以上数值全部来自 DropletParams,WGSL 出界重置使用同一份参数,
+/// 由 src/droplet_params.rs 统一维护.
+fn make_droplets_with<R: Rng>(params: &DropletParams, rng: &mut R) -> Vec<Droplet> {
     (0..DROPLET_COUNT)
         .map(|_| {
+            // 每个 r_k 都是独立均匀随机数 ∈ [0, 1).
             let r1: f32 = rng.random_range(RANDOM_UNIT_MIN..RANDOM_UNIT_MAX); // 用于初始 x
             let r2: f32 = rng.random_range(RANDOM_UNIT_MIN..RANDOM_UNIT_MAX); // 用于初始 y
             let r3: f32 = rng.random_range(RANDOM_UNIT_MIN..RANDOM_UNIT_MAX); // 用于初始 vx

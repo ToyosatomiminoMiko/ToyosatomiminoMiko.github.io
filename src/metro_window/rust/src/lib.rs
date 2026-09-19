@@ -17,7 +17,10 @@ mod textures;
 mod uniforms;
 
 pub use droplet_params::DropletParams;
-pub use droplets::{make_droplets, Droplet, DROPLET_COUNT};
+pub use droplets::{make_droplets, make_droplets_seeded, Droplet, DROPLET_COUNT};
+// apply_param 同时给 wasm 的 setParam 与原生示例(环境变量覆盖参数)使用:
+// 参数名 -> 字段的映射只有 app_params.rs 一处事实源.
+pub use app_params::apply_param;
 pub use mipmaps::{create_mip_pipeline, generate_mipmaps, MipPipeline};
 pub use pipelines::{
     create_metro_pipelines, mip_shader_source, shader_source, MetroPipelines, MetroTextures,
@@ -95,10 +98,9 @@ pub fn set_param(name: &str, value: f32) {
     with_app(|app| {
         // 参数名与 clamp 上下限统一由 src/app_params.rs 的 SLIDERS 配置表维护:
         // 表里的 name 就是前端 setParam(name, value) 传的字面值(不可改动),
-        // apply 负责夹到合法区间后写入对应的 DropletParams 字段.
-        match app_params::slider_spec(name) {
-            Some(spec) => spec.apply(&mut app.droplet_params, value),
-            None => console::warn_1(&format!("未知滑块参数: {name}").into()),
+        // apply_param 负责夹到合法区间后写入对应的 DropletParams 字段.
+        if !app_params::apply_param(&mut app.droplet_params, name, value) {
+            console::warn_1(&format!("未知滑块参数: {name}").into());
         }
     });
 }

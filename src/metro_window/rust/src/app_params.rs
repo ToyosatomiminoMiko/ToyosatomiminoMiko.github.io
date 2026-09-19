@@ -201,6 +201,8 @@ impl SliderSpec {
             "wind_sway_scale" => params.wind_sway_scale = v,
             "gravity_scale" => params.gravity_scale = v,
             "refraction_scale" => params.refraction_scale = v,
+            // 形状(滑动中的拉长倍数)
+            "elongation_max" => params.elongation_max = v,
             // 背景景深(水珠是清晰岛)
             "blur_max_lod" => params.blur_max_lod = v,
             "blur_min_lod" => params.blur_min_lod = v,
@@ -277,6 +279,12 @@ pub(crate) const SLIDERS: &[SliderSpec] = &[
         min: 0.0,
         max: 3.0,
     },
+    // 滑动中水珠的拉长倍数(1 = 永远正圆,长轴沿速度方向).
+    SliderSpec {
+        name: "elongation_max",
+        min: 1.0,
+        max: 6.0,
+    },
     // ===== 背景景深(水珠是清晰岛)=====
     // 无水处的 mip 级:0 = 完全不糊,越大背景越糊(水珠越显眼).
     SliderSpec {
@@ -322,13 +330,29 @@ pub(crate) fn slider_spec(name: &str) -> Option<SliderSpec> {
     SLIDERS.iter().copied().find(|spec| spec.name == name)
 }
 
+/// 按名字把值写进 [`DropletParams`] 的对应字段(clamp 到该滑块的区间).
+///
+/// 返回是否命中已知参数名.这是"参数名 -> 字段"的**唯一**入口:
+///   - wasm 侧 `setParam` 走它(前端拖滑块);
+///   - 原生示例 `examples/preview.rs` 也走它(用环境变量覆盖单个参数做 A/B),
+///     两边共用同一张表,不会出现"示例能改的参数与线上不是一套".
+pub fn apply_param(params: &mut DropletParams, name: &str, value: f32) -> bool {
+    match slider_spec(name) {
+        Some(spec) => {
+            spec.apply(params, value);
+            true
+        }
+        None => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     /// 前端实际使用的参数名(与 src/metro_window/src/config.ts 的 SLIDER_GROUPS 一致).
     /// 这份清单是断言用的期望集合:表里多一个/少一个都会失败.
-    const EXPECTED_SLIDER_NAMES: [&str; 15] = [
+    const EXPECTED_SLIDER_NAMES: [&str; 16] = [
         "vehicle_speed",
         "far_distance",
         "mid_distance",
@@ -338,6 +362,7 @@ mod tests {
         "wind_sway_scale",
         "gravity_scale",
         "refraction_scale",
+        "elongation_max",
         "blur_max_lod",
         "blur_min_lod",
         "droplet_clear",

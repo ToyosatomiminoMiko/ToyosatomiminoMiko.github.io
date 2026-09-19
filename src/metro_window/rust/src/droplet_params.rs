@@ -83,15 +83,24 @@ define_droplet_params! {
     // ===== 折射渲染 =====
     // radius_epsilon:半径过小时跳过(cs_refraction);同时用作"圆心附近"的除零
     //   保护阈值(fs_main 重建圆心方向时);
-    // refraction_eta_water:水折射率,用于斯涅尔公式(fs_main 的 lateralProfile);
     // refraction_strength_per:强度对折射放大因子的增益(cs_refraction 存进偏移大小);
-    // refraction_offset_clamp:折射偏移上限(uv 比例:x 按画布宽,y 按画布高);
-    // lateral_z_epsilon:折射方向投影到 z = -1 平面时防止除零的阈值.
+    // refraction_offset_clamp:折射偏移上限(uv 比例:x 按画布宽,y 按画布高).
+    //   0.004 ≈ 2 个屏幕像素(1024 宽),是业界事实标准的量级:
+    //   Heartfelt 的偏移就是 e = 0.001 乘场梯度,量级 0.001~0.002 UV.
+    //   调大就会出现"水珠像背景上的一个洞"的观感(见 shaders.wgsl 的 lateralProfile).
     radius_epsilon = 0.0001;
-    refraction_eta_water = 1.333;
     refraction_strength_per = 10.0;
-    refraction_offset_clamp = 0.12;
-    lateral_z_epsilon = 0.001;
+    refraction_offset_clamp = 0.004;
+
+    // ===== 形状(各向异性拉长)=====
+    // 业界的水珠是 6:1 的竖长条,不是圆(a = vec2(6., 1.) 那一行).
+    // 这里不写死方向,而是"长轴 = 滑动方向,速度越快拉得越长":
+    //   stretch = 1 + (elongation_max - 1) * smoothstep(0, elongation_speed, |v|)
+    // elongation_max:滑动中的最大拉长倍数(1 = 永远正圆);
+    // elongation_speed:拉到最大时的速度(画布高度/秒).实测速度分布约 0.01(刚生成)
+    //   ~ 0.3(终端速度),0.06 大约对应"刚开始明显下滑"的那一档.
+    elongation_max = 4.0;
+    elongation_speed = 0.06;
 
     // ===== 水滴边缘高光 =====
     // highlight_edge0/1:高光随覆盖度衰减的起止阈值;
@@ -193,10 +202,10 @@ mod tests {
             "drag_base",
             "drag_radius_sensitivity",
             "radius_epsilon",
-            "refraction_eta_water",
             "refraction_strength_per",
             "refraction_offset_clamp",
-            "lateral_z_epsilon",
+            "elongation_max",
+            "elongation_speed",
             "highlight_edge0",
             "highlight_edge1",
             "highlight_strength",

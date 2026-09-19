@@ -261,43 +261,27 @@ fn toUvOffset(offset: vec2f) -> vec2f {
     return vec2f(offset.x / uniforms.aspect, offset.y);
 }
 
-// 斯涅尔折射:把水滴当成球面水透镜,算出"沿圆心方向"的横向偏移量(标量,带符号).
-// 球面单位法线 n = (dir2 * s, sqrt(1 - s²)),其中 s = dist / R ∈ [0, 1).
-// 相对折射率 η = n_air / n_water = 1.0 / refraction_eta_water ≈ 0.7502.
-// 斯涅尔向量公式:
-//   k = 1 - η² * (1 - cos²θ_i) = 1 - η² * sin²θ_i
-//   t = η * i - (η * cosθ_i + sqrt(k)) * n
-// 横向偏移 lateral = t.xy / -t.z:把折射方向投影到 z = -1 平面.
-// t.xy 恒与 dir2 平行(球面法线的水平分量只能是 dir2 方向),所以向量可以拆成
+// 折射偏移剖面:近轴(一级)近似,**单调,不换号**,并且把偏折集中在轮廓附近.
 //
-//   lateral = dir2 * lateralProfile(s)
+// 球冠在归一化半径 s 处的表面倾角满足 sinθ = s(按单位球算),光线的横向偏移在
+// 一级近似下正比于这个倾角.这里再取一层平方(s²):业界事实标准的偏移量只有
+// 0.001~0.002 UV(Heartfelt 的 e = 0.001 × 场梯度),也就是**一两个像素** --
+// 圆心处一点不偏(所以水珠里就是原样的背景),只有靠轮廓的一圈把背景抹开.
+// 线性剖面会让半径 1/3 处就偏掉三分之一,水珠内部于是整块移位,看起来像背景上的
+// 一个洞;平方剖面把"抹开"压回轮廓那一圈,这才是水珠该有的样子.
 //
-// 这里只算后面那个标量(靠近轮廓处它会变号:光线被往反方向偏).
-// 拆开的意义:偏移场对位置的依赖只剩"圆心方向"和 s,两者都能在片段着色器里
-// 逐像素精确重建(圆心在一颗水珠内是常数,s 沿半径线性),于是低分辨率的折射
-// 偏移图不再决定水珠边缘的清晰度 -- 它只负责"哪颗水珠管这个像素".
-// 若 k ≤ 0 发生全反射,水滴边缘看不到窗外光线,返回无偏移.
+// 为什么不用精确斯涅尔解(本分支之前用的就是它):精确解在接近轮廓处会**换号**
+// (采样点越过圆心,做出真正的倒像),偏移量还随半径线性放大到 0.03 UV 以上 --
+// 结果是水珠变成一个黑洞.倒像与透镜倍率的精调都是业界不做的(见
+// REF/01-分析报告/雨窗效果业界做法.md 第四节第 1 条与第五节的"不建议继续做").
+//
+// 把它拆成一个**标量剖面**的意义:偏移 = dir2 * lateralProfile(s) * 整体大小,
+// 对位置的依赖只剩"圆心方向"与"归一化距离 s",两者都能在片段着色器里逐像素
+// 精确重建,于是低分辨率的折射偏移图不再决定水珠边缘的清晰度 -- 它只回答
+// "这个像素归哪颗水珠管".
 fn lateralProfile(s: f32) -> f32 {
-    // s ≥ 1:像素在水滴外.
-    if (s >= 1.0) {
-        return 0.0;
-    }
-    // nz = sqrt(max(0, 1 - s²)):单位球面在高度 s 处的 z 分量,
-    // 来自球面方程 x² + y² + z² = 1;max 防止浮点误差产生负数.
-    let nz = sqrt(max(0.0, 1.0 - s * s));
-    // η = 1.0 / refraction_eta_water:空气折射率 1.0 除以水折射率.
-    let eta = 1.0 / dropletParams.refraction_eta_water;
-    // 入射光 i = (0, 0, -1),于是 cosθ_i = n · i = -nz,
-    // 判别式 k = 1 - η²(1 - cos²θ_i) 化简成 1 - η² s².
-    let k = 1.0 - eta * eta * s * s;
-    if (k <= 0.0) {
-        return 0.0;
-    }
-    let sqrtK = sqrt(k);
-    // t.xy 的标量部分 = (η·nz - sqrt(k))·s;
-    // -t.z = η·s² + sqrt(k)·nz,lateral_z_epsilon 防止 t.z ≈ 0 时除零.
-    let denominator = max(eta * s * s + sqrtK * nz, dropletParams.lateral_z_epsilon);
-    return (eta * nz - sqrtK) * s / denominator;
+    // s ≥ 1 是水珠之外:不偏(select(f, t, cond):cond 为真取 t).
+    return select(s * s, 0.0, s >= 1.0);
 }
 
 // 低分辨率折射偏移图:只负责回答"这个像素归哪颗水珠管,以及它离圆心多远",
@@ -331,9 +315,25 @@ fn cs_refraction(@builtin(global_invocation_id) gid: vec3u) {
         if (radius <= dropletParams.radius_epsilon) {
             continue;
         }
-        // 距离换算到各向同性空间(见 toIsotropic),水珠才是正圆.
+        // 距离换算到各向同性空间(见 toIsotropic),再按"滑动方向"拉长:
+        //   钉住的珠子(speed ≈ 0)保持正圆;
+        //   滑得越快拉得越长,长轴 = 速度方向(高速时被风斜吹,长轴自然跟着斜);
+        //   形状是**泪滴**而不是鸡蛋:业界一行 a=(6,1) 就是 6:1 的竖长条
+        //   (见 REF/01-分析报告/雨窗效果业界做法.md 第 2.1 节).
+        // 拉伸只改形状:半径(以及折射整体大小)仍按未拉伸的半径算.
         let delta = toIsotropic(uv) - toIsotropic(d.posVel.xy);
-        let s = length(delta) / radius;
+        // 速度也要换到各向同性空间:x 乘 aspect,y 不变,否则长轴在 16:9 画布上会歪.
+        let velocity = vec2f(d.posVel.z * uniforms.aspect, d.posVel.w);
+        let speed = length(velocity);
+        let stretch = 1.0 + (dropletParams.elongation_max - 1.0)
+            * smoothstep(0.0, dropletParams.elongation_speed, speed);
+        // 速度太小(刚生成 / 出界重置的那一帧)时方向没有意义,固定取竖直.
+        let axis = select(vec2f(0.0, 1.0), velocity / speed, speed > dropletParams.radius_epsilon);
+        // 把 delta 分解到"长轴 / 短轴"上:短轴不变,长轴除以拉伸倍数,
+        // 于是等距轮廓由圆变成椭圆.
+        let along = dot(delta, axis);
+        let across = dot(delta, vec2f(-axis.y, axis.x));
+        let s = length(vec2f(across, along / stretch)) / radius;
         if (s < winnerS) {
             winnerS = s;
             winnerCenter = d.posVel.xy;
@@ -409,8 +409,10 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
         vec2f(0.0, 1.0),
         radialLength < dropletParams.radius_epsilon,
     );
-    // 偏移 = 圆心方向 × 斯涅尔横向偏移量 × 整体大小 × 强度倍率,
-    // 再换算回 uv 空间并限制上限(防止折射把画面拉得太远).
+    // 偏移 = 圆心方向 × 剖面(s)× 轮廓内权重 × 整体大小 × 强度倍率,
+    // 再换算回 uv 空间并限制上限.
+    // 上限(clamp)是**有意的**:超过它的水珠不该比小水珠偏得更远 --
+    // 偏移量的量级由 refraction_offset_clamp 钉在业界口径(0.02 UV 上下).
     let rawOffset =
         toUvOffset(dir2 * lateralProfile(s) * inside)
         * magnitude

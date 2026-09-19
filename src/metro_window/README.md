@@ -175,7 +175,8 @@ src/metro_window/
 │   │   ├── lib.rs           入口:wasm 导出/动画循环/线程局部状态
 │   │   ├── app.rs           App 状态机/帧循环/WebGPU 设备/表面
 │   │   ├── pipelines.rs     渲染/计算管线与绑定组
-│   │   ├── textures.rs      纹理加载/PNG 解码/程序化材质生成
+│   │   ├── mipmaps.rs       背景景深用的 mip 链生成(逐级 blit)
+│   │   ├── textures.rs      纹理加载/PNG 解码/程序化材质生成/预乘 alpha
 │   │   ├── droplet_params.rs 水滴全部可调参数(Rust/WGSL 共享,WGSL 声明由 Rust 生成)
 │   │   ├── droplets.rs      水滴结构与初始化
 │   │   ├── uniforms.rs      uniform 布局
@@ -183,7 +184,8 @@ src/metro_window/
 │   │   ├── app_params.rs    主循环/资源路径/滑块参数表
 │   │   ├── render_params.rs GPU 管线参数与绑定槽位
 │   │   ├── texture_params.rs 程序化贴图生成参数
-│   │   └── shaders.wgsl     WGSL 着色器
+│   │   ├── shaders.wgsl     WGSL 着色器
+│   │   └── mip.wgsl         mip blit 着色器(独立模块,见 mipmaps.rs)
 │   ├── examples/        本地验证与预览程序
 │   └── test_output/     生成:cargo test 的可视化 ppm 产物(gitignore)
 ├── src/                 前端源码:配置 / 组件 / 行为 / 样式
@@ -296,23 +298,25 @@ code --no-sandbox --enable-unsafe-webgpu
 
 ## 实现内容
 
-- Layer 0:窗外实景 -- 多层城市纹理按不同速度滚动
+- Layer 0:窗外实景 -- 多层城市纹理按不同速度滚动,**按水珠覆盖度挑 mip 级**
+  (没有水珠的地方是糊的,水珠所在处是清晰的"擦出来的岛",见"背景景深"一节)
 - Layer 1:窗外虚像 -- 计算着色器模拟 64 颗水滴的重力/风力物理,
-  再按斯涅尔折射(空气/水 ≈ 1.0 / 1.333)把水滴当成球面水透镜,
-  预计算低分辨率折射偏移图;片段着色器只采样一次,避免逐像素循环造成的卡顿
+  再按近轴折射剖面把小偏移(业界口径 0.001~0.004 UV)加在背景采样坐标上,
+  预计算低分辨率折射归属图;片段着色器只采样一次,避免逐像素循环造成的卡顿
 - Layer 2:玻璃杂质与污渍 -- Rust 程序化生成污渍/划痕/灰尘纹理
-- Layer 3:窗内雾气 -- 程序化噪声纹理做冷凝水汽扩散,柔化并降低对比度
+- Layer 3:窗内雾气 -- 程序化噪声纹理做冷凝水汽扩散,柔化并降低对比度;
+  水珠会把雾气与污渍**擦掉**(湿的地方是干净的,不是在雾上再叠一层水)
 - Layer 4:窗内灯光与反射 -- 程序化生成车厢灯带与乘客倒影纹理
-- 水滴参数:生成/重置/物理/折射/高光的全部可调值集中在 droplet_params.rs,
+- 水滴参数:生成/重置/物理/折射/形状/高光的全部可调值集中在 droplet_params.rs,
   WGSL 的 struct DropletParams 由 Rust 生成并注入,两边不会各自漂移
-- 实时滑块:车速/三层背景距离/水滴大小/后吹风/摇摆风/下落速度/折射强度/
-  污渍/雾气/车厢灯光均可拖动实时调整;水滴后吹风与背景滚动都由同一
-  vehicle_speed 参数驱动(公式见 droplet_params.rs 与 shaders.wgsl 注释)
+- 实时滑块:车速/三层背景距离/水滴大小/垂坠拉长/后吹风/摇摆风/下落速度/折射强度/
+  背景模糊/水珠清晰度/水珠擦雾/污渍/雾气/车厢灯光均可拖动实时调整;水滴后吹风与
+  背景滚动都由同一 vehicle_speed 参数驱动(公式见 droplet_params.rs 与 shaders.wgsl 注释)
 - 风格切换:uniform 传入 styleId,WGSL 片段着色器内实现
   泡沫时期东京电车/赛博朋克/上海磁悬浮三套调色与氛围
-- 水滴形状与边缘:形状按画布宽高比换算到各向同性空间后再判定,屏幕上始终是
-  正圆;折射偏移由片段着色器逐像素解析重建,轮廓清晰度不受低分辨率偏移图限制
-  (原因/改法/验证见下面两节)
+- 水滴形状与边缘:形状按画布宽高比换算到各向同性空间后再判定,不会被画布拉成
+  椭圆;滑动中的水珠再沿**速度方向**拉长成泪滴(见"水滴形状"一节).折射偏移由
+  片段着色器逐像素解析重建,轮廓清晰度不受低分辨率归属图限制(原因/改法/验证见下面两节)
 - 图层贴图上传(SETTING 标签页):城市背景四层各一个上传按钮 + 恢复默认,
   前端把 PNG 解码成 RGBA8 后交给 wasm 侧的 `setLayerImage` 换掉对应材质槽位的
   纹理(只重建渲染绑定组,不动管线与着色器);详见下面"图层贴图上传"一节
@@ -327,7 +331,10 @@ code --no-sandbox --enable-unsafe-webgpu
    再按 MIME 复查一次(JPEG 没有 alpha,换上去会把下面几层整片盖住);
 2. **前端解码**(`decodeImageToRgba`):`createImageBitmap` + canvas 的 `getImageData`
    -- 浏览器自带解码器,而 wasm 侧只有 `png` crate,不必再养一套;拿到的是**未预乘**
-   的 RGBA8,与 `textures::decode_png` 喂给 `create_texture` 的字节语义一致;
+   的 RGBA8,与 `textures::decode_png` 喂给纹理创建函数的字节语义一致
+   (城市层的预乘与 mip 链都在 Rust 侧做:上传走 `create_texture_mipped` +
+   `generate_mipmaps`,与启动时加载那四张 PNG 是同一条路径,不会出现"上传的那层
+   模糊时和其它三层对不上");
 3. **wasm 换图**(`setLayerImage(layer, width, height, rgba)` ->
    `App::set_layer_texture`):校验槽位白名单 / 尺寸 / 像素字节数,建新纹理,换掉
    `material_views[layer]`,再用 `create_render_bind_group` 只重建**渲染**绑定组.
@@ -350,7 +357,7 @@ code --no-sandbox --enable-unsafe-webgpu
 - 上传面板与设置面板是**两块 fieldset / 两个宿主**:一边调渲染参数,一边换素材,
   不合并(见 `config.ts` 的 `MOUNT_IDS`).
 
-### 水滴为什么是正圆(坐标空间契约)
+### 水滴形状:先修"被画布拉扁",再按滑动方向拉长
 
 uv 是 [0,1]² 的归一化坐标:x 方向 1 个单位跨画布宽 W 像素,y 方向跨画布高
 H 像素,两根轴的"单位长度"并不相等.若直接判定 `length(Δuv) < r`,屏幕上的
@@ -379,26 +386,49 @@ toUvOffset(o)   = (o.x / aspect, o.y)       折射偏移要加回 uv 上采样�
   1344×756 上由 16.1×9.1 .. 64.5×36.3 px 变成 9.1×9.1 .. 36.3×36.3 px,
   横竖比 1.778 -> 1.000.嫌小就抬 `radius_min`/`radius_span` 或用"水滴大小"滑块
 - 画布分辨率现在是**随宿主算出来的**(见 `src/stage_size.ts` 与 `App::aspect()`):
-  `resize()` 会同步更新 surface 配置与折射偏移图,aspect 每帧由 surface 尺寸现算,
+  `resize()` 会同步更新 surface 配置与折射归属图,aspect 每帧由 surface 尺寸现算,
   所以 resize/DPR 变化不会让两者漂移(旧版"固定 1344×756,无 resize 路径"的说法已作废)
+
+在上面的各向同性空间里,`cs_refraction` 再把距离分解到"长轴 / 短轴"上:
+
+```text
+stretch = 1 + (elongation_max - 1) · smoothstep(0, elongation_speed, |v|)
+s = length(vec2(across, along / stretch)) / radius     沿 = 速度方向
+```
+
+- 速度 ≈ 0(刚生成,还没开始滑)时 `stretch = 1`,水珠是正圆;
+- 滑得越快拉得越长,长轴就是速度方向(高速时被风斜吹,长轴自然跟着斜);
+- `elongation_max` 是实时滑块("垂坠拉长"),默认 4:1.业界事实标准是
+  `a = vec2(6., 1.)` 的 6:1 竖长条 -- 泪滴不是鸡蛋,拉伸是水珠与圆点最大的区别;
+- 拉长只改形状:折射整体大小仍按**未拉伸**的半径算,所以大水珠不会因为拉长而
+  得到超额的偏移
 
 验证方式(软件 Vulkan 实渲):固定随机种子让同一颗水珠跑两次,只把 aspect 切成
 1.0(复现旧椭圆)与 W/H(修正后),两次渲染的差异像素应只剩水珠左右两侧的竖直
 月牙,即旧椭圆横向多出来的部分(实测 7×23 / 7×28 / 7×25 px,宽高比约 0.3),
 纵向一个像素都不变
 
-### 水珠边缘为什么不受低分辨率偏移图影响
+### 水珠边缘为什么不受低分辨率归属图影响
 
 折射偏移场可以因式分解成
 
 ```text
-offset = dir2 * lateralProfile(s) * 半径强度      (见 shaders.wgsl)
+offset = dir2 * lateralProfile(s) * 半径强度 * refraction_scale,再 clamp 到 ±refraction_offset_clamp
 ```
 
-圆心 `dir2` 在一颗水珠内是常数,`s = dist / radius` 沿半径线性变化,两者都能从
-低分辨率图里无损重建;而"最终偏移向量"是随位置快速变化的量,按 1/8 分辨率存进
-纹理再双线性放大,会把水珠轮廓上原本圆滑的弧线压成 8 像素一级的方块(实测:
-同一颗水珠,旧实现把建物边缘的圆弧挤成矩形,全分辨率参考是圆滑弧线)
+`lateralProfile(s) = s²`(s = dist / radius,s ≥ 1 时为 0)是**近轴(一级)近似**:
+球冠在归一化半径 s 处的倾角满足 sinθ = s,横向偏移在一级近似下正比于它.
+平方是为了把偏折压在轮廓那一圈 -- 圆心处一点都不偏(所以水珠里就是原样的背景),
+只有靠轮廓的一圈把背景抹开.
+
+- **不用精确斯涅尔解**:精确解在接近轮廓处会换号(采样点越过圆心,做出真正的倒像),
+  偏移量还随半径线性放大到 0.03 UV 以上,结果是水珠变成背景上的一个黑洞.
+  业界(Heartfelt / UE / toadstorm)的偏移都只有 0.001~0.004 UV,只够把轮廓抹一下,
+  不做倒像,也不做透镜倍率的精调.`refraction_offset_clamp` 默认 0.004 ≈ 2 个屏幕像素
+- 圆心 `dir2` 在一颗水珠内是常数,`s` 沿半径线性变化,两者都能从低分辨率图里
+  无损重建;而"最终偏移向量"是随位置快速变化的量,按 1/8 分辨率存进纹理再双线性
+  放大,会把水珠轮廓上原本圆滑的弧线压成 8 像素一级的方块(实测:同一颗水珠,
+  旧实现把建物边缘的圆弧挤成矩形,全分辨率参考是圆滑弧线)
 
 所以 `cs_refraction` 只存三个可无损重建的量(通道语义),偏移本身交给
 `fs_main` 逐像素解析算:
@@ -406,7 +436,7 @@ offset = dir2 * lateralProfile(s) * 半径强度      (见 shaders.wgsl)
 | 通道 | 含义 |
 | --- | --- |
 | `r` `g` | 胜出水珠的圆心(uv) |
-| `b` | 归一化距离 `s = dist / radius` |
+| `b` | 归一化距离 `s = dist / radius`(已含长轴拉伸) |
 | `a` | 偏移整体大小 `半径 × (1 + 强度 × refraction_strength_per)` |
 
 `fs_main` 用屏幕空间导数 `fwidth(s)` 把轮廓收敛成 1~2 像素的清晰边缘
@@ -415,12 +445,41 @@ offset = dir2 * lateralProfile(s) * 半径强度      (见 shaders.wgsl)
 
 - 边缘清晰度与 `REFRACTION_DOWNSCALE` 解耦:调大只影响"多颗水珠重叠处归谁管"
   的精度,不会再把轮廓压成方块,可以放心用来省 GPU;
-- 计算着色器反而更省:低分辨率像素上只做距离比较,斯涅尔数学搬到了片段着色器;
-- 片段着色器仍然只采样一次偏移图,没有 64 次循环
+- 计算着色器反而更省:低分辨率像素上只做距离比较,剖面数学搬到了片段着色器;
+- 片段着色器仍然只采样一次归属图,没有 64 次循环
 
-实测(软件 Vulkan,同一颗水珠同帧,与全分辨率偏移图的参考渲染比较):
+实测(软件 Vulkan,同一颗水珠同帧,与全分辨率归属图的参考渲染比较):
 旧实现 1/8 分辨率有 239 个像素偏差(其中 134 个 >60),解析重建后降到 168 个
 (71 个 >60);1/4 分辨率时 53 个(13 个 >60)
+
+### 背景景深:整幅糊掉,水珠是"擦出来的清晰岛"
+
+雨窗效果里最容易被漏掉,但收益最大的一条(业界共识,见 `prompt/REF/01-分析报告`):
+雾玻璃上的水珠之所以一眼可辨,不是因为水珠里有什么,而是因为**周围什么都看不清**.
+
+实现上不给水珠加任何东西,而是反过来:
+
+```text
+focus = mix(blur_max_lod, blur_min_lod, dropSharp)      dropSharp = 1 - smoothstep(blur_focus_inner, 1, s)
+col   = textureSampleLevel(城市贴图, 采样器, uv + 折射偏移, focus)
+```
+
+- **没有水珠覆盖**的像素 `s` 是哨兵值 `FAR_DISTANCE`(1000),取 `blur_max_lod`(最糊);
+  水珠内部取 `blur_min_lod`(最清晰).`blur_max_lod` / `blur_min_lod` / `droplet_clear`
+  都是实时滑块("背景模糊" / "水珠清晰度" / "水珠擦雾");
+- 城市四层的 mip 链在**加载时生成一次**(`rust/src/mipmaps.rs` + `mip.wgsl`:逐级
+  blit,双线性过滤恰好是 2×2 盒式平均,逐级叠加近似高斯).WebGPU 没有"自动生成 mip"
+  的开关,只能自己逐级画;而城市层的滚动只改采样坐标,纹理本身不动,所以一次就够,
+  **运行期零额外开销** -- 相比"逐像素多抽 8~16 个点做模糊",这是最大的优势;
+- 城市远景/中景/近景在加载时**预乘 alpha** 后再上传(`textures::premultiply_alpha`):
+  生成 mip 做的是算术平均,而这批 PNG 的透明像素是纯黑,直乘 alpha 会让建筑轮廓外
+  渗出一圈黑边.合成式子相应写成 `c = c·(1-a) + rgb`,在 LOD 0 上与直乘 alpha 的
+  `mix(c, rgb, a)` 逐位等价,所以不模糊时的画面没有任何变化
+- 同一帧内四层取**同一个** `focus`,避免"远层比近层还糊"的层次错位
+
+水珠把雾气与污渍一起擦掉(`droplet_clear`,默认 0.8):湿的地方是干净的,而不是
+在雾上再叠一层水.这一条同时解释了水珠为什么在雾玻璃上显得偏暗 -- 雾本身在提亮
+画面,清掉雾的"清晰岛"自然比周围暗,这正是真实雾玻璃上水珠的样子.
 
 ## 技术栈
 
@@ -435,6 +494,15 @@ offset = dir2 * lateralProfile(s) * 半径强度      (见 shaders.wgsl)
 cargo run --package metro-window --example validate_wgsl  # WGSL 语法/校验
 cargo run --package metro-window --example native_smoke   # 用软件 Vulkan 实际跑一遍计算+渲染管线
 cargo run --package metro-window --example preview        # 用真实城市纹理渲染一帧,输出 preview.png
+```
+
+`preview` 的水滴初值是**确定性**的(固定 `PREVIEW_SEED`),同一个种子每次跑出来的
+位置/半径完全一样,所以"改一个参数再跑一次"可以直接并排比图;任意滑块参数都能用
+环境变量临时覆盖(名字与线上 `setParam` 同一张表,调出来的数值可以直接抄回滑块):
+
+```bash
+PREVIEW_PARAM=refraction_scale=0 cargo run --package metro-window --example preview
+PREVIEW_PARAM=blur_max_lod=0,blur_min_lod=0 cargo run --package metro-window --example preview
 ```
 
 > `cargo test` 的 cwd 是 crate 根,所以可视化 ppm 落在
