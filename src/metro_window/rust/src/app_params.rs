@@ -4,9 +4,9 @@
   以及前端滑块的"名字 + clamp 范围"配置表集中于此.
 - 这些常量原先散落在 src/lib.rs 与 src/app.rs 里,数值为等价替换,不改变行为.
 - 纯 GPU 管线参数见 src/render_params.rs,程序化贴图参数见 src/texture_params.rs,
-  水滴物理参数见 src/droplet_params.rs.
+  车窗玻璃参数见 src/glass_params.rs.
 */
-use crate::droplet_params::DropletParams;
+use crate::glass_params::GlassParams;
 use crate::render_params::{MAX_TEXTURE_DIMENSION, RGBA_BYTES_PER_PIXEL};
 
 /// 渲染帧率上限 60fps 对应的最小帧间隔(毫秒).
@@ -20,20 +20,13 @@ pub(crate) const FRAME_INTERVAL_MS: f64 = 1000.0 / 60.0;
 /// 毫秒 -> 秒的换算系数.
 ///
 /// 含义:`performance.now()` 返回毫秒,着色器要求秒,做单位换算用.
-/// 单位:ms/s.固定 1000,不是可调参数.
 pub(crate) const MS_PER_SECOND: f32 = 1000.0;
 
 /// 单帧最大时间步长(秒).
 ///
-/// 含义:标签页切回 / 断点暂停后两帧间隔会非常大,这里截断防止水滴物理积分爆炸.
-/// 取值:0.1(相当于 10fps 的时间步).调大 => 掉帧时水滴一步跳得更远.
+/// 含义:标签页切回 / 断点暂停后两帧间隔会非常大,这里截断,避免动画时钟一次跳很远.
+/// 取值:0.1(相当于 10fps 的时间步).
 pub(crate) const MAX_FRAME_DELTA_SECONDS: f32 = 0.1;
-
-/// 启动时写入 Uniforms 的帧间隔(秒).
-///
-/// 含义:首帧的占位值,之后每帧都会被真实 delta 覆盖.
-/// 典型取值 0.016(≈60fps).
-pub(crate) const INITIAL_DELTA_SECONDS: f32 = 0.016;
 
 /// 启动时写入 Uniforms 的时间(秒).
 ///
@@ -183,11 +176,11 @@ impl SliderSpec {
         value.clamp(self.min, self.max)
     }
 
-    /// 把 value 夹到本滑块范围后写入 [`DropletParams`] 的对应字段.
+    /// 把 value 夹到本滑块范围后写入 [`GlassParams`] 的对应字段.
     ///
     /// 分支字符串与 [`SLIDERS`] 中的 `name` 一一对应;
     /// `set_param` 已先按表查过名字,所以正常不会走到兜底分支.
-    pub(crate) fn apply(self, params: &mut DropletParams, value: f32) {
+    pub(crate) fn apply(self, params: &mut GlassParams, value: f32) {
         let v = self.clamp(value);
         match self.name {
             // 车速 / 背景层距离
@@ -195,20 +188,6 @@ impl SliderSpec {
             "far_distance" => params.far_distance = v,
             "mid_distance" => params.mid_distance = v,
             "near_distance" => params.near_distance = v,
-            // 水滴外观 / 物理
-            "droplet_size" => params.droplet_size = v,
-            "wind_backward_factor" => params.wind_backward_factor = v,
-            "wind_sway_scale" => params.wind_sway_scale = v,
-            "gravity_scale" => params.gravity_scale = v,
-            "refraction_scale" => params.refraction_scale = v,
-            // 形状(滑动中的拉长倍数)
-            "elongation_max" => params.elongation_max = v,
-            // 静止阈值(小珠被表面张力钉住)
-            "pin_radius" => params.pin_radius = v,
-            // 背景景深(水珠是清晰岛)
-            "blur_max_lod" => params.blur_max_lod = v,
-            "blur_min_lod" => params.blur_min_lod = v,
-            "droplet_clear" => params.droplet_clear = v,
             // 玻璃材质浓度
             "dirt_opacity" => params.dirt_opacity = v,
             "fog_opacity" => params.fog_opacity = v,
@@ -226,7 +205,7 @@ impl SliderSpec {
 /// 越界值会被夹到边界而不是拒绝,保证着色器永远拿到安全输入.
 pub(crate) const SLIDERS: &[SliderSpec] = &[
     // ===== 车速 / 背景层距离 =====
-    // 车速倍率:同时驱动背景滚动与水滴后吹风;0 = 静止,越大越快.
+    // 车速倍率:驱动背景滚动;0 = 静止,越大越快.
     SliderSpec {
         name: "vehicle_speed",
         min: 0.0,
@@ -249,68 +228,6 @@ pub(crate) const SLIDERS: &[SliderSpec] = &[
         name: "near_distance",
         min: 0.1,
         max: 3.0,
-    },
-    // ===== 水滴外观 / 物理 =====
-    // 水滴整体大小倍率(直接缩放半径).
-    SliderSpec {
-        name: "droplet_size",
-        min: 0.1,
-        max: 3.0,
-    },
-    // 后吹风系数:水平风速 = -车速 × 该系数.
-    SliderSpec {
-        name: "wind_backward_factor",
-        min: 0.0,
-        max: 1.0,
-    },
-    // 原有正弦摇摆风的整体倍率.
-    SliderSpec {
-        name: "wind_sway_scale",
-        min: 0.0,
-        max: 3.0,
-    },
-    // 重力(下落速度)倍率.
-    SliderSpec {
-        name: "gravity_scale",
-        min: 0.0,
-        max: 3.0,
-    },
-    // 斯涅尔折射偏移的整体倍率.
-    SliderSpec {
-        name: "refraction_scale",
-        min: 0.0,
-        max: 3.0,
-    },
-    // 滑动中水珠的拉长倍数(1 = 永远正圆,长轴沿速度方向).
-    SliderSpec {
-        name: "elongation_max",
-        min: 1.0,
-        max: 6.0,
-    },
-    // 静止阈值:半径小于它的小珠子被钉住(不滑,只在原地长大又消失).
-    SliderSpec {
-        name: "pin_radius",
-        min: 0.0,
-        max: 0.03,
-    },
-    // ===== 背景景深(水珠是清晰岛)=====
-    // 无水处的 mip 级:0 = 完全不糊,越大背景越糊(水珠越显眼).
-    SliderSpec {
-        name: "blur_max_lod",
-        min: 0.0,
-        max: 7.0,
-    },
-    // 水珠内部的 mip 级:0 = 水珠里最清晰.
-    SliderSpec {
-        name: "blur_min_lod",
-        min: 0.0,
-        max: 4.0,
-    },
-    // 水珠对雾气/污渍的擦除比例.
-    SliderSpec {
-        name: "droplet_clear",
-        min: 0.0,
-        max: 1.0,
     },
     // ===== 玻璃材质浓度 =====
     // 污渍混合强度.
@@ -338,13 +255,11 @@ pub(crate) fn slider_spec(name: &str) -> Option<SliderSpec> {
     SLIDERS.iter().copied().find(|spec| spec.name == name)
 }
 
-/// 按名字把值写进 [`DropletParams`] 的对应字段(clamp 到该滑块的区间).
+/// 按名字把值写进 [`GlassParams`] 的对应字段(clamp 到该滑块的区间).
 ///
 /// 返回是否命中已知参数名.这是"参数名 -> 字段"的**唯一**入口:
-///   - wasm 侧 `setParam` 走它(前端拖滑块);
-///   - 原生示例 `examples/preview.rs` 也走它(用环境变量覆盖单个参数做 A/B),
-///     两边共用同一张表,不会出现"示例能改的参数与线上不是一套".
-pub fn apply_param(params: &mut DropletParams, name: &str, value: f32) -> bool {
+/// wasm 侧 `setParam` 走它(前端拖滑块).
+pub fn apply_param(params: &mut GlassParams, name: &str, value: f32) -> bool {
     match slider_spec(name) {
         Some(spec) => {
             spec.apply(params, value);
@@ -360,21 +275,11 @@ mod tests {
 
     /// 前端实际使用的参数名(与 src/metro_window/src/config.ts 的 SLIDER_GROUPS 一致).
     /// 这份清单是断言用的期望集合:表里多一个/少一个都会失败.
-    const EXPECTED_SLIDER_NAMES: [&str; 17] = [
+    const EXPECTED_SLIDER_NAMES: [&str; 7] = [
         "vehicle_speed",
         "far_distance",
         "mid_distance",
         "near_distance",
-        "droplet_size",
-        "wind_backward_factor",
-        "wind_sway_scale",
-        "gravity_scale",
-        "refraction_scale",
-        "elongation_max",
-        "pin_radius",
-        "blur_max_lod",
-        "blur_min_lod",
-        "droplet_clear",
         "dirt_opacity",
         "fog_opacity",
         "interior_opacity",
@@ -402,11 +307,11 @@ mod tests {
         // 用"低于下限"的输入触发 clamp 到 min,再断言参数确实被写入:
         // 表里有条目但 apply 漏了分支时会 panic / 断言失败.
         for spec in SLIDERS {
-            let mut params = DropletParams::DEFAULT;
+            let mut params = GlassParams::DEFAULT;
             spec.apply(&mut params, spec.min - 1.0);
             assert_ne!(
                 params,
-                DropletParams::DEFAULT,
+                GlassParams::DEFAULT,
                 "滑块 {} 没有写入任何字段",
                 spec.name
             );

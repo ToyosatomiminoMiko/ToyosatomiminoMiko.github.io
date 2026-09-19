@@ -8,8 +8,14 @@
 > 见文末[「迁移与归档」](#迁移与归档).
 
 用 Rust 编写/编译为 WebAssembly,再通过 wgpu(浏览器原生 WebGPU 后端)实现的
-地铁车窗玻璃效果.原有 JavaScript 实现已由 Rust 重写,所有绘制/水滴物理和
-纹理生成都运行在 Rust + WGSL 中.
+地铁车窗玻璃效果:**窗外城市多层视差 + 玻璃污渍 + 窗内冷凝雾气 + 车厢灯光与
+乘客倒影**,外加三套风格调色.原有 JavaScript 实现已由 Rust 重写,纹理生成与
+合成全部运行在 Rust + WGSL 中.
+
+> **水珠(雨滴)那套效果已经拆走.** 车窗剩下的是"一块起雾/有污渍的玻璃 + 窗外
+> 城市";水珠(物理 / 折射 / 高光 / 背景景深 + 它依赖的 mip 链)现在住在仓库根目录的
+> [`water_droplet_demo/`](../../water_droplet_demo/README.md),是一个自包含的
+> 可运行 demo.本目录里不再有任何水珠代码,拆分边界见文末[「水珠拆分」](#水珠拆分).
 
 ## 在站点里的位置
 
@@ -81,11 +87,9 @@ mountMetroWindow({ stage, styles, panel, uploads });
                                 aspect-ratio:auto; object-fit:cover; }
   ```
 
-  为什么是 `object-fit` 而不是自己算尺寸:后备缓冲仍是 **16:9**(1344×756,
-  Rust 侧的 `aspect` 也跟着它走),`cover` 让合成器把这张位图按"覆盖"缩放进
-  宿主盒子,超出的部分裁掉 -- 比例不变,所以**水珠仍然是正圆**,而且
-  **首屏铺满这件事还不需要 Rust 的 resize 路径**(那条路是后面为了 1:1 清晰度
-  才要加的:固定分辨率放大到 4K 宽会糊).
+  为什么是 `object-fit` 而不是自己算尺寸:后备缓冲仍是 **16:9**(默认 1344×756,
+  Rust 侧所有按 uv 铺满的图层都跟这个比例绑定),`cover` 让合成器把这张位图按
+  "覆盖"缩放进宿主盒子,超出的部分裁掉 -- 比例不变,所以城市层不会被拉变形.
   实测 Chromium 对 `<canvas>` 的 `object-fit` 是生效的(用"正方形画布画正圆,
   显示盒子做成 4:1"验证过:`cover` 下仍是正圆,上下被裁,`none` 下按原始尺寸居中
   而不是拉伸).若哪天遇到忽略 canvas `object-fit` 的浏览器,回退写法是
@@ -105,18 +109,18 @@ mountMetroWindow({ stage, styles, panel, uploads });
 ### 渲染生命周期
 
 `requestAnimationFrame` 不会因为容器被 `display:none` 就停下来.车窗是常驻的
-计算着色器负载,如果不管,切走标签页以后 GPU 会一直空转.所以组件把
+逐帧合成负载,如果不管,切走标签页以后 GPU 会一直空转.所以组件把
 **「用户想不想跑」(▶/⏸)和「现在能不能看见」分开记**,实际渲染 = 两者相与:
 
 - `IntersectionObserver` 盯容器(标签页切走时交集为空);
 - `visibilitychange` 盯整个文档(浏览器最小化/切到后台标签);
 - 两者都只影响"能不能跑",不会覆盖用户自己按下的暂停.
 
-## 后备缓冲尺寸(随首屏变化)
+### 后备缓冲尺寸(随首屏变化)
 
 首屏要铺满整个视口,而后备缓冲**比例恒为 16:9** -- 城市四层 / 污渍 / 雾气都是拿
-uv 直接铺满画布的(见 `shaders.wgsl` 的 `uvBG` / `fogUv` 等),画布比例一变整幅场景
-就被横向拉伸(21:9 上建筑变胖,竖屏上被压扁);水滴的 `aspect` 也依赖它.
+uv 直接铺满画布的(见 `shaders.wgsl` 的 `uvFar` / `dirtUv` / `fogUv` 等),
+画布比例一变整幅场景就被横向拉伸(21:9 上建筑变胖,竖屏上被压扁).
 所以尺寸取"**覆盖宿主所需的 16:9**"再乘 dpr(见 `src/stage_size.ts`,纯函数,有单测):
 
 ```text
@@ -126,12 +130,12 @@ h = w / (16/9)
 
 覆盖多出来的那一部分由 CSS 的 `object-fit: cover` 裁掉(见"组件形态"),
 所以**显示上仍是 1:1 物理像素**:`dpr` 不乘的话,高分屏等于让浏览器把位图放大
-dpr 倍,`shaders.wgsl` 里"边缘恒为约 2 个缓冲像素"的设计就白做了.
+dpr 倍.
 
 触发与代价:
 
 - `ResizeObserver` 观察**舞台宿主**(它 absolute 铺满首屏),**防抖 150ms** --
-  拖动窗口会连续触发,而每次重建都要重新分配画布后备缓冲与折射偏移图;
+  拖动窗口会连续触发,而每次重建都要重新分配画布后备缓冲与 Rust 侧的 surface;
 - dpr 变化单独用 `matchMedia('(resolution: Xdppx)')` 盯:换显示器时宿主尺寸不变,
   `ResizeObserver` 不会触发;
 - **宿主不可见时(切走的标签页,量出来 0×0)直接跳过**:否则后备缓冲会被算成 1×1;
@@ -140,18 +144,14 @@ dpr 倍,`shaders.wgsl` 里"边缘恒为约 2 个缓冲像素"的设计就白做�
   对不上的那一帧.首次尺寸必须在 `startApp` **之前**算好 --
   `startApp` 直接读画布当前尺寸建资源,于是不需要"建完再立刻重建一遍".
 
-Rust 侧的 `resize()`(见 `app.rs`)只重建两样 + 一样:
+Rust 侧的 `resize()`(见 `app.rs`)只做一件事:
 
-| 重建 | 为什么 |
+| 改动 | 为什么 |
 | --- | --- |
-| `SurfaceConfiguration` 的宽高 | 必须等于画布的 `width`/`height` 属性,否则 `get_current_texture` 拿到的尺寸对不上 |
-| 折射偏移图(画布 1/8 分辨率) | 它直接由画布尺寸算出来 |
-| 两个绑定组 | 它们都持有折射偏移图的视图 |
+| `SurfaceConfiguration` 的宽高(并重新 `configure`) | 必须等于画布的 `width`/`height` 属性,否则 `get_current_texture` 拿到的尺寸对不上 |
 
-**刻意不重建管线**:管线与尺寸无关,走 `create_metro_pipelines` 会把着色器再编译
-一遍(几十毫秒),拖动窗口时一顿一顿的.为此 `pipelines.rs` 把绑定组的构造拆成了
-独立的 `create_bind_groups`,并把两个 `BindGroupLayout` 留在 `MetroPipelines` 里;
-`App` 也因此必须留着与尺寸无关的那 7 个材质纹理视图(重新绑定要用).
+**材质纹理,绑定组与管线都与画布尺寸无关**,所以这里不重建任何一样东西
+(重建管线会重新编译着色器,拖动窗口时一顿一顿的).
 
 像素总数上限(`config.ts` 的 `MAX_BACKING_PIXELS`,0 = 不限)已经埋好:
 要降代价时改成正数即可,它会按 `sqrt(上限 / 实际)` 等比缩小两个方向.
@@ -173,20 +173,17 @@ src/metro_window/
 │   ├── Cargo.toml        Rust 依赖声明(Cargo.lock 在仓库根,workspace 级)
 │   ├── src/
 │   │   ├── lib.rs           入口:wasm 导出/动画循环/线程局部状态
-│   │   ├── app.rs           App 状态机/帧循环/WebGPU 设备/表面
-│   │   ├── pipelines.rs     渲染/计算管线与绑定组
-│   │   ├── mipmaps.rs       背景景深用的 mip 链生成(逐级 blit)
+│   │   ├── app.rs           App 状态机/帧循环/WebGPU 设备/表面/纹理上传
+│   │   ├── pipelines.rs     渲染管线与绑定组
 │   │   ├── textures.rs      纹理加载/PNG 解码/程序化材质生成/预乘 alpha
-│   │   ├── droplet_params.rs 水滴全部可调参数(Rust/WGSL 共享,WGSL 声明由 Rust 生成)
-│   │   ├── droplets.rs      水滴结构与初始化
-│   │   ├── uniforms.rs      uniform 布局
+│   │   ├── glass_params.rs  车窗全部可调参数(Rust/WGSL 共享,WGSL 声明由 Rust 生成)
+│   │   ├── uniforms.rs      uniform 布局(时间 / 风格)
 │   │   ├── random.rs / random_params.rs  哈希噪声工具与常量
-│   │   ├── app_params.rs    主循环/资源路径/滑块参数表
+│   │   ├── app_params.rs    主循环/资源路径/滑块参数表/上传槽位白名单
 │   │   ├── render_params.rs GPU 管线参数与绑定槽位
 │   │   ├── texture_params.rs 程序化贴图生成参数
-│   │   ├── shaders.wgsl     WGSL 着色器
-│   │   └── mip.wgsl         mip blit 着色器(独立模块,见 mipmaps.rs)
-│   ├── examples/        本地验证与预览程序
+│   │   └── shaders.wgsl     WGSL 着色器
+│   ├── examples/        本地验证程序(validate_wgsl / preview)
 │   └── test_output/     生成:cargo test 的可视化 ppm 产物(gitignore)
 ├── src/                 前端源码:配置 / 组件 / 行为 / 样式
 │   ├── config.ts        全部常量 + 标记与设置面板的声明式模型(文案/分辨率/滑块/风格/按钮)
@@ -196,8 +193,9 @@ src/metro_window/
 │   ├── metro_window.ts  挂载函数:长出标记/组装面板/交互/WebGPU 适配器检查/生命周期
 │   ├── ui/
 │   │   ├── dom.ts             h():声明式 DOM 构造原语(描述 -> 元素)
-│   │   ├── stage_content.ts   舞台标记组件(画布,以及可选的标题/副标题)
-│   │   └── settings.ts        设置面板组件(按 config.ts 的模型生成并交回元素引用)
+│   │   ├── stage_content.ts   舞台标记组件(画布)
+│   │   ├── settings.ts        设置面板组件(按 config.ts 的模型生成并交回元素引用)
+│   │   └── uploads.ts         图层贴图上传面板组件
 │   ├── tokens.css       设计令牌(全部可调数值)
 │   └── metro_window.css 组件样式(全部以 .metro-window 作用域)
 ├── pkg/                 生成:wasm-bindgen 输出(gitignore)
@@ -207,6 +205,9 @@ src/metro_window/
 ├── Cargo.toml           workspace 定义:members 收录本 crate;release 编译参数也在这里
 ├── Cargo.lock           全仓库唯一的依赖锁定(workspace 级,所有 crate 共用)
 └── target/              生成:cargo 构建缓存(workspace 级,gitignore)
+
+仓库根(水珠 demo,已经与本子项目解耦):
+└── water_droplet_demo/  独立 cargo workspace + 独立前端工程,见它自己的 README
 ```
 
 Rust -> wasm 的构建脚本放在**仓库的 tools 目录** `scripts/build_wasm.sh`(和
@@ -251,7 +252,7 @@ npm run build:wasm  # 只重新编译 Rust->wasm(等价于 bash scripts/build_wa
 | 2 | `npm run clean` | 删除 `dist/` 与 `src/metro_window/pkg/`,避免改名后残留旧产物 |
 | 3 | `npm run build:wasm` | `cargo build --release --target wasm32-unknown-unknown --package metro-window`,再用与 `Cargo.lock` 同版本的 wasm-bindgen 生成 `pkg/` |
 | 4 | `npm test` | `vitest run`(站点 + 前端单测) |
-| 5 | `npm run test:rs` | `cargo test --workspace`(原生单元测试,wgpu 那部分不需要 GPU) |
+| 5 | `npm run test:rs` | `cargo test --workspace`(原生单元测试,不需要 GPU) |
 | 6 | `npm run build:app` | `check:wasm` + `tsc -p tsconfig.json --noEmit` + `vite build` 输出 `dist/` |
 
 工具链要求:`node` / `npm` / `cargo` / `rustc`,以及 `wasm32-unknown-unknown`
@@ -298,28 +299,18 @@ code --no-sandbox --enable-unsafe-webgpu
 
 ## 实现内容
 
-- Layer 0:窗外实景 -- 多层城市纹理按不同速度滚动,**按水珠覆盖度挑 mip 级**
-  (没有水珠的地方是糊的,水珠所在处是清晰的"擦出来的岛",见"背景景深"一节)
-- Layer 1:窗外虚像 -- 计算着色器模拟 64 颗水滴的重力/风力物理,
-  再按近轴折射剖面把小偏移(业界口径 0.001~0.004 UV)加在背景采样坐标上,
-  预计算低分辨率折射归属图;片段着色器只采样一次,避免逐像素循环造成的卡顿
-- 水滴分两群:**钉住的静态珠**(半径小于 `pin_radius`,不滑,在原地经历
-  "长大 -> 缩小消失"的生命周期,是正圆)与**下滑的泪滴**(见"水滴形状"一节);
-  真实窗面上绝大多数水珠是前者,少了这一群画面里就只剩"雨在流"
-- Layer 2:玻璃杂质与污渍 -- Rust 程序化生成污渍/划痕/灰尘纹理
-- Layer 3:窗内雾气 -- 程序化噪声纹理做冷凝水汽扩散,柔化并降低对比度;
-  水珠会把雾气与污渍**擦掉**(湿的地方是干净的,不是在雾上再叠一层水)
-- Layer 4:窗内灯光与反射 -- 程序化生成车厢灯带与乘客倒影纹理
-- 水滴参数:生成/重置/物理/折射/形状/高光的全部可调值集中在 droplet_params.rs,
-  WGSL 的 struct DropletParams 由 Rust 生成并注入,两边不会各自漂移
-- 实时滑块:车速/三层背景距离/水滴大小/垂坠拉长/后吹风/摇摆风/下落速度/折射强度/
-  背景模糊/水珠清晰度/水珠擦雾/污渍/雾气/车厢灯光均可拖动实时调整;水滴后吹风与
-  背景滚动都由同一 vehicle_speed 参数驱动(公式见 droplet_params.rs 与 shaders.wgsl 注释)
+- Layer 0:窗外实景 -- 城市四层纹理按不同速度滚动(远景 / 中景 / 近景是带 alpha
+  的美术素材,加载时**预乘 alpha** 后再上传,合成写成 `c = c*(1-a) + rgb`,
+  这样建筑轮廓外不会渗黑边)
+- Layer 1:玻璃杂质与污渍 -- Rust 程序化生成污渍/划痕/灰尘纹理,RGB 是"乘性颜色"
+  (接近 1 的暖灰),A 是浓度
+- Layer 2:窗内雾气 -- 程序化噪声纹理做冷凝水汽扩散,柔化并降低对比度
+- Layer 3:窗内灯光与反射 -- 程序化生成车厢灯带与乘客倒影纹理
+- 玻璃参数:车速 / 三层背景距离 / 污渍 / 雾气 / 车厢灯光全部集中在 `glass_params.rs`,
+  WGSL 的 struct GlassParams 由 Rust 生成并注入,两边不会各自漂移
+- 实时滑块:车速 / 三层背景距离 / 污渍浓度 / 雾气浓度 / 车厢灯光均可拖动实时调整
 - 风格切换:uniform 传入 styleId,WGSL 片段着色器内实现
   泡沫时期东京电车/赛博朋克/上海磁悬浮三套调色与氛围
-- 水滴形状与边缘:形状按画布宽高比换算到各向同性空间后再判定,不会被画布拉成
-  椭圆;滑动中的水珠再沿**速度方向**拉长成泪滴(见"水滴形状"一节).折射偏移由
-  片段着色器逐像素解析重建,轮廓清晰度不受低分辨率归属图限制(原因/改法/验证见下面两节)
 - 图层贴图上传(SETTING 标签页):城市背景四层各一个上传按钮 + 恢复默认,
   前端把 PNG 解码成 RGBA8 后交给 wasm 侧的 `setLayerImage` 换掉对应材质槽位的
   纹理(只重建渲染绑定组,不动管线与着色器);详见下面"图层贴图上传"一节
@@ -334,15 +325,12 @@ code --no-sandbox --enable-unsafe-webgpu
    再按 MIME 复查一次(JPEG 没有 alpha,换上去会把下面几层整片盖住);
 2. **前端解码**(`decodeImageToRgba`):`createImageBitmap` + canvas 的 `getImageData`
    -- 浏览器自带解码器,而 wasm 侧只有 `png` crate,不必再养一套;拿到的是**未预乘**
-   的 RGBA8,与 `textures::decode_png` 喂给纹理创建函数的字节语义一致
-   (城市层的预乘与 mip 链都在 Rust 侧做:上传走 `create_texture_mipped` +
-   `generate_mipmaps`,与启动时加载那四张 PNG 是同一条路径,不会出现"上传的那层
-   模糊时和其它三层对不上");
+   的 RGBA8,与启动时加载那四张 PNG 交给纹理创建函数的字节语义一致
+   (城市层的预乘在 Rust 侧做,上传与启动走同一条路径);
 3. **wasm 换图**(`setLayerImage(layer, width, height, rgba)` ->
    `App::set_layer_texture`):校验槽位白名单 / 尺寸 / 像素字节数,建新纹理,换掉
    `material_views[layer]`,再用 `create_render_bind_group` 只重建**渲染**绑定组.
-   计算绑定组只持有 uniforms / 水滴 buffer / 折射 storage texture,与材质纹理无关;
-   管线与着色器更是完全不动 -- 所以换图不会重新编译着色器(没有拖动窗口那种卡顿);
+   管线与着色器完全不动 -- 所以换图不会重新编译着色器(没有拖动窗口那种卡顿);
 4. **恢复默认**(`resetLayerImage`):默认纹理一直留在 `App::default_material_textures`
    里,这里只是重新建一个视图换回去,不重新 fetch(断网也能用).
 
@@ -360,183 +348,62 @@ code --no-sandbox --enable-unsafe-webgpu
 - 上传面板与设置面板是**两块 fieldset / 两个宿主**:一边调渲染参数,一边换素材,
   不合并(见 `config.ts` 的 `MOUNT_IDS`).
 
-### 水滴形状:先修"被画布拉扁",再按滑动方向拉长
+## 水珠拆分
 
-uv 是 [0,1]² 的归一化坐标:x 方向 1 个单位跨画布宽 W 像素,y 方向跨画布高
-H 像素,两根轴的"单位长度"并不相等.若直接判定 `length(Δuv) < r`,屏幕上的
-边界是
+拆分的目标是"把水珠那部分单独拿出来继续做",所以边界画在**水珠特有的东西**上,
+而不是"所有能画雨窗的代码":
 
-```text
-(ΔX / (r·W))² + (ΔY / (r·H))² = 1
-```
-
-也就是一个横竖比 = W/H 的椭圆:16:9 的画布(运行时 1344×756)上水珠横向被
-拉长 1.778 倍,看着是扁的.真实水珠接近正圆,水滴形状与折射偏移都必须先把
-坐标换成各向同性空间(见 `rust/src/shaders.wgsl` 的 `toIsotropic`/`toUvOffset`)
-
-```text
-toIsotropic(uv) = (uv.x * aspect, uv.y)     aspect = 画布宽 / 画布高
-toUvOffset(o)   = (o.x / aspect, o.y)       折射偏移要加回 uv 上采样背景
-```
-
-- `dropletOffset`/`dropletCoverage`/`cs_refraction` 的 AABB 剔除都用等比空间
-  量距离,折射偏移算完再除回 aspect 变回 uv 偏移
-- `aspect` 由 `rust/src/app.rs` 初始化时从 `canvas.width / canvas.height` 算出,
-  每帧写进 `Uniforms.aspect`;该字段同时把 16 字节的 uniform 结构填满
-  (原来是占位的 `_padding`),字段名写错会被 `cargo test` 拦住而不是静默读 0
-- 半径随之定义在"画布高度"尺度上:半径 r 的水珠直径 = 2r·H 像素.所以修正
-  前后**纵向直径不变,横向从 2r·W 收到 2r·H**:radius 0.006..0.024 在
-  1344×756 上由 16.1×9.1 .. 64.5×36.3 px 变成 9.1×9.1 .. 36.3×36.3 px,
-  横竖比 1.778 -> 1.000.嫌小就抬 `radius_min`/`radius_span` 或用"水滴大小"滑块
-- 画布分辨率现在是**随宿主算出来的**(见 `src/stage_size.ts` 与 `App::aspect()`):
-  `resize()` 会同步更新 surface 配置与折射归属图,aspect 每帧由 surface 尺寸现算,
-  所以 resize/DPR 变化不会让两者漂移(旧版"固定 1344×756,无 resize 路径"的说法已作废)
-
-在上面的各向同性空间里,`cs_refraction` 再把距离分解到"长轴 / 短轴"上:
-
-```text
-stretch = 1 + (elongation_max - 1) · smoothstep(0, elongation_speed, |v|)
-s = length(vec2(across, along / stretch)) / radius     沿 = 速度方向
-```
-
-- 速度 ≈ 0(刚生成,还没开始滑)时 `stretch = 1`,水珠是正圆;
-- 滑得越快拉得越长,长轴就是速度方向(高速时被风斜吹,长轴自然跟着斜);
-- `elongation_max` 是实时滑块("垂坠拉长"),默认 4:1.业界事实标准是
-  `a = vec2(6., 1.)` 的 6:1 竖长条 -- 泪滴不是鸡蛋,拉伸是水珠与圆点最大的区别;
-- 拉长只改形状:折射整体大小仍按**未拉伸**的半径算,所以大水珠不会因为拉长而
-  得到超额的偏移
-
-### 静态珠:钉扎阈值与生命周期
-
-`cs_main` 里按半径分两群:半径小于 `pin_radius`(实时滑块"静止阈值",默认 0.010
-≈ 画布高度的 1%)的珠子被表面张力按住 -- 量级就是毛细长度那一档
-(√(γ/ρg) ≈ 2.7 mm).具体表现是:
-
-- 重力置零,速度直接清零,风只剩 `pin_sway_scale` 倍(默认 0.15,轻轻晃但不走),
-  于是它们在画面上**纹丝不动**;
-- 速度 ≈ 0 让上面的拉伸公式自动退化成 `stretch = 1`:静态珠是**正圆**,滑动珠才是
-  泪滴,两群一眼能分开(不需要额外的"是不是静态"标志位);
-- 它们不滑,所以永远不会走出画面被重置;取而代之的是**生命周期**:在
-  `cs_refraction` 里按 `phase = fract(time × pin_life_rate + i × pin_phase_step)`
-  现算一个"长大 -> 满大 -> 缩小消失"的包络,乘在**渲染用的半径**上.
-  相位里带序号 `i`,所以不会整屏一起呼吸;`i` 就是循环下标,不需要给水滴再加字段,
-  也不需要任何跨帧状态.
-
-为什么值得单独做:真实窗面上被钉住的小珠是绝大多数,它们提供"静"的参照,滑动的
-水痕才显得出来;只剩滑粒子时,画面读起来是"雨在流"而不是"雨打在窗上".
-验证(同一批确定性水滴,只把 `pin_radius` 归零做 A/B):静止阈值打开后画面里出现
-一批**正圆**小珠(差异像素 1218 个,全部落在这些珠子所在处),关掉后它们全部变成
-与其它珠子一样的泪滴.
-
-验证方式(软件 Vulkan 实渲):固定随机种子让同一颗水珠跑两次,只把 aspect 切成
-1.0(复现旧椭圆)与 W/H(修正后),两次渲染的差异像素应只剩水珠左右两侧的竖直
-月牙,即旧椭圆横向多出来的部分(实测 7×23 / 7×28 / 7×25 px,宽高比约 0.3),
-纵向一个像素都不变
-
-### 水珠边缘为什么不受低分辨率归属图影响
-
-折射偏移场可以因式分解成
-
-```text
-offset = dir2 * lateralProfile(s) * 半径强度 * refraction_scale,再 clamp 到 ±refraction_offset_clamp
-```
-
-`lateralProfile(s) = s²`(s = dist / radius,s ≥ 1 时为 0)是**近轴(一级)近似**:
-球冠在归一化半径 s 处的倾角满足 sinθ = s,横向偏移在一级近似下正比于它.
-平方是为了把偏折压在轮廓那一圈 -- 圆心处一点都不偏(所以水珠里就是原样的背景),
-只有靠轮廓的一圈把背景抹开.
-
-- **不用精确斯涅尔解**:精确解在接近轮廓处会换号(采样点越过圆心,做出真正的倒像),
-  偏移量还随半径线性放大到 0.03 UV 以上,结果是水珠变成背景上的一个黑洞.
-  业界(Heartfelt / UE / toadstorm)的偏移都只有 0.001~0.004 UV,只够把轮廓抹一下,
-  不做倒像,也不做透镜倍率的精调.`refraction_offset_clamp` 默认 0.004 ≈ 2 个屏幕像素
-- 圆心 `dir2` 在一颗水珠内是常数,`s` 沿半径线性变化,两者都能从低分辨率图里
-  无损重建;而"最终偏移向量"是随位置快速变化的量,按 1/8 分辨率存进纹理再双线性
-  放大,会把水珠轮廓上原本圆滑的弧线压成 8 像素一级的方块(实测:同一颗水珠,
-  旧实现把建物边缘的圆弧挤成矩形,全分辨率参考是圆滑弧线)
-
-所以 `cs_refraction` 只存三个可无损重建的量(通道语义),偏移本身交给
-`fs_main` 逐像素解析算:
-
-| 通道 | 含义 |
+| 去了 `water_droplet_demo/` | 留在本目录 |
 | --- | --- |
-| `r` `g` | 胜出水珠的圆心(uv) |
-| `b` | 归一化距离 `s = dist / radius`(已含长轴拉伸) |
-| `a` | 偏移整体大小 `半径 × (1 + 强度 × refraction_strength_per)` |
+| 水珠物理 `cs_main`(重力 / 风 / 阻力 / 出界重置 / 钉扎) | 城市多层视差的采样与合成 |
+| 折射归属图 `cs_refraction` 与片段着色器里的偏移重建(`lateralProfile` / 各向同性空间 / 泪滴拉长) | 污渍(乘性颜色 + 浓度) |
+| 水珠边缘高光,静态珠生命周期 | 雾气(冷凝水汽) |
+| **背景景深**(按水珠覆盖度挑 mip 级的"清晰岛")与它依赖的 mip 链生成(`mipmaps.rs` / `mip.wgsl`) | 车厢灯光与乘客倒影 |
+| 水珠参数(生成 / 重置 / 物理 / 折射 / 形状 / 高光 / 景深)与对应滑块 | 风格调色(`applyStyle`)与车窗边框柔化 |
+| 原生示例 `examples/preview.rs` / `examples/native_smoke.rs` | 图层贴图上传链路,污渍/雾气/车厢的程序化贴图生成 |
 
-`fs_main` 用屏幕空间导数 `fwidth(s)` 把轮廓收敛成 1~2 像素的清晰边缘
-(`EDGE_AA_SCALE` / `EDGE_AA_MIN`,定义在 shaders.wgsl 顶部),再用
-`lateralProfile(s)` 和重建出的圆心方向算出偏移. 结果是
+几个顺带发生的改名 / 收敛,都是"水珠走了以后就不成立"的东西:
 
-- 边缘清晰度与 `REFRACTION_DOWNSCALE` 解耦:调大只影响"多颗水珠重叠处归谁管"
-  的精度,不会再把轮廓压成方块,可以放心用来省 GPU;
-- 计算着色器反而更省:低分辨率像素上只做距离比较,剖面数学搬到了片段着色器;
-- 片段着色器仍然只采样一次归属图,没有 64 次循环
+- `droplet_params.rs` -> `glass_params.rs`,`DropletParams` -> `GlassParams`,
+  WGSL 里注入的 `struct DropletParams` -> `struct GlassParams`,
+  绑定槽位 `BINDING_DROPLET_PARAMS` -> `BINDING_GLASS_PARAMS`;
+  字段只剩车窗自己的 7 个(车速 / 三层距离 / 三个浓度),外加 1 个对齐填充.
+- 计算管线(物理 + 折射)整体搬走,`App` 里不再有水滴 buffer / 折射偏移图 /
+  计算绑定组;`resize()` 因此简化成"只重新配置 surface".
+- mip 链生成搬走:车窗的贴图都是单级(视差只改采样坐标,不需要缩小过滤),
+  `textures.rs` 只剩"解码 -> (可选预乘)-> 建纹理".
+- `examples/` 只剩 `validate_wgsl`(它校验的仍是本目录的着色器).
+- 前端滑块去掉"水滴与风""背景景深"两组,`LAYERS_NOTE` 也按新的图层数改写.
 
-实测(软件 Vulkan,同一颗水珠同帧,与全分辨率归属图的参考渲染比较):
-旧实现 1/8 分辨率有 239 个像素偏差(其中 134 个 >60),解析重建后降到 168 个
-(71 个 >60);1/4 分辨率时 53 个(13 个 >60)
-
-### 背景景深:整幅糊掉,水珠是"擦出来的清晰岛"
-
-雨窗效果里最容易被漏掉,但收益最大的一条(业界共识,见 `prompt/REF/01-分析报告`):
-雾玻璃上的水珠之所以一眼可辨,不是因为水珠里有什么,而是因为**周围什么都看不清**.
-
-实现上不给水珠加任何东西,而是反过来:
-
-```text
-focus = mix(blur_max_lod, blur_min_lod, dropSharp)      dropSharp = 1 - smoothstep(blur_focus_inner, 1, s)
-col   = textureSampleLevel(城市贴图, 采样器, uv + 折射偏移, focus)
-```
-
-- **没有水珠覆盖**的像素 `s` 是哨兵值 `FAR_DISTANCE`(1000),取 `blur_max_lod`(最糊);
-  水珠内部取 `blur_min_lod`(最清晰).`blur_max_lod` / `blur_min_lod` / `droplet_clear`
-  都是实时滑块("背景模糊" / "水珠清晰度" / "水珠擦雾");
-- 城市四层的 mip 链在**加载时生成一次**(`rust/src/mipmaps.rs` + `mip.wgsl`:逐级
-  blit,双线性过滤恰好是 2×2 盒式平均,逐级叠加近似高斯).WebGPU 没有"自动生成 mip"
-  的开关,只能自己逐级画;而城市层的滚动只改采样坐标,纹理本身不动,所以一次就够,
-  **运行期零额外开销** -- 相比"逐像素多抽 8~16 个点做模糊",这是最大的优势;
-- 城市远景/中景/近景在加载时**预乘 alpha** 后再上传(`textures::premultiply_alpha`):
-  生成 mip 做的是算术平均,而这批 PNG 的透明像素是纯黑,直乘 alpha 会让建筑轮廓外
-  渗出一圈黑边.合成式子相应写成 `c = c·(1-a) + rgb`,在 LOD 0 上与直乘 alpha 的
-  `mix(c, rgb, a)` 逐位等价,所以不模糊时的画面没有任何变化
-- 同一帧内四层取**同一个** `focus`,避免"远层比近层还糊"的层次错位
-
-水珠把雾气与污渍一起擦掉(`droplet_clear`,默认 0.8):湿的地方是干净的,而不是
-在雾上再叠一层水.这一条同时解释了水珠为什么在雾玻璃上显得偏暗 -- 雾本身在提亮
-画面,清掉雾的"清晰岛"自然比周围暗,这正是真实雾玻璃上水珠的样子.
-
-## 技术栈
-
-- Rust(`wgpu`/`wasm-bindgen`/`png`/`bytemuck`)
-- TypeScript(交互层)+ Vite(开发服务器/HMR/构建)
-- WGSL 计算着色器 + 渲染管线
-- wasm32-unknown-unknown / WebGPU
+水珠 demo 是**独立 cargo workspace + 独立前端工程**(自己的 `Cargo.toml` /
+`package.json` / `vite.config.ts` / 构建脚本,背景图也是它自己的一份),
+所以它可以被整体 `mv` 到别处而不影响这里.两份代码之间**没有任何互相引用**.
 
 ## 本地验证
 
 ```bash
 cargo run --package metro-window --example validate_wgsl  # WGSL 语法/校验
-cargo run --package metro-window --example native_smoke   # 用软件 Vulkan 实际跑一遍计算+渲染管线
-cargo run --package metro-window --example preview        # 用真实城市纹理渲染一帧,输出 preview.png
+cargo run --package metro-window --example preview        # 用软件 Vulkan 渲染一帧到 preview.png
 ```
 
-`preview` 的水滴初值是**确定性**的(固定 `PREVIEW_SEED`),同一个种子每次跑出来的
-位置/半径完全一样,所以"改一个参数再跑一次"可以直接并排比图;任意滑块参数都能用
+`preview` 走软件 Vulkan(lavapipe),所以没有 WebGPU 浏览器 / 容器里也能跑;
+它读的正是站点运行时那四张城市贴图 + 程序化生成的污渍/雾气/车厢,任意滑块参数都能用
 环境变量临时覆盖(名字与线上 `setParam` 同一张表,调出来的数值可以直接抄回滑块):
 
 ```bash
-PREVIEW_PARAM=refraction_scale=0 cargo run --package metro-window --example preview
-PREVIEW_PARAM=blur_max_lod=0,blur_min_lod=0 cargo run --package metro-window --example preview
+PREVIEW_PARAM=fog_opacity=1 cargo run --package metro-window --example preview
+PREVIEW_PARAM=dirt_opacity=0,interior_opacity=0 cargo run --package metro-window --example preview
 ```
 
+`cargo test --workspace` 覆盖 Rust 侧的全部纯函数不变量:uniform 布局与 WGSL 字段
+一一对应,绑定槽位 / 入口点与着色器文本一致,上传槽位白名单与尺寸校验,
+程序化噪声的双向可平铺等.
+
 > `cargo test` 的 cwd 是 crate 根,所以可视化 ppm 落在
-> `src/metro_window/rust/test_output/`(已 gitignore);`preview` 写出的 `preview.png`
-> 落在**调用目录**(`cargo run` 不改 cwd,从仓库根调就落在仓库根,已 gitignore).
-> `preview` 读城市贴图用的是编译期注入的绝对路径(`CARGO_MANIFEST_DIR` 向上三级),
-> 指向站点静态资源根 `public/metro_window/resource/*.png`,不受 cwd 影响.
-> 上面三条都在仓库根执行:workspace 在根(见下),用 `--package metro-window` 指定成员,
-> 不需要 `--manifest-path`.
+> `src/metro_window/rust/test_output/`(已 gitignore);`preview.png` 落在**调用目录**
+> (`cargo run` 不改 cwd),从仓库根跑就落在仓库根(已 gitignore).
+> 水珠的离线预览(`preview`)与软件 Vulkan 冒烟测试(`native_smoke`)现在都在
+> `water_droplet_demo/rust/examples/` 下,用法见那个目录的 README.
 
 ## 迁移与归档
 
@@ -564,7 +431,7 @@ PREVIEW_PARAM=blur_max_lod=0,blur_min_lod=0 cargo run --package metro-window --e
 | 删掉 `package.json` / `package-lock.json` / `vite.config.ts` / `tsconfig.json` / `build.sh` / `.gitignore` | 独立仓库的边界文件,由站点仓库统一接管;`scripts/build_wasm.sh` 保留了 npm 脚本做不到的那部分,`build:all` 步骤序列仍是单一事实源 |
 | 整个子项目从仓库根 `metro_window/` 挪进 `src/metro_window/`(Rust -> `rust/`,前端 -> `web/`,后者后来取消,见下) | 站点约定"代码在 `src/`":并入后不再留一个与 `src/` 平级的源码树;按语言/角色分成 `rust/` 与 `web/` 两个子目录,构建脚本归到仓库 tools 目录 `scripts/` |
 | 前端入口 `main.ts` -> `metro_window.ts`(行为)+ `metro_window.css`(样式) | 把行为做成"有标记就能挂"的模块,不再养一个页面级入口 |
-| 后来撤掉 `/metro_window/` 独立入口页(`index.html` / `page.ts` / `metro_index.css`),并入站点首页 | 车窗只在首页挂一次;页面级标记(画布,以及可选的标题/副标题)改由 `src/ui/stage_content.ts` 生成(当时叫 `window_content.ts`),宿主只留空容器 `#metro-window` |
+| 后来撤掉 `/metro_window/` 独立入口页(`index.html` / `page.ts` / `metro_index.css`),并入站点首页 | 车窗只在首页挂一次;页面级标记(画布)改由 `src/ui/stage_content.ts` 生成,宿主只留空容器 `#metro-window` |
 | 删掉 `web/design/city_mid.png.kra`(1.5 MB 的设计源文件) | 它只在独立页时代有用;入口页撤掉后不再参与构建,随后从仓库删除 |
 | `style.css` 全部选择器加 `.metro-window` 作用域,自定义属性加 `--metro-` 前缀 | 站点有一条 `* { ... }` 通配重置和 bootstrap,原来 `body`/`canvas`/`button` 的裸元素选择器会污染站点的其它页面 |
 | 新增渲染生命周期(IntersectionObserver + visibilitychange) | rAF 不会因为容器 `display:none` 而停,不禁的话切走标签页后 GPU 一直空转 |
@@ -598,7 +465,7 @@ PREVIEW_PARAM=blur_max_lod=0,blur_min_lod=0 cargo run --package metro-window --e
 | Rust 侧一行未改 | 面板只是换了 DOM 宿主;`startApp(canvas, status)` 要的 `status` 元素在任何宿主里都成立,`setStyle` / `setParam` / `setRunning` / `reset` 仍作用于同一个单例 |
 | 风格按钮行从设置面板里拆出来(`createStyleRow()` + `createSettingsPanel(styleRow)`),新增第三个挂载点 `#metro-styles` | 切风格属于"看",和 LED 时钟一起放在首屏底部最顺手;而"参数"属于"调",留在 SETTING.行仍然**只建一份**,由挂载函数决定放哪(给了 `styles` 宿主就挂首屏,没给就留在控制台里),所以两个地方不会各出现一份 |
 | 新增"裸宿主"修饰类 `.metro-window--bare`,`.metro-window--stage` 从此只负责"铺满父层" | 首屏里的舞台与风格按钮宿主都不要车窗面板的内边距与底色;两件事拆成两条规则,比一条规则兼两职好读 |
-| 后备缓冲从"固定 1344×756"改成"随宿主算的 16:9 × dpr",并给 Rust 加 `resize()` 导出 | 首屏要铺满整屏,还要 1:1 清晰;比例必须锁死 16:9(场景按 uv 铺满画布),所以算的是"覆盖宿主所需的 16:9"而不是宿主本身的形状.`pipelines.rs` 为此把绑定组构造拆成 `create_bind_groups`,`app.rs` 的 `resize` 只重建 surface 配置 / 折射偏移图 / 绑定组,**不重建管线**(重建会重新编译着色器) |
+| 后备缓冲从"固定 1344×756"改成"随宿主算的 16:9 × dpr",并给 Rust 加 `resize()` 导出 | 首屏要铺满整屏,还要 1:1 清晰;比例必须锁死 16:9(场景按 uv 铺满画布),所以算的是"覆盖宿主所需的 16:9"而不是宿主本身的形状 |
 | 新增 `data-state="unavailable"` 回退 | WebGPU 不可用时藏掉画布,露出站点背景并留一句短提示;首屏不再出现"什么都不显示的黑框",完整排查步骤仍只进 SETTING |
 | 首屏那两个修饰类的选择器改成**把类名写两遍**(`.metro-window.metro-window--stage`) | 它们与基础规则 `.metro-window canvas` 的特异性打平(都是 0,1,1),而基础规则在后面 -- 结果画布被压回 `max-width: 1600px` + `aspect-ratio: 16/9` + 圆角 + 边框,右边与下边露出宿主背景.多写一个类把特异性抬到 0,2,x,顺序就再也影响不到它 |
 
@@ -608,10 +475,22 @@ PREVIEW_PARAM=blur_max_lod=0,blur_min_lod=0 cargo run --package metro-window --e
 | --- | --- |
 | 新增第四个挂载点 `#metro-uploads`:独立 `<fieldset class="uploads">`,紧接设置面板下方,不并进去 | 换素材与调参是两件事,合成一块会让"这个滑块管哪一层"和"这张图换的是哪一层"混在一起;组件这边多一块声明式面板(`src/ui/uploads.ts` 的 `createUploadPanel()`) |
 | Rust 新增导出 `setLayerImage` / `resetLayerImage`,并新增 `app_params::UPLOADABLE_LAYERS` 白名单 | 材质纹理是 wasm 内部的 wgpu GPU 资源,JS 没有别的途径写进去 -- 所以"只在前端做"做不到,必须有这一对导出;白名单让未登记的层(污渍 / 雾气 / 车厢等程序化贴图)直接报错,而不是静默换错层 |
-| `pipelines.rs` 把绑定组构造再拆一层:`create_render_bind_group` 独立出来 | 换贴图只需要重建**渲染**绑定组(计算组只持有 uniforms / 水滴 buffer / 折射 storage texture,与材质纹理无关),不必两个一起重建 |
-| `App` 新增 `refraction_texture` 与 `default_material_textures` 两个字段 | 前者是重建渲染绑定组时唯一能取到折射图视图的地方(原先建完视图就把纹理丢掉);后者是"恢复默认"的来源 -- 重新建视图即可,不重新 fetch,断网也能还原 |
+| `pipelines.rs` 的绑定组构造拆出 `create_render_bind_group` | 换贴图只需要重建**渲染**绑定组(它只持有 uniforms / 材质纹理 / 采样器),不必重建管线或着色器 |
+| `App` 新增 `default_material_textures` 字段 | "恢复默认"的来源 -- 重新建视图即可,不重新 fetch,断网也能还原 |
 | 解码放前端(`createImageBitmap` + canvas `getImageData`) | 浏览器自带 PNG 解码器,wasm 侧只有 `png` crate,再养一套纯属重复;顺带拿到"文件不出浏览器"这条性质(整条链路**没有后端**) |
 | 上传面板与设置面板共用同一套卡片样式(选择器写在一起) | 两块面板分属两个宿主,外观必须一致;复制一份迟早漂移 |
+
+### 水珠拆分(本次)
+
+| 改动 | 为什么 |
+| --- | --- |
+| 水珠相关 Rust(物理 `cs_main` / 折射 `cs_refraction` / 参数 / 结构 / mip 链生成 / 两个原生示例)整体移到 `water_droplet_demo/rust/` | 车窗整体效果没做成,水珠这部分要单独继续做;两组参数与两套管线原本共用一份 `DropletParams` 与一条计算管线,拆开后两边都能独立演进 |
+| 水珠前端的画布生命周期,参数滑块,舞台尺寸计算复制并精简到 `water_droplet_demo/src/`(独立工程,自己的 `package.json` / `vite.config.ts` / `tsconfig.json` / 构建脚本 / 背景图) | demo 要能被整体搬走并独立运行,不能反向依赖站点仓库的构建配置;它自带的一张背景图是原项目城市四层合成的结果(水珠的折射在有高频细节的图上才看得出来) |
+| `droplet_params.rs` -> `glass_params.rs`,只留车窗自己的 7 个字段(另加 1 个对齐填充) | 参数结构原先同时服务水珠与车窗;水珠走后剩下的才是"玻璃材质参数" |
+| 计算管线 / 水滴 storage buffer / 折射偏移图 / 计算绑定组从 `App` 移除,`resize()` 只重配 surface | 这些资源只被水珠用;绑定组不再持有按画布尺寸建的资源,尺寸变化就只剩 surface 一件事 |
+| 车窗贴图改为单级(不再生成 mip 链),`textures.rs` 的 mip 相关函数删除 | mip 链本是给"背景景深"用的,而背景景深是水珠效果的一部分;视差滚动只改采样坐标,单级就够 |
+| 前端去掉"水滴与风""背景景深"两组滑块,`LAYERS_NOTE` 改写 | 这些滑块对应的参数已经不在本 crate 里,留着就是"拖了没反应"的静默失效 |
+| `examples/` 只剩 `validate_wgsl` | `preview`(水珠离线预览)与 `native_smoke`(水珠管线冒烟)都是水珠的验证工具,已随水珠搬走 |
 
 ### 归档状态与遗留
 

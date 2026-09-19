@@ -53,7 +53,7 @@
 .metro-window.metro-window--stage canvas {
     /* 画布铺满舞台,而不是按 16:9 排进文档流.
        object-fit: cover 让**后备缓冲**按"覆盖"缩放进这个盒子:比例保持不变
-       (水珠仍是正圆,Rust 侧的 aspect 也没变),多出来的部分在合成阶段裁掉 --
+       (四层城市按 uv 铺满画布,比例一变就会拉伸),多出来的部分在合成阶段裁掉 --
        所以这一步还不需要 Rust 的 resize 路径.
        不写它就得在这里再算一遍 max(宽, 高 × 16/9),把画布比例抄第二份;
        实测 Chromium 对 canvas 的 object-fit 是生效的(见 metro_window/README.md). */

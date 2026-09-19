@@ -1,7 +1,7 @@
 /*
 WGSL 校验工具
 - 用 naga 解析并校验完整着色器源码
-- 源码 = Rust 生成的 struct DropletParams 声明 + src/shaders.wgsl,
+- 源码 = Rust 生成的 struct GlassParams 声明 + src/shaders.wgsl,
   与管线编译时使用的源码完全一致
 */
 fn main() {

@@ -284,7 +284,8 @@ export function mountMetroWindow(points: MetroMountPoints): void {
 
     // --- 后备缓冲尺寸:随首屏(宿主)尺寸变化 ---
     // 尺寸按"覆盖宿主所需的 16:9"算(见 stage_size.ts):画布比例恒为 16:9,
-    // 场景不会被拉伸,水珠也恒为正圆;多出来的部分由 CSS 的 object-fit: cover 裁掉.
+    // 四层城市按 uv 铺满画布,所以场景不会被拉伸;多出来的部分由 CSS 的
+    // object-fit: cover 裁掉.
     const applyBackingSize = (): void => {
         const size = computeBackingSize(
             stage.clientWidth,
@@ -294,7 +295,7 @@ export function mountMetroWindow(points: MetroMountPoints): void {
         if (!size) return; // 宿主不可见(切走的标签页),量出来的尺寸没有意义
         if (size.width === canvas.width && size.height === canvas.height) return;
         // 顺序不能反:先改画布属性(此时后备缓冲已经换尺寸),再通知 Rust 重建
-        // surface 与折射偏移图.两件事在同一个任务里做完,中间没有帧被提交,
+        // surface 配置.两件事在同一个任务里做完,中间没有帧被提交,
         // 所以不会出现"surface 配置与画布尺寸对不上"的那一帧.
         canvas.width = size.width;
         canvas.height = size.height;
@@ -306,7 +307,7 @@ export function mountMetroWindow(points: MetroMountPoints): void {
     // 于是第一次就按正确尺寸建好,不需要建完再立刻重建一遍.
     applyBackingSize();
 
-    // 拖动窗口会连续触发,防抖之后再重建(每次重建都要重新分配后备缓冲与折射偏移图).
+    // 拖动窗口会连续触发,防抖之后再重建(每次都要重新分配后备缓冲与 surface).
     let resizeTimer = 0;
     new ResizeObserver(() => {
         window.clearTimeout(resizeTimer);

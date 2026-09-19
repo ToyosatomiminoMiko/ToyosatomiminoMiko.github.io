@@ -1,31 +1,26 @@
 /*
 原生预览示例
-- 使用 lavapipe(软件 Vulkan)运行完整管线,输出 preview.png
-- 方便在没有 WebGPU 浏览器时离线查看玻璃效果
+- 使用 lavapipe(软件 Vulkan)跑一遍渲染管线,输出 preview.png
+- 方便在没有 WebGPU 浏览器时离线查看车窗效果(城市视差 / 污渍 / 雾气 / 车厢灯光)
 - 可用环境变量覆盖任意滑块参数做 A/B,例如:
-    PREVIEW_PARAM=refraction_scale=0 PREVIEW_PARAM=blur_max_lod=0 cargo run --example preview
+    PREVIEW_PARAM=fog_opacity=1 PREVIEW_PARAM=dirt_opacity=0 cargo run --example preview
   参数名与线上 setParam 完全同一张表(见 app_params::apply_param),所以示例里
   调出来的数值可以直接抄回滑块.
+- 水珠的离线预览在仓库根目录的 water_droplet_demo/rust/examples/preview.rs.
 */
 use metro_window::{
-    apply_param, create_metro_pipelines, create_mip_pipeline, create_texture,
-    create_texture_mipped, decode_png, generate_dirt, generate_fog, generate_interior,
-    generate_mipmaps, make_droplets_seeded, DropletParams, MetroTextures, Uniforms,
-    DIRT_TEXTURE_SIZE, FOG_TEXTURE_SIZE, FULLSCREEN_QUAD_INDICES, FULLSCREEN_QUAD_VERTICES,
-    INTERIOR_TEXTURE_SIZE, MIN_TEXTURE_DIMENSION, QUAD_INDEX_FORMAT, REFRACTION_TEXTURE_FORMAT,
-    REFRACTION_WORKGROUP_EDGE, RENDER_TARGET_FORMAT, RGBA_BYTES_PER_PIXEL,
-    SAMPLER_ADDRESS_MODE_CLAMP, SAMPLER_ADDRESS_MODE_REPEAT, SAMPLER_FILTER_MODE,
+    apply_param, create_metro_pipelines, create_texture, decode_png, generate_dirt, generate_fog,
+    generate_interior, GlassParams, MetroTextures, Uniforms, DIRT_TEXTURE_SIZE, FOG_TEXTURE_SIZE,
+    FULLSCREEN_QUAD_INDICES, FULLSCREEN_QUAD_VERTICES, INTERIOR_TEXTURE_SIZE, QUAD_INDEX_FORMAT,
+    RENDER_TARGET_FORMAT, RGBA_BYTES_PER_PIXEL, SAMPLER_ADDRESS_MODE_CLAMP,
+    SAMPLER_ADDRESS_MODE_REPEAT, SAMPLER_FILTER_MODE,
 };
 use wgpu::util::DeviceExt;
 
-/// 覆盖单个参数的入口:环境变量 `PREVIEW_PARAM`,写成 `名字=数值`.
-///
-/// 为什么需要它:预览是**唯一**能在没有 WebGPU 浏览器时看到画面的手段,而水滴的
-/// 观感(偏移量级 / 景深档位 / 拉长倍数)只能靠并排比图来判断.没有覆盖入口时,
-/// 每比一个数值就要改一次源码,重编一次,再撤销,既慢又容易漏删.
+/// 覆盖单个参数的入口:环境变量 `PREVIEW_PARAM`,写成 `名字=数值`(逗号分隔多项).
 ///
 /// 未登记的参数名会打印警告并跳过(与线上 setParam 的行为一致).
-fn apply_preview_overrides(params: &mut DropletParams) {
+fn apply_preview_overrides(params: &mut GlassParams) {
     const KEY: &str = "PREVIEW_PARAM";
     const SEPARATOR: char = '=';
     let Ok(raw) = std::env::var(KEY) else {
@@ -46,32 +41,15 @@ fn apply_preview_overrides(params: &mut DropletParams) {
     }
 }
 
-/// 预览使用的水滴参数:默认值 + 环境变量覆盖.
-fn preview_params() -> DropletParams {
-    let mut params = DropletParams::DEFAULT;
-    apply_preview_overrides(&mut params);
-    params
-}
-
 // ===== 原生预览参数(仅本示例使用)=====
-/// 预览画布宽度(像素):比运行时画布大,便于观察折射细节.
+/// 预览画布宽度(像素).
 const PREVIEW_WIDTH: u32 = 1024;
-/// 预览画布高度(像素),16:9.
+/// 预览画布高度(像素),16:9(与运行时画布比例一致).
 const PREVIEW_HEIGHT: u32 = 576;
-/// 折射偏移图相对画布的下采样倍数:比运行时的 1/8 更锐利,便于肉眼检查.
-const PREVIEW_REFRACTION_DOWNSCALE: u32 = 4;
-/// 写入 Uniforms 的初始时间(秒),取非 0 让动画处于推进状态.
+/// 写入 Uniforms 的时间(秒),取非 0 让动画处于推进状态.
 const PREVIEW_TIME_SECONDS: f32 = 2.0;
-/// 写入 Uniforms 的帧间隔(秒),≈60fps.
-const PREVIEW_DELTA_SECONDS: f32 = 0.016;
 /// 写入 Uniforms 的样式编号(1 = 第二种样式,便于与默认样式区分).
 const PREVIEW_STYLE_ID: u32 = 1;
-/// 水滴初值的随机种子:固定值 => 每次跑出来的水滴位置 / 半径完全一样.
-///
-/// 粒子系统本来每次刷新都换一批初值(线上如此),但预览要的是**可比性**:
-/// 改一个参数再跑一次,如果连水滴位置都变了,两张图并排看就没有意义.
-/// 换一个种子即可换一批布局.
-const PREVIEW_SEED: u64 = 20260919;
 /// 城市贴图在仓库里的位置(相对站点 `public/`;与运行时的 /metro_window/resource 是同一批文件).
 ///
 /// 用 `CARGO_MANIFEST_DIR`(编译期由 cargo 注入的 crate 根绝对路径)而不是相对路径:
@@ -130,7 +108,7 @@ fn load_png(
 ) -> wgpu::Texture {
     let bytes = std::fs::read(path).expect(path);
     let (w, h, rgba) = decode_png(&bytes).expect("decode png");
-    create_texture_mipped(device, queue, path, w, h, &rgba, premultiply)
+    create_texture(device, queue, path, w, h, &rgba, premultiply)
 }
 
 fn main() {
@@ -168,13 +146,14 @@ fn main() {
         let mid = load_png(&device, &queue, &preview_city_png(PREVIEW_CITY_MID), true);
         let near = load_png(&device, &queue, &preview_city_png(PREVIEW_CITY_NEAR), true);
         let (dw, dh, dirt_data) = generate_dirt(DIRT_TEXTURE_SIZE.0, DIRT_TEXTURE_SIZE.1);
-        let dirt = create_texture(&device, &queue, "dirt", dw, dh, &dirt_data);
+        let dirt = create_texture(&device, &queue, "dirt", dw, dh, &dirt_data, false);
         let (fw, fh, fog_data) = generate_fog(FOG_TEXTURE_SIZE.0, FOG_TEXTURE_SIZE.1);
-        let fog = create_texture(&device, &queue, "fog", fw, fh, &fog_data);
+        let fog = create_texture(&device, &queue, "fog", fw, fh, &fog_data, false);
         let (iw, ih, interior_data) =
             generate_interior(INTERIOR_TEXTURE_SIZE.0, INTERIOR_TEXTURE_SIZE.1);
-        let interior = create_texture(&device, &queue, "interior", iw, ih, &interior_data);
+        let interior = create_texture(&device, &queue, "interior", iw, ih, &interior_data, false);
 
+        // 与运行时同一套采样器约定:u = Repeat(城市层横向滚动),v = ClampToEdge.
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("preview-sampler"),
             address_mode_u: SAMPLER_ADDRESS_MODE_REPEAT,
@@ -197,59 +176,19 @@ fn main() {
             usage: wgpu::BufferUsages::INDEX,
         });
 
-        let width = PREVIEW_WIDTH;
-        let height = PREVIEW_HEIGHT;
-        let uniforms = Uniforms::new(
-            PREVIEW_TIME_SECONDS,
-            PREVIEW_DELTA_SECONDS,
-            PREVIEW_STYLE_ID,
-            // 水滴要按画布宽高比换算成正圆,预览画布同样是 16:9.
-            width as f32 / height as f32,
-        );
+        let uniforms = Uniforms::new(PREVIEW_TIME_SECONDS, PREVIEW_STYLE_ID);
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("uniforms"),
             contents: bytemuck::bytes_of(&uniforms),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
-        let droplet_params = preview_params();
-        let droplet_params_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("droplet-params"),
-            contents: bytemuck::bytes_of(&droplet_params),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-        let droplets = make_droplets_seeded(&droplet_params, PREVIEW_SEED);
-        let droplet_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("droplets"),
-            contents: bytemuck::cast_slice(&droplets),
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        });
 
-        let rw = (width / PREVIEW_REFRACTION_DOWNSCALE).max(MIN_TEXTURE_DIMENSION);
-        let rh = (height / PREVIEW_REFRACTION_DOWNSCALE).max(MIN_TEXTURE_DIMENSION);
-        let refraction_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("preview-refraction"),
-            size: wgpu::Extent3d {
-                width: rw,
-                height: rh,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: REFRACTION_TEXTURE_FORMAT,
-            usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-        let refraction_view = refraction_texture.create_view(&Default::default());
-        let refraction_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("preview-refraction-sampler"),
-            address_mode_u: SAMPLER_ADDRESS_MODE_CLAMP,
-            address_mode_v: SAMPLER_ADDRESS_MODE_CLAMP,
-            address_mode_w: SAMPLER_ADDRESS_MODE_CLAMP,
-            mag_filter: SAMPLER_FILTER_MODE,
-            min_filter: SAMPLER_FILTER_MODE,
-            mipmap_filter: SAMPLER_FILTER_MODE,
-            ..Default::default()
+        let mut glass_params = GlassParams::DEFAULT;
+        apply_preview_overrides(&mut glass_params);
+        let glass_params_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("glass-params"),
+            contents: bytemuck::bytes_of(&glass_params),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
         let views = [
@@ -265,11 +204,8 @@ fn main() {
             &device,
             RENDER_TARGET_FORMAT,
             &uniform_buffer,
-            &droplet_params_buffer,
-            &droplet_buffer,
+            &glass_params_buffer,
             MetroTextures {
-                refraction_view: &refraction_view,
-                refraction_sampler: &refraction_sampler,
                 sampler: &sampler,
                 texture_views: [
                     &views[0], &views[1], &views[2], &views[3], &views[4], &views[5], &views[6],
@@ -277,6 +213,8 @@ fn main() {
             },
         );
 
+        let width = PREVIEW_WIDTH;
+        let height = PREVIEW_HEIGHT;
         let target = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("preview-target"),
             size: wgpu::Extent3d {
@@ -294,36 +232,6 @@ fn main() {
         let target_view = target.create_view(&Default::default());
 
         let mut encoder = device.create_command_encoder(&Default::default());
-        {
-            // 城市层的 mip 链:与运行时一样,加载后一次性生成(见 src/mipmaps.rs).
-            // 预览里同样需要它 -- 背景景深就是按水珠覆盖度挑一级 mip.
-            let mip = create_mip_pipeline(&device);
-            for texture in [&bg, &far, &mid, &near] {
-                generate_mipmaps(
-                    &device,
-                    &mut encoder,
-                    &mip,
-                    &sampler,
-                    texture,
-                    texture.mip_level_count(),
-                );
-            }
-        }
-        {
-            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("preview-compute-pass"),
-                timestamp_writes: None,
-            });
-            pass.set_pipeline(&pipelines.physics_pipeline);
-            pass.set_bind_group(0, &pipelines.compute_bind_group, &[]);
-            pass.dispatch_workgroups(1, 1, 1);
-            pass.set_pipeline(&pipelines.refraction_pipeline);
-            pass.dispatch_workgroups(
-                rw.div_ceil(REFRACTION_WORKGROUP_EDGE),
-                rh.div_ceil(REFRACTION_WORKGROUP_EDGE),
-                1,
-            );
-        }
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("preview-render-pass"),

@@ -21,7 +21,8 @@ $there$ $is$ $nothing$ $to$ $do.$
 
 ## 地铁车窗
 
-Rust + WASM + WebGPU 实时渲染的地铁车窗玻璃效果,拆成"舞台"与"控制台"两块,
+Rust + WASM + WebGPU 实时渲染的地铁车窗玻璃效果(窗外城市多层视差 + 玻璃污渍 +
+冷凝雾气 + 车厢灯光与倒影,外加三套风格调色),拆成"舞台"与"控制台"两块,
 站点给四个空宿主:画布挂 `#metro-window`(HOME 首屏,铺满整屏),三颗风格按钮挂
 `#metro-styles`(首屏底部,与 LED 时钟同排),其余设置面板挂 `#metro-params`
 (SETTING 标签页),图层贴图上传面板挂它正下方的 `#metro-uploads`.
@@ -29,6 +30,11 @@ Rust + WASM + WebGPU 实时渲染的地铁车窗玻璃效果,拆成"舞台"与"�
 `MOUNT_IDS`;挂载见 `src/main.ts`,源码在 `src/metro_window/`.
 搬入前它是独立仓库
 [metro_window](https://github.com/ToyosatomiminoMiko/metro_window)(上游已归档).
+
+车窗里的**水珠(雨滴)效果已经拆出去**成一个自包含的可运行 demo,住在
+[`water_droplet_demo/`](water_droplet_demo/README.md):单张背景图 + 水珠物理 /
+折射 / 高光 / 背景景深,带自己的 Rust crate,前端工程与构建脚本,
+可以整体搬走独立开发.两边的代码互不引用.
 
 SETTING 里可以逐层上传替换城市背景那四张 PNG(画师按层分开交付的原素材在
 `public/metro_window/resource/`).这条链路**没有后端**:文件不上传服务器,

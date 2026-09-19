@@ -121,8 +121,8 @@ export const CANVAS_HEIGHT = 756;
 /*
  * 画布的后备缓冲尺寸不再是固定值:站点首屏要铺满整个视口,而画布宽高比必须
  * **恒为 16:9** -- 城市四层是按 uv 直接铺满画布的(见 shaders.wgsl),比例一变
- * 整幅场景就被拉伸;水滴的 aspect 也依赖它.所以后备缓冲按"覆盖宿主所需的
- * 16:9 尺寸"算(见 stage_size.ts),覆盖多出来的部分交给 CSS 的 object-fit: cover.
+ * 整幅场景就被拉伸.所以后备缓冲按"覆盖宿主所需的 16:9 尺寸"算(见 stage_size.ts),
+ * 覆盖多出来的部分交给 CSS 的 object-fit: cover.
  */
 
 /**
@@ -141,7 +141,7 @@ export const MAX_BACKING_PIXELS = 0;
 /**
  * 视口尺寸变化后等多久才真正重建后备缓冲(毫秒).
  * 拖动窗口会连续触发 ResizeObserver,而每次重建都要重新分配画布后备缓冲
- * 与折射偏移图(以及 Rust 侧的 surface),不防抖就是每帧一次重分配.
+ * 与 Rust 侧的 surface,不防抖就是每帧一次重分配.
  */
 export const RESIZE_DEBOUNCE_MS = 150;
 
@@ -200,8 +200,8 @@ export const STATUS_INITIAL = '初始化中...';
 
 /** 状态区下方图层说明文案 */
 export const LAYERS_NOTE =
-    'Layer 0 窗外实景 · Layer 1 水珠折射虚像 · Layer 2 玻璃污渍 · ' +
-    'Layer 3 冷凝雾气 · Layer 4 车厢灯光与倒影';
+    'Layer 0 窗外实景(城市四层视差) · Layer 1 玻璃污渍 · ' +
+    'Layer 2 冷凝雾气 · Layer 3 车厢灯光与倒影';
 
 /**
  * 滑块宽度的 CSS 自定义属性名.组件把它设在每个滑块最外层 div.slider 上,
@@ -275,38 +275,6 @@ export const SLIDER_GROUPS = [
             { id: 'midDistance', param: 'mid_distance', label: '中景距离', hint: '越大越慢', min: 0.2, max: 3, step: 0.01, value: 1 },
             /** 近景距离(越大越慢) */
             { id: 'nearDistance', param: 'near_distance', label: '近景距离', hint: '越大越慢', min: 0.2, max: 3, step: 0.01, value: 1 },
-        ],
-    },
-    {
-        title: '💧 水滴与风',
-        open: true,
-        sliders: [
-            /** 水滴大小(倍率) */
-            { id: 'dropletSize', param: 'droplet_size', label: '水滴大小', hint: '倍率', min: 0.2, max: 2.5, step: 0.01, value: 1 },
-            /** 向后风(随车速) */
-            { id: 'windBackward', param: 'wind_backward_factor', label: '向后风', hint: '随车速', min: 0, max: 1, step: 0.01, value: 0.15 },
-            /** 摇摆风(倍率) */
-            { id: 'windSway', param: 'wind_sway_scale', label: '摇摆风', hint: '倍率', min: 0, max: 2, step: 0.01, value: 1 },
-            /** 下落速度(倍率) */
-            { id: 'gravityScale', param: 'gravity_scale', label: '下落速度', hint: '倍率', min: 0, max: 3, step: 0.01, value: 1 },
-            /** 折射强度(倍率) */
-            { id: 'refractionScale', param: 'refraction_scale', label: '折射强度', hint: '倍率', min: 0, max: 3, step: 0.01, value: 1 },
-            /** 滑动中水珠的拉长倍数(1 = 正圆) */
-            { id: 'elongationMax', param: 'elongation_max', label: '垂坠拉长', hint: '1 = 正圆', min: 1, max: 6, step: 0.01, value: 4 },
-            /** 静止阈值:半径小于它的小珠子被钉住,不滑 */
-            { id: 'pinRadius', param: 'pin_radius', label: '静止阈值', hint: '小珠挂住', min: 0, max: 0.03, step: 0.001, value: 0.01 },
-        ],
-    },
-    {
-        title: '🔭 背景景深',
-        open: false,
-        sliders: [
-            /** 无水处的背景模糊(mip 级,越大越糊) */
-            { id: 'blurMaxLod', param: 'blur_max_lod', label: '背景模糊', hint: '水珠外', min: 0, max: 7, step: 0.01, value: 4.5 },
-            /** 水珠内部的背景清晰度(mip 级,0 = 最清晰) */
-            { id: 'blurMinLod', param: 'blur_min_lod', label: '水珠清晰度', hint: '越小越清', min: 0, max: 4, step: 0.01, value: 1 },
-            /** 水珠对雾气/污渍的擦除比例 */
-            { id: 'dropletClear', param: 'droplet_clear', label: '水珠擦雾', hint: '擦掉雾气/污渍', min: 0, max: 1, step: 0.01, value: 0.8 },
         ],
     },
     {

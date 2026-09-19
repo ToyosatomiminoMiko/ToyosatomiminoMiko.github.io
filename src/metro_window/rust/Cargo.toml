@@ -28,9 +28,8 @@ web-sys = { version = "0.3.104", features = [
 wgpu = { version = "24", features = ["webgpu"] }
 png = "0.18"
 bytemuck = { version = "1", features = ["derive"] }
-rand = "0.9.2"
-# rand::rng() 在 wasm32-unknown-unknown 上需要浏览器熵源,这里显式启用 wasm_js 后端
-getrandom = { version = "0.3", features = ["wasm_js"] }
+# rand / getrandom 随水珠一起拆到了 water_droplet_demo/:
+# 本 crate 现在没有随机数需求(程序化贴图用的是自己的 hash01,见 random.rs).
 
 [dev-dependencies]
 naga = "=24.0.0"

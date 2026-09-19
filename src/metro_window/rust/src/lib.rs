@@ -1,13 +1,12 @@
 /*
 crate 入口(WASM 绑定层)
-- 导出 startApp / setStyle / setRunning / reset 给前端 JavaScript 调用
+- 导出 startApp / setStyle / setRunning / resize / setParam / reset /
+  setLayerImage / resetLayerImage 给前端 JavaScript 调用
 - 持有全局 App 实例,通过 requestAnimationFrame 驱动渲染主循环
 */
 mod app;
 mod app_params;
-mod droplet_params;
-mod droplets;
-mod mipmaps;
+mod glass_params;
 mod pipelines;
 mod random;
 mod random_params;
@@ -16,27 +15,20 @@ mod texture_params;
 mod textures;
 mod uniforms;
 
-pub use droplet_params::DropletParams;
-pub use droplets::{make_droplets, make_droplets_seeded, Droplet, DROPLET_COUNT};
-// apply_param 同时给 wasm 的 setParam 与原生示例(环境变量覆盖参数)使用:
-// 参数名 -> 字段的映射只有 app_params.rs 一处事实源.
+// 对外暴露的 API 全部服务于原生示例(examples/):
+//   - validate_wgsl 要 shader_source():与管线编译时**逐字一致**的完整 WGSL
+//     源码(含 Rust 生成的 GlassParams 声明);
+//   - preview 要下面这一组:它自己搭一遍设备 / 纹理 / 管线,离线渲染一帧.
 pub use app_params::apply_param;
-pub use mipmaps::{create_mip_pipeline, generate_mipmaps, MipPipeline};
-pub use pipelines::{
-    create_metro_pipelines, mip_shader_source, shader_source, MetroPipelines, MetroTextures,
-};
-// 下面几组常量同时被 examples/ 使用:导出同一份定义,避免示例与运行时数值漂移.
+pub use glass_params::GlassParams;
+pub use pipelines::{create_metro_pipelines, shader_source, MetroTextures};
 pub use render_params::{
     FULLSCREEN_QUAD_INDICES, FULLSCREEN_QUAD_VERTICES, MIN_TEXTURE_DIMENSION, QUAD_INDEX_FORMAT,
-    REFRACTION_TEXTURE_FORMAT, REFRACTION_WORKGROUP_EDGE, RENDER_TARGET_FORMAT,
-    RGBA_BYTES_PER_PIXEL, SAMPLER_ADDRESS_MODE_CLAMP, SAMPLER_ADDRESS_MODE_REPEAT,
-    SAMPLER_FILTER_MODE,
+    RENDER_TARGET_FORMAT, RGBA_BYTES_PER_PIXEL, SAMPLER_ADDRESS_MODE_CLAMP,
+    SAMPLER_ADDRESS_MODE_REPEAT, SAMPLER_FILTER_MODE,
 };
 pub use texture_params::{DIRT_TEXTURE_SIZE, FOG_TEXTURE_SIZE, INTERIOR_TEXTURE_SIZE};
-pub use textures::{
-    create_texture, create_texture_mipped, decode_png, generate_dirt, generate_fog,
-    generate_interior, mip_level_count_for, premultiply_alpha,
-};
+pub use textures::{create_texture, decode_png, generate_dirt, generate_fog, generate_interior};
 pub use uniforms::Uniforms;
 
 use std::cell::RefCell;
@@ -83,7 +75,7 @@ pub fn set_running(running: bool) {
 ///
 /// 站点先改 `<canvas>` 的 `width`/`height` 属性,再调用这里 --
 /// 前端按"覆盖宿主所需的 16:9 尺寸"算宽高(见 `src/stage_size.ts`),
-/// 所以画布比例恒为 16:9,Rust 侧的 aspect 与美术素材始终对得上.
+/// 所以画布比例恒为 16:9,美术素材的 uv 铺满方式始终对得上.
 /// `App` 还没建好时是空操作(`with_app` 的约定):那种情况下
 /// `startApp` 会直接读画布的当前尺寸建资源,不需要额外补一次.
 #[wasm_bindgen(js_name = resize)]
@@ -98,20 +90,18 @@ pub fn set_param(name: &str, value: f32) {
     with_app(|app| {
         // 参数名与 clamp 上下限统一由 src/app_params.rs 的 SLIDERS 配置表维护:
         // 表里的 name 就是前端 setParam(name, value) 传的字面值(不可改动),
-        // apply_param 负责夹到合法区间后写入对应的 DropletParams 字段.
-        if !app_params::apply_param(&mut app.droplet_params, name, value) {
+        // apply_param 负责夹到合法区间后写入对应的 GlassParams 字段.
+        if !app_params::apply_param(&mut app.glass_params, name, value) {
             console::warn_1(&format!("未知滑块参数: {name}").into());
         }
     });
 }
 
+/// 动画时钟归零(前端"重置"按钮).
 #[wasm_bindgen(js_name = reset)]
 pub fn reset() {
     with_app(|app| {
-        app.time = 0.0;
-        let droplets = make_droplets(&app.droplet_params);
-        app.queue
-            .write_buffer(&app.droplet_buffer, 0, bytemuck::cast_slice(&droplets));
+        app.reset();
     });
 }
 

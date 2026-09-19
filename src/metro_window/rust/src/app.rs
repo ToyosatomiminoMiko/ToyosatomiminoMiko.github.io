@@ -1,31 +1,25 @@
 /*
 WebGPU 应用主体
 - 初始化适配器 / 设备 / 渲染表面,以及全部 GPU 资源
-- 每帧更新 Uniforms,依次执行 水滴物理 -> 折射偏移 -> 渲染 三个 Pass
+- 每帧更新 Uniforms 并跑一趟渲染(城市视差 / 污渍 / 雾气 / 车厢灯光)
 */
 use crate::app_params::{
     city_png, upload_slot, upload_target, CITY_BG_FILE, CITY_FAR_FILE, CITY_MID_FILE,
-    CITY_NEAR_FILE, FRAME_INTERVAL_MS, INITIAL_DELTA_SECONDS, INITIAL_STYLE_ID,
-    INITIAL_TIME_SECONDS, MAX_FRAME_DELTA_SECONDS, MS_PER_SECOND,
+    CITY_NEAR_FILE, FRAME_INTERVAL_MS, INITIAL_STYLE_ID, INITIAL_TIME_SECONDS,
+    MAX_FRAME_DELTA_SECONDS, MS_PER_SECOND,
 };
-use crate::droplet_params::DropletParams;
-use crate::droplets::make_droplets;
-use crate::mipmaps::{create_mip_pipeline, generate_mipmaps, MipPipeline};
+use crate::glass_params::GlassParams;
 use crate::performance_now;
-use crate::pipelines::{
-    create_bind_groups, create_metro_pipelines, create_render_bind_group, MetroTextures,
-};
+use crate::pipelines::{create_metro_pipelines, create_render_bind_group, MetroTextures};
 use crate::render_params::{
     ADAPTER_POWER_PREFERENCE, CLEAR_COLOR, FULLSCREEN_QUAD_INDICES, FULLSCREEN_QUAD_VERTICES,
-    MIN_TEXTURE_DIMENSION, QUAD_INDEX_FORMAT, REFRACTION_DOWNSCALE, REFRACTION_TEXTURE_FORMAT,
-    REFRACTION_WORKGROUP_DEPTH, REFRACTION_WORKGROUP_EDGE, SAMPLER_ADDRESS_MODE_CLAMP,
+    MIN_TEXTURE_DIMENSION, QUAD_INDEX_FORMAT, SAMPLER_ADDRESS_MODE_CLAMP,
     SAMPLER_ADDRESS_MODE_REPEAT, SAMPLER_FILTER_MODE, SURFACE_MAX_FRAME_LATENCY,
     SURFACE_PRESENT_MODE, TEXTURE_LAYER_COUNT,
 };
 use crate::texture_params::{DIRT_TEXTURE_SIZE, FOG_TEXTURE_SIZE, INTERIOR_TEXTURE_SIZE};
 use crate::textures::{
-    create_png_texture, create_texture, create_texture_mipped, generate_dirt, generate_fog,
-    generate_interior,
+    create_png_texture, create_texture, generate_dirt, generate_fog, generate_interior,
 };
 use crate::uniforms::Uniforms;
 use web_sys::{console, HtmlCanvasElement, HtmlElement};
@@ -42,17 +36,11 @@ pub(crate) struct App {
     /// `width`/`height` 属性一致,否则 `get_current_texture` 拿到的尺寸对不上.
     pub(crate) surface_config: wgpu::SurfaceConfiguration,
     pub(crate) render_pipeline: wgpu::RenderPipeline,
-    pub(crate) physics_pipeline: wgpu::ComputePipeline,
-    pub(crate) refraction_pipeline: wgpu::ComputePipeline,
     pub(crate) render_bind_group: wgpu::BindGroup,
-    pub(crate) compute_bind_group: wgpu::BindGroup,
-    /// 重建绑定组要用的两个布局(与尺寸无关,建一次留着)
-    pub(crate) compute_bgl: wgpu::BindGroupLayout,
+    /// 渲染绑定组布局(与尺寸无关,建一次留着).
+    /// 前端上传替换某一层贴图后要重建绑定组,重建必须用管线同一份布局.
     pub(crate) render_bgl: wgpu::BindGroupLayout,
-    /// 与画布尺寸**无关**的那些纹理视图(城市四层 / 污渍 / 雾气 / 车厢倒影)
-    /// 与两个采样器:重建绑定组时要把它们重新绑一遍,所以必须留在 App 里.
-    /// (早先它们是纯局部变量 -- 绑定组自己持有强引用就够"保命";
-    /// 现在多了一个"重建绑定组"的用处,所以留下来.)
+    /// 与画布尺寸**无关**的那些纹理视图(城市四层 / 污渍 / 雾气 / 车厢倒影).
     ///
     /// 这个数组会被前端上传替换其中一项(见 [`App::set_layer_texture`]);
     /// 站点自带的原图始终留在 [`App::default_material_textures`] 里不动,
@@ -63,24 +51,11 @@ pub(crate) struct App {
     /// `app_params::UPLOADABLE_LAYERS` 里槽位号的来源.
     pub(crate) default_material_textures: [wgpu::Texture; TEXTURE_LAYER_COUNT as usize],
     pub(crate) sampler: wgpu::Sampler,
-    pub(crate) refraction_sampler: wgpu::Sampler,
-    /// mip 生成管线(逐级 blit,见 src/mipmaps.rs).
-    ///
-    /// 留着不只是为了启动时那四张城市图:前端上传替换某一层后,新纹理同样要
-    /// 现生成一遍 mip(否则那一层在模糊区里退化成 LOD 0,和其它三层对不上).
-    pub(crate) mip_pipeline: MipPipeline,
-    /// 折射偏移图本体.**按画布尺寸**建,尺寸一变就换一份,所以必须留在 App 里.
-    ///
-    /// 与上面那批材质纹理不同,它不是"保命"用的:前端上传替换贴图时只重建
-    /// 渲染绑定组,而重建需要再取一个有效的折射图视图 -- 纹理本体不留着就取不到.
-    pub(crate) refraction_texture: wgpu::Texture,
     pub(crate) vertex_buffer: wgpu::Buffer,
     pub(crate) index_buffer: wgpu::Buffer,
     pub(crate) uniform_buffer: wgpu::Buffer,
-    pub(crate) droplet_params_buffer: wgpu::Buffer,
-    pub(crate) droplet_buffer: wgpu::Buffer,
-    pub(crate) droplet_params: DropletParams,
-    pub(crate) refraction_size: (u32, u32),
+    pub(crate) glass_params_buffer: wgpu::Buffer,
+    pub(crate) glass_params: GlassParams,
     pub(crate) time: f32,
     pub(crate) last: f64,
     pub(crate) frame_accumulator: f64,
@@ -141,8 +116,6 @@ impl App {
         let height = canvas.height().max(MIN_TEXTURE_DIMENSION);
         let caps = surface.get_capabilities(&adapter);
         let format = caps.formats[0];
-        // 画布宽高比不再单独存一份:它就是 surface_config 的 width / height,
-        // 尺寸一变两者一起改,不会出现"改了尺寸忘了改 aspect"的漂移(见 App::aspect).
         let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format,
@@ -159,7 +132,6 @@ impl App {
         // 相对路径会随页面 URL 变化(例如 /4xx_page/404.html 这类回退地址),
         // 导致 fetch 拿到 HTML 回退页而不是 PNG,从而报 Invalid PNG signature.
         //
-        // 城市层建的是**带 mip 链**的纹理(背景景深靠它,见 shaders.wgsl 的 focus);
         // 除 city_bg 外都预乘 alpha(city_bg 实测 alpha 恒为 255,是底层实景).
         // 预乘的理由见 textures.rs 的 premultiply_alpha.
         set_status(&status, "正在加载城市纹理 (1/4)...");
@@ -183,9 +155,17 @@ impl App {
 
         set_status(&status, "正在生成玻璃材质纹理...");
         let (dw, dh, dirt_data) = generate_dirt(DIRT_TEXTURE_SIZE.0, DIRT_TEXTURE_SIZE.1);
-        let dirt = create_texture(&device, &queue, "glass_dirt", dw, dh, &dirt_data);
+        let dirt = create_texture(&device, &queue, "glass_dirt", dw, dh, &dirt_data, false);
         let (fw, fh, fog_data) = generate_fog(FOG_TEXTURE_SIZE.0, FOG_TEXTURE_SIZE.1);
-        let fog = create_texture(&device, &queue, "condensation_fog", fw, fh, &fog_data);
+        let fog = create_texture(
+            &device,
+            &queue,
+            "condensation_fog",
+            fw,
+            fh,
+            &fog_data,
+            false,
+        );
         let (iw, ih, interior_data) =
             generate_interior(INTERIOR_TEXTURE_SIZE.0, INTERIOR_TEXTURE_SIZE.1);
         let interior = create_texture(
@@ -195,6 +175,7 @@ impl App {
             iw,
             ih,
             &interior_data,
+            false,
         );
 
         // 采样器约定:u = Repeat(城市层要靠它循环滚动),v = ClampToEdge.
@@ -216,31 +197,6 @@ impl App {
             ..Default::default()
         });
 
-        // 城市四层的 mip 链在这里**一次性**生成(逐级 blit,见 src/mipmaps.rs).
-        // 为什么放在这里而不是建纹理的地方:blit 要开 render pass,得有命令编码器,
-        // 而且必须等采样器建好(靠它的双线性过滤做 2x2 盒式平均);
-        // 为什么只生成一次:城市层的滚动只改采样坐标,纹理本身不动 --
-        // 这正是"用 mip 做景深"相对"逐像素多抽几个点做模糊"的最大优势:
-        // 运行期零额外开销,每帧只是换一个 LOD 数字.
-        let mip_pipeline: MipPipeline = create_mip_pipeline(&device);
-        {
-            let mut encoder: wgpu::CommandEncoder =
-                device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("city-mipmap-generation"),
-                });
-            for texture in [&bg, &far, &mid, &near] {
-                generate_mipmaps(
-                    &device,
-                    &mut encoder,
-                    &mip_pipeline,
-                    &sampler,
-                    texture,
-                    texture.mip_level_count(),
-                );
-            }
-            queue.submit(Some(encoder.finish()));
-        }
-
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("fullscreen-quad-vertices"),
             contents: bytemuck::cast_slice(&FULLSCREEN_QUAD_VERTICES),
@@ -252,50 +208,18 @@ impl App {
             usage: wgpu::BufferUsages::INDEX,
         });
 
-        // 首帧的 aspect 由刚定下的 surface 尺寸算(之后每帧都从 App::aspect() 取).
-        let aspect: f32 = surface_config.width as f32 / surface_config.height as f32;
-        let uniforms = Uniforms::new(
-            INITIAL_TIME_SECONDS,
-            INITIAL_DELTA_SECONDS,
-            INITIAL_STYLE_ID,
-            aspect,
-        );
+        let uniforms = Uniforms::new(INITIAL_TIME_SECONDS, INITIAL_STYLE_ID);
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("uniforms"),
             contents: bytemuck::bytes_of(&uniforms),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        let droplet_params = DropletParams::DEFAULT;
-        let droplet_params_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("droplet-params"),
-            contents: bytemuck::bytes_of(&droplet_params),
+        let glass_params = GlassParams::DEFAULT;
+        let glass_params_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("glass-params"),
+            contents: bytemuck::bytes_of(&glass_params),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-
-        let droplets = make_droplets(&droplet_params);
-        let droplet_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("droplets"),
-            contents: bytemuck::cast_slice(&droplets),
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        });
-
-        // 折射偏移图分辨率 = 画布 1/REFRACTION_DOWNSCALE.
-        // 它只决定"水珠归属判断"的精细度(哪颗水珠管这个像素 / 圆心 / 归一化距离),
-        // 折射偏移本身由片段着色器逐像素解析重建,所以调大只会让多颗水珠重叠处
-        // 变粗,不会把水珠轮廓压成方块(详见 render_params.rs 的 REFRACTION_DOWNSCALE).
-        let (refraction_texture, refraction_size) =
-            create_refraction_texture(&device, width, height);
-        let refraction_view = refraction_texture.create_view(&Default::default());
-        let refraction_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("refraction-sampler"),
-            address_mode_u: SAMPLER_ADDRESS_MODE_CLAMP,
-            address_mode_v: SAMPLER_ADDRESS_MODE_CLAMP,
-            address_mode_w: SAMPLER_ADDRESS_MODE_CLAMP,
-            mag_filter: SAMPLER_FILTER_MODE,
-            min_filter: SAMPLER_FILTER_MODE,
-            mipmap_filter: SAMPLER_FILTER_MODE,
-            ..Default::default()
         });
 
         // 默认材质纹理存成数组:既从中建出绑定组要用的视图,也留在 App 里 --
@@ -308,21 +232,12 @@ impl App {
         let material_views: [wgpu::TextureView; TEXTURE_LAYER_COUNT as usize] =
             std::array::from_fn(|i| default_material_textures[i].create_view(&Default::default()));
 
-        // 这里创建的纹理视图(包括折射偏移图的)全部只在建绑定时用到;
-        // wgpu 的 BindGroup 会持有资源的强引用,所以建完之后不需要再靠 App
-        // 替它们"保命".但有两样必须留下:
-        //   - 材质视图:上传替换贴图后要重建绑定组,得把它们重新绑一遍;
-        //   - 默认材质纹理与折射偏移图:前者是"恢复默认"的来源,后者是重建
-        //     渲染绑定组时唯一能取到折射图视图的地方(见字段注释).
         let pipelines = create_metro_pipelines(
             &device,
             format,
             &uniform_buffer,
-            &droplet_params_buffer,
-            &droplet_buffer,
+            &glass_params_buffer,
             MetroTextures {
-                refraction_view: &refraction_view,
-                refraction_sampler: &refraction_sampler,
                 sampler: &sampler,
                 texture_views: std::array::from_fn(|i| &material_views[i]),
             },
@@ -336,25 +251,16 @@ impl App {
             surface,
             surface_config,
             render_pipeline: pipelines.render_pipeline,
-            physics_pipeline: pipelines.physics_pipeline,
-            refraction_pipeline: pipelines.refraction_pipeline,
             render_bind_group: pipelines.render_bind_group,
-            compute_bind_group: pipelines.compute_bind_group,
-            compute_bgl: pipelines.compute_bgl,
             render_bgl: pipelines.render_bgl,
             material_views,
             default_material_textures,
             sampler,
-            refraction_sampler,
-            mip_pipeline,
-            refraction_texture,
             vertex_buffer,
             index_buffer,
             uniform_buffer,
-            droplet_params_buffer,
-            droplet_buffer,
-            droplet_params,
-            refraction_size,
+            glass_params_buffer,
+            glass_params,
             time: 0.0,
             last: performance_now(),
             frame_accumulator: 0.0,
@@ -363,21 +269,11 @@ impl App {
         })
     }
 
-    /// 画布宽高比(宽 / 高):每帧写进 Uniforms,着色器据此把水滴画成正圆,
-    /// 而不是被 [0,1]² 的 uv 拉成椭圆(见 src/uniforms.rs 的 aspect 注释).
-    /// 直接从 surface 配置里算,不另存字段 -- 尺寸一变两者必然同步.
-    pub(crate) fn aspect(&self) -> f32 {
-        self.surface_config.width as f32 / self.surface_config.height as f32
-    }
-
-    /// 画布后备缓冲尺寸变化(站点按视口算好 16:9 的"覆盖"尺寸后调用).
+    /// 画布后备缓冲尺寸变化.
     ///
-    /// 与尺寸挂钩的只有两样:
-    ///   1. surface 的配置(宽高必须等于画布的 `width`/`height` 属性);
-    ///   2. **按画布 1/8 分辨率**建的折射偏移图 -- 它直接由 width/height 算出来,
-    ///      而两个绑定组都持有它的视图,所以绑定组必须一起重建.
-    ///
-    /// 管线与尺寸无关,这里**不重建管线**(重建会连带重新编译着色器,拖动窗口会卡).
+    /// 站点按视口算好 16:9 的"覆盖"尺寸,先改 `<canvas>` 的 `width`/`height` 属性,
+    /// 再调这里.与尺寸挂钩的只有 surface 配置一样东西:
+    /// 材质纹理与绑定组都与画布尺寸无关,管线更是与尺寸无关.
     ///
     /// 画布属性由站点先改,再调这里:两件事必须在同一个任务里做完,
     /// 否则中间那一帧 `get_current_texture` 的尺寸会和配置对不上.
@@ -391,53 +287,18 @@ impl App {
         self.surface_config.width = width;
         self.surface_config.height = height;
         self.surface.configure(&self.device, &self.surface_config);
-
-        let (refraction_texture, refraction_size) =
-            create_refraction_texture(&self.device, width, height);
-        self.refraction_size = refraction_size;
-        // 折射偏移图本体留在 App 里:尺寸再变要换掉它,上传换贴图时又要靠它
-        // 重建渲染绑定组(见字段注释).
-        self.refraction_texture = refraction_texture;
-        self.rebuild_bind_groups();
-    }
-
-    /// 用当前的材质视图与折射图重建**两个**绑定组.
-    ///
-    /// 画布尺寸变化时用:折射偏移图是按画布尺寸建的,而两个绑定组都持有它的
-    /// 视图(计算组写入它,渲染组采样它),所以两个都得重建.
-    fn rebuild_bind_groups(&mut self) {
-        let refraction_view = self.refraction_texture.create_view(&Default::default());
-        let groups = create_bind_groups(
-            &self.device,
-            &self.uniform_buffer,
-            &self.droplet_params_buffer,
-            &self.droplet_buffer,
-            MetroTextures {
-                refraction_view: &refraction_view,
-                refraction_sampler: &self.refraction_sampler,
-                sampler: &self.sampler,
-                texture_views: std::array::from_fn(|i| &self.material_views[i]),
-            },
-            &self.compute_bgl,
-            &self.render_bgl,
-        );
-        self.render_bind_group = groups.render_bind_group;
-        self.compute_bind_group = groups.compute_bind_group;
     }
 
     /// 只重建渲染绑定组(前端上传替换材质贴图时用).
     ///
-    /// 计算绑定组与材质纹理无关(只持有 uniforms / 水滴 buffer / 折射 storage
-    /// texture / 水滴参数),换图后它仍然有效,不必跟着重建.
+    /// 管线与着色器一行不动,所以换图不会重新编译着色器(不会有拖动窗口时那种卡顿);
+    /// 被换下来的旧纹理随旧视图一起释放.
     fn rebuild_render_bind_group(&mut self) {
-        let refraction_view = self.refraction_texture.create_view(&Default::default());
         let bind_group = create_render_bind_group(
             &self.device,
             &self.uniform_buffer,
-            &self.droplet_params_buffer,
+            &self.glass_params_buffer,
             MetroTextures {
-                refraction_view: &refraction_view,
-                refraction_sampler: &self.refraction_sampler,
                 sampler: &self.sampler,
                 texture_views: std::array::from_fn(|i| &self.material_views[i]),
             },
@@ -450,12 +311,10 @@ impl App {
     ///
     /// 槽位与像素的校验全在 `app_params::upload_target` 里(白名单 / 尺寸 /
     /// 字节数);这里只负责建纹理,换掉对应的视图,重建渲染绑定组.
-    /// 管线与着色器一行不动,所以换图不会重新编译着色器(不会有拖动窗口时
-    /// 那种卡顿);被换下来的旧纹理随旧视图一起释放.
     ///
-    /// 上传的图**按城市层的规格**建:预乘 alpha + 生成完整 mip 链.
-    /// 少了 mip,那一层在模糊区里会一直是最锐的 LOD 0(和其它三层对不上);
-    /// 少了预乘,模糊它的边缘会渗出黑边(见 textures.rs 的 premultiply_alpha).
+    /// 上传的图**按城市层的规格**建:预乘 alpha(layer 0 除外).
+    /// 少了预乘,带透明通道的层在建筑轮廓外会渗出黑边(见 textures.rs 的
+    /// premultiply_alpha).
     pub(crate) fn set_layer_texture(
         &mut self,
         layer: u32,
@@ -466,7 +325,7 @@ impl App {
         let index = upload_target(layer, width, height, rgba.len())?;
         // 槽位 0 是 city_bg(实测 alpha 恒为 255,不预乘);1..=3 是带 alpha 的远景层.
         let premultiply: bool = index != 0;
-        let texture = create_texture_mipped(
+        let texture = create_texture(
             &self.device,
             &self.queue,
             "uploaded-layer",
@@ -477,20 +336,6 @@ impl App {
         );
         // write_texture 在这行返回前就已经把像素拷进暂存区,所以调用方的
         // Uint8Array 之后随便被回收,不会影响已经排队的上传.
-        let mut encoder: wgpu::CommandEncoder =
-            self.device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("uploaded-layer-mipmap-generation"),
-                });
-        generate_mipmaps(
-            &self.device,
-            &mut encoder,
-            &self.mip_pipeline,
-            &self.sampler,
-            &texture,
-            texture.mip_level_count(),
-        );
-        self.queue.submit(Some(encoder.finish()));
         self.material_views[index] = texture.create_view(&Default::default());
         self.rebuild_render_bind_group();
         Ok(())
@@ -506,6 +351,11 @@ impl App {
             self.default_material_textures[index].create_view(&Default::default());
         self.rebuild_render_bind_group();
         Ok(())
+    }
+
+    /// 重置:动画时钟归零(前端"重置"按钮).
+    pub(crate) fn reset(&mut self) {
+        self.time = 0.0;
     }
 
     pub(crate) fn frame(&mut self) {
@@ -528,13 +378,13 @@ impl App {
         }
         self.frame_accumulator %= FRAME_INTERVAL_MS;
 
-        let uniforms: Uniforms = Uniforms::new(self.time, delta, self.style, self.aspect());
+        let uniforms: Uniforms = Uniforms::new(self.time, self.style);
         self.queue
             .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
         self.queue.write_buffer(
-            &self.droplet_params_buffer,
+            &self.glass_params_buffer,
             0,
-            bytemuck::bytes_of(&self.droplet_params),
+            bytemuck::bytes_of(&self.glass_params),
         );
 
         let frame: wgpu::SurfaceTexture = match self.surface.get_current_texture() {
@@ -553,23 +403,6 @@ impl App {
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("metro-encoder"),
                 });
-
-        {
-            let mut pass: wgpu::ComputePass<'_> =
-                encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                    label: Some("droplet-physics-and-refraction"),
-                    timestamp_writes: None,
-                });
-            pass.set_pipeline(&self.physics_pipeline);
-            pass.set_bind_group(0, &self.compute_bind_group, &[]);
-            pass.dispatch_workgroups(1, 1, 1);
-            pass.set_pipeline(&self.refraction_pipeline);
-            pass.dispatch_workgroups(
-                self.refraction_size.0.div_ceil(REFRACTION_WORKGROUP_EDGE),
-                self.refraction_size.1.div_ceil(REFRACTION_WORKGROUP_EDGE),
-                REFRACTION_WORKGROUP_DEPTH,
-            );
-        }
 
         {
             let mut pass: wgpu::RenderPass<'_> =
@@ -597,35 +430,6 @@ impl App {
         self.queue.submit(Some(encoder.finish()));
         frame.present();
     }
-}
-
-/// 按画布尺寸建折射偏移图,返回纹理与它自己的分辨率.
-/// 分辨率 = 画布 1/REFRACTION_DOWNSCALE(理由见调用处注释),
-/// 建的时候(`App::new`)与画布尺寸变化时(`App::resize`)用的是同一份公式.
-fn create_refraction_texture(
-    device: &wgpu::Device,
-    width: u32,
-    height: u32,
-) -> (wgpu::Texture, (u32, u32)) {
-    let size = (
-        (width / REFRACTION_DOWNSCALE).max(MIN_TEXTURE_DIMENSION),
-        (height / REFRACTION_DOWNSCALE).max(MIN_TEXTURE_DIMENSION),
-    );
-    let texture = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("refraction-offset"),
-        size: wgpu::Extent3d {
-            width: size.0,
-            height: size.1,
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: REFRACTION_TEXTURE_FORMAT,
-        usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
-        view_formats: &[],
-    });
-    (texture, size)
 }
 
 #[cfg(target_arch = "wasm32")]
