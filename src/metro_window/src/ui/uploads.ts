@@ -37,7 +37,7 @@ import {
     UPLOADS_PANEL_ID,
     type UploadLayerSpec,
 } from '@/metro_window/src/config';
-import { h, type DomChild } from '@/metro_window/src/ui/dom';
+import { h, type DomChild } from '@/common/dom';
 
 /** 一行上传控件:根元素 + 输入框 / 状态行 / 恢复按钮 + 它的声明式配置 */
 export interface UploadControl {

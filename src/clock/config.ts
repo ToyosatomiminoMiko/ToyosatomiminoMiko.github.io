@@ -1,17 +1,31 @@
 // ================================================================
 // LED 时钟(clock/clock.ts)常量配置
 //
-// 这里集中 clock/clock.ts 里所有"设计参数"字面量:字形几何,像素颜色,刷新
-// 间隔与可见文案.canvas 尺寸由 index.html 的 width/height 写死(JS 从
-// 不设置),故不在此配置尺寸.数值与拆分前的字面量逐位一致.
+// 这里集中 LED 时钟的声明式模型与全部"设计参数"字面量:挂载宿主与画布的
+// DOM 契约,画布分辨率,字形几何,像素颜色,刷新间隔与可见文案.数值与
+// 拆分前的字面量逐位一致.
 // ================================================================
 
+// ---------- DOM 契约(声明式模型) ----------
+
 /**
- * 找不到 canvas 时的告警文案(可见文本,与原先完全一致).
- * canvas 的 id 就一次性地写在 getElementById 调用处,不另行配置.
+ * 时钟的**空宿主** id:HOME 首屏底部左侧那个 div.
+ * 宿主由 src/common/ui/site_shell.ts 按 src/common/site.config.ts 的
+ * SITE_HOST_IDS.clock 建好并把元素引用交给本模块,所以这里只需要 id 给
+ * CSS 用(public/css/index.css 的 `#app_led_clock`),挂载时不再 getElementById.
  */
-export const CLOCK_CANVAS_MISSING_MESSAGE =
-    '[LED Clock] 找不到 canvas 元素: #time_canvas';
+export const CLOCK_HOST_ID = 'app_led_clock';
+
+/** 画布 id(样式见 public/css/index.css 的 `#time_canvas`) */
+export const CLOCK_CANVAS_ID = 'time_canvas';
+
+/**
+ * 画布的逻辑分辨率(**物理像素**:CSS 只控制显示高度,宽度按宽度比例缩放).
+ * 时间字符串固定为 "YYYY.MM.DD.HH:MM:SS"(19 个字形 + 0 个额外间距),
+ * 65 列 x 8 行正是它按下面字形表排完的尺寸.
+ */
+export const CLOCK_CANVAS_WIDTH = 65;
+export const CLOCK_CANVAS_HEIGHT = 8;
 
 // ---------- 时序 ----------
 

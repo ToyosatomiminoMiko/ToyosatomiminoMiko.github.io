@@ -19,229 +19,27 @@ ToyosatomiminoMiko
 
 <body>
     <!--
-    导航条:固定在视口顶部,脱离文档流,这样首屏(hero)能盖到 y=0 并铺满整屏.
-    默认是实底;压在首屏画面上时由 src/common/header_state.ts 加上 .is-over-hero
-    变成完全透明 -- 只剩站名与导航文字浮在画面上,也就是"隐形导航条".
-    样式见 public/css/index.css 的 .site-header.
+    页面骨架的**唯一宿主**.
+
+    首页的整套 UI -- 导航条(站名 + 标签 + 头像),首屏(舞台 / 压暗层 /
+    底部一排),五个标签页,以及每个模块的空宿主 -- 都不再写在这里,而是由
+    src/common/ui/site_shell.ts 按 src/common/site.config.ts 的声明式模型生成,
+    与 SETTING 里的地铁车窗控制台完全同一条约定:
+
+        宿主页不出现任何标记,只提供空位;结构 / 文案 / 类名 / id 只在
+        config.ts 里定义一次,组件与 CSS 都引用它.
+
+    所以改界面的入口是:
+
+        src/common/site.config.ts       骨架与站点的声明式模型(导航项/首屏/缩略图/宿主 id)
+        src/common/ui/site_shell.ts     生成骨架,并把各部分的元素引用交回 main.ts
+        src/<模块>/config.ts            模块自己的声明式模型(文案/DOM 契约/几何)
+        src/<模块>/ui/*.ts              模块的纯函数标记组件
+        public/css/*.css                样式(靠类名与 id 命中,不靠结构位置)
+
+    唯一的例外是本文件 head 里的样式表顺序与 `<title>`:它们属于文档本身.
     -->
-    <header class="site-header">
-        <a class="site-brand" data-bs-toggle="tab" href="#home">ToyosatomiminoMiko</a>
-        <ul class="nav nav-tabs">
-            <li class="nav-item">
-                <a class="nav-link active" data-bs-toggle="tab" href="#home">HOME</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" data-bs-toggle="tab" href="#oled">OLED</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" data-bs-toggle="tab" href="#rbt">RBT</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" data-bs-toggle="tab" href="#ieee754">IEEE754</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" data-bs-toggle="tab" href="#setting">SETTING</a>
-            </li>
-            <li class="nav-item">
-                <a href="https://github.com/ToyosatomiminoMiko">
-                    <img src="/images/head.png" class="rounded-circle head">
-                </a>
-            </li>
-        </ul>
-    </header>
-    <!--标签页-->
-    <main>
-        <div class="tab-content">
-            <!-- HOME -->
-            <div class="tab-pane fade show active" id="home">
-                <!--
-                首屏:视口在页面顶部时,地铁车窗的画布铺满整个屏幕.
-                它是**首屏**而不是背景 -- 全站背景仍然是 body 上的
-                --bg-image-active(SETTING 里那两张 GIF),首屏只是盖在它上面的区块.
-                中间暂不放文案;底部是 LED 时钟与风格按钮.
-                -->
-                <section class="hero" id="hero">
-                    <div class="hero__stage">
-                        <!--
-                        地铁车窗的**舞台**(Rust + WASM + WebGPU).
-                        宿主只提供这个空容器 -- 画布(以及可选的标题/副标题)由
-                        metro_window 组件生成,并给宿主加 .metro-window--stage
-                        变成铺满首屏的一层;其余设置面板在 SETTING 的 #metro-params 里,
-                        图层贴图上传面板在它下方的 #metro-uploads 里.
-                        四个挂载点 id 见 src/metro_window/src/config.ts 的 MOUNT_IDS.
-                        -->
-                        <div id="metro-window"></div>
-                    </div>
-                    <!-- 顶部渐变压暗:让导航文字压在画面上时可读(属于首屏,不属于导航条) -->
-                    <div class="hero__scrim"></div>
-                    <div class="hero__bottom">
-                        <!-- LED 时钟 -->
-                        <div id="app_led_clock">
-                            <canvas id="time_canvas" height="8" width="65"></canvas>
-                        </div>
-                        <!--
-                        风格按钮:空宿主,三颗风格(泡沫时期东京电车 / 赛博朋克 /
-                        上海磁悬浮)由 metro_window 组件生成.切风格属于"看",
-                        和时钟同排最顺手;滑块与 WebGPU 状态仍在 SETTING 里.
-                        -->
-                        <div id="metro-styles"></div>
-                    </div>
-                </section>
-            </div>
-            <!-- OLED_canvas -->
-            <div class="tab-pane fade" id="oled">
-                <div class="card oled-card">
-                    <div class="card-header">
-                        <h4>OLED Canvas</h4>
-                    </div>
-                    <div class="card-body">
-                        <!-- 状态指示区 -->
-                        <div id="coordsDisplay" class="coords-display card-text">coordinate:(X:-,Y:-)</div>
-                        <br />
-                        <!-- 主画布 -->
-                        <canvas id="pixelCanvas"></canvas>
-                        <div id="pixelIndicator" class="pixel-indicator"></div>
-                        <br />
-
-                        <!-- 工具控制区 -->
-                        <div class="tools">
-                            <button type="button" class="btn btn-primary" id="refill-btn">颜色重置</button>
-                            <button type="button" class="btn btn-primary" id="change-color">🔄️暗⬛</button>
-                            <input type="radio" name="tools" value="free" checked />绘制
-                            <input type="radio" name="tools" value="line" />直线
-                            <input type="radio" name="tools" value="rectangle" />矩形
-                            <button type="button" class="btn btn-primary" id="export-btn">导出数据</button>
-                            <button type="button" class="btn btn-primary" id="output-png-btn">下载PNG</button>
-                            <button type="button" class="btn btn-primary" id="byte-order-btn">⬇低位模式(LSB)</button>
-                        </div>
-                        <br />
-
-                        <!-- 数据输入输出容器 -->
-                        <div>
-                            <!-- 导出数据区 -->
-                            <div class="area-data">
-                                <textarea id="exportOutput" class="textarea-data"></textarea><br />
-                                <button type="button" class="btn btn-primary" id="output-button">复制到剪贴板</button>
-                            </div>
-                            <!-- 导入数据区 -->
-                            <div class="area-data">
-                                <textarea id="importData" class="textarea-data"></textarea><br />
-                                <button type="button" class="btn btn-primary" id="import-btn">导入数据</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <!-- Red-Black Tree -->
-            <div class="tab-pane fade" id="rbt">
-                <div class="card">
-                    <div class="card-header">
-                        <h4>🌳 Red-Black Tree</h4>
-                    </div>
-                    <div>
-                        <span>💡 支持简写叶子节点 (例如 "5R" 等价于 "5R(nil,nil)")</span><br>
-                        <span>🔴 R 红色 &nbsp;|&nbsp; ⚫ B 黒色</span><br>
-                    </div>
-                    <div class="card-body">
-                        <textarea id="treeInput" spellcheck="false"
-                            placeholder="例: 10B(5R(1B,8R),15R(12B,20B))  或深度4满树示例自动加载"></textarea>
-                        <div id="treeError" hidden></div>
-                        <canvas id="rbCanvas" width="1200" height="640"></canvas>
-                    </div>
-                </div>
-            </div>
-            <!-- IEEE 754 -->
-            <div class="tab-pane fade" id="ieee754">
-                <div class="card">
-                    <div class="card-header">
-                        <h4>🧮 IEEE 754 浮点可视化</h4>
-                    </div>
-                    <div class="card-body">
-                        <p class="ieee-hint">
-                            💡 输入十进制小数或长度匹配的 0/1 位串后点「转换」按钮转二进制;也可以点按下面的二进制位(0/1)直接改位.
-                            一切以二进制位为准,KaTeX 公式按递等链单向展示(二进制带入 = 十进制 = 精确十进制值).
-                            尾数高位在左,低位在右,每 4 位一组.
-                        </p>
-                        <div class="row g-3 align-items-center mb-3">
-                            <div class="col-auto">
-                                <label class="form-label mb-0" for="ieee-format">精度</label>
-                                <select id="ieee-format" class="form-select form-select-sm">
-                                    <option value="f32">单精度 float32 (32位)</option>
-                                    <option value="f64" selected>双精度 float64 (64位)</option>
-                                </select>
-                            </div>
-                            <div class="col-6">
-                                <label class="form-label mb-0" for="ieee-input">十进制数值</label>
-                                <div class="input-group input-group-sm">
-                                    <input id="ieee-input" class="form-control" value="3.14" spellcheck="false" />
-                                    <button type="button" class="btn btn-primary" id="ieee-convert">转换</button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div id="ieee-error" class="ieee-error" hidden></div>
-
-                        <div class="ieee-section">
-                            <div class="ieee-legend">
-                                <span class="ieee-s">S 符号</span>
-                                <span class="ieee-e">E 指数(<b data-role="exp-bits">11</b> bit)</span>
-                                <span class="ieee-m">M 尾数(<b data-role="frac-bits">52</b> bit)</span>
-                            </div>
-                            <div id="ieee-bits" class="ieee-bits"></div>
-                            <div id="ieee-bitstring" class="ieee-bitstring"></div>
-                        </div>
-
-                        <div id="ieee-breakdown" class="ieee-breakdown"></div>
-
-                        <div class="ieee-section">
-                            <div class="ieee-formula-title">公式 (KaTeX)</div>
-                            <div id="ieee-formula" class="ieee-formula"></div>
-                        </div>
-
-                        <div class="ieee-section">
-                            <div class="ieee-formula-title">特殊值参考 (点击载入)</div>
-                            <div id="ieee-special" class="ieee-special"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <!-- SETTING -->
-            <div class="tab-pane fade" id="setting">
-                <!--内容主体-->
-                <div>
-                    <!--背景修改-->
-                    <h4>修改背景</h4>
-                    <!--选择背景-->
-                    <ul class="bgul">
-                        <li class="bgli">
-                            <img src="/images/bgimg/bgstar.gif" class="rounded bgimg" />
-                            <span>STAR</span>
-                        </li>
-                        <li class="bgli">
-                            <img src="/images/bgimg/bgcode.gif" class="rounded bgimg" />
-                            <span>CODE</span>
-                        </li>
-                    </ul>
-                    <!--
-                    地铁车窗控制台:空宿主,整套设置面板(风格按钮 / 播放控制 /
-                    全部滑块 / WebGPU 状态与图层说明)由 metro_window 组件生成.
-                    车窗的舞台(画布)在 HOME 标签页;四个挂载点 id 见
-                    src/metro_window/src/config.ts 的 MOUNT_IDS.
-                    -->
-                    <div id="metro-params"></div>
-                    <!--
-                    图层贴图上传:空宿主,四行"层名 + 选文件 + 恢复默认"由
-                    metro_window 组件生成(城市背景 / 远景 / 中景 / 近景各一行).
-                    它是**另一块** fieldset,紧接在设置面板下方而不是并进去:
-                    一边调渲染参数,一边换美术素材,两件事不混在一起.
-                    没上传时用 public/metro_window/resource/ 里的原图;
-                    上传只在本会话生效(没有后端,刷新即还原).
-                    -->
-                    <div id="metro-uploads"></div>
-                </div>
-            </div>
-        </div>
-    </main>
+    <div id="site-root"></div>
     <script type="module" src="/src/main.ts"></script>
 </body>
 

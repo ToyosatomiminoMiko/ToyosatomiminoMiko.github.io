@@ -6,9 +6,14 @@
 // 不改变绘制结果与解析行为.
 // ================================================================
 
-// ---------- DOM 契约(id,与 index.html 完全一致) ----------
+// ---------- DOM 契约(id,与旧 index.html 的 #rbt 窗格完全一致) ----------
 
-/** 红黑树控件用到的 DOM 元素 id */
+/**
+ * 红黑树控件用到的 DOM 元素 id.
+ * 标记现在由 src/rbt/ui/rbt_panel.ts 按本文件的声明生成(id 写入元素再由组件
+ * 交回引用),不再是"HTML 与 TS 各写一份"的约定;保留这些常量给样式
+ * (public/css/index.css 的 `#treeInput` / `#treeError` / `#rbCanvas`)与组件共用.
+ */
 export const RBT_DOM = {
     /** 表达式输入 textarea 的 id */
     inputId: 'treeInput',
@@ -18,8 +23,43 @@ export const RBT_DOM = {
     canvasId: 'rbCanvas',
 } as const;
 
-/** 找不到 DOM 元素时的 console.warn 文案(可见文本,保持原样) */
-export const RBT_DOM_MISSING_MESSAGE = '[RBT] 找不到 #treeInput / #treeError / #rbCanvas';
+// ---------- 面板标记契约(声明式模型,逐字照搬旧 #rbt 窗格) ----------
+
+/** 面板根元素的类名(旧标记 `<div class="card">`) */
+export const RBT_PANEL_ROOT_CLASS = 'card';
+
+/** 面板头部容器的类名(旧标记 `<div class="card-header">`) */
+export const RBT_PANEL_HEADER_CLASS = 'card-header';
+
+/** 面板主体容器的类名(旧标记 `<div class="card-body">`) */
+export const RBT_PANEL_BODY_CLASS = 'card-body';
+
+/** 面板标题(可见文本,保持原样) */
+export const RBT_PANEL_TITLE = '🌳 Red-Black Tree';
+
+/** 提示区第一行:简写叶子节点说明(可见文本,保持原样) */
+export const RBT_HINT_SHORTHAND = '💡 支持简写叶子节点 (例如 "5R" 等价于 "5R(nil,nil)")';
+
+/**
+ * 提示区第二行:配色图例(可见文本,保持原样).
+ * 分隔符两侧是 HTML 的 `&nbsp;`(Unicode 不换行空格 U+00A0),必须原样保留:
+ * 这里直接写 `\u00a0` 而不是普通空格,免得不换行语义在纯文本里丢失.
+ */
+export const RBT_HINT_COLOR_LEGEND = '🔴 R 红色 \u00a0|\u00a0 ⚫ B 黒色';
+
+/** 表达式输入框的占位文案(可见文本,保持原样) */
+export const RBT_INPUT_PLACEHOLDER =
+    '例: 10B(5R(1B,8R),15R(12B,20B))  或深度4满树示例自动加载';
+
+/** 表达式输入框的拼写检查属性值(旧标记 spellcheck="false") */
+export const RBT_INPUT_SPELLCHECK = 'false';
+
+/**
+ * 树绘制 canvas 的逻辑分辨率(旧标记 width="1200" height="640").
+ * 行为代码按 canvas.width / canvas.height 自适应,故改这两个值即可整体缩放.
+ */
+export const RBT_CANVAS_WIDTH = 1200;
+export const RBT_CANVAS_HEIGHT = 640;
 
 // ---------- 布局几何(单位:canvas 逻辑像素) ----------
 

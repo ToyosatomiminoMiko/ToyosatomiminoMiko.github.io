@@ -7,12 +7,8 @@ __pycache__/
 # metro_window 子项目(src/metro_window/)的生成物,生成过程见 package.json 的 build:wasm
 # cargo 的构建缓存:workspace 根在仓库根(见根 Cargo.toml),所有成员共用这个 target/
 /target
-/src/metro_window/pkg
+/src/metro_window/wasm
 # wasm-bindgen CLI 版本必须与 Cargo.lock 一致,不一致时由构建脚本装到这里
 /src/metro_window/.cargo-tools
-# cargo test 的可视化 ppm 产物写在 crate 根(cargo test 的 cwd = crate 根)
+# cargo test / examples 的可视化产物(ppm 基准图 + preview.png)统一落在这里
 /src/metro_window/rust/test_output
-# examples/preview 把单帧写到**调用目录**(cargo run 不改 cwd),从仓库根跑就落在这里
-/preview.png
-# scripts/perf/451.mjs 起的 headless Chromium 用户目录
-/.scratch-451perf-profile

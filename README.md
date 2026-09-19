@@ -49,8 +49,8 @@ SETTING 里可以逐层上传替换城市背景那四张 PNG(画师按层分开�
 
 ## 首屏与导航条
 
-HOME 标签页的最上面是一块**首屏**(`index.html` 的 `.hero`):视口在页面顶部时,
-地铁车窗的画布铺满整个屏幕.它是**首屏**,不是**背景** -- 全站背景仍然是
+HOME 标签页的最上面是一块**首屏**(`.hero`,由 `src/common/ui/site_shell.ts` 生成):
+视口在页面顶部时,地铁车窗的画布铺满整个屏幕.它是**首屏**,不是**背景** -- 全站背景仍然是
 `body` 上的 `--bg-image-active`(SETTING 里那两张 GIF),首屏只是盖在它上面的区块.
 
 由此带来两条固定结构,改首页时别绕开:
@@ -66,6 +66,10 @@ HOME 标签页的最上面是一块**首屏**(`index.html` 的 `.hero`):视口�
 - **首屏满宽是"逃逸"出来的**:`main` 只有 90% 宽,`.hero` 用
   `margin-left/right: calc(50% - 50vw)` 外扩到视口两侧,所以 `body` 上有
   `overflow-x: hidden`(`100vw` 含滚动条宽度,必然溢出一点).
+- **首屏的结构与每个模块的宿主都在 `src/common/site.config.ts` 里声明**
+  (`HERO_ID` / `HERO_*_CLASS` / `SITE_HOST_IDS`),由 `src/common/ui/site_shell.ts`
+  生成并把元素引用交回 `src/main.ts`.要动首屏布局就改这两处 -- `index.html` 里
+  只有骨架宿主,没有第二处标记可改(见[「UI 在哪里」](#ui-在哪里)).
 - 画布怎么"覆盖"整屏由组件负责:挂载函数给舞台宿主加
   `.metro-window--bare`(去掉面板的内边距与底色)与 `.metro-window--stage`
   (absolute 铺满父层),画布再用 `object-fit: cover` 缩放进这个盒子.
@@ -82,6 +86,61 @@ HOME 标签页的最上面是一块**首屏**(`index.html` 的 `.hero`):视口�
   样式藏掉画布,首屏露出的就是本站背景(GIF),并留一句短提示;
   完整排查步骤仍然只进 SETTING 的状态区.
 
+## UI 在哪里
+
+首页的整套 UI(导航条 / 首屏 / 五个标签页 / 各模块面板)**没有一行写在
+`index.html` 里**:HTML 只有骨架宿主 `<div id="site-root"></div>`.
+这条约定是从地铁车窗控制台推广开来的,现在全站统一:
+
+```text
+config.ts        声明式模型:文案 / 类名 / DOM 契约 id / 几何 / 清单(纯数据,无副作用)
+ui/*.ts          纯函数组件:模型 -> 元素,并交回行为代码要用的元素引用
+<模块>.ts         挂载函数 mount<模块>(host):插进宿主 + 绑事件,不回头查 DOM
+site_shell.ts    先生成整页骨架(导航条 / 首屏 / 五个窗格 / 所有空宿主),把引用交回
+main.ts          按顺序调用:骨架 -> 各模块 -> 行为
+```
+
+| 想改什么 | 去哪 |
+| --- | --- |
+| 站名 / 标签栏 / 头像 / 首屏结构 / 标签页清单 | `src/common/site.config.ts`(`NAV_ITEMS` / `SITE_BRAND_TEXT` / `AVATAR_*` / `HERO_*`),骨架代码在 `src/common/ui/site_shell.ts` |
+| 背景缩略图(加一张图 / 换名字) | `src/common/site.config.ts` 的 `BACKGROUND_PRESETS`,标记在 `src/common/ui/background_section.ts` |
+| LED 时钟的画布尺寸 / 时间戳格式 | `src/clock/config.ts`;标记在 `src/clock/ui/clock_display.ts`;绘制在 `src/clock/clock.ts` |
+| OLED 画板的按钮 / 文案 / 提示 | `src/oled/config.ts`,面板标记在 `src/oled/ui/oled_panel.ts` |
+| 红黑树的提示文案 / 画布尺寸 / 占位符 | `src/rbt/config.ts`,面板标记在 `src/rbt/ui/rbt_panel.ts` |
+| IEEE 754 的标签 / 下拉项 / 初值 | `src/ieee754/config.ts`,面板标记在 `src/ieee754/ui/ieee754_panel.ts` |
+| 地铁车窗的滑块 / 风格按钮 / 上传图层 | `src/metro_window/src/config.ts`,面板在 `src/metro_window/src/ui/`(见它自己的 README) |
+| 导航条"透明 / 实底",背景切换 | `src/common/header_state.ts` / `src/common/background.ts`(行为),令牌与类名在 `src/common/site.config.ts` |
+| 样式 | `public/css/*.css`;选择器按**类名与 id** 命中(config.ts 里的 id 契约),不依赖结构位置 |
+
+几条硬约束:
+
+- **`h()` 是唯一的 DOM 构造原语**(`src/common/dom.ts`).模块里不要再写
+  `document.createElement` -- 例外只有"必须拿原生 API"的场合(离屏 canvas 做像素
+  操作,KaTeX 渲染结果),这类都会在代码里注明.
+- **宿主只提供空位**:每个模块的宿主都是空容器,标记全部由组件生成.
+  宿主页不出现任何面板标记,所以"改了 HTML 但忘了改组件"这种失配不存在.
+  挂载函数对**自己独占**的宿主用 `replaceChildren` 整体接管(重复挂载不会插两份,
+  OLED / RBT / IEEE754 / 时钟都是这样);地铁车窗例外 -- 它的一个宿主可以同时
+  接收设置面板与上传面板(省略上传宿主时),所以那边是 `append`.
+- **不按 id 回头查 DOM**:骨架与组件都把元素引用直接交回来.唯一的 id 查找是
+  骨架找自己的宿主 `#site-root`,拿到了就往下传,后面再没有任何 `getElementById`.
+- **id 仍然重要**:它是 CSS 与调试定位的锚点,集中写在 `config.ts` 里;
+  改 id 要同步 `public/css/*.css`(写错不会报错,只会静默失效).
+- **组件不写页面级选择器**:`body { margin: 0 }` 这类规则属于站点的
+  `public/css/index.css`,组件样式只作用在自己的作用域类下(地铁车窗是
+  `.metro-window`,其余模块用 bootstrap 的卡片结构 + 自己的类名).
+- **修饰类由挂载函数补**:组件的样式作用域类不写在 HTML 里(骨架不替组件记约定),
+  宿主换了位置照样能命中.
+
+**这套结构的回归网分两层**(都在 `*.test.ts` 那一层能抓到的,就不放到浏览器里):
+
+| 层 | 跑什么 | 在哪 |
+| --- | --- | --- |
+| 标记契约(进程内) | 生成的标签 / 类名 / id / `data-*` / 文案与 CSS,bootstrap 是否对得上 | `src/**/ui/*.test.ts`,文件头 `@vitest-environment happy-dom`,进 `npm test`(不需要 build,CI 里也跑) |
+| 真浏览器验收 | canvas 真的画出来了吗,bootstrap 真的认这排标签吗,布局与 CSS 级联对不对,宿主与车窗组件接上了吗 | `npm run smoke:home`(要 `dist/` 与 chromium,见[「构建」](#构建)) |
+
+加/改 UI 之后:`npm test` 跑第一层;涉及渲染/交互/样式的改动再跑一次 `smoke:home`.
+
 ## GraphCalc
 
 已拆分为独立仓库:
@@ -95,8 +154,14 @@ HOME 标签页的最上面是一块**首屏**(`index.html` 的 `.hero`):视口�
   (`clock/`,`oled/`,`rbt/`,`ieee754/`,`4xx_page/`,`metro_window/`),
   跨域复用的公共函数与站点级常量放 `src/common/`;根上只留
   `main.ts`(入口)与 `vite_env.d.ts`(Vite 全局模块声明).
-  每个目录里 `index.ts` 是薄入口,可调常量在 `config.ts`(或 `*_tokens.css`),
-  类型在 `types.ts`,实现细节收进 `ui/` 之类的子目录.
+  每个目录里 `config.ts` 是**声明式模型 + 可调常量**(或 `*_tokens.css`),
+  纯标记组件收进 `ui/`,类型在 `types.ts`,实现细节与行为留在目录根的那个模块文件里.
+- **首页的 UI 全部"声明式编排"**(与地铁车窗控制台同一套做法):宿主页
+  `index.html` 只有一个空位 `#site-root`,骨架由 `src/common/ui/site_shell.ts` 按
+  `src/common/site.config.ts` 的模型生成;每个模块的挂载函数签名统一是
+  `mount<模块>(host: HTMLElement)` -- 往宿主里长标记,再拿组件交回的**元素引用**
+  绑行为,**不按 id 回头查 DOM**.`h()`(`src/common/dom.ts`)是全站唯一的 DOM 构造原语.
+  详见[「UI 在哪里」](#ui-在哪里).
 - **跨目录导入一律用源码根别名 `@/`**:`@/common/utils`,`@/clock/config`,
   `@/4xx_page/shared/icon`;只有同目录的兄弟模块才写 `./x`.
   别名一处定义,两处生效:`vite.config.ts` 的 `resolve.alias` 与
@@ -120,7 +185,9 @@ HOME 标签页的最上面是一块**首屏**(`index.html` 的 `.hero`):视口�
 | 作用域 | 配置文件 | 放什么 |
 | --- | --- | --- |
 | 主站样式 | `public/css/tokens.css` | 站点设计令牌(`:root`):字体栈,调色板,尺寸,圆角,间距,`z-index`,过渡;首屏(`--hero-*`)与固定导航条(`--chrome-*`) |
-| 主站脚本 | `src/clock/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,OLED 画板尺寸/通道/文案,红黑树布局与配色,IEEE 754 精度格式与掩码,站点级共用值(含首屏 id / 导航条选择器与 `is-over-hero` 类名 / `--nav-height` 令牌名) |
+| 主站脚本 | `src/clock/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,OLED 画板尺寸/通道/文案,红黑树布局与配色,IEEE 754 精度格式与掩码,站点级声明式模型(导航项 / 首屏结构 / 背景缩略图清单 / 各模块宿主 id / `is-over-hero` 类名 / `--nav-height` 令牌名) |
+| 首页骨架 | `src/common/ui/site_shell.ts`,`src/common/ui/background_section.ts`,`src/common/dom.ts` | 骨架与背景区两块声明式组件,以及全站唯一的 DOM 构造原语 `h()` |
+| 主站行为 | `src/main.ts`,`src/common/header_state.ts`,`src/common/background.ts` | 挂载顺序(骨架 -> 各模块 -> 行为),导航条"透明 / 实底"状态,背景切换令牌写入 |
 | 4xx 页面样式 | `src/4xx_page/418/418_tokens.css`,`src/4xx_page/451/451_tokens.css`;`404/404.css` 与 `shared/icon.css` 顶部的 `:root` 块 | 各彩蛋页的设计令牌(颜色 / 几何 / 阴影 / 时长 / 字体) |
 | 4xx 页面脚本 | `src/4xx_page/418/teapot/config.ts`,`src/4xx_page/451/boot.config.ts`,`src/4xx_page/451/ember/*.config.ts` | 茶壶交互,启动开关,GPU 计时 / 统计 / 资源 / 能力 / 性能面板参数 |
 | 地铁车窗前端 | `src/metro_window/src/config.ts`,`src/metro_window/src/stage_size.ts`,`src/metro_window/src/ui/`,`src/metro_window/src/tokens.css` | DOM id / class / `data-*` 键名,`setParam` 参数名映射,车窗标记 / 设置面板 / 上传图层的声明式模型(画布分辨率 / 滑块分组 / 风格 / 按钮 / 可上传贴图清单 / 文案),后备缓冲尺寸与防抖 / dpr 上限;声明式 DOM 组件(`h()` + 舞台标记 + 风格按钮行 + 设置面板 + 上传面板 + PNG 解码);组件设计令牌 |
@@ -148,15 +215,14 @@ HOME 标签页的最上面是一块**首屏**(`index.html` 的 `.hero`):视口�
   "水珠边缘为什么不受低分辨率偏移图影响").
 - **DOM id / class / Rust 参数名**是跨语言契约:改动必须两边同时改,
   写错不会报错,只会静默失效,所以它们集中在配置文件里便于对照.
-- **设置面板不手写 HTML**:结构与文案由 `src/metro_window/src/config.ts` 的
-  声明式模型描述,由 `src/metro_window/src/ui/` 的组件渲染成元素并交回引用;
-  加/改滑块只动配置,
-  宿主页(`index.html`)里只有四个空容器(`#metro-window` 舞台 /
-  `#metro-styles` 风格按钮 / `#metro-params` 控制台 / `#metro-uploads` 上传面板),
-  不要回去改它们.
-  面板放在哪个标签页由挂载点决定,样式作用域类由挂载函数往每个宿主上补,
-  组件本身不关心位置.
+- **UI 标记不手写 HTML**:首页的每一个模块都是"config 里的声明式模型 ->
+  `ui/` 里的纯函数组件 -> 挂载函数往宿主里插 + 绑事件"三段式.
+  加一个背景缩略图只往 `BACKGROUND_PRESETS` 加一条,换 OLED 的一句提示只改
+  `src/oled/config.ts`;`index.html` 里没有第二处标记要同步.
+  完整约定(含目录地图与"加东西改哪里")见[「UI 在哪里」](#ui-在哪里).
 - 等价性回归网:`cargo test` 与 `vitest` 覆盖参数布局与公式;
+  首页**生成的标记**由 `src/**/ui/*.test.ts` 在 happy-dom 里逐条断言(进 `npm test`);
+  真浏览器那层只剩"必须真渲染"的部分(`npm run smoke:home`);
   程序化贴图还带 PPM 可视化测试,输出到 `src/metro_window/rust/test_output/`(已 gitignore).
 
 ## 构建
@@ -166,6 +232,8 @@ HOME 标签页的最上面是一块**首屏**(`index.html` 的 `.hero`):视口�
 npm run build:all   # 跳过依赖安装,只跑流水线
 npm run dev         # 开发服务器 http://127.0.0.1:5173
 npm run preview     # 预览 dist/
+npm run smoke:home  # 真浏览器结构验收(需要先 build,见下)
+npm run perf:451    # 451 页的性能测试台
 ```
 
 步骤序列定义在 `package.json` 的 `build:all`(单一事实源):
@@ -176,12 +244,20 @@ lint:rs -> clean -> build:wasm -> test(vitest) -> test:rs(cargo) -> build:app
 
 `build:app` = `check:wasm` + `tsc --noEmit` + `vite build`.
 
+**`npm run smoke:home` 不在流水线里**:它要 `dist/` 与一个 `chromium-browser`,
+做法是起静态服务器 + headless Chromium,只验那些**进程内 DOM 做不到**的事
+(16 项:canvas 真的点出像素 / 树真的画出红节点 / 点标签页真的切窗格 / 时钟真的每秒
+重绘 / `getComputedStyle` 下的布局 / 骨架交回的宿主真的被地铁车窗组件接上).
+类名,id,`data-*`,文案这些**结构契约**已经搬进 `npm test` 的 happy-dom 单测,
+所以这条命令只需在动到渲染,交互,样式时跑.第一次跑它就抓到过 `h()` 写
+`data-bs-toggle` 的方式不合规范,导致整个骨架挂不上这类问题.用法与边界见脚本头部注释.
+
 工具链:`node` / `npm`,以及 **`cargo` / `rustc` + `wasm32-unknown-unknown`** --
 地铁车窗是 Rust->wasm 的,前端入口静态 import 它的产物,所以 Rust 是构建期硬依赖,
 不是可选项.仓库根有一份 `Cargo.toml`,它是**整个仓库的 cargo workspace**
 (成员目前只有地铁车窗的 crate,以后新增 Rust 直接往 `members` 里加):`Cargo.lock`
 与构建缓存 `target/` 都在仓库根,所有 crate 共用,`cargo test` / `cargo clippy`
 等命令在仓库根直接跑 `--workspace` 即可,不必 cd 进子目录.
-wasm 产物(`src/metro_window/pkg/`)与 `target/` 不入库,
+wasm 产物(`src/metro_window/wasm/`)与 `target/` 不入库,
 缺产物时 `npm run dev` 会直接提示跑 `npm run build:wasm`,而不是抛 Vite 的解析错误.
 CI 见 [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml).

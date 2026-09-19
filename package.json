@@ -14,13 +14,14 @@
   },
   "devDependencies": {
     "@types/node": "^26.4.1",
+    "happy-dom": "^20.14.5",
     "typescript": "^7.0.2",
     "vite": "^8.2.0",
     "vitest": "^4.1.10"
   },
   "scripts": {
     "dev": "npm run check:wasm && vite",
-    "clean": "node -e 'const fs = require(\"node:fs\"); for (const p of [\"dist\", \"src/metro_window/pkg\"]) fs.rmSync(p, { recursive: true, force: true });'",
+    "clean": "node -e 'const fs = require(\"node:fs\"); for (const p of [\"dist\", \"src/metro_window/wasm\"]) fs.rmSync(p, { recursive: true, force: true });'",
     "prepare": "node -e \"try{require('node:child_process').execSync('git config --local core.hooksPath .githooks',{stdio:'ignore'})}catch{}\"",
     "check:wasm": "node scripts/check_wasm.mjs",
     "build:wasm": "bash scripts/build_wasm.sh",
@@ -32,6 +33,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "perf:451": "node scripts/perf/451.mjs",
+    "smoke:home": "node scripts/smoke_home.mjs",
     "typecheck": "tsc --noEmit --noUnusedLocals --noUnusedParameters"
   }
 }

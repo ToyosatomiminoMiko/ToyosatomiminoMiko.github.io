@@ -7,7 +7,7 @@
  * 拆成"舞台"与"控制台"两块以后,本文件只管舞台;设置面板在 ui/settings.ts 里,
  * 由挂载函数插进另一个宿主(站点放在 SETTING 标签页).
  *
- * 和 ui/dom.ts 的关系:这里只做"描述 -> 节点列表",不读页面,不改全局;真正的
+ * 和 @/common/dom 的关系:这里只做"描述 -> 节点列表",不读页面,不改全局;真正的
  * 挂载(root.append)交给 metro_window.ts,和设置面板一样由挂载函数统一负责.
  */
 import {
@@ -15,7 +15,7 @@ import {
     CANVAS_WIDTH,
     ELEMENT_IDS,
 } from '@/metro_window/src/config';
-import { h, type DomChild } from '@/metro_window/src/ui/dom';
+import { h, type DomChild } from '@/common/dom';
 
 /**
  * 按 config.ts 的声明生成舞台标记:

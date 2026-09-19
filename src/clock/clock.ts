@@ -2,11 +2,15 @@
 2025.12.10.23:20:00
 APP: #app_led_clock
 LED Clock
+
+挂载形态与地铁车窗控制台一致:宿主是**空容器**(由 src/common/ui/site_shell.ts
+按 src/common/site.config.ts 建好并交回引用),标记由 ui/clock_display.ts 生成,
+本文件只做行为 -- 拿组件交回的画布引用画点阵,不再按 id 去 DOM 里找元素.
 */
 import { fmt_time } from '@/common/utils';
+import { createClockDisplay } from '@/clock/ui/clock_display';
 import {
     BACKGROUND_COLOR,
-    CLOCK_CANVAS_MISSING_MESSAGE,
     COLON_CHAR,
     COLON_SEGMENTS,
     DIGIT_ADVANCE,
@@ -61,12 +65,19 @@ function drawDot(ctx: CanvasRenderingContext2D, x: number): void {
     }
 }
 
-export function mountClock(): void {
-    const canvas = document.getElementById('time_canvas');
-    if (!canvas || !(canvas instanceof HTMLCanvasElement)) {
-        console.warn(CLOCK_CANVAS_MISSING_MESSAGE);
-        return;
-    }
+/**
+ * 把 LED 时钟挂到宿主里.
+ *
+ * @param host 时钟的宿主(骨架里的 `#app_led_clock`):只提供空位,
+ *             画布由 createClockDisplay() 生成后插进去.
+ */
+export function mountClock(host: HTMLElement): void {
+    const { canvas } = createClockDisplay();
+    // 宿主由本模块独占(骨架建的空 div),用 replaceChildren 整体接管:
+    // 重复挂载不会留下两份同 id 的标记.全站三个"宿主独占"的模块都这么做,
+    // 地铁车窗例外 -- 它的宿主可以同时接收设置面板与上传面板,所以那边是 append.
+    host.replaceChildren(canvas);
+
     const ctx = canvas.getContext('2d');
     if (!ctx) return; // 安全处理
 

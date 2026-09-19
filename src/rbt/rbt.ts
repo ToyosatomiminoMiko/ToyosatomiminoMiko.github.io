@@ -12,8 +12,6 @@ import {
     RBT_COLOR_BLACK,
     RBT_COLOR_RED,
     RBT_COMMA,
-    RBT_DOM,
-    RBT_DOM_MISSING_MESSAGE,
     RBT_EDGE_COLOR,
     RBT_EDGE_LINE_WIDTH,
     RBT_EMPTY_HINT_COLOR,
@@ -58,6 +56,7 @@ import {
     RBT_TREE_EXAMPLE,
     RBT_Y_STEP,
 } from './config';
+import { createRbtPanel } from './ui/rbt_panel';
 
 // ============================================================
 // 红黑树节点定义 (支持任意数值/字符串)
@@ -349,18 +348,20 @@ class TreeDrawer {
 // ============================================================
 // 原生 TS 挂载模块
 // ============================================================
-export function mountRBT(): void {
-    const input = document.getElementById(RBT_DOM.inputId);
-    const errorEl = document.getElementById(RBT_DOM.errorId);
-    const canvas = document.getElementById(RBT_DOM.canvasId);
-    if (
-        !input || !errorEl || !canvas ||
-        !(input instanceof HTMLTextAreaElement) ||
-        !(canvas instanceof HTMLCanvasElement)
-    ) {
-        console.warn(RBT_DOM_MISSING_MESSAGE);
-        return;
-    }
+/**
+ * 把红黑树面板挂到宿主(骨架交回的 `shell.panes.rbt` 空窗格)上.
+ * 标记由 rbt_panel.ts 生成并把元素引用交回,所以这里不再查 DOM,也没有
+ * "找不到元素"的失败路径;绘制与解析逻辑与拆分前完全一致.
+ */
+export function mountRBT(host: HTMLElement): void {
+    const panel = createRbtPanel();
+    // 宿主由本模块独占(骨架建的空窗格),用 replaceChildren 整体接管:
+    // 重复挂载不会留下两份同 id 的标记(见 clock.ts / oled.ts 的同一条约定).
+    host.replaceChildren(panel.root);
+
+    const input = panel.input;
+    const errorEl = panel.error;
+    const canvas = panel.canvas;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;

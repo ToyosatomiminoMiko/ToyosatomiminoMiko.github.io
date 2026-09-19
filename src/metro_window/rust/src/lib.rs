@@ -31,6 +31,20 @@ pub use texture_params::{DIRT_TEXTURE_SIZE, FOG_TEXTURE_SIZE, INTERIOR_TEXTURE_S
 pub use textures::{create_texture, decode_png, generate_dirt, generate_fog, generate_interior};
 pub use uniforms::Uniforms;
 
+/// 生成物的落点:本 crate 根下的 `test_output/`,**绝对路径**.
+///
+/// 这个目录只在这里定义一次,因为有两类产物都落在它下面,而它们原先各自按 cwd
+/// 找地方:`cargo test` 的可视化 PPM 基准图(见 `textures::write_ppm`)与
+/// `cargo run --example preview` 的 `preview.png`.`cargo test` 的 cwd 恰好是
+/// crate 根,但 `cargo run` 的 cwd 是**你敲命令的那个目录** -- 同一份产物会按调用
+/// 位置落到不同地方(以前 preview.png 就落在仓库根,还得为它单开一条 .gitignore).
+/// 按 `CARGO_MANIFEST_DIR` 算成绝对路径之后,从哪跑都落在同一个目录.
+///
+/// 该目录已在仓库根 .gitignore 里,不往仓库里丢生成物.
+pub fn test_output_dir() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("test_output")
+}
+
 use std::cell::RefCell;
 use std::rc::Rc;
 

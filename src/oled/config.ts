@@ -9,9 +9,13 @@
 // ---------- 默认配置对象 ----------
 
 /**
- * OLEDCanvas 的默认配置(不传参时生效).
- * 画布尺寸 / 预览色 / 透明度都只在这里定义一次,其余代码(包括下面的
- * OLED_DOM.canvasId)统一引用本对象,保证"同一个值只有一处定义".
+ * OLEDCanvas 的绘制参数默认值(不传参时生效).
+ * 画布尺寸 / 预览色 / 透明度都只在这里定义一次,其余代码统一引用本对象,
+ * 保证"同一个值只有一处定义".
+ *
+ * 注:`canvasId` 是**标记契约**(元素 id),与绘制参数放在一起只是为了
+ * 沿用原来的导出形状;真正生成画布时由 ui/oled_panel.ts 读它写 id,
+ * 行为代码不再按 id 查元素.
  */
 export const OLED_DEFAULT_CONFIG = {
     /** canvas 元素的 id,默认 'pixelCanvas' */
@@ -156,9 +160,9 @@ export const OLED_BYTE_ORDER_TEXT = {
     msb: '⬆高位模式(MSB)',
 } as const;
 
-// ---------- DOM 契约(id / class,与 index.html 完全一致) ----------
+// ---------- DOM 契约(id / name / class,与 index.html 完全一致) ----------
 
-/** OLED 控件用到的 DOM 元素 id 与选择器(主画布 id 见 OLED_DEFAULT_CONFIG.canvasId) */
+/** OLED 控件用到的 DOM 元素 id / name(主画布 id 见 OLED_DEFAULT_CONFIG.canvasId) */
 export const OLED_DOM = {
     /** 鼠标位置指示器(红框)的 id */
     indicatorId: 'pixelIndicator',
@@ -182,8 +186,13 @@ export const OLED_DOM = {
     exportBtnId: 'export-btn',
     /** 导入数据按钮的 id */
     importBtnId: 'import-btn',
-    /** 工具 radio 的查询选择器 */
-    toolRadioSelector: 'input[name="tools"]',
+    /**
+     * 工具 radio 的 name(`input[name="tools"]`).
+     * id 只留给 CSS 与调试定位,radio 靠 name 成组,顺序由
+     * OLED_PANEL_TOOL_OPTIONS 声明 -- 面板直接把 radio 引用交回行为代码,
+     * 不再用 `input[name="tools"]` 选择器回头查 DOM.
+     */
+    toolRadioName: 'tools',
 } as const;
 
 // ---------- 可见文案(保持原样,集中一处便于校对) ----------
@@ -236,3 +245,73 @@ export const OLED_DISPLAY_HIDDEN = 'none';
 
 /** 鼠标按下事件的按钮掩码(左键/右键) */
 export const OLED_MOUSE_BUTTON_MASK = 3;
+
+// ---------- 面板标记的声明式模型(ui/oled_panel.ts 用) ----------
+//
+// 原先这些字面量写在 index.html 的 `#oled` 窗格里(标签 / 类名 / 文案 / id),
+// 现在集中到此处,由 ui/oled_panel.ts 的纯函数生成标记.字符串与拆分前的
+// index.html **逐字一致**(类名与 id 直接决定 public/css/index.css 与
+// bootstrap 的命中),所以这里只做"搬家",不做任何改名.
+
+/** 面板标题 `<h4>` 的文案 */
+export const OLED_PANEL_TITLE_TEXT = 'OLED Canvas';
+
+/** 卡片外框类名:div.card.oled-card(CSS 的 `.oled-card` 定宽) */
+export const OLED_PANEL_CARD_CLASS = 'card oled-card';
+
+/** 卡片标题栏类名 */
+export const OLED_PANEL_CARD_HEADER_CLASS = 'card-header';
+
+/** 卡片主体类名 */
+export const OLED_PANEL_CARD_BODY_CLASS = 'card-body';
+
+/** 坐标显示类名(`.coords-display` 提供底色与等宽字体,card-text 沿用 bootstrap) */
+export const OLED_PANEL_COORDS_CLASS = 'coords-display card-text';
+
+/** 坐标显示的初始文案(与 OLED_COORDS_EMPTY 同源) */
+export const OLED_PANEL_COORDS_TEXT = OLED_COORDS_EMPTY;
+
+/** 指示器类名(CSS 的 `.pixel-indicator` 定位红框并默认隐藏) */
+export const OLED_PANEL_INDICATOR_CLASS = 'pixel-indicator';
+
+/** 工具控制区类名(CSS 的 `.tools`) */
+export const OLED_PANEL_TOOLS_CLASS = 'tools';
+
+/** 数据输入输出行类名(CSS 的 `.area-data` 提供上下外边距) */
+export const OLED_PANEL_ROW_CLASS = 'area-data';
+
+/** 数据 textarea 类名(CSS 的 `.textarea-data` 锁宽 / 等宽字体) */
+export const OLED_PANEL_TEXTAREA_CLASS = 'textarea-data';
+
+/** bootstrap 按钮类名(原先每个按钮都写 `btn btn-primary`) */
+export const OLED_PANEL_BUTTON_CLASS = 'btn btn-primary';
+
+/** 颜色重置按钮的文案 */
+export const OLED_PANEL_REFILL_BUTTON_TEXT = '颜色重置';
+
+/** 导出数据按钮的文案 */
+export const OLED_PANEL_EXPORT_BUTTON_TEXT = '导出数据';
+
+/** 下载 PNG 按钮的文案 */
+export const OLED_PANEL_PNG_BUTTON_TEXT = '下载PNG';
+
+/** 导入数据按钮的文案 */
+export const OLED_PANEL_IMPORT_BUTTON_TEXT = '导入数据';
+
+/** 一个绘图工具 radio 的声明(value 即 DrawTool,label 是 radio 后面的文字) */
+export interface OledToolOption {
+    /** radio 的 value(DrawTool 取值) */
+    readonly value: string;
+    /** radio 后面的可见文字 */
+    readonly label: string;
+}
+
+/**
+ * 工具 radio 的声明清单(顺序即原标记的顺序).
+ * 默认选中哪一项由 OLED_DEFAULT_TOOL 决定,不在这里重复写死.
+ */
+export const OLED_PANEL_TOOL_OPTIONS: readonly OledToolOption[] = [
+    { value: 'free', label: '绘制' },
+    { value: 'line', label: '直线' },
+    { value: 'rectangle', label: '矩形' },
+];

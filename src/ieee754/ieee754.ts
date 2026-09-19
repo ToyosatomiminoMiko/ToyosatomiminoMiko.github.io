@@ -46,7 +46,9 @@ IEEE 754 浮点可视化:单精度(float32) / 双精度(float64)
 */
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import { h } from '@/common/dom';
 import type { IEEE754Class, IEEE754Format, IEEE754Value } from './types';
+import { createIeee754Panel } from './ui/ieee754_panel';
 import {
     FLOAT32,
     FLOAT32_KEY,
@@ -67,8 +69,6 @@ import {
     IEEE754_BITSTRING_PATTERN,
     IEEE754_BIT_CLASS,
     IEEE754_BIT_GROUP_CLASS,
-    IEEE754_DOM,
-    IEEE754_DOM_MISSING_MESSAGE,
     IEEE754_ERROR_UI_PREFIX,
     IEEE754_ERR_EMPTY_INPUT,
     IEEE754_ERR_UNPARSABLE_PREFIX,
@@ -462,75 +462,58 @@ function renderSpecialTable(
     onPick: (v: IEEE754Value) => void,
 ): void {
     container.replaceChildren();
-    const table = document.createElement('table');
-    table.className = IEEE754_SPECIAL_TABLE_CLASS;
 
-    const thead = document.createElement('thead');
-    const headTr = document.createElement('tr');
-    for (const label of IEEE754_SPECIAL_TABLE_HEADERS) {
-        const th = document.createElement('th');
-        th.textContent = label;
-        headTr.appendChild(th);
-    }
-    thead.appendChild(headTr);
-    table.appendChild(thead);
-
-    const tbody = document.createElement('tbody');
-    for (const row of SPECIAL_VALUES) {
+    const headTr = h('tr', {}, IEEE754_SPECIAL_TABLE_HEADERS.map((label) => h('th', { text: label })));
+    const body = h('tbody', {}, SPECIAL_VALUES.map((row) => {
         const v = row.make(format);
-        const tr = document.createElement('tr');
-        tr.title = IEEE754_SPECIAL_ROW_TITLE;
-
-        const tdName = document.createElement('td');
-        tdName.textContent = row.name;
-
         const { sign, exponent, fraction } = splitBits(v);
-        const tdBits = document.createElement('td');
-        tdBits.className = IEEE754_BITS_CLASS;
-        tdBits.textContent = `S=${sign} E=${exponent} M=${fraction}`;
-
-        const tdVal = document.createElement('td');
-        tdVal.textContent = valueDisplayText(v);
-
-        tr.appendChild(tdName);
-        tr.appendChild(tdBits);
-        tr.appendChild(tdVal);
+        const tr = h('tr', { attrs: { title: IEEE754_SPECIAL_ROW_TITLE } }, [
+            h('td', { text: row.name }),
+            h('td', { class: IEEE754_BITS_CLASS, text: `S=${sign} E=${exponent} M=${fraction}` }),
+            h('td', { text: valueDisplayText(v) }),
+        ]);
         tr.addEventListener('click', () => onPick(v));
-        tbody.appendChild(tr);
-    }
-    table.appendChild(tbody);
-    container.appendChild(table);
+        return tr;
+    }));
+
+    container.appendChild(h('table', { class: IEEE754_SPECIAL_TABLE_CLASS }, [
+        h('thead', {}, [headTr]),
+        body,
+    ]));
 }
 
-export function mountIEEE754(): void {
-    const formatSel = document.getElementById(IEEE754_DOM.formatId) as HTMLSelectElement | null;
-    const input = document.getElementById(IEEE754_DOM.inputId) as HTMLInputElement | null;
-    const convertBtn = document.getElementById(IEEE754_DOM.convertId) as HTMLButtonElement | null;
-    const bitsEl = document.getElementById(IEEE754_DOM.bitsId);
-    const bitstringEl = document.getElementById(IEEE754_DOM.bitstringId);
-    const breakdownEl = document.getElementById(IEEE754_DOM.breakdownId);
-    const formulaEl = document.getElementById(IEEE754_DOM.formulaId);
-    const errorEl = document.getElementById(IEEE754_DOM.errorId);
-    const specialEl = document.getElementById(IEEE754_DOM.specialId);
-    const expBitsLabel = document.querySelector(IEEE754_DOM.expBitsSelector);
-    const fracBitsLabel = document.querySelector(IEEE754_DOM.fracBitsSelector);
+/**
+ * 把 IEEE754 面板挂到宿主里.
+ *
+ * @param host 面板的宿主(骨架里的 `.tab-pane#ieee754`):只提供空窗格,
+ *             整块卡片由 createIeee754Panel() 生成后插进去.
+ *             宿主与标记的 id 不再由本文件去 DOM 里查 -- 引用由组件交回.
+ */
+export function mountIEEE754(host: HTMLElement): void {
+    const panel = createIeee754Panel();
+    host.append(panel.root);
 
-    if (
-        !formatSel || !input || !bitsEl || !bitstringEl ||
-        !breakdownEl || !formulaEl || !errorEl
-    ) {
-        console.warn(IEEE754_DOM_MISSING_MESSAGE);
-        return;
-    }
+    const formatSel = panel.formatSelect;
+    const input = panel.input;
+    const convertBtn = panel.convertButton;
+    const bitsEl = panel.bits;
+    const bitstringEl = panel.bitstring;
+    const breakdownEl = panel.breakdown;
+    const formulaEl = panel.formula;
+    const errorEl = panel.error;
+    const specialEl = panel.special;
+    const expBitsLabel = panel.expBitsLabel;
+    const fracBitsLabel = panel.fracBitsLabel;
 
     let current: IEEE754Value | null = null;
 
     /** 渲染某一比特位为可点击方块. */
     const makeBit = (bitVal: string, globalIndex: number, css: string): HTMLElement => {
-        const el = document.createElement('span');
-        el.className = `${IEEE754_BIT_CLASS} ${css}${bitVal === '1' ? ` ${IEEE754_ON_CLASS}` : ''}`;
-        el.textContent = bitVal;
-        el.title = `bit ${globalIndex}`;
+        const el = h('span', {
+            class: `${IEEE754_BIT_CLASS} ${css}${bitVal === '1' ? ` ${IEEE754_ON_CLASS}` : ''}`,
+            text: bitVal,
+            attrs: { title: `bit ${globalIndex}` },
+        });
         el.addEventListener('click', () => toggleBit(globalIndex));
         return el;
     };
@@ -540,17 +523,14 @@ export function mountIEEE754(): void {
         bitsEl.replaceChildren();
 
         const addGroup = (css: string, start: number, end: number): void => {
-            const g = document.createElement('div');
-            g.className = `${IEEE754_BIT_GROUP_CLASS} ${css}`;
+            const children: HTMLElement[] = [];
             for (let i = start; i < end; i++) {
                 if (i !== start && (i - start) % IEEE754_BIT_GROUP_SIZE === 0) {
-                    const gap = document.createElement('span');
-                    gap.className = IEEE754_GAP_CLASS;
-                    g.appendChild(gap);
+                    children.push(h('span', { class: IEEE754_GAP_CLASS }));
                 }
-                g.appendChild(makeBit(v.bits[i], i, css));
+                children.push(makeBit(v.bits[i], i, css));
             }
-            bitsEl.appendChild(g);
+            bitsEl.appendChild(h('div', { class: `${IEEE754_BIT_GROUP_CLASS} ${css}` }, children));
         };
 
         const expStart = IEEE754_EXPONENT_START;
@@ -647,7 +627,7 @@ export function mountIEEE754(): void {
     // 只有点按"转换"按钮(或输入框内回车)才把输入框内容喂给二进制框,
     // 键入本身不触发转换,避免"输入与二进制打架".
     const commitInput = (): void => applyInput(input.value);
-    convertBtn?.addEventListener('click', commitInput);
+    convertBtn.addEventListener('click', commitInput);
     input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -657,8 +637,8 @@ export function mountIEEE754(): void {
 
     // 更新图例中的位数提示
     const refreshLabels = (fmt: IEEE754Format): void => {
-        if (expBitsLabel) expBitsLabel.textContent = String(fmt.exponentBits);
-        if (fracBitsLabel) fracBitsLabel.textContent = String(fmt.fractionBits);
+        expBitsLabel.textContent = String(fmt.exponentBits);
+        fracBitsLabel.textContent = String(fmt.fractionBits);
     };
 
     // 特殊值参考表:点击某一行即把该值载入(仅更新位图,不回写输入框)
@@ -667,7 +647,7 @@ export function mountIEEE754(): void {
         renderAll(current);
     };
     const refreshSpecial = (fmt: IEEE754Format): void => {
-        if (specialEl) renderSpecialTable(specialEl, fmt, onPickSpecial);
+        renderSpecialTable(specialEl, fmt, onPickSpecial);
     };
 
     refreshLabels(FLOAT64);

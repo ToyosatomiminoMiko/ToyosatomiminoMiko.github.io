@@ -1,6 +1,8 @@
 /*
 原生预览示例
 - 使用 lavapipe(软件 Vulkan)跑一遍渲染管线,输出 preview.png
+  (落在本 crate 根下的 test_output/,与 cargo test 的 PPM 基准图同处;
+  路径与 cwd 无关,从仓库根跑也一样)
 - 方便在没有 WebGPU 浏览器时离线查看车窗效果(城市视差 / 污渍 / 雾气 / 车厢灯光)
 - 可用环境变量覆盖任意滑块参数做 A/B,例如:
     PREVIEW_PARAM=fog_opacity=1 PREVIEW_PARAM=dirt_opacity=0 cargo run --example preview
@@ -291,13 +293,18 @@ fn main() {
         device.poll(wgpu::Maintain::Wait);
         rx.recv().expect("map").expect("map failed");
         let data = slice.get_mapped_range();
-        let file = std::fs::File::create("preview.png").expect("create preview.png");
+        // 落在 crate 根下的 test_output/(与 cargo test 的 PPM 基准图同处),
+        // 路径按 CARGO_MANIFEST_DIR 算成绝对路径,所以从哪个目录跑命令都一样.
+        let out_dir = metro_window::test_output_dir();
+        std::fs::create_dir_all(&out_dir).expect("创建 test_output/ 失败");
+        let path = out_dir.join("preview.png");
+        let file = std::fs::File::create(&path).expect("create preview.png");
         let mut encoder = png::Encoder::new(file, width, height);
         encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);
         let mut writer = encoder.write_header().expect("png header");
         writer.write_image_data(&data).expect("write preview.png");
         drop(data);
-        println!("已生成 preview.png ({}x{})", width, height);
+        println!("已生成 {} ({}x{})", path.display(), width, height);
     });
 }

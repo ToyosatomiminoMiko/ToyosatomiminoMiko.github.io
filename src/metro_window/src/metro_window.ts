@@ -53,7 +53,7 @@ import init, {
     setRunning,
     setStyle,
     startApp,
-} from '@/metro_window/pkg/metro_window.js';
+} from '@/metro_window/wasm/metro_window.js';
 
 import {
     ADAPTER_LABEL_SEPARATOR,
@@ -100,7 +100,7 @@ import {
     WINDOW_CLASS,
     type UploadLayerSpec,
 } from './config';
-import { h } from '@/metro_window/src/ui/dom';
+import { h } from '@/common/dom';
 import { createSettingsPanel, createStyleRow, type SliderControl } from '@/metro_window/src/ui/settings';
 import { createStageContent } from '@/metro_window/src/ui/stage_content';
 import { createUploadPanel, decodeImageToRgba, type UploadControl } from '@/metro_window/src/ui/uploads';

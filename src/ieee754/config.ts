@@ -187,10 +187,15 @@ export const IEEE754_SPECIAL_VALUES: IEEE754SpecialSpec[] = [
 ];
 
 // ============================================================
-// DOM 契约(id / 选择器,与 index.html 完全一致)
+// DOM 契约(id,与面板组件 ui/ieee754_panel.ts 生成的标记一致)
+//
+// 面板原先写死在 index.html 的 #ieee754 窗格里,这些 id 是"行为按 id 去 DOM 里
+// 找元素"的契约;现在反过来:宿主只提供空窗格,id 由组件生成时写上(留给 CSS 与
+// 调试定位),行为代码拿组件交回的**元素引用**,不再 getElementById.
+// 因此这里只保留 id,不再有 querySelector 选择器.
 // ============================================================
 
-/** IEEE754 控件用到的 DOM 元素 id 与 data-role 选择器 */
+/** IEEE754 面板生成的 DOM 元素 id(样式见 public/css/ieee754.css) */
 export const IEEE754_DOM = {
     /** 精度下拉框的 id */
     formatId: 'ieee-format',
@@ -210,15 +215,170 @@ export const IEEE754_DOM = {
     errorId: 'ieee-error',
     /** 特殊值表的 id */
     specialId: 'ieee-special',
-    /** 指数位数提示的选择器 */
-    expBitsSelector: '[data-role="exp-bits"]',
-    /** 尾数位数提示的选择器 */
-    fracBitsSelector: '[data-role="frac-bits"]',
 } as const;
 
-/** 找不到 DOM 元素时的 console.warn 文案(可见文本,保持原样) */
-export const IEEE754_DOM_MISSING_MESSAGE =
-    '[IEEE754] 找不到 #ieee-format/#ieee-input/#ieee-bits 等 DOM 元素';
+// ============================================================
+// 面板的声明式模型(整块卡片由 ui/ieee754_panel.ts 按此生成)
+//
+// 结构与文案原先写死在 index.html 里,现在只在这里声明一次:组件按模型生成标记,
+// 行为代码只跟组件交回的元素引用打交道.类名是 bootstrap 与 ieee754.css 的契约,
+// 逐个照搬原标记,不合并 / 不省略.
+// ============================================================
+
+/** 卡片外壳类名(bootstrap) */
+export const IEEE754_CARD_CLASS = 'card';
+
+/** 卡片标题栏类名(bootstrap) */
+export const IEEE754_CARD_HEADER_CLASS = 'card-header';
+
+/** 卡片主体类名(bootstrap) */
+export const IEEE754_CARD_BODY_CLASS = 'card-body';
+
+/** 卡片标题文案(标题标签是 h4,由组件给出) */
+export const IEEE754_PANEL_TITLE = '🧮 IEEE 754 浮点可视化';
+
+/**
+ * 顶部提示段落文案(逐字照搬原标记里的三句).
+ * 原先分三行写,浏览器按空白折叠渲染;这里合成一行(用空格连接),可见文本不变.
+ */
+export const IEEE754_HINT_TEXT =
+    '💡 输入十进制小数或长度匹配的 0/1 位串后点「转换」按钮转二进制;也可以点按下面的二进制位(0/1)直接改位. ' +
+    '一切以二进制位为准,KaTeX 公式按递等链单向展示(二进制带入 = 十进制 = 精确十进制值). ' +
+    '尾数高位在左,低位在右,每 4 位一组.';
+
+/** 提示段落的类名(样式见 ieee754.css 的 .ieee-hint) */
+export const IEEE754_HINT_CLASS = 'ieee-hint';
+
+/** 精度 / 输入那一行的栅格类名(bootstrap,逐个照搬原标记) */
+export const IEEE754_CONTROLS_ROW_CLASS = 'row g-3 align-items-center mb-3';
+
+/** 左列(精度下拉框)的栅格类名:宽度随内容 */
+export const IEEE754_COL_AUTO_CLASS = 'col-auto';
+
+/** 右列(输入框 + 转换按钮)的栅格类名:半宽 */
+export const IEEE754_COL_HALF_CLASS = 'col-6';
+
+/** 表单标签类名(bootstrap) */
+export const IEEE754_LABEL_CLASS = 'form-label mb-0';
+
+/** 精度下拉框类名(bootstrap) */
+export const IEEE754_SELECT_CLASS = 'form-select form-select-sm';
+
+/** 输入框外层输入组类名(bootstrap) */
+export const IEEE754_INPUT_GROUP_CLASS = 'input-group input-group-sm';
+
+/** 十进制输入框类名(bootstrap) */
+export const IEEE754_INPUT_CLASS = 'form-control';
+
+/** 转换按钮类名(bootstrap) */
+export const IEEE754_BUTTON_CLASS = 'btn btn-primary';
+
+/** 转换按钮的 type:普通按钮,不提交表单(原标记就是 type="button") */
+export const IEEE754_BUTTON_TYPE = 'button';
+
+/** 精度下拉框的 label 文案 */
+export const IEEE754_FORMAT_LABEL = '精度';
+
+/** 十进制输入框的 label 文案 */
+export const IEEE754_INPUT_LABEL = '十进制数值';
+
+/** 十进制输入框的初值(与原标记的 value 逐字一致) */
+export const IEEE754_INPUT_INITIAL_VALUE = '3.14';
+
+/** 十进制输入框的 spellcheck 属性值:关掉拼写检查(数值不该被标红) */
+export const IEEE754_INPUT_SPELLCHECK = 'false';
+
+/** 转换按钮文案 */
+export const IEEE754_CONVERT_LABEL = '转换';
+
+/** 错误提示容器的类名(样式见 ieee754.css 的 .ieee-error),初始 hidden */
+export const IEEE754_ERROR_CLASS = 'ieee-error';
+
+/** 位图 / 公式 / 特殊值三个分区的类名(样式见 ieee754.css 的 .ieee-section) */
+export const IEEE754_SECTION_CLASS = 'ieee-section';
+
+/** 图例条类名(样式见 ieee754.css 的 .ieee-legend) */
+export const IEEE754_LEGEND_CLASS = 'ieee-legend';
+
+/** 位串文本类名(样式见 ieee754.css 的 .ieee-bitstring) */
+export const IEEE754_BITSTRING_CLASS = 'ieee-bitstring';
+
+/** 分解信息类名(样式见 ieee754.css 的 .ieee-breakdown) */
+export const IEEE754_BREAKDOWN_CLASS = 'ieee-breakdown';
+
+/** 公式 / 特殊值分区标题的类名(样式见 ieee754.css 的 .ieee-formula-title) */
+export const IEEE754_FORMULA_TITLE_CLASS = 'ieee-formula-title';
+
+/** 公式容器类名(样式见 ieee754.css 的 .ieee-formula) */
+export const IEEE754_FORMULA_CLASS = 'ieee-formula';
+
+/** 特殊值容器类名(样式见 ieee754.css 的 .ieee-special) */
+export const IEEE754_SPECIAL_CLASS = 'ieee-special';
+
+/** 公式分区标题文案 */
+export const IEEE754_FORMULA_TITLE = '公式 (KaTeX)';
+
+/** 特殊值分区标题文案 */
+export const IEEE754_SPECIAL_TITLE = '特殊值参考 (点击载入)';
+
+/** 精度下拉框的一个 option:取值 / 文案 / 是否默认选中 */
+export interface IEEE754FormatOptionSpec {
+    /** option 的 value(类型契约,与 FLOAT32_KEY / FLOAT64_KEY 一致) */
+    readonly value: string;
+    /** option 的可见文案 */
+    readonly label: string;
+    /** 是否带 selected 属性(默认选中项) */
+    readonly selected: boolean;
+}
+
+/** 精度下拉框的两个 option(顺序即界面顺序,f64 默认选中) */
+export const IEEE754_FORMAT_OPTIONS = [
+    { value: FLOAT32_KEY, label: '单精度 float32 (32位)', selected: false },
+    { value: FLOAT64_KEY, label: '双精度 float64 (64位)', selected: true },
+] as const satisfies readonly IEEE754FormatOptionSpec[];
+
+/** 指数位数提示的 data-role(组件据此生成 `<b data-role="exp-bits">`) */
+export const IEEE754_EXP_BITS_ROLE = 'exp-bits';
+
+/** 尾数位数提示的 data-role(组件据此生成 `<b data-role="frac-bits">`) */
+export const IEEE754_FRAC_BITS_ROLE = 'frac-bits';
+
+/**
+ * 图例条里的一段内容:纯文本,或一个"位数提示"元素.
+ * 位数提示在标记上是 `<b data-role="...">11</b>` 这种形状,由组件生成;
+ * data-role 只用于生成与调试,行为代码拿的是组件交回的 <b> 引用.
+ */
+export type IEEE754LegendPart =
+    | { readonly text: string }
+    | { readonly bitsRole: string; readonly bits: number };
+
+/** 图例项:类名(决定颜色)+ 内容片段(顺序即标记顺序) */
+export interface IEEE754LegendSpec {
+    /** ieee754.css 按 `.ieee-legend .ieee-s / -e / -m` 上色 */
+    readonly className: string;
+    readonly parts: readonly IEEE754LegendPart[];
+}
+
+/** 图例三项(顺序即界面顺序;位数初值取默认精度 float64 的 11 / 52) */
+export const IEEE754_LEGENDS = [
+    { className: 'ieee-s', parts: [{ text: 'S 符号' }] },
+    {
+        className: 'ieee-e',
+        parts: [
+            { text: 'E 指数(' },
+            { bitsRole: IEEE754_EXP_BITS_ROLE, bits: FLOAT64.exponentBits },
+            { text: ' bit)' },
+        ],
+    },
+    {
+        className: 'ieee-m',
+        parts: [
+            { text: 'M 尾数(' },
+            { bitsRole: IEEE754_FRAC_BITS_ROLE, bits: FLOAT64.fractionBits },
+            { text: ' bit)' },
+        ],
+    },
+] as const satisfies readonly IEEE754LegendSpec[];
 
 // ============================================================
 // 位图 class 名(与 ieee754.css 保持一致)

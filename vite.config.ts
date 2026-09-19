@@ -111,7 +111,12 @@ export default defineConfig({
             ignored: ['**/target/**'],
         },
     },
-    // 测试只需要纯 TS 单测(src/ 下,含地铁车窗前端的 config.test.ts).
+    // 测试分两层,文件都叫 `src/**/*.test.ts`:
+    //   - 纯数据 / 纯函数单测:默认的 node 环境(不碰 DOM,不需要 wasm 产物);
+    //   - **标记契约**单测:文件头写 `@vitest-environment happy-dom` 的那些,在进程内
+    //     建一个真 DOM,断言"生成的标签 / 类名 / id / data-* 与 CSS,bootstrap 对得上".
+    //     结构类的问题因此能在 `npm test` 里抓到,不必先 build 再用浏览器验;
+    //     真浏览器那一层只剩 canvas 像素 / 布局 / bootstrap 交互,见 scripts/smoke_home.mjs.
     // 排除 target/ 是必须的而不是洁癖:cargo 的 workspace 缓存就在仓库根
     // (构建后体积以 GB 计,文件数十万),让 vitest 去 glob 一遍会白白卡住整条流水线.
     // 地铁车窗的前端单测在新位置 src/metro_window/src 下,要照常收集.

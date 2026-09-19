@@ -1,7 +1,13 @@
 // ================================================================
 // OLED 像素画板(封装为 OLEDCanvas 类)
+//
+// 挂载形态与地铁车窗控制台 / 时钟一致:宿主是**空标签页窗格**(由
+// src/common/ui/site_shell.ts 建好并交回引用),标记由 ui/oled_panel.ts 生成,
+// 本文件只做行为 -- 画板需要的每个元素都由 OledPanel 一次交回,
+// 不再有 `document.getElementById` / `querySelectorAll` 之类的"回头查 DOM".
 // ================================================================
 
+import { h } from '@/common/dom';
 import type {
     PixelPos,
     DrawTool,
@@ -11,13 +17,13 @@ import type {
     ImportResult,
     BresenhamCallback,
 } from './types';
+import { createOledPanel, type OledPanel } from './ui/oled_panel';
 import {
     OLED_BITS_PER_BYTE,
     OLED_BUFFER_BYTES,
     OLED_BYTE_ORDER_TEXT,
     OLED_BYTES_PER_PIXEL,
     OLED_BYTES_PER_SOURCE_LINE,
-    OLED_CANVAS_MISSING_MESSAGE,
     OLED_CHANNEL_A_OFFSET,
     OLED_COLOR_MODES,
     OLED_CONTEXT_UNAVAILABLE,
@@ -34,7 +40,6 @@ import {
     OLED_DEFAULT_TOOL,
     OLED_DISPLAY_HIDDEN,
     OLED_DISPLAY_VISIBLE,
-    OLED_DOM,
     OLED_EXPORT_ARRAY_LENGTH,
     OLED_EXPORT_ARRAY_NAME,
     OLED_HEX_BYTE_PATTERN,
@@ -61,17 +66,21 @@ import {
 const DEFAULT_CONFIG: OLEDConfig = OLED_DEFAULT_CONFIG;
 
 export class OLEDCanvas {
-    // ---- DOM 引用 ----
+    // ---- DOM 引用(全部由面板交回,构造函数里一次接好) ----
     private readonly canvas: HTMLCanvasElement;
     private readonly ctx: CanvasRenderingContext2D;
-    private readonly indicator: HTMLElement | null;
-    private readonly coordsDisplay: HTMLElement | null;
-    private readonly exportTextarea: HTMLTextAreaElement | null;
-    private readonly importTextarea: HTMLTextAreaElement | null;
-    private readonly copyBtn: HTMLButtonElement | null;
-    private readonly byteOrderBtn: HTMLButtonElement | null;
-    private readonly colorBtn: HTMLButtonElement | null;
-    private readonly pngBtn: HTMLButtonElement | null;
+    private readonly indicator: HTMLElement;
+    private readonly coordsDisplay: HTMLElement;
+    private readonly exportTextarea: HTMLTextAreaElement;
+    private readonly importTextarea: HTMLTextAreaElement;
+    private readonly copyBtn: HTMLButtonElement;
+    private readonly byteOrderBtn: HTMLButtonElement;
+    private readonly colorBtn: HTMLButtonElement;
+    private readonly pngBtn: HTMLButtonElement;
+    private readonly refillBtn: HTMLButtonElement;
+    private readonly exportBtn: HTMLButtonElement;
+    private readonly importBtn: HTMLButtonElement;
+    private readonly toolRadios: readonly HTMLInputElement[];
 
     // ======================
     // 画布初始化
@@ -103,15 +112,25 @@ export class OLEDCanvas {
 
     private readonly config: OLEDConfig;
 
-    constructor(config: Partial<OLEDConfig> = {}) {
+    constructor(panel: OledPanel, config: Partial<OLEDConfig> = {}) {
         this.config = { ...DEFAULT_CONFIG, ...config };
 
-        // 获取 canvas 并验证
-        const canvas = document.getElementById(this.config.canvasId);
-        if (!canvas || !(canvas instanceof HTMLCanvasElement)) {
-            throw new Error(OLED_CANVAS_MISSING_MESSAGE);
-        }
-        this.canvas = canvas;
+        // DOM 引用全部来自面板(ui/oled_panel.ts 生成标记时一并交回):
+        // 这里既不查 id,也不做"找不到元素"的容错分支 -- 标记与行为同源之后,
+        // 元素必然存在,原先的 OLED_CANVAS_MISSING_MESSAGE 也随之失去意义.
+        this.canvas = panel.canvas;
+        this.indicator = panel.indicator;
+        this.coordsDisplay = panel.coordsDisplay;
+        this.exportTextarea = panel.exportTextarea;
+        this.importTextarea = panel.importTextarea;
+        this.copyBtn = panel.copyButton;
+        this.byteOrderBtn = panel.byteOrderButton;
+        this.colorBtn = panel.colorButton;
+        this.pngBtn = panel.pngButton;
+        this.refillBtn = panel.refillButton;
+        this.exportBtn = panel.exportButton;
+        this.importBtn = panel.importButton;
+        this.toolRadios = panel.toolRadios;
 
         const ctx = this.canvas.getContext('2d');
         if (!ctx) throw new Error(OLED_CONTEXT_UNAVAILABLE);
@@ -120,19 +139,6 @@ export class OLEDCanvas {
         // 设置物理像素尺寸(实际分辨率)
         this.canvas.width = this.config.width;   // Embedded 的典型宽度
         this.canvas.height = this.config.height; // Embedded 的典型高度
-
-        // 获取其他 DOM 元素(带容错但不中断)
-        const getEl = <T extends HTMLElement>(id: string): T | null =>
-            document.getElementById(id) as T | null;
-
-        this.indicator = getEl(OLED_DOM.indicatorId);
-        this.coordsDisplay = getEl(OLED_DOM.coordsDisplayId);
-        this.exportTextarea = getEl(OLED_DOM.exportTextareaId);
-        this.importTextarea = getEl(OLED_DOM.importTextareaId);
-        this.copyBtn = getEl(OLED_DOM.copyBtnId);
-        this.byteOrderBtn = getEl(OLED_DOM.byteOrderBtnId);
-        this.colorBtn = getEl(OLED_DOM.colorBtnId);
-        this.pngBtn = getEl(OLED_DOM.pngBtnId);
 
         // 初始化白色画布
         this.imageData = this.ctx.createImageData(this.canvas.width, this.canvas.height);
@@ -159,31 +165,20 @@ export class OLEDCanvas {
     // 事件绑定
     // ======================
     private bindEvents(): void {
-        // --- 按钮事件 ---
-        document.getElementById(OLED_DOM.refillBtnId)
-            ?.addEventListener('click', () => this.refill());
-        if (this.colorBtn) {
-            this.colorBtn.addEventListener('click', () => this.toggleColor());
-        }
-        if (this.pngBtn) {
-            this.pngBtn.addEventListener('click', () => this.downloadPNG());
-        }
-        if (this.byteOrderBtn) {
-            this.byteOrderBtn.addEventListener('click', () => this.toggleByteOrder());
-        }
-        if (this.copyBtn) {
-            this.copyBtn.addEventListener('click', () => this.copyExport());
-        }
-        document.getElementById(OLED_DOM.exportBtnId)
-            ?.addEventListener('click', () => this.exportData());
-        document.getElementById(OLED_DOM.importBtnId)
-            ?.addEventListener('click', () => {
-                const result = this.importDataFromText();
-                alert((result.success ? '✅' : '❌') + result.message);
-            });
+        // --- 按钮事件(元素引用来自面板,不再按 id 查找) ---
+        this.refillBtn.addEventListener('click', () => this.refill());
+        this.colorBtn.addEventListener('click', () => this.toggleColor());
+        this.pngBtn.addEventListener('click', () => this.downloadPNG());
+        this.byteOrderBtn.addEventListener('click', () => this.toggleByteOrder());
+        this.copyBtn.addEventListener('click', () => this.copyExport());
+        this.exportBtn.addEventListener('click', () => this.exportData());
+        this.importBtn.addEventListener('click', () => {
+            const result = this.importDataFromText();
+            alert((result.success ? '✅' : '❌') + result.message);
+        });
 
-        // --- 工具 radio(通过 name="tools" 查找) ---
-        document.querySelectorAll<HTMLInputElement>(OLED_DOM.toolRadioSelector).forEach(radio => {
+        // --- 工具 radio(面板交回的三项,顺序即 free / line / rectangle) ---
+        this.toolRadios.forEach(radio => {
             radio.addEventListener('change', () => this.setTool(radio.value as DrawTool));
         });
 
@@ -229,12 +224,10 @@ export class OLEDCanvas {
     /** 画笔颜色切换 */
     toggleColor(): void {
         this.pixelColorMode = this.pixelColorMode === 'dark' ? 'light' : 'dark';
-        if (this.colorBtn) {
-            const mode = OLED_COLOR_MODES[this.pixelColorMode];
-            this.colorBtn.textContent = mode.buttonText;
-            this.colorBtn.style.color = mode.buttonTextColor;
-            this.colorBtn.style.backgroundColor = mode.buttonBackgroundColor;
-        }
+        const mode = OLED_COLOR_MODES[this.pixelColorMode];
+        this.colorBtn.textContent = mode.buttonText;
+        this.colorBtn.style.color = mode.buttonTextColor;
+        this.colorBtn.style.backgroundColor = mode.buttonBackgroundColor;
     }
 
     /** 工具切换 */
@@ -248,25 +241,23 @@ export class OLEDCanvas {
     /** 高地位模式切换 */
     toggleByteOrder(): void {
         this.byteOrderMode = this.byteOrderMode === 'lsb' ? 'msb' : 'lsb';
-        if (this.byteOrderBtn) {
-            this.byteOrderBtn.textContent = OLED_BYTE_ORDER_TEXT[this.byteOrderMode];
-        }
+        this.byteOrderBtn.textContent = OLED_BYTE_ORDER_TEXT[this.byteOrderMode];
     }
 
     /** 数据导出 */
     exportData(): string {
         const cSource = this.generateEmbeddedData();
-        if (this.exportTextarea) {
-            this.exportTextarea.value = cSource;
-        }
+        this.exportTextarea.value = cSource;
         return cSource;
     }
 
     /** 下载PNG */
     downloadPNG(): void {
-        const link = document.createElement('a');
-        link.download = OLED_PNG_FILENAME;
-        link.href = this.canvas.toDataURL('image/png');
+        // 这里的 <a> 是"临时下载触发器",不属于页面标记,但同样是 DOM 构造,
+        // 照全站约定用 h() 而不是 document.createElement.
+        const link = h('a', {
+            attrs: { download: OLED_PNG_FILENAME, href: this.canvas.toDataURL('image/png') },
+        });
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -275,17 +266,14 @@ export class OLEDCanvas {
     /** 复制导出数据到剪贴板(带视觉反馈) */
     async copyExport(): Promise<void> {
         const textarea = this.exportTextarea;
-        if (!textarea) return;
         try {
             // 使用现代 Clipboard API
             await navigator.clipboard.writeText(textarea.value);
             // 添加视觉反馈
-            if (this.copyBtn) {
-                this.copyBtn.textContent = OLED_COPY_SUCCESS_TEXT;
-                setTimeout(() => {
-                    if (this.copyBtn) this.copyBtn.textContent = OLED_COPY_BUTTON_TEXT;
-                }, OLED_COPY_FEEDBACK_MS);
-            }
+            this.copyBtn.textContent = OLED_COPY_SUCCESS_TEXT;
+            setTimeout(() => {
+                this.copyBtn.textContent = OLED_COPY_BUTTON_TEXT;
+            }, OLED_COPY_FEEDBACK_MS);
         } catch (err) {
             console.error(OLED_COPY_FAILED_LOG, err);
             alert(OLED_COPY_FAILED_ALERT);
@@ -294,7 +282,7 @@ export class OLEDCanvas {
 
     /** 数据导入 */
     importDataFromText(): ImportResult {
-        const input = this.importTextarea?.value ?? '';
+        const input = this.importTextarea.value;
         try {
             // 提取十六进制数据
             const hexValues = input.match(OLED_HEX_BYTE_PATTERN);
@@ -568,7 +556,6 @@ export class OLEDCanvas {
 
     // 更新指示器位置
     private updateIndicator(pos: PixelPos): void {
-        if (!this.indicator) return;
         const pixelWidth = this.canvasRect.width / this.canvas.width;
         const pixelHeight = this.canvasRect.height / this.canvas.height;
 
@@ -586,9 +573,7 @@ export class OLEDCanvas {
 
         // 保持可见性
         this.indicator.style.display = OLED_DISPLAY_VISIBLE;
-        if (this.coordsDisplay) {
-            this.coordsDisplay.style.display = OLED_DISPLAY_VISIBLE;
-        }
+        this.coordsDisplay.style.display = OLED_DISPLAY_VISIBLE;
     }
 
     // ======================
@@ -599,9 +584,7 @@ export class OLEDCanvas {
      * @param pos - 包含x,y的坐标对象
      */
     private updateCoordsDisplay(pos: PixelPos): void {
-        if (this.coordsDisplay) {
-            this.coordsDisplay.textContent = `${OLED_COORDS_PREFIX}(X:${pos.x},Y:${pos.y})`;
-        }
+        this.coordsDisplay.textContent = `${OLED_COORDS_PREFIX}(X:${pos.x},Y:${pos.y})`;
     }
 
     // ---- 事件回调(箭头函数保持 this 指向) ----
@@ -612,13 +595,9 @@ export class OLEDCanvas {
 
     private onMouseLeave = (): void => {
         // 隐藏画笔
-        if (this.indicator) {
-            this.indicator.style.display = OLED_DISPLAY_HIDDEN;
-        }
+        this.indicator.style.display = OLED_DISPLAY_HIDDEN;
         // 重置坐标指示
-        if (this.coordsDisplay) {
-            this.coordsDisplay.textContent = OLED_COORDS_EMPTY;
-        }
+        this.coordsDisplay.textContent = OLED_COORDS_EMPTY;
     };
 
     private onMouseDown = (e: MouseEvent): void => {
@@ -712,4 +691,23 @@ export class OLEDCanvas {
         if (this.resizeTimer) clearTimeout(this.resizeTimer);
         this.resizeTimer = setTimeout(() => this.updateCanvasRect(), OLED_RESIZE_DEBOUNCE_MS);
     };
+}
+
+// ======================
+// 挂载
+// ======================
+/**
+ * 把 OLED 像素画板挂到宿主上(独立标签页窗格,见 src/main.ts).
+ *
+ * 分工与 clock / RBT 一致:标记由 ui/oled_panel.ts 的纯函数生成,这里只负责
+ * "插进宿主 + 起行为".宿主由 common/ui/site_shell.ts 交回,所以不查 DOM.
+ *
+ * 用 replaceChildren 而不是 append:宿主就是本模块的面板容器(标签页窗格本身),
+ * 重复挂载时整体替换,不会留下两份同 id 的标记(原先是 index.html 里的静态标记,
+ * 不存在这个问题;换成模块生成后必须自己保证只留一份).
+ */
+export function mountOLED(host: HTMLElement): void {
+    const panel = createOledPanel();
+    host.replaceChildren(panel.root);
+    new OLEDCanvas(panel);
 }

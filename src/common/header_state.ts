@@ -24,25 +24,29 @@
 // [默认状态]
 //   默认(不加类)是**实底**:没有 JS,或不在首屏上时必须可读;只有确认压在
 //   首屏画面上时才切成透明.宁可多一条底色,也不要一片读不出来的字.
+//
+// [元素从哪来]
+//   导航条与首屏都由 src/common/ui/site_shell.ts 生成,骨架把这两个元素的引用
+//   交回来,本模块直接用 -- 不再按选择器/id 去 DOM 里找("找不到"这种失败
+//   模式因此被整类消掉:拿不到引用就挂不上,不会出现"静默不生效").
 // ================================================================
 
 import {
     HEADER_OVER_HERO_CLASS,
-    HEADER_SELECTOR,
-    HEADER_STATE_MISSING_MESSAGE,
-    HERO_ID,
     NAV_HEIGHT_FALLBACK,
     NAV_HEIGHT_VARIABLE,
 } from '@/common/site.config';
 
-/** 挂载导航条状态(站点入口 main.ts 在 DOMContentLoaded 时调用一次) */
-export function mountHeaderState(): void {
-    const header = document.querySelector<HTMLElement>(HEADER_SELECTOR);
-    const hero = document.getElementById(HERO_ID);
-    if (!header || !hero) {
-        throw new Error(HEADER_STATE_MISSING_MESSAGE);
-    }
+/** 骨架交给本模块的两个元素 */
+export interface HeaderStateTargets {
+    /** 导航条(header.site-header) */
+    readonly header: HTMLElement;
+    /** 首屏(section.hero#hero) */
+    readonly hero: HTMLElement;
+}
 
+/** 挂载导航条状态(site_shell 生成骨架后由 src/main.ts 调用一次) */
+export function mountHeaderState({ header, hero }: HeaderStateTargets): void {
     const observer = new IntersectionObserver(
         (entries) => {
             const entry = entries[entries.length - 1];

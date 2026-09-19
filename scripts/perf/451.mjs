@@ -23,6 +23,7 @@ import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { extname, join, normalize, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -30,7 +31,13 @@ import { setTimeout as sleep } from 'node:timers/promises';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..', '..');
 const DIST = join(ROOT, 'dist');
-const PROFILE = join(ROOT, '.scratch-451perf-profile');
+/**
+ * headless Chromium 的用户目录:放**系统临时目录**里.
+ * 它是一次性的运行时垃圾(缓存 / GPU 缓存 / Cookies),不属于仓库的任何一类产物,
+ * 所以既不进仓库根(要 gitignore 一条),也不进 dist/(那是要发布的站点产物) --
+ * 每次跑前删掉重建,跑完留着由系统回收.
+ */
+const PROFILE = join(tmpdir(), 'toyosatomimino-451-perf-profile');
 
 const PORT = 8781;
 const CDP_PORT = 9711;

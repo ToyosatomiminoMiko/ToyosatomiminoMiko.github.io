@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rust -> wasm32-unknown-unknown,再用 wasm-bindgen 生成 src/metro_window/pkg/.
+# Rust -> wasm32-unknown-unknown,再用 wasm-bindgen 生成 src/metro_window/wasm/.
 #
 # 归属:脚本本体在仓库的 scripts/ 目录下,**由仓库根目录的 package.json 调用**
 # (`npm run build:wasm`).这样做是为了保住"构建步骤序列只有 package.json 一处
@@ -19,7 +19,7 @@
 # 涉及的目录:
 #   src/metro_window/rust/   Rust crate(Cargo.toml / src/ / examples/),编译目标
 #   src/metro_window/src/    前端源码(TS/CSS)
-#   src/metro_window/pkg/    生成物:wasm-bindgen 输出(gitignore)
+#   src/metro_window/wasm/   生成物:wasm-bindgen 输出(gitignore)
 #   src/metro_window/.cargo-tools/  版本对齐用的 wasm-bindgen CLI 安装位置
 #   target/                  workspace 共用的 cargo 构建缓存(仓库根,gitignore)
 #
@@ -33,7 +33,7 @@ set -Eeuo pipefail
 # 脚本在 scripts/ 下,仓库根是它的上一级
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 METRO_ROOT="${REPO_ROOT}/src/metro_window"
-PKG_DIR="${METRO_ROOT}/pkg"
+WASM_DIR="${METRO_ROOT}/wasm"
 # workspace 的 target/ 在根 manifest 旁边,不随成员 crate 走
 TARGET_DIR="${REPO_ROOT}/target"
 
@@ -103,12 +103,12 @@ if [ ! -x "$wb" ] || [ "$("$wb" --version 2>/dev/null)" != "wasm-bindgen $wb_ver
 fi
 log "wasm-bindgen ${wb_version} (${wb})"
 
-# pkg/ 先清空再生成:改了 --out-name 后不会残留旧文件
+# wasm/ 先清空再生成:改了 --out-name 后不会残留旧文件
 # (build:all 里的 clean 已经删过一次,这里保证单独执行也干净)
-rm -rf "$PKG_DIR"
-mkdir -p "$PKG_DIR"
-log "生成 src/metro_window/pkg/(wasm-bindgen --target web)"
-"$wb" --target web --out-dir "$PKG_DIR" --out-name metro_window \
+rm -rf "$WASM_DIR"
+mkdir -p "$WASM_DIR"
+log "生成 src/metro_window/wasm/(wasm-bindgen --target web)"
+"$wb" --target web --out-dir "$WASM_DIR" --out-name metro_window \
     "${TARGET_DIR}/${target}/release/metro_window.wasm"
 
-log "wasm 产物: ${PKG_DIR}"
+log "wasm 产物: ${WASM_DIR}"

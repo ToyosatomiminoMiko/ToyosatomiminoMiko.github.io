@@ -132,11 +132,10 @@ body {
     border-bottom-color: var(--chrome-border-over-hero);
 }
 
-/* 站名:压在画面左上角(Kali logo 那个位置) */
+/* 站名:压在画面左上角 */
 .site-brand {
     color: var(--chrome-text);
     font-size: var(--chrome-font-size-brand);
-    text-decoration: none;
     text-shadow: var(--chrome-text-shadow);
     white-space: nowrap;
 }
