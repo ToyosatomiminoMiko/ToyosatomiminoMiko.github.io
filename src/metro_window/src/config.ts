@@ -116,6 +116,16 @@ export const CANVAS_WIDTH = 1344;
 /** 画布的渲染分辨率(高度,像素),与 CANVAS_WIDTH 同为 16:9 */
 export const CANVAS_HEIGHT = 756;
 
+/**
+ * 画布宽高比的 CSS 自定义属性名.
+ *
+ * 宽高比只有**一个来源**:上面的 `CANVAS_WIDTH / CANVAS_HEIGHT`
+ * (`stage_size.ts` 按同一个比例算后备缓冲).挂载时把它写到舞台宿主上,
+ * CSS 的 `aspect-ratio` 取同一个值;tokens.css 里那份只是"JS 还没挂载 /
+ * 纯 CSS 场景"的兜底,不再是与 TS 并列的第二份事实.
+ */
+export const CANVAS_ASPECT_PROPERTY = '--metro-size-canvas-aspect';
+
 // ---------- 后备缓冲尺寸(首屏舞台随视口变化) ----------
 
 /*
@@ -184,13 +194,20 @@ export const STYLE_BUTTON_ACTIVE_CLASS = 'active';
 /** 风格按钮上 data-* 的键名(读取 dataset.style,取值 0/1/2) */
 export const STYLE_DATA_KEY = 'style';
 
-/** data-style 缺失时回退的风格序号(0 = 泡沫时期东京电车),也是初始选中项 */
-export const DEFAULT_STYLE_INDEX = 0;
+/**
+ * data-style 缺失时回退的风格序号,也是初始选中项与**启动风格**:
+ * 1 = 赛博朋克(见 STYLE_PRESETS).
+ *
+ * 这是默认风格的**唯一来源**:挂载时它被初始点亮的那颗按钮使用,同时作为
+ * `startApp(canvas, status, style)` 的第三个参数传进 wasm(越界会被 wasm 夹到
+ * `MAX_STYLE_INDEX`).wasm 侧不再另存一份默认值,所以改这里就够了.
+ */
+export const DEFAULT_STYLE_INDEX = 1;
 
 // ---------- 设置面板的声明式模型 ----------
 
 /** 设置面板 <legend> 文案 */
-export const PANEL_LEGEND = '🎚 实时参数';
+export const PANEL_LEGEND = '实时参数';
 
 /** 状态区"WebGPU 状态:"标签文案 */
 export const STATUS_LABEL = 'WebGPU 状态:';
@@ -200,8 +217,8 @@ export const STATUS_INITIAL = '初始化中...';
 
 /** 状态区下方图层说明文案 */
 export const LAYERS_NOTE =
-    'Layer 0 窗外实景(城市四层视差) · Layer 1 玻璃污渍 · ' +
-    'Layer 2 冷凝雾气 · Layer 3 车厢灯光与倒影';
+    'Layer 0 窗外实景(城市四层视差) / Layer 1 玻璃污渍 / ' +
+    'Layer 2 冷凝雾气 / Layer 3 车厢灯光与倒影';
 
 /**
  * 滑块宽度的 CSS 自定义属性名.组件把它设在每个滑块最外层 div.slider 上,
@@ -221,13 +238,19 @@ export const SLIDER_WIDTH_DEFAULT = 'var(--metro-size-slider-width)';
  * 单个实时滑块的声明式描述:既是标记(css 类名 / 范围 / 初始值),
  * 也是行为(param 名 / clamp 区间)的唯一来源.
  *
+ * 只有 `param` 是逐字跨语言的契约(Rust 的 SLIDERS 用同一批名字);
+ * 区间与初始值都以前端这份为准,Rust 侧的 `GlassParams::DEFAULT` 只是
+ * "JS 推入之前的占位值"(详见下面 `value` 一条).
+ *
  * id       -- 生成 <input type="range"> 的 id,<label for> 靠它关联;
  * param    -- setParam 参数名,必须与 src/metro_window/rust/src/app_params.rs 的 SLIDERS 一致;
  * label    -- 滑杆下方的名称(左);
  * hint     -- 名称后的小字注释(可选),为空不渲染;
  * min/max  -- 前端可调区间(与 Rust 侧 clamp 区间各自独立,前端先夹一次);
  * step     -- 步长,同时决定显示小数位数;
- * value    -- 初始值;
+ * value    -- 初始值:同时是滑杆的起始位置与**启动时推给 wasm 的渲染参数**
+ *             (挂载函数在 startApp 之后补推一次,见 metro_window.ts 的
+ *             pushSliderValues;改这里不需要再动 Rust);
  * width    -- 单个滑块的宽度(CSS 长度,可选),留空用 SLIDER_WIDTH_DEFAULT.
  */
 export interface SliderSpec {
@@ -268,7 +291,7 @@ export const SLIDER_GROUPS = [
         open: true,
         sliders: [
             /** 车速(倍率) */
-            { id: 'vehicleSpeed', param: 'vehicle_speed', label: '车速', hint: '倍率', min: 0, max: 3, step: 0.01, value: 1 },
+            { id: 'vehicleSpeed', param: 'vehicle_speed', label: '车速', hint: '倍率', min: 0, max: 3, step: 0.01, value: 3 },
             /** 远景距离(越大越慢) */
             { id: 'farDistance', param: 'far_distance', label: '远景距离', hint: '越大越慢', min: 0.2, max: 3, step: 0.01, value: 1 },
             /** 中景距离(越大越慢) */
@@ -286,7 +309,7 @@ export const SLIDER_GROUPS = [
             /** 冷凝雾气浓度 */
             { id: 'fogOpacity', param: 'fog_opacity', label: '雾气浓度', min: 0, max: 1, step: 0.01, value: 0.3 },
             /** 车厢灯光强度 */
-            { id: 'interiorOpacity', param: 'interior_opacity', label: '车厢灯光', min: 0, max: 1, step: 0.01, value: 0.55 },
+            { id: 'interiorOpacity', param: 'interior_opacity', label: '车厢灯光', min: 0, max: 1, step: 0.01, value: 1 },
         ],
     },
 ] as const satisfies readonly SliderGroupSpec[];
@@ -298,9 +321,12 @@ export interface StylePresetSpec {
     readonly label: string;
 }
 
-/** 三颗风格按钮,顺序即界面顺序 */
+/**
+ * 三颗风格按钮,顺序即界面顺序.
+ * 其中 `{ index: 1, label: '赛博朋克' }` 是默认风格(见 DEFAULT_STYLE_INDEX).
+ */
 export const STYLE_PRESETS = [
-    { index: 0, label: '泡沫时期东京电车' },
+    { index: 0, label: '东京电车' },
     { index: 1, label: '赛博朋克' },
     { index: 2, label: '上海磁悬浮' },
 ] as const satisfies readonly StylePresetSpec[];
@@ -341,25 +367,35 @@ export const PANEL_ID = 'paramPanel';
  * **没有后端**:文件不上传服务器,只在浏览器内存里转成像素喂给 wasm;
  * 刷新页面即恢复站点自带素材(要持久化得另说,不在这块范围内).
  *
- * 槽位号 / 名字必须与 Rust 的 src/app_params.rs 的 UPLOADABLE_LAYERS 一致
- * (跨语言契约,两侧各有单测).当前只放开城市背景那四层:它们的原图是
- * public/metro_window/resource/ 下按层分开交付的 PNG(level_0.png 最近 ..
- * level_3.png 最远),一层一个文件;效果贴图(污渍 / 雾气 / 车厢)是程序化
- * 生成的,不在这一批里.
+ * 这里(而不是 Rust)是图层清单的**唯一来源**:槽位号 / 名字 / 文件名 / 是否
+ * 不透明都由这份声明决定,挂载时随 [`RUNTIME_CONFIG`] 传给 wasm;Rust 只校验
+ * "声明了几层"是否与着色器实现一致(见 rust/src/boot_config.rs).
+ * 当前只放开城市背景那四层:它们的原图是 public/metro_window/resource/ 下
+ * 按层分开交付的 PNG(level_0.png 最近 .. level_3.png 最远),一层一个文件;
+ * 效果贴图(污渍 / 雾气 / 车厢)是程序化生成的,不在这一批里.
  */
 
 /** 一个可上传替换的图层(生成一行"层名 + 选文件 + 恢复默认") */
 export interface UploadLayerSpec {
-    /** 材质槽位号(wasm 侧 material_views 下标),必须与 Rust 名单一致 */
+    /** 材质槽位号(wasm 侧 material_views 下标),必须等于它在清单里的位置 */
     readonly slot: number;
-    /** 槽位名,与 Rust 的 UPLOADABLE_LAYERS 逐字一致;同时用来拼输入框 id */
+    /** 槽位名:随配置传给 wasm,用于报错文案与契约对照;同时用来拼输入框 id */
     readonly name: string;
     /** 界面上的层名 */
     readonly label: string;
     /** 层名后的小字说明(可选),为空不渲染 */
     readonly hint?: string;
-    /** 站点自带素材的文件名(public/metro_window/resource/ 下),仅用于提示 */
+    /** 站点自带素材的文件名(public/metro_window/resource/ 下) */
     readonly file: string;
+    /**
+     * 原图 alpha 是否恒为不透明.true => wasm 侧不预乘 alpha.
+     *
+     * 这是**素材属性**:最底层是全屏实景(alpha 恒为 255),预乘不预乘都一样;
+     * 而带透明通道的层必须预乘,否则建筑轮廓外会渗出黑边
+     * (透明处是 (0,0,0),合成式 `c = c*(1-a) + rgb` 会把它当"黑色")--
+     * 理由见 rust/src/textures.rs 的 premultiply_alpha.
+     */
+    readonly opaque: boolean;
 }
 
 /**
@@ -372,11 +408,25 @@ export interface UploadLayerSpec {
  * slot 号是反着的 -- slot 跟的是材质表顺序,名字跟的是距离.
  */
 export const UPLOAD_LAYERS = [
-    { slot: 0, name: 'level_3', label: '城市背景', hint: '最远一层,不滚动', file: 'level_3.png' },
-    { slot: 1, name: 'level_2', label: '城市远景', hint: '滚动最慢', file: 'level_2.png' },
-    { slot: 2, name: 'level_1', label: '城市中景', hint: '滚动中等', file: 'level_1.png' },
-    { slot: 3, name: 'level_0', label: '城市近景', hint: '滚动最快', file: 'level_0.png' },
+    { slot: 0, name: 'level_3', label: '城市背景', hint: '最远一层,不滚动', file: 'level_3.png', opaque: true },
+    { slot: 1, name: 'level_2', label: '城市远景', hint: '滚动最慢', file: 'level_2.png', opaque: false },
+    { slot: 2, name: 'level_1', label: '城市中景', hint: '滚动中等', file: 'level_1.png', opaque: false },
+    { slot: 3, name: 'level_0', label: '城市近景', hint: '滚动最快', file: 'level_0.png', opaque: false },
 ] as const satisfies readonly UploadLayerSpec[];
+
+/**
+ * 城市贴图在站点里的公开路径前缀(不带结尾斜杠).
+ *
+ * 这四张 PNG 由 wasm 在运行时自己 fetch(不进 wasm 包,也拿不到 Vite 带 hash
+ * 的地址),所以地址必须是构建后真实可访问的绝对路径;文件放在站点唯一的静态
+ * 资源根 `public/metro_window/resource/` 下,Vite 把 `public/` 按原路径挂载
+ * (dev)/拷贝(build),URL 与目录层级一致,不需要重写插件.
+ *
+ * 用绝对路径而不是相对路径:相对路径会随页面 URL 变化(例如
+ * /4xx_page/404.html 这类回退地址),fetch 会拿到 HTML 回退页而不是 PNG,
+ * 报 Invalid PNG signature.
+ */
+export const RESOURCE_BASE = '/metro_window/resource';
 
 /** 上传面板 <legend> 文案 */
 export const UPLOAD_LEGEND = '🖼 图层贴图';
@@ -423,16 +473,18 @@ export const UPLOAD_STATUS_NOT_PNG = '只支持 PNG(自带素材是带透明通�
 
 /** 每层状态:图片边长超上限,带上尺寸插值 */
 export const buildUploadStatusTooLarge = (width: number, height: number): string =>
-    `图片过大(${width}×${height}),单边上限 ${MAX_UPLOAD_DIMENSION}px`;
+    `图片过大(${width}x${height}),单边上限 ${MAX_UPLOAD_DIMENSION}px`;
 
 /** 每层状态:替换成功,带上最终尺寸插值 */
 export const buildUploadStatusApplied = (width: number, height: number): string =>
-    `已应用 ${width}×${height}`;
+    `已应用 ${width}x${height}`;
 
 /**
- * 图片边长上限(像素).
- * 与 Rust 的 src/render_params.rs 的 MAX_TEXTURE_DIMENSION 是同一个值:
- * 前端先筛一遍给出可读的报错,Rust 侧再挡一次(导出函数是公开 API).
+ * 图片边长上限(像素),**策略值**.
+ *
+ * 前端先筛一遍给出可读报错;wasm 侧还会与设备真实能力
+ * (`device.limits().max_texture_dimension_2d`)取小后再挡一次 -- 设备能力是
+ * 硬件事实,不从 TS 传,所以这里允许比设备上限大.
  */
 export const MAX_UPLOAD_DIMENSION = 8192;
 
@@ -524,3 +576,72 @@ export const WEBGPU_HELP_STEPS =
     '② 在设置中开启"使用硬件加速"(Chrome 设置 -> 系统 -> 使用图形加速),并到 <b>chrome://gpu</b> 确认 WebGPU 状态为可用;<br>' +
     '③ Firefox:地址栏打开 <b>about:config</b>,搜索 <b>dom.webgpu.enabled</b> 设为 <b>true</b>;<br>' +
     '④ 若在虚拟机/远程桌面或无独显环境运行,请改用支持 WebGPU 的物理机/浏览器.';
+
+// ---------- 传给 wasm 的启动配置 ----------
+
+/*
+ * "TS 是唯一数据来源,Rust 只做调用方":凡是产品 / 资源 / 界面能决定的值
+ * (有几种风格,有哪几层贴图,贴图文件叫什么,资源挂在哪个 URL,上传允许多大,
+ * 每个滑块的区间)都只写在本文件里,挂载时作为 `startApp(canvas, status, config)`
+ * 的第三个参数**一次性**传给 wasm.下面的类型就是那份配置的形状,Rust 侧
+ * `boot_config.rs` 的 `BootConfig::from_js` 按同名键读取并校验:
+ *
+ *   - 名字对不上 / 类型不对 / 层数与着色器实现不一致 -> 启动就报错,不静默降级;
+ *   - Rust 侧不再各自存一份默认值或清单,也就没有"改了一边忘了另一边"的错配.
+ *
+ * 留在 Rust 的是两类**非配置**的值:着色器/管线的实现能力(实现了几个风格分支,
+ * 几种材质槽位),以及渲染内部调参(帧率,噪声频率,贴图尺寸).设备能力
+ * (如 maxTextureDimension2D)也不从 TS 传,它是硬件事实.
+ */
+
+/** 传给 wasm 的图层声明(字段名与 Rust 的 `LayerConfig` 一一对应) */
+export interface RuntimeLayerSpec {
+    readonly slot: number;
+    readonly name: string;
+    readonly file: string;
+    readonly opaque: boolean;
+}
+
+/** 传给 wasm 的滑块声明(字段名与 Rust 的 `ParamRange` 一一对应) */
+export interface RuntimeParamSpec {
+    readonly name: string;
+    readonly min: number;
+    readonly max: number;
+}
+
+/** 启动配置整体形状(Rust 按这些键名读取,改名要两边同时改) */
+export interface RuntimeConfig {
+    /** 初始风格编号 */
+    readonly styleIndex: number;
+    /** 可选风格数量(上限由它推导) */
+    readonly styleCount: number;
+    /** 城市贴图的公开路径前缀 */
+    readonly resourceBase: string;
+    /** 上传图片的边长上限(策略值;wasm 会再与设备能力取小) */
+    readonly uploadMaxDimension: number;
+    readonly layers: readonly RuntimeLayerSpec[];
+    readonly params: readonly RuntimeParamSpec[];
+}
+
+/**
+ * 从上面的声明**派生**出来的启动配置(不要在别处手写第二份).
+ * 只做字段改名/投影,不含任何新的数值.
+ */
+export const RUNTIME_CONFIG: RuntimeConfig = {
+    styleIndex: DEFAULT_STYLE_INDEX,
+    styleCount: STYLE_PRESETS.length,
+    resourceBase: RESOURCE_BASE,
+    uploadMaxDimension: MAX_UPLOAD_DIMENSION,
+    layers: UPLOAD_LAYERS.map((layer) => ({
+        slot: layer.slot,
+        name: layer.name,
+        file: layer.file,
+        opaque: layer.opaque,
+    })),
+    // 分组是各自的元组类型,这里按统一的 SliderGroupSpec 收口后再投影.
+    params: SLIDER_GROUPS.flatMap((group: SliderGroupSpec) => group.sliders).map((slider) => ({
+        name: slider.param,
+        min: slider.min,
+        max: slider.max,
+    })),
+};

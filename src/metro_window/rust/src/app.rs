@@ -4,10 +4,10 @@ WebGPU 应用主体
 - 每帧更新 Uniforms 并跑一趟渲染(城市视差 / 污渍 / 雾气 / 车厢灯光)
 */
 use crate::app_params::{
-    city_png, upload_slot, upload_target, FRAME_INTERVAL_MS, INITIAL_STYLE_ID,
-    INITIAL_TIME_SECONDS, LEVEL_0_FILE, LEVEL_1_FILE, LEVEL_2_FILE, LEVEL_3_FILE,
+    upload_slot, upload_target, write_param, FRAME_INTERVAL_MS, INITIAL_TIME_SECONDS,
     MAX_FRAME_DELTA_SECONDS, MS_PER_SECOND,
 };
+use crate::boot_config::BootConfig;
 use crate::glass_params::GlassParams;
 use crate::performance_now;
 use crate::pipelines::{create_metro_pipelines, create_render_bind_group, MetroTextures};
@@ -24,13 +24,18 @@ use crate::textures::{
 use crate::uniforms::Uniforms;
 use web_sys::{console, HtmlCanvasElement, HtmlElement};
 use wgpu::util::DeviceExt;
+use wgpu::Texture;
 
-// 城市贴图的路径前缀 / 文件名,以及"为什么必须用绝对路径"的说明,
-// 全部集中在 src/app_params.rs(见 RESOURCE_BASE / CITY_*_FILE / city_png).
+// 城市贴图的路径前缀 / 文件名不再是 Rust 的常量:它们由前端 config.ts 声明,
+// 随 startApp 传进 App.boot(见 boot_config.rs 的模块说明).
 
 pub(crate) struct App {
     pub(crate) device: wgpu::Device,
     pub(crate) queue: wgpu::Queue,
+    /// 启动配置:前端声明的风格 / 图层 / 资源路径 / 滑块区间全在这里,只读.
+    pub(crate) boot: BootConfig,
+    /// 有效上传边长上限 = 前端策略值与设备能力取小(见 [`BootConfig::effective_upload_max`]).
+    pub(crate) upload_max_dimension: u32,
     pub(crate) surface: wgpu::Surface<'static>,
     /// 渲染表面的当前配置.**尺寸变化时改的就是它**:宽高必须与画布的
     /// `width`/`height` 属性一致,否则 `get_current_texture` 拿到的尺寸对不上.
@@ -46,9 +51,9 @@ pub(crate) struct App {
     /// 站点自带的原图始终留在 [`App::default_material_textures`] 里不动,
     /// 所以"恢复默认"只是把视图换回去,不需要重新联网 fetch.
     pub(crate) material_views: [wgpu::TextureView; TEXTURE_LAYER_COUNT as usize],
-    /// 站点自带的默认材质贴图,下标与 [`App::material_views`] 一一对应
-    /// (bg / far / mid / near / dirt / fog / interior),顺序也是
-    /// `app_params::UPLOADABLE_LAYERS` 里槽位号的来源.
+    /// 站点自带的默认材质贴图,下标与 [`App::material_views`] 一一对应.
+    /// 前 `SHADER_CITY_LAYER_COUNT` 项是前端清单里的城市图层(顺序 = 槽位号),
+    /// 之后是程序化生成的污渍 / 雾气 / 车厢倒影.
     pub(crate) default_material_textures: [wgpu::Texture; TEXTURE_LAYER_COUNT as usize],
     pub(crate) sampler: wgpu::Sampler,
     pub(crate) vertex_buffer: wgpu::Buffer,
@@ -60,6 +65,8 @@ pub(crate) struct App {
     pub(crate) last: f64,
     pub(crate) frame_accumulator: f64,
     pub(crate) running: bool,
+    /// 当前风格编号(着色器 applyStyle 的分支);由 [`App::new`] 按前端传来的
+    /// 初始风格建好,之后只被 `setStyle` 改.
     pub(crate) style: u32,
 }
 
@@ -69,10 +76,18 @@ pub(crate) fn set_status(status: &HtmlElement, message: &str) {
 }
 
 impl App {
+    /// 建好整个渲染器.
+    ///
+    /// `boot` 是前端 `config.ts` 声明的启动配置(风格 / 图层 / 资源路径 / 滑块区间),
+    /// 已经过 [`BootConfig::new`] 校验;这里只做两件额外的事:
+    ///   - 把初始风格夹进有效范围(前端风格数 与 着色器分支数 取小);
+    ///   - 把上传上限与设备能力取小.
     pub(crate) async fn new(
         canvas: HtmlCanvasElement,
         status: HtmlElement,
+        boot: BootConfig,
     ) -> Result<Self, String> {
+        let style = boot.clamp_style(boot.style_index);
         set_status(&status, "正在初始化 WebGPU 适配器...");
 
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
@@ -112,6 +127,11 @@ impl App {
             .await
             .map_err(|e| format!("无法获取 WebGPU 设备: {e}"))?;
 
+        // 上传上限:前端给的是**策略值**,设备给的是**能力值**,取小才是有效上限.
+        // 设备能力不从 TS 传:它是硬件事实,不是谁能配置的东西.
+        let upload_max_dimension =
+            boot.effective_upload_max(device.limits().max_texture_dimension_2d);
+
         let width = canvas.width().max(MIN_TEXTURE_DIMENSION);
         let height = canvas.height().max(MIN_TEXTURE_DIMENSION);
         let caps = surface.get_capabilities(&adapter);
@@ -128,24 +148,32 @@ impl App {
         };
         surface.configure(&device, &surface_config);
 
-        // 用绝对路径(见 RESOURCE_BASE)而不是相对路径:
+        // 城市贴图按前端清单逐层加载:文件名与"哪一层"都由 config.ts 声明
+        // (槽位号 = 清单顺序),Rust 只负责按 URL fetch 并建纹理.
+        //
+        // 用绝对路径(见前端 config.ts 的 RESOURCE_BASE)而不是相对路径:
         // 相对路径会随页面 URL 变化(例如 /4xx_page/404.html 这类回退地址),
         // 导致 fetch 拿到 HTML 回退页而不是 PNG,从而报 Invalid PNG signature.
         //
-        // 除最远的背景层(level_3)外都预乘 alpha(它实测 alpha 恒为 255,是底层实景).
-        // 预乘的理由见 textures.rs 的 premultiply_alpha.
-        set_status(&status, "正在加载城市纹理 (1/4)...");
-        let bg =
-            create_png_texture(&device, &queue, "level_3", &city_png(LEVEL_3_FILE), false).await?;
-        set_status(&status, "正在加载城市纹理 (2/4)...");
-        let far =
-            create_png_texture(&device, &queue, "level_2", &city_png(LEVEL_2_FILE), true).await?;
-        set_status(&status, "正在加载城市纹理 (3/4)...");
-        let mid =
-            create_png_texture(&device, &queue, "level_1", &city_png(LEVEL_1_FILE), true).await?;
-        set_status(&status, "正在加载城市纹理 (4/4)...");
-        let near =
-            create_png_texture(&device, &queue, "level_0", &city_png(LEVEL_0_FILE), true).await?;
+        // 是否预乘 alpha 也来自清单(`opaque`):透明区是纯黑的图必须预乘,
+        // 不透明的底层实景不需要(理由见 textures.rs 的 premultiply_alpha).
+        let mut city_textures: Vec<Texture> = Vec::with_capacity(boot.layers.len());
+        for (index, layer) in boot.layers.iter().enumerate() {
+            set_status(
+                &status,
+                &format!("正在加载城市纹理 ({}/{})...", index + 1, boot.layers.len()),
+            );
+            city_textures.push(
+                create_png_texture(
+                    &device,
+                    &queue,
+                    &layer.name,
+                    &boot.texture_url(&layer.file),
+                    !layer.opaque,
+                )
+                .await?,
+            );
+        }
 
         set_status(&status, "正在生成玻璃材质纹理...");
         let (dw, dh, dirt_data) = generate_dirt(DIRT_TEXTURE_SIZE.0, DIRT_TEXTURE_SIZE.1);
@@ -202,7 +230,7 @@ impl App {
             usage: wgpu::BufferUsages::INDEX,
         });
 
-        let uniforms = Uniforms::new(INITIAL_TIME_SECONDS, INITIAL_STYLE_ID);
+        let uniforms = Uniforms::new(INITIAL_TIME_SECONDS, style);
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("uniforms"),
             contents: bytemuck::bytes_of(&uniforms),
@@ -218,10 +246,23 @@ impl App {
 
         // 默认材质纹理存成数组:既从中建出绑定组要用的视图,也留在 App 里 --
         // 前端上传替换掉某一层后,"恢复默认"要能原样换回来(见 App::reset_layer_texture),
-        // 所以原图必须一直活着.顺序 = 材质槽位 0..6(bg/far/mid/near/dirt/fog/interior),
-        // 也是 app_params::UPLOADABLE_LAYERS 里槽位号的来源:前四项正好是城市四层.
-        let default_material_textures: [wgpu::Texture; TEXTURE_LAYER_COUNT as usize] =
-            [bg, far, mid, near, dirt, fog, interior];
+        // 所以原图必须一直活着.
+        //
+        // 前 SHADER_CITY_LAYER_COUNT 项来自前端清单(顺序 = 槽位号 0..3),
+        // 之后接程序化生成的三层(污渍 / 雾气 / 车厢倒影,渲染实现,不在清单里).
+        // 数量由 boot_config 的启动校验保证,这里的 `expect` 只是把"校验漏了"
+        // 变成一句清楚的 panic 而不是越界.
+        let mut city = city_textures.into_iter();
+        let mut next_city = || city.next().expect("启动配置校验保证城市层数与着色器一致");
+        let default_material_textures: [wgpu::Texture; TEXTURE_LAYER_COUNT as usize] = [
+            next_city(),
+            next_city(),
+            next_city(),
+            next_city(),
+            dirt,
+            fog,
+            interior,
+        ];
         // 视图从上面那份纹理派生:上传替换只改这个数组,不动默认纹理.
         let material_views: [wgpu::TextureView; TEXTURE_LAYER_COUNT as usize] =
             std::array::from_fn(|i| default_material_textures[i].create_view(&Default::default()));
@@ -242,6 +283,8 @@ impl App {
         Ok(Self {
             device,
             queue,
+            boot,
+            upload_max_dimension,
             surface,
             surface_config,
             render_pipeline: pipelines.render_pipeline,
@@ -259,7 +302,7 @@ impl App {
             last: performance_now(),
             frame_accumulator: 0.0,
             running: true,
-            style: 0,
+            style,
         })
     }
 
@@ -306,7 +349,7 @@ impl App {
     /// 槽位与像素的校验全在 `app_params::upload_target` 里(白名单 / 尺寸 /
     /// 字节数);这里只负责建纹理,换掉对应的视图,重建渲染绑定组.
     ///
-    /// 上传的图**按城市层的规格**建:预乘 alpha(layer 0 除外).
+    /// 上传的图**按该层的规格**建:清单里标了 `opaque` 的层不预乘,其余预乘 --
     /// 少了预乘,带透明通道的层在建筑轮廓外会渗出黑边(见 textures.rs 的
     /// premultiply_alpha).
     pub(crate) fn set_layer_texture(
@@ -316,9 +359,19 @@ impl App {
         height: u32,
         rgba: &[u8],
     ) -> Result<(), String> {
-        let index = upload_target(layer, width, height, rgba.len())?;
-        // 槽位 0 是背景层 level_3(实测 alpha 恒为 255,不预乘);1..=3 是带 alpha 的远景层.
-        let premultiply: bool = index != 0;
+        let index = upload_target(
+            &self.boot,
+            self.upload_max_dimension,
+            layer,
+            width,
+            height,
+            rgba.len(),
+        )?;
+        let premultiply = !self
+            .boot
+            .layer(layer)
+            .expect("upload_target 已经确认过槽位在白名单里")
+            .opaque;
         let texture = create_texture(
             &self.device,
             &self.queue,
@@ -330,7 +383,7 @@ impl App {
         );
         // write_texture 在这行返回前就已经把像素拷进暂存区,所以调用方的
         // Uint8Array 之后随便被回收,不会影响已经排队的上传.
-        self.material_views[index] = texture.create_view(&Default::default());
+        self.material_views[index as usize] = texture.create_view(&Default::default());
         self.rebuild_render_bind_group();
         Ok(())
     }
@@ -340,11 +393,26 @@ impl App {
     /// 不重新 fetch:默认纹理一直留在 [`App::default_material_textures`] 里,
     /// 这里只是重新建一个视图换回去(线上断网也能用).
     pub(crate) fn reset_layer_texture(&mut self, layer: u32) -> Result<(), String> {
-        let (index, _) = upload_slot(layer)?;
-        self.material_views[index] =
-            self.default_material_textures[index].create_view(&Default::default());
+        let (index, _) = upload_slot(&self.boot, layer)?;
+        self.material_views[index as usize] =
+            self.default_material_textures[index as usize].create_view(&Default::default());
         self.rebuild_render_bind_group();
         Ok(())
+    }
+
+    /// 切换风格:越界编号夹进有效范围(见 [`BootConfig::clamp_style`]).
+    pub(crate) fn set_style(&mut self, style: u32) {
+        self.style = self.boot.clamp_style(style);
+    }
+
+    /// 写滑块参数:区间取自前端声明,名字->字段的分发在 Rust.
+    ///
+    /// 返回是否命中已知参数名,调用方据此决定要不要警告.
+    pub(crate) fn set_param(&mut self, name: &str, value: f32) -> bool {
+        let Some((min, max)) = self.boot.param_range(name) else {
+            return false;
+        };
+        write_param(&mut self.glass_params, name, value.clamp(min, max))
     }
 
     /// 重置:动画时钟归零(前端"重置"按钮).

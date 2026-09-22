@@ -58,7 +58,7 @@ fn vs_main(@location(0) pos: vec2f, @location(1) uv: vec2f) -> VsOut {
 fn applyStyle(c: vec3f, uv: vec2f, time: f32, id: u32) -> vec3f {
     var col = c;
     if (id == 0u) {
-        // 泡沫时期东京的电车:暖色钨丝灯 + 旧胶片青色暗部
+        // 东京的电车:暖色钨丝灯 + 旧胶片青色暗部
         col = col * vec3f(1.12, 0.97, 0.82);
         col = mix(col, vec3f(0.72, 0.84, 0.95), col.b * 0.05);
         col = col + vec3f(0.055, 0.028, 0.008) * smoothstep(0.74, 0.30, distance(uv, vec2f(0.5, 0.48)));

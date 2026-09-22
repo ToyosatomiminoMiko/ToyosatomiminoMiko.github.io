@@ -23,6 +23,13 @@ macro_rules! define_glass_params {
                 $($field: $value,)*
             };
 
+            /// 全部字段名(顺序与结构体一致).
+            ///
+            /// 用途:单测据此检查"每个字段都有对应的 setParam 分发" -- 加了字段却
+            /// 忘了 `app_params::param_field` 的 match 时立刻失败.以 `_` 开头的
+            /// 字段是内部字段(如对齐填充),不参与前端分发.
+            pub const FIELD_NAMES: &'static [&'static str] = &[$(stringify!($field)),*];
+
             /// WGSL 端声明,由 Rust 字段清单生成,保证两边字段名与顺序完全一致.
             pub const WGSL_DECL: &'static str = concat!(
                 "struct GlassParams {\n",

@@ -61,7 +61,9 @@ mountMetroWindow({ stage, styles, panel, uploads });
   风格按钮行**只建一份**(给 `styles` 宿主就挂首屏,不给就留在控制台里,
   两个地方不会各出现一份).宿主页不出现任何
   车窗标记,加一个滑块只需要往 `SLIDER_GROUPS` 里加一条,加一层可上传贴图只需要往
-  `UPLOAD_LAYERS` 里加一条(还要在 Rust 的 `UPLOADABLE_LAYERS` 同步登记),
+  `UPLOAD_LAYERS` 里加一条 -- 这两份声明会随 `RUNTIME_CONFIG` 传给 wasm,
+  Rust 侧不需要同步登记一份清单(层数与着色器实现不一致时 wasm 启动就会报错,
+  见"TS 与 Rust 的职责边界"),
   改文案只动 `config.ts`.
 - **"调参"与"换素材"分两块**:设置面板与上传面板是**两个 fieldset,两个宿主**,
   不合并 -- 前者改渲染参数,后者换美术素材,混在一起会让两件事都不好找;
@@ -313,12 +315,57 @@ code --no-sandbox --enable-unsafe-webgpu
 - Layer 3:窗内灯光与反射 -- 程序化生成车厢灯带与乘客倒影纹理
 - 玻璃参数:车速 / 三层背景距离 / 污渍 / 雾气 / 车厢灯光全部集中在 `glass_params.rs`,
   WGSL 的 struct GlassParams 由 Rust 生成并注入,两边不会各自漂移
-- 实时滑块:车速 / 三层背景距离 / 污渍浓度 / 雾气浓度 / 车厢灯光均可拖动实时调整
+- 实时滑块:车速 / 三层背景距离 / 污渍浓度 / 雾气浓度 / 车厢灯光均可拖动实时调整.
+  **初始值只在 `config.ts` 的 `SLIDER_GROUPS` 里写一份**:`startApp` 之后挂载函数
+  补推一次(`metro_window.ts` 的 `pushSliderValues`),把滑杆的起始值写进 wasm;
+  Rust 的 `GlassParams::DEFAULT` 只是"JS 推入之前的占位值",改滑块初值不必动 Rust
+  (拖动路径本来就是 `input` -> `setParam`,补推走的是同一个入口)
 - 风格切换:uniform 传入 styleId,WGSL 片段着色器内实现
-  泡沫时期东京电车/赛博朋克/上海磁悬浮三套调色与氛围
+  东京电车/赛博朋克/上海磁悬浮三套调色与氛围;默认风格是**赛博朋克**
+  (`index 1`),而且只有**一份声明**:`config.ts` 的 `DEFAULT_STYLE_INDEX`,
+  随 `RUNTIME_CONFIG` 一起进 wasm(初始点亮的按钮与 wasm 的初始风格同源).
+  wasm 侧既没有默认风格常量,也没有风格数量常量:可选数量来自前端的
+  `STYLE_PRESETS.length`,与着色器实现的分支数取小(见 boot_config.rs)
 - 图层贴图上传(SETTING 标签页):城市背景四层各一个上传按钮 + 恢复默认,
   前端把 PNG 解码成 RGBA8 后交给 wasm 侧的 `setLayerImage` 换掉对应材质槽位的
   纹理(只重建渲染绑定组,不动管线与着色器);详见下面"图层贴图上传"一节
+
+### TS 与 Rust 的职责边界(唯一数据来源)
+
+这是本子项目的一条硬约束:**前端 `config.ts` 是唯一数据来源,Rust 只做调用方.**
+凡"产品 / 资源 / 界面能决定"的值都只写在前端,挂载时作为
+`startApp(canvas, status, config)` 的第三个参数(`RUNTIME_CONFIG`)一次性传给 wasm:
+
+| 值 | 唯一声明处 | Rust 侧消费点 |
+| --- | --- | --- |
+| 可选风格(初始编号 / 数量) | `DEFAULT_STYLE_INDEX` / `STYLE_PRESETS` | `App::new` 的初始风格,`setStyle` 的上限 |
+| 图层清单(槽位 / 名字 / 文件 / 是否不透明) | `UPLOAD_LAYERS` | 启动时逐层 fetch,上传白名单,上传后的预乘 |
+| 资源路径前缀 | `RESOURCE_BASE` | 拼 PNG 的公开地址 |
+| 上传边长上限(策略值) | `MAX_UPLOAD_DIMENSION` | 前端先筛;wasm 与设备能力取小后再挡一次 |
+| 滑块(参数名 + clamp 区间) | `SLIDER_GROUPS` | `setParam` 按名字写字段,按区间夹取 |
+
+留在 Rust 的三类东西**不是配置**,所以不从前端传:
+
+1. **实现能力**:着色器实现了几个风格分支,几层城市贴图(见 `boot_config.rs` 的
+   `SHADER_STYLE_COUNT` / `SHADER_CITY_LAYER_COUNT`),以及"参数名 ->
+   `GlassParams` 字段"的分发.前端声明的数量与它对不上时,启动即报错;
+2. **硬件能力**:如 `max_texture_dimension_2d`,由设备报告,谁也配置不了;
+3. **渲染内部调参**:帧率 / 时间步长(`app_params.rs`),噪声频率与贴图尺寸
+   (`texture_params.rs`),哈希(`random_params.rs`),顶点与绑定
+   (`render_params.rs`),清屏色.
+
+唯一允许"两侧都出现"的是**各自防自己的兜底**:TS 算后备缓冲时挡住 0 尺寸
+(`MIN_BACKING_DIMENSION`),Rust 建 surface / 纹理时也把 0 夹到 1
+(`MIN_TEXTURE_DIMENSION`)-- 同类防御在两侧各写一次,不是配置的第二来源.
+判断标准很简单:**这个值能不能由产品 / 美术 / 界面决定?** 能,就只写在前端.
+
+校验与回归网:
+
+- wasm 启动时 `BootConfig::from_js` 逐项校验(缺字段 / 类型不对 / 层数与实现不一致 /
+  滑块名没有对应字段),错误信息直接指出是哪一项,不静默降级;
+- `config.wasm.test.ts` 用**真实 wasm** 跑 `validateConfig(RUNTIME_CONFIG)`:把
+  "TS 写的字段名与 Rust 读的一致"变成 CI 里的断言(不需要 GPU);
+- `metro_window.test.ts` 用 mock wasm 验启动调用序列(配置整体传入,滑块初值补推).
 
 ### 图层贴图上传(没有后端的一条链路)
 
@@ -345,15 +392,17 @@ SETTING 标签页里每层一个上传按钮,换掉其中一层
 
 - **没有后端**:文件不上传服务器,只在浏览器内存里转成像素喂给 wasm;
   **刷新页面即还原**(要持久化得另说,当前不做);
-- 槽位号与名字是**跨语言契约**:Rust 的 `app_params::UPLOADABLE_LAYERS` 与前端
-  `config.ts` 的 `UPLOAD_LAYERS` 逐字一致,两侧各有单测.名字是 `level_N`,N 跟
-  距离编号(0 最近),而**槽位号跟材质表顺序**(0 是最远的背景,即 `level_3`),
-  两者方向相反 -- 换名字 / 换图片文件名时别只改一边.没登记的槽位(污渍 /
-  雾气 / 车厢等程序化贴图)会被 Rust 侧直接拒绝 -- 宁可报错,也不要出现
-  "前端以为在换污渍,实际换了城市层"这种静默错配;
+- 图层清单是**前端单方声明**:哪些层可上传,叫什么名字,用哪个文件,是否不透明
+  只写在 `config.ts` 的 `UPLOAD_LAYERS` 里,随 `RUNTIME_CONFIG` 进 wasm.
+  名字是 `level_N`,N 跟距离编号(0 最近),而**槽位号跟材质表顺序**(0 是最远的
+  背景,即 `level_3`),两者方向相反.Rust 侧只校验"层数是否等于着色器实现的层数"
+  与"槽位号是否等于清单位置";没登记的槽位(污渍 / 雾气 / 车厢等程序化贴图)会被
+  直接拒绝 -- 宁可报错,也不要出现"前端以为在换污渍,实际换了城市层"这种静默错配;
 - 采样器仍是 `u=Repeat, v=ClampToEdge`(见"玻璃材质贴图的约定"):城市图横向
   不可平铺时滚动会出现竖缝,所以提示语写的是"请用带透明通道的 PNG";
-- 单边上限 8192px(wgpu `max_texture_dimension_2d` 的默认值),前端与 Rust 各挡一次;
+- 单边上限是**策略值**:前端 `MAX_UPLOAD_DIMENSION` 先挡一次给可读报错,wasm 侧
+  再与设备真实能力(`device.limits().max_texture_dimension_2d`)取小后挡一次 --
+  设备能力是硬件事实,不从 TS 传;
 - 上传面板与设置面板是**两块 fieldset / 两个宿主**:一边调渲染参数,一边换素材,
   不合并(见 `config.ts` 的 `MOUNT_IDS`).
 
@@ -463,6 +512,9 @@ PREVIEW_PARAM=dirt_opacity=0,interior_opacity=0 cargo run --package metro-window
 | wasm 产物目录 `pkg/` -> `wasm/` | `pkg` 是 wasm-bindgen 的默认叫法,但在这个子项目里它和 `package.json` 的"包",`cargo pkgid` 的"包"都不相干;**目录里装的就是 wasm 产物**,直接叫 `wasm/` 才一眼看得懂.同步改了构建脚本 / `check:wasm` / 前端 import / `tsconfig` exclude / `clean` / `.gitignore` |
 | `preview.png` 与 `cargo test` 的 PPM 统一落到 `rust/test_output/` | 两者都是"生成出来给人看的可视化产物",原先一个落仓库根(为它单开了一条 .gitignore),一个落 `test_output/`.路径改由 `lib.rs::test_output_dir()` 按 `CARGO_MANIFEST_DIR` 算成绝对路径:与调用时的 cwd 无关,从哪跑都落同一处,仓库根也不用再忽略 `preview.png` |
 | 城市贴图从 `city_bg / city_far / city_mid / city_near` 改名为 `level_3 / level_2 / level_1 / level_0`(编号由近到远) | 旧名字是四个语义标签,顺序只能靠读英文单词判断;统一成带编号的 `level_N` 后,远近一眼可见,也和"城市四层"这个说法对齐.改名要同时动:Rust 的 `app_params.rs`(文件名常量 + `UPLOADABLE_LAYERS` 槽位名),`app.rs` 的加载与调试标签,`examples/preview.rs`,前端 `config.ts` 的 `UPLOAD_LAYERS` 与 `config.test.ts` 的镜像清单.注意**槽位号与编号方向相反**(槽位 0 是最远的背景 = `level_3`),两侧单测各钉了一次 |
+| 默认风格改为"由前端经 `startApp(canvas, status, style)` 传入",删掉 Rust 的 `INITIAL_STYLE_ID`;滑块初值也在 boot 后由 `pushSliderValues()` 补推 | 两者都是"两份默认值"造成的静默错配.风格那份更隐蔽:它只写了 uniform buffer 的初值,而 `App::frame` 每帧渲染前都会用 `self.style` 覆盖该缓冲区,`self.style` 又硬编码为 0 -- 于是那个常量改了不起任何作用.现在默认值只有 `config.ts` 一份声明(`DEFAULT_STYLE_INDEX` / `SLIDER_GROUPS[].value`),`metro_window.test.ts` 用 mock wasm 的调用序列把这两条路径钉住 |
+| 全面收口"唯一数据来源":`startApp` 改成收一份 `RUNTIME_CONFIG`(风格 / 图层清单 / 资源路径 / 上传上限 / 滑块区间),删除 Rust 侧的 `UPLOADABLE_LAYERS`,`SLIDERS`,`LEVEL_*_FILE`,`RESOURCE_BASE`,`MAX_STYLE_INDEX`,`MAX_TEXTURE_DIMENSION`,新增 `boot_config.rs` 做接收与校验,并新增 `validateConfig` 导出与 `config.wasm.test.ts` | 同一事实在两侧各写一份 + 各配一个镜像单测,每加一个值要改四处,漏一处就是静默错配(风格数量当时甚至是三份:TS 清单,Rust 上限,WGSL 分支).现在只有单向传参:TS 声明 -> wasm 启动校验 -> 消费;留在 Rust 的只有"实现能力 / 硬件能力 / 渲染内部调参"三类非配置值,边界写在"TS 与 Rust 的职责边界"一节 |
+| 上传边长上限不再由 Rust 写死:前端传策略值,wasm 与 `device.limits().max_texture_dimension_2d` 取小 | 8192 原本是"wgpu 默认上限"的猜测值,写死在 `render_params.rs` 后与前端那份互为镜像;真源其实是设备能力,而"允许多大"是产品策略 -- 两者取小才是有效上限 |
 
 ### 组件拆分:舞台与控制台
 
@@ -476,7 +528,7 @@ PREVIEW_PARAM=dirt_opacity=0,interior_opacity=0 cargo run --package metro-window
 | `ui/window_content.ts` -> `ui/stage_content.ts`,`createWindowContent()` -> `createStageContent()`;一度新增 `STAGE_COPY_ENABLED` | 这个文件只管舞台;首屏文案后来改由站点页面负责(站名在导航左上角),组件不再生成标题 / 副标题.该开关连同 `WINDOW_TITLE` / `WINDOW_SUBTITLE` / `SUBTITLE_CLASS`,`metro_window.css` 的 `h1`/`.subtitle` 规则与 `--metro-font-size-title` **已整体删除**(开关长期为关,四处都没有消费者) |
 | 样式作用域类由挂载函数往**两个**宿主上都补;新增舞台修饰类 `.metro-window--stage` 与隐藏容器 `.metro-panel-sink` | `metro_window.css` 的选择器**全部**以 `.metro-window` 开头:面板换了宿主却没这个类就是"样式静默失效"(看着没坏但全乱);省略面板宿主时退回隐藏容器,面板 / 状态区 / 事件绑定一个都不少 |
 | `IntersectionObserver` 明确只观察**舞台** | 面板在别的标签页里,它的可见性不代表画面的可见性,不能拿来当暂停依据 |
-| Rust 侧一行未改 | 面板只是换了 DOM 宿主;`startApp(canvas, status)` 要的 `status` 元素在任何宿主里都成立,`setStyle` / `setParam` / `setRunning` / `reset` 仍作用于同一个单例 |
+| Rust 侧只改了 `startApp` 的签名(多一个 `style` 参数) | 面板只是换了 DOM 宿主;`startApp(canvas, status, style)` 要的 `status` 元素在任何宿主里都成立,`setStyle` / `setParam` / `setRunning` / `reset` 仍作用于同一个单例 |
 | 风格按钮行从设置面板里拆出来(`createStyleRow()` + `createSettingsPanel(styleRow)`),新增第三个挂载点 `#metro-styles` | 切风格属于"看",和 LED 时钟一起放在首屏底部最顺手;而"参数"属于"调",留在 SETTING.行仍然**只建一份**,由挂载函数决定放哪(给了 `styles` 宿主就挂首屏,没给就留在控制台里),所以两个地方不会各出现一份 |
 | 新增"裸宿主"修饰类 `.metro-window--bare`,`.metro-window--stage` 从此只负责"铺满父层" | 首屏里的舞台与风格按钮宿主都不要车窗面板的内边距与底色;两件事拆成两条规则,比一条规则兼两职好读 |
 | 后备缓冲从"固定 1344×756"改成"随宿主算的 16:9 × dpr",并给 Rust 加 `resize()` 导出 | 首屏要铺满整屏,还要 1:1 清晰;比例必须锁死 16:9(场景按 uv 铺满画布),所以算的是"覆盖宿主所需的 16:9"而不是宿主本身的形状 |

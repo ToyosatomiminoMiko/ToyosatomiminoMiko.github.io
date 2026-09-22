@@ -6,6 +6,7 @@ crate 入口(WASM 绑定层)
 */
 mod app;
 mod app_params;
+mod boot_config;
 mod glass_params;
 mod pipelines;
 mod random;
@@ -19,7 +20,7 @@ mod uniforms;
 //   - validate_wgsl 要 shader_source():与管线编译时**逐字一致**的完整 WGSL
 //     源码(含 Rust 生成的 GlassParams 声明);
 //   - preview 要下面这一组:它自己搭一遍设备 / 纹理 / 管线,离线渲染一帧.
-pub use app_params::apply_param;
+pub use app_params::write_param;
 pub use glass_params::GlassParams;
 pub use pipelines::{create_metro_pipelines, shader_source, MetroTextures};
 pub use render_params::{
@@ -53,15 +54,41 @@ use wasm_bindgen::JsCast;
 use web_sys::{console, window, HtmlCanvasElement, HtmlElement};
 
 use crate::app::App;
+use crate::boot_config::BootConfig;
 
 thread_local! {
     static APP: RefCell<Option<App>> = const { RefCell::new(None) };
 }
 
+/// 只校验一份启动配置是否合法,不初始化渲染器.
+///
+/// 为什么单独开一个导出:配置是**跨语言契约**(字段名,层数,参数名),而
+/// `startApp` 之后马上要设备 / GPU,CI 与无 GPU 环境根本走不到校验那一步.
+/// 有了它,前端可以在真正启动前自查,测试也能用真实 wasm 验证"TS 写的字段名
+/// 与 Rust 读的一致" -- 这类漂移不报错时表现为"启动卡住/画面不对",最难查.
+#[wasm_bindgen(js_name = validateConfig)]
+pub fn validate_config(config: JsValue) -> Result<(), JsValue> {
+    BootConfig::from_js(&config)
+        .map(|_| ())
+        .map_err(JsValue::from)
+}
+
+/// 启动应用:建好渲染器并开始每帧渲染.
+///
+/// - `canvas` / `status`:画布与状态文案元素;
+/// - `config`:**前端声明的全部可配置值**(风格 / 图层清单 / 资源路径 / 上传上限 /
+///   滑块区间),由 `src/metro_window/src/config.ts` 的 `RUNTIME_CONFIG` 生成.
+///   缺字段,类型不对,层数与着色器不一致,滑块名 Rust 分发不了 -- 都在这里
+///   一次性报错,而不是留到渲染时静默错配(见 boot_config.rs 的模块说明).
 #[wasm_bindgen(js_name = startApp)]
-pub async fn start_app(canvas: HtmlCanvasElement, status: HtmlElement) -> Result<(), JsValue> {
+pub async fn start_app(
+    canvas: HtmlCanvasElement,
+    status: HtmlElement,
+    config: JsValue,
+) -> Result<(), JsValue> {
     console::log_1(&"metro-window: starting".into());
-    let app = App::new(canvas, status)
+    let boot = BootConfig::from_js(&config).map_err(JsValue::from)?;
+    let app = App::new(canvas, status, boot)
         .await
         .map_err(|e| JsValue::from_str(&e))?;
     APP.with(|cell| {
@@ -74,7 +101,8 @@ pub async fn start_app(canvas: HtmlCanvasElement, status: HtmlElement) -> Result
 #[wasm_bindgen(js_name = setStyle)]
 pub fn set_style(style: u32) {
     with_app(|app| {
-        app.style = style.min(app_params::MAX_STYLE_INDEX);
+        // 有效风格上限来自启动配置(前端风格数 与 着色器分支数 取小).
+        app.set_style(style);
     });
 }
 
@@ -102,10 +130,11 @@ pub fn resize(width: u32, height: u32) {
 #[wasm_bindgen(js_name = setParam)]
 pub fn set_param(name: &str, value: f32) {
     with_app(|app| {
-        // 参数名与 clamp 上下限统一由 src/app_params.rs 的 SLIDERS 配置表维护:
-        // 表里的 name 就是前端 setParam(name, value) 传的字面值(不可改动),
-        // apply_param 负责夹到合法区间后写入对应的 GlassParams 字段.
-        if !app_params::apply_param(&mut app.glass_params, name, value) {
+        // 参数名与 clamp 区间都来自前端声明(`config.ts` 的 `SLIDER_GROUPS`):
+        // 名字 -> GlassParams 字段的分发在 Rust,夹取用前端给的区间.
+        // 没命中说明两边名字漂移了 -- 启动时的 config 校验已经挡过一次,
+        // 这里再警告一次是给"运行中改了名字"这种开发场景留的提示.
+        if !app.set_param(name, value) {
             console::warn_1(&format!("未知滑块参数: {name}").into());
         }
     });

@@ -6,15 +6,16 @@
 - 方便在没有 WebGPU 浏览器时离线查看车窗效果(城市视差 / 污渍 / 雾气 / 车厢灯光)
 - 可用环境变量覆盖任意滑块参数做 A/B,例如:
     PREVIEW_PARAM=fog_opacity=1 PREVIEW_PARAM=dirt_opacity=0 cargo run --example preview
-  参数名与线上 setParam 完全同一张表(见 app_params::apply_param),所以示例里
-  调出来的数值可以直接抄回滑块.
+  参数名与线上 setParam 走**同一份字段分发**(`app_params::write_param`),所以
+  示例里能调的线上也能调;区别是线上由前端 config.ts 声明区间并夹取,示例里
+  直接按写的数值用(离线调试要的就是"所见即所填").
 - 水珠的离线预览在仓库根目录的 water_droplet_demo/rust/examples/preview.rs.
 */
 use metro_window::{
-    apply_param, create_metro_pipelines, create_texture, decode_png, generate_dirt, generate_fog,
-    generate_interior, GlassParams, MetroTextures, Uniforms, DIRT_TEXTURE_SIZE, FOG_TEXTURE_SIZE,
-    FULLSCREEN_QUAD_INDICES, FULLSCREEN_QUAD_VERTICES, INTERIOR_TEXTURE_SIZE, QUAD_INDEX_FORMAT,
-    RENDER_TARGET_FORMAT, RGBA_BYTES_PER_PIXEL, SAMPLER_ADDRESS_MODE_CLAMP,
+    create_metro_pipelines, create_texture, decode_png, generate_dirt, generate_fog,
+    generate_interior, write_param, GlassParams, MetroTextures, Uniforms, DIRT_TEXTURE_SIZE,
+    FOG_TEXTURE_SIZE, FULLSCREEN_QUAD_INDICES, FULLSCREEN_QUAD_VERTICES, INTERIOR_TEXTURE_SIZE,
+    QUAD_INDEX_FORMAT, RENDER_TARGET_FORMAT, RGBA_BYTES_PER_PIXEL, SAMPLER_ADDRESS_MODE_CLAMP,
     SAMPLER_ADDRESS_MODE_REPEAT, SAMPLER_FILTER_MODE,
 };
 use wgpu::util::DeviceExt;
@@ -34,7 +35,7 @@ fn apply_preview_overrides(params: &mut GlassParams) {
             continue;
         };
         match value.trim().parse::<f32>() {
-            Ok(v) if apply_param(params, name.trim(), v) => {
+            Ok(v) if write_param(params, name.trim(), v) => {
                 println!("[PREVIEW] {name} = {v}");
             }
             Ok(v) => eprintln!("[PREVIEW] 未知参数: {name} = {v}"),

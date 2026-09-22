@@ -61,6 +61,9 @@ import {
     buildSoftwareAdapterMessage,
     buildUploadStatusApplied,
     buildUploadStatusTooLarge,
+    CANVAS_ASPECT_PROPERTY,
+    CANVAS_HEIGHT,
+    CANVAS_WIDTH,
     DECIMAL_FRACTION_INDEX,
     DECIMAL_SEPARATOR,
     DEFAULT_STYLE_INDEX,
@@ -77,6 +80,7 @@ import {
     MOUNT_IDS,
     PANEL_SINK_CLASS,
     RESIZE_DEBOUNCE_MS,
+    RUNTIME_CONFIG,
     SOFTWARE_ADAPTER_PATTERN,
     STAGE_MODIFIER_CLASS,
     STAGE_NOTE_CLASS,
@@ -246,6 +250,10 @@ export function mountMetroWindow(points: MetroMountPoints): void {
     // 画布(以及可选的标题 / 副标题)由组件生成(宿主只提供空容器);顺序即显示顺序.
     stage.append(...createStageContent());
 
+    // 宽高比从 CANVAS_WIDTH / CANVAS_HEIGHT 算出来写到舞台上(与后备缓冲同一个源):
+    // CSS 的 aspect-ratio 取这个变量,tokens.css 里那份只是 JS 未挂载时的兜底.
+    stage.style.setProperty(CANVAS_ASPECT_PROPERTY, `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}`);
+
     // 画布仍然按 id 找回来:同一个 id 由 config.ts 的 ELEMENT_IDS 定义,
     // stage_content.ts 生成时用它,这里取值时也用它,两边不会各写一份.
     const canvas = mustFind<HTMLCanvasElement>(stage, ELEMENT_IDS.canvas);
@@ -384,8 +392,16 @@ export function mountMetroWindow(points: MetroMountPoints): void {
                 return;
             }
 
-            await startApp(canvas, settings.status);
+            // 全部可配置值一次性交给 wasm:初始风格,图层清单(文件名 / 槽位 /
+            // 是否不透明),资源路径,上传上限,滑块区间 -- 都只在 config.ts 里
+            // 声明,`RUNTIME_CONFIG` 只是把那份声明投影成 wasm 读得懂的形状;
+            // wasm 侧启动时校验,缺字段 / 层数对不上 / 参数名不认识都直接报错.
+            await startApp(canvas, settings.status, RUNTIME_CONFIG);
             booted = true;
+            // 立刻把滑块声明的初始值推给 wasm:首帧的 rAF 回调要等当前任务结束才跑,
+            // 所以这一步一定早于第一帧.少了它,画面用的是 Rust 的
+            // GlassParams::DEFAULT,而 SLIDER_GROUPS 里写的 value 只改了界面.
+            pushSliderValues();
             styleButtons.forEach((btn) => {
                 btn.disabled = false;
             });
@@ -415,6 +431,23 @@ export function mountMetroWindow(points: MetroMountPoints): void {
     function showWebGpuHelp(message: string): void {
         settings.status.innerHTML = `${message}${STATUS_HTML_SEPARATOR}${WEBGPU_HELP_STEPS}`;
         markStageUnavailable();
+    }
+
+    /**
+     * 把滑块当前值(= `SLIDER_GROUPS` 里声明的 `value`)一次性推给 wasm.
+     *
+     * 为什么必须有这一步:[`bindSlider`] 末尾那次同步跑在 `booted` 之前,里面的
+     * `setParam` 会被 `if (booted)` 主动跳过(wasm 还没就绪),于是首帧用的是
+     * Rust `glass_params.rs` 的 `GlassParams::DEFAULT`,而不是 config.ts 里写的
+     * `value` -- 只改 `SLIDER_GROUPS` 会得到"滑杆显示新值,画面还是旧值"的错配.
+     * 启动完成后补推一次,`config.ts` 才真的是"参数名 / 区间 / 初始值"的唯一来源;
+     * Rust 那份 DEFAULT 退化成"JS 推入之前的占位值"(单测与 `examples/preview.rs`
+     * 仍然直接用它).
+     */
+    function pushSliderValues(): void {
+        settings.sliders.forEach(({ spec, range }) => {
+            setParam(spec.param, Number(range.value));
+        });
     }
 
     /** 绑定一个滑块:拖动实时写入 Rust 参数,数值框输入反向同步并夹取 */

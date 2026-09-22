@@ -1,13 +1,16 @@
 /*
-应用层参数配置模块
-- 主循环节奏(帧率上限 / 时间步长),资源路径,初始 Uniforms,样式数量上限
-  以及前端滑块的"名字 + clamp 范围"配置表集中于此.
-- 这些常量原先散落在 src/lib.rs 与 src/app.rs 里,数值为等价替换,不改变行为.
-- 纯 GPU 管线参数见 src/render_params.rs,程序化贴图参数见 src/texture_params.rs,
-  车窗玻璃参数见 src/glass_params.rs.
+应用层参数模块
+- 主循环节奏(帧率上限 / 时间步长),初始时间,以及"前端参数名 -> GlassParams 字段"
+  的分发与上传入参校验.
+- **这里没有产品默认值**:风格编号,滑块区间,图层清单,资源路径,上传上限
+  都由前端 config.ts 声明,经 `startApp` 传入(见 boot_config.rs 的模块说明).
+  本模块只保留两类东西:纯渲染内部调参(帧率 / 时间步长),以及实现性质的分发.
+- 纯 GPU 管线参数见 render_params.rs,程序化贴图参数见 texture_params.rs,
+  车窗玻璃参数见 glass_params.rs.
 */
+use crate::boot_config::BootConfig;
 use crate::glass_params::GlassParams;
-use crate::render_params::{MAX_TEXTURE_DIMENSION, RGBA_BYTES_PER_PIXEL};
+use crate::render_params::RGBA_BYTES_PER_PIXEL;
 
 /// 渲染帧率上限 60fps 对应的最小帧间隔(毫秒).
 ///
@@ -33,96 +36,64 @@ pub(crate) const MAX_FRAME_DELTA_SECONDS: f32 = 0.1;
 /// 含义:动画时钟起点;改大相当于跳过开头一段动画.
 pub(crate) const INITIAL_TIME_SECONDS: f32 = 0.0;
 
-/// 启动时的样式编号.
+// ---------- 滑块参数:名字 -> GlassParams 字段 ----------
+
+/// 按名字取 `GlassParams` 里的对应字段.
 ///
-/// 含义:着色器 applyStyle 的分支编号,0 = 默认样式;
-/// 取值范围 0..=MAX_STYLE_INDEX,与前端按钮的 data-style 对应.
-pub(crate) const INITIAL_STYLE_ID: u32 = 0;
-
-/// setStyle 允许的最大样式编号.
-///
-/// 含义:前端可选样式数量 - 1;越界编号会被夹到该值,避免着色器走进未定义分支.
-/// 前端 (src/metro_window/src/config.ts 的 STYLE_PRESETS) 目前提供 0 / 1 / 2 三种样式,因此上限为 2.
-pub(crate) const MAX_STYLE_INDEX: u32 = 2;
-
-/// 城市贴图在站点里的公开路径前缀.
-///
-/// 这四张 PNG 是 Rust 在运行时自己 fetch 的,既不进 wasm 包,也不走 Vite 的
-/// 资源图(拿不到带 hash 的地址),所以这里只能是构建后真实可访问的绝对路径.
-/// 文件放在站点唯一的静态资源根 `public/metro_window/resource/` 下,Vite 把
-/// `public/` 按原路径挂载(dev)/拷贝(build),因此 URL 与目录层级一致,
-/// 不需要任何重写插件.
-///
-/// 用绝对路径而不是相对路径:相对路径会随页面 URL 变化(例如 /4xx_page/404.html
-/// 这类回退地址),导致 fetch 拿到 HTML 回退页而不是 PNG,从而报
-/// Invalid PNG signature.
-pub(crate) const RESOURCE_BASE: &str = "/metro_window/resource";
-
-// 四张城市贴图的文件名按"由近到远"编号:level_0 = 最近的一层(滚动最快),
-// level_3 = 最远的一层(背景,不滚动).注意这与 `material_views` 的槽位号方向
-// **相反** -- 槽位 0 是最远的背景层,槽位 3 才是近景(见 `UPLOADABLE_LAYERS`),
-// 因为那张表跟的是渲染顺序而不是距离编号.
-
-/// 城市近景层贴图文件名(level 0,滚得最快的一层).
-pub(crate) const LEVEL_0_FILE: &str = "level_0.png";
-/// 城市中景层贴图文件名(level 1).
-pub(crate) const LEVEL_1_FILE: &str = "level_1.png";
-/// 城市远景层贴图文件名(level 2).
-pub(crate) const LEVEL_2_FILE: &str = "level_2.png";
-/// 城市背景层贴图文件名(level 3,最远的一层,不滚动).
-pub(crate) const LEVEL_3_FILE: &str = "level_3.png";
-
-/// 拼出某张城市贴图的公开地址(约定见 [`RESOURCE_BASE`]).
-pub(crate) fn city_png(file: &str) -> String {
-    format!("{RESOURCE_BASE}/{file}")
+/// 这是**实现**:uniform 结构体有哪些字段是着色器的事,前端只声明"界面提供哪些
+/// 滑块与它们的区间".名字对不上就返回 `None`,由调用方决定是报错还是忽略.
+/// 内部字段(如对齐用的 `_padding`)不在这里登记,前端也传不进来.
+fn param_field<'a>(params: &'a mut GlassParams, name: &str) -> Option<&'a mut f32> {
+    match name {
+        // 车速 / 背景层距离
+        "vehicle_speed" => Some(&mut params.vehicle_speed),
+        "far_distance" => Some(&mut params.far_distance),
+        "mid_distance" => Some(&mut params.mid_distance),
+        "near_distance" => Some(&mut params.near_distance),
+        // 玻璃材质浓度
+        "dirt_opacity" => Some(&mut params.dirt_opacity),
+        "fog_opacity" => Some(&mut params.fog_opacity),
+        "interior_opacity" => Some(&mut params.interior_opacity),
+        _ => None,
+    }
 }
 
-// ---------- 前端上传替换贴图 ----------
+/// 该名字是不是可写入的滑块参数(启动时校验前端清单用).
+///
+/// 用一次真实查找实现而不是再维护一份名字表:名单只有 `param_field` 一处事实源.
+pub(crate) fn is_known_param(name: &str) -> bool {
+    let mut params = GlassParams::DEFAULT;
+    param_field(&mut params, name).is_some()
+}
 
-/// 允许前端上传替换的材质槽位:`(material_views 下标, 槽位名)`.
+/// 把已经夹好的值写进对应字段;名字未知返回 `false`.
 ///
-/// 槽位号就是 `App::material_views` 的下标(见 src/app.rs 里那张表的构建顺序:
-/// bg / far / mid / near / dirt / fog / interior),所以 0..=3 正好是城市背景四层,
-/// 也就是 `public/metro_window/resource/` 下按层分开交付的那四张 PNG --
-/// 前端一层给一个上传按钮,换掉其中一层不影响另外三层(视差照旧).
-///
-/// 槽位名用 `level_N`,N 是"由近到远"的距离编号(与 PNG 文件名逐字对应),
-/// 所以槽位号与名字里的 N 是**反过来**的:槽位 0 是最远的背景,名字是 `level_3`.
-///
-/// 效果贴图(污渍 / 雾气 / 车厢倒影)是程序化生成的,与背景贴图的原理不同,
-/// **不在当前范围内**:它们的槽位在这里没有登记,`upload_slot` 会直接拒绝.
-/// 宁可报错也不要出现"前端以为在换污渍,实际换了城市层"这种静默错配.
-/// 将来要放开某一层:在下面加一行,并在前端 config.ts 的 `UPLOAD_LAYERS`
-/// 同步加一条(两侧各有单测守着这份跨语言契约).
-pub(crate) const UPLOADABLE_LAYERS: &[(u32, &str)] = &[
-    (0, "level_3"),
-    (1, "level_2"),
-    (2, "level_1"),
-    (3, "level_0"),
-];
-
-// 编译期不变量:槽位号必须等于它在表里的下标.
-// 上传路径按"表里的下标 -> material_views 下标"取用,槽位号又会被前端写死,
-// 两者一旦不一致,前端传 2 就可能落到别的层;这条断言把它变成编译错误.
-const _: () = {
-    let mut i = 0;
-    while i < UPLOADABLE_LAYERS.len() {
-        assert!(UPLOADABLE_LAYERS[i].0 == i as u32);
-        i += 1;
+/// `pub` 是因为原生示例(`examples/preview.rs`)用它做离线调参,与线上
+/// `setParam` 走同一份字段分发.
+pub fn write_param(params: &mut GlassParams, name: &str, value: f32) -> bool {
+    match param_field(params, name) {
+        Some(field) => {
+            *field = value;
+            true
+        }
+        None => false,
     }
-};
+}
+
+// ---------- 前端上传替换贴图:入参校验 ----------
 
 /// 查"可上传槽位"白名单,返回 `(material_views 下标, 槽位名)`.
 ///
-/// 单独拆出来是因为"恢复默认"不需要校验尺寸与像素字节数,只需要白名单;
-/// 真正的上传再走 [`upload_target`] 补齐这两项.
-pub(crate) fn upload_slot(layer: u32) -> Result<(usize, &'static str), String> {
-    if let Some(&(slot, name)) = UPLOADABLE_LAYERS.iter().find(|(slot, _)| *slot == layer) {
-        return Ok((slot as usize, name));
+/// 白名单来自前端清单(`config.ts` 的 `UPLOAD_LAYERS`):哪些层允许被替换是产品
+/// 决定,不是 Rust 决定."恢复默认"只需要白名单,真正的上传再走 [`upload_target`].
+pub(crate) fn upload_slot(boot: &BootConfig, layer: u32) -> Result<(u32, &str), String> {
+    if let Some(config) = boot.layer(layer) {
+        return Ok((config.slot, config.name.as_str()));
     }
-    let allowed: Vec<String> = UPLOADABLE_LAYERS
+    let allowed: Vec<String> = boot
+        .layers
         .iter()
-        .map(|(slot, name)| format!("{slot}={name}"))
+        .map(|config| format!("{}={}", config.slot, config.name))
         .collect();
     Err(format!(
         "不支持上传的材质槽位: {layer}(可上传: {})",
@@ -135,23 +106,27 @@ pub(crate) fn upload_slot(layer: u32) -> Result<(usize, &'static str), String> {
 /// 单独拆成纯函数(不碰设备 / 纹理)是为了能在**没有 GPU** 的单测里覆盖全部
 /// 拒绝分支:真正的上传路径要建 wgpu 纹理,而建纹理必须有设备.
 ///
-/// `byte_len` 是前端传来的 RGBA8 缓冲区长度,必须与 `width * height * 4` 严格相等:
-/// 少了会越界读,多了会被 wgpu 当成行距不匹配 -- 两种都在这里挡掉.
+/// `max_dimension` 是有效边长上限(前端策略值与设备能力取小,见
+/// [`BootConfig::effective_upload_max`]);`byte_len` 是前端传来的 RGBA8 缓冲区
+/// 长度,必须与 `width * height * 4` 严格相等:少了会越界读,多了会被 wgpu 当成
+/// 行距不匹配 -- 两种都在这里挡掉.
 pub(crate) fn upload_target(
+    boot: &BootConfig,
+    max_dimension: u32,
     layer: u32,
     width: u32,
     height: u32,
     byte_len: usize,
-) -> Result<usize, String> {
-    let (slot, name) = upload_slot(layer)?;
+) -> Result<u32, String> {
+    let (slot, name) = upload_slot(boot, layer)?;
     if width == 0 || height == 0 {
         return Err(format!("{name}: 图片尺寸非法({width}x{height})"));
     }
     // 先比边长再算像素总数:上限内 8192 * 8192 * 4 = 256MiB 仍在 usize(32 位 wasm)
     // 范围内,但更早拒绝可以少一次乘法,也顺带避免将来放宽上限时溢出.
-    if width > MAX_TEXTURE_DIMENSION || height > MAX_TEXTURE_DIMENSION {
+    if width > max_dimension || height > max_dimension {
         return Err(format!(
-            "{name}: 图片边长超过上限 {MAX_TEXTURE_DIMENSION}px({width}x{height})"
+            "{name}: 图片边长超过上限 {max_dimension}px({width}x{height})"
         ));
     }
     let expected: usize = width as usize * height as usize * RGBA_BYTES_PER_PIXEL as usize;
@@ -163,231 +138,109 @@ pub(crate) fn upload_target(
     Ok(slot)
 }
 
-/// 单个实时滑块的配置.
-///
-/// `name` 是前端 `setParam(name, value)` 传入的参数名,必须与
-/// src/metro_window/src/config.ts 的 `param` 字段逐字一致(前端按名字调用,
-/// 名字一旦改动前端就会打到未知分支).
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct SliderSpec {
-    /// 前端使用的参数名(字面值不可改动).
-    pub(crate) name: &'static str,
-    /// clamp 下限(含).前端越界时夹到该值,避免着色器出现非法输入.
-    pub(crate) min: f32,
-    /// clamp 上限(含).
-    pub(crate) max: f32,
-}
-
-impl SliderSpec {
-    /// 把前端传来的值夹到 [min, max].
-    pub(crate) fn clamp(self, value: f32) -> f32 {
-        value.clamp(self.min, self.max)
-    }
-
-    /// 把 value 夹到本滑块范围后写入 [`GlassParams`] 的对应字段.
-    ///
-    /// 分支字符串与 [`SLIDERS`] 中的 `name` 一一对应;
-    /// `set_param` 已先按表查过名字,所以正常不会走到兜底分支.
-    pub(crate) fn apply(self, params: &mut GlassParams, value: f32) {
-        let v = self.clamp(value);
-        match self.name {
-            // 车速 / 背景层距离
-            "vehicle_speed" => params.vehicle_speed = v,
-            "far_distance" => params.far_distance = v,
-            "mid_distance" => params.mid_distance = v,
-            "near_distance" => params.near_distance = v,
-            // 玻璃材质浓度
-            "dirt_opacity" => params.dirt_opacity = v,
-            "fog_opacity" => params.fog_opacity = v,
-            "interior_opacity" => params.interior_opacity = v,
-            // 表与 apply 不同步时才会触发(有单测约束 SLIDERS 全覆盖).
-            _ => unreachable!("SLIDERS 中的参数未在 apply 中实现: {}", self.name),
-        }
-    }
-}
-
-/// 全部实时滑块的配置表(名字 + clamp 范围).
-///
-/// 顺序与前端控件一致;每一项的 `name` 必须与 src/metro_window/src/config.ts
-/// 的 `param` 字段一致.`min` / `max` 是前端数值的合法区间:
-/// 越界值会被夹到边界而不是拒绝,保证着色器永远拿到安全输入.
-pub(crate) const SLIDERS: &[SliderSpec] = &[
-    // ===== 车速 / 背景层距离 =====
-    // 车速倍率:驱动背景滚动;0 = 静止,越大越快.
-    SliderSpec {
-        name: "vehicle_speed",
-        min: 0.0,
-        max: 5.0,
-    },
-    // 远景层距离系数:视差速度 = 基础速度 / 距离,范围 0.1..3.0.
-    SliderSpec {
-        name: "far_distance",
-        min: 0.1,
-        max: 3.0,
-    },
-    // 中景层距离系数.
-    SliderSpec {
-        name: "mid_distance",
-        min: 0.1,
-        max: 3.0,
-    },
-    // 近景层距离系数.
-    SliderSpec {
-        name: "near_distance",
-        min: 0.1,
-        max: 3.0,
-    },
-    // ===== 玻璃材质浓度 =====
-    // 污渍混合强度.
-    SliderSpec {
-        name: "dirt_opacity",
-        min: 0.0,
-        max: 1.0,
-    },
-    // 雾气混合强度.
-    SliderSpec {
-        name: "fog_opacity",
-        min: 0.0,
-        max: 1.0,
-    },
-    // 车厢灯光反射混合强度.
-    SliderSpec {
-        name: "interior_opacity",
-        min: 0.0,
-        max: 1.0,
-    },
-];
-
-/// 按名字查滑块配置;未登记的名字返回 `None`(`set_param` 会打印警告).
-pub(crate) fn slider_spec(name: &str) -> Option<SliderSpec> {
-    SLIDERS.iter().copied().find(|spec| spec.name == name)
-}
-
-/// 按名字把值写进 [`GlassParams`] 的对应字段(clamp 到该滑块的区间).
-///
-/// 返回是否命中已知参数名.这是"参数名 -> 字段"的**唯一**入口:
-/// wasm 侧 `setParam` 走它(前端拖滑块).
-pub fn apply_param(params: &mut GlassParams, name: &str, value: f32) -> bool {
-    match slider_spec(name) {
-        Some(spec) => {
-            spec.apply(params, value);
-            true
-        }
-        None => false,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::boot_config::{LayerConfig, ParamRange, SHADER_CITY_LAYER_COUNT};
 
-    /// 前端实际使用的参数名(与 src/metro_window/src/config.ts 的 SLIDER_GROUPS 一致).
-    /// 这份清单是断言用的期望集合:表里多一个/少一个都会失败.
-    const EXPECTED_SLIDER_NAMES: [&str; 7] = [
-        "vehicle_speed",
-        "far_distance",
-        "mid_distance",
-        "near_distance",
-        "dirt_opacity",
-        "fog_opacity",
-        "interior_opacity",
-    ];
-
-    #[test]
-    fn slider_names_match_frontend() {
-        assert_eq!(SLIDERS.len(), EXPECTED_SLIDER_NAMES.len());
-        for name in EXPECTED_SLIDER_NAMES {
-            assert!(slider_spec(name).is_some(), "SLIDERS 缺少前端参数: {name}");
-        }
+    /// 测试用配置:数值与前端 config.ts 对齐,但这里只当测试数据.
+    fn boot() -> BootConfig {
+        let names = ["level_3", "level_2", "level_1", "level_0"];
+        let layers = names
+            .iter()
+            .enumerate()
+            .map(|(index, name)| LayerConfig {
+                slot: index as u32,
+                name: (*name).to_string(),
+                file: format!("{name}.png"),
+                opaque: index == 0,
+            })
+            .collect();
+        let params = ["vehicle_speed", "dirt_opacity"]
+            .iter()
+            .map(|name| ParamRange {
+                name: (*name).to_string(),
+                min: 0.0,
+                max: 1.0,
+            })
+            .collect();
+        BootConfig::new(
+            0,
+            3,
+            "/metro_window/resource".to_string(),
+            8192,
+            layers,
+            params,
+        )
+        .expect("测试配置必须合法")
     }
 
     #[test]
-    fn slider_names_are_unique() {
-        for (i, a) in SLIDERS.iter().enumerate() {
-            for b in &SLIDERS[i + 1..] {
-                assert_ne!(a.name, b.name, "滑块名字重复: {}", a.name);
-            }
-        }
+    fn shader_layer_count_matches_the_test_config() {
+        // 测试数据自己也要跟"实现能力"对齐,否则下面的用例会因为别的原因失败.
+        assert_eq!(boot().layers.len(), SHADER_CITY_LAYER_COUNT as usize);
     }
 
     #[test]
-    fn every_slider_spec_writes_a_field() {
-        // 用"低于下限"的输入触发 clamp 到 min,再断言参数确实被写入:
-        // 表里有条目但 apply 漏了分支时会 panic / 断言失败.
-        for spec in SLIDERS {
-            let mut params = GlassParams::DEFAULT;
-            spec.apply(&mut params, spec.min - 1.0);
-            assert_ne!(
-                params,
-                GlassParams::DEFAULT,
-                "滑块 {} 没有写入任何字段",
-                spec.name
-            );
-        }
-    }
-
-    /// 前端 config.ts 的 UPLOAD_LAYERS 里的槽位名(跨语言契约,逐字一致).
-    /// 顺序即槽位号 0..3,也就是"由远到近",所以 level 编号是递减的.
-    const EXPECTED_UPLOAD_LAYERS: [&str; 4] = ["level_3", "level_2", "level_1", "level_0"];
-
-    #[test]
-    fn uploadable_layers_match_frontend() {
-        assert_eq!(UPLOADABLE_LAYERS.len(), EXPECTED_UPLOAD_LAYERS.len());
-        for (i, name) in EXPECTED_UPLOAD_LAYERS.iter().enumerate() {
-            assert_eq!(
-                UPLOADABLE_LAYERS[i].1, *name,
-                "上传槽位 {i} 的名字与前端不一致"
-            );
-        }
-    }
-
-    /*
-     上传槽位的名字必须与启动时真正 fetch 的那四张 PNG 对应:
-     名字只是给前端看的,真正决定"换的是哪张图"的是槽位号 -> material_views 下标,
-     而 material_views 的前四项就是 App::new 里按"槽位 0..3"顺序建出来的纹理
-     (背景 -> 近景,所以 LEVEL_*_FILE 在这里是倒着排的).
-     这条测试把"名字 <-> 文件名"钉死,前端清单又用同样的名字做契约,两边同时改才漂移.
-    */
-    #[test]
-    fn uploadable_layers_match_level_files() {
-        // 顺序与 UPLOADABLE_LAYERS 的槽位号一致(槽位 0 是最远的 level_3).
-        let files: [&str; 4] = [LEVEL_3_FILE, LEVEL_2_FILE, LEVEL_1_FILE, LEVEL_0_FILE];
-        for ((slot, name), file) in UPLOADABLE_LAYERS.iter().zip(files) {
-            assert_eq!(
-                format!("{name}.png"),
-                file,
-                "槽位 {slot} 的名字与城市贴图文件名对不上"
+    fn every_public_glass_field_is_dispatchable() {
+        // `_` 前缀的字段是内部用的(如对齐填充),不参与 setParam 分发.
+        for name in GlassParams::FIELD_NAMES
+            .iter()
+            .filter(|name| !name.starts_with('_'))
+        {
+            assert!(
+                is_known_param(name),
+                "GlassParams 字段 {name} 没有对应的 setParam 分发"
             );
         }
     }
 
     #[test]
-    fn upload_slot_rejects_unknown_layer() {
-        assert!(upload_slot(0).is_ok());
-        // 4..=6 是污渍 / 雾气 / 车厢:程序化贴图,当前不允许上传.
-        for layer in [4, 5, 6, 7, 99] {
-            let error = upload_slot(layer).expect_err("越界槽位必须被拒绝");
-            assert!(error.contains("不支持上传"), "报错文案不对: {error}");
+    fn internal_fields_are_not_dispatchable() {
+        // 约定:内部字段以 `_` 开头,前端传不进来(传了也只会被当成未知参数).
+        for name in GlassParams::FIELD_NAMES
+            .iter()
+            .filter(|n| n.starts_with('_'))
+        {
+            assert!(!is_known_param(name), "内部字段 {name} 不该可写");
         }
+        assert!(!is_known_param("vehicle_speeed"));
+    }
+
+    #[test]
+    fn write_param_writes_only_known_fields() {
+        let mut params = GlassParams::DEFAULT;
+        assert!(write_param(&mut params, "vehicle_speed", 2.5));
+        assert_eq!(params.vehicle_speed, 2.5);
+        assert!(!write_param(&mut params, "nope", 1.0));
+        assert_eq!(params, {
+            let mut expected = GlassParams::DEFAULT;
+            expected.vehicle_speed = 2.5;
+            expected
+        });
+    }
+
+    #[test]
+    fn upload_slot_lists_allowed_slots_in_error() {
+        assert_eq!(upload_slot(&boot(), 2), Ok((2, "level_1")));
+        let error = upload_slot(&boot(), 7).expect_err("越界槽位必须被拒绝");
+        assert!(error.contains("不支持上传"), "报错文案不对: {error}");
+        assert!(error.contains("0=level_3"), "报错应列出白名单: {error}");
     }
 
     #[test]
     fn upload_target_validates_size_and_length() {
+        let boot = boot();
+        let max = boot.effective_upload_max(8192);
         // 合法:64x32 的 RGBA8 像素
-        assert_eq!(upload_target(2, 64, 32, 64 * 32 * 4).unwrap(), 2);
-        // 尺寸为 0 / 边长超上限 / 字节数对不上,三种都要拒绝
-        for (w, h, len) in [
-            (0_u32, 32_u32, 0_usize),
-            (32, 0, 0),
-            (MAX_TEXTURE_DIMENSION + 1, 1, 0),
-            (1, MAX_TEXTURE_DIMENSION + 1, 0),
-            (64, 32, 64 * 32 * 4 - 1),
-            (64, 32, 64 * 32 * 4 + 4),
-        ] {
-            assert!(
-                upload_target(0, w, h, len).is_err(),
-                "{w}x{h} / {len} 字节应该被拒绝"
-            );
-        }
+        assert_eq!(upload_target(&boot, max, 1, 64, 32, 64 * 32 * 4), Ok(1));
+        // 零尺寸
+        assert!(upload_target(&boot, max, 1, 0, 32, 0).is_err());
+        // 超上限(用设备能力更低的情形,证明用的是"有效上限"而不是配置值)
+        let small = boot.effective_upload_max(64);
+        assert_eq!(small, 64);
+        assert!(upload_target(&boot, small, 1, 65, 32, 65 * 32 * 4).is_err());
+        // 像素字节数不匹配
+        assert!(upload_target(&boot, max, 1, 64, 32, 64 * 32 * 3).is_err());
     }
 }
