@@ -58,14 +58,19 @@ pub(crate) const MAX_STYLE_INDEX: u32 = 2;
 /// Invalid PNG signature.
 pub(crate) const RESOURCE_BASE: &str = "/metro_window/resource";
 
-/// 城市背景层贴图文件名(Layer 0,最远的一层).
-pub(crate) const CITY_BG_FILE: &str = "city_bg.png";
-/// 城市远景层贴图文件名(Layer 1).
-pub(crate) const CITY_FAR_FILE: &str = "city_far.png";
-/// 城市中景层贴图文件名(Layer 2).
-pub(crate) const CITY_MID_FILE: &str = "city_mid.png";
-/// 城市近景层贴图文件名(Layer 3).
-pub(crate) const CITY_NEAR_FILE: &str = "city_near.png";
+// 四张城市贴图的文件名按"由近到远"编号:level_0 = 最近的一层(滚动最快),
+// level_3 = 最远的一层(背景,不滚动).注意这与 `material_views` 的槽位号方向
+// **相反** -- 槽位 0 是最远的背景层,槽位 3 才是近景(见 `UPLOADABLE_LAYERS`),
+// 因为那张表跟的是渲染顺序而不是距离编号.
+
+/// 城市近景层贴图文件名(level 0,滚得最快的一层).
+pub(crate) const LEVEL_0_FILE: &str = "level_0.png";
+/// 城市中景层贴图文件名(level 1).
+pub(crate) const LEVEL_1_FILE: &str = "level_1.png";
+/// 城市远景层贴图文件名(level 2).
+pub(crate) const LEVEL_2_FILE: &str = "level_2.png";
+/// 城市背景层贴图文件名(level 3,最远的一层,不滚动).
+pub(crate) const LEVEL_3_FILE: &str = "level_3.png";
 
 /// 拼出某张城市贴图的公开地址(约定见 [`RESOURCE_BASE`]).
 pub(crate) fn city_png(file: &str) -> String {
@@ -81,16 +86,19 @@ pub(crate) fn city_png(file: &str) -> String {
 /// 也就是 `public/metro_window/resource/` 下按层分开交付的那四张 PNG --
 /// 前端一层给一个上传按钮,换掉其中一层不影响另外三层(视差照旧).
 ///
+/// 槽位名用 `level_N`,N 是"由近到远"的距离编号(与 PNG 文件名逐字对应),
+/// 所以槽位号与名字里的 N 是**反过来**的:槽位 0 是最远的背景,名字是 `level_3`.
+///
 /// 效果贴图(污渍 / 雾气 / 车厢倒影)是程序化生成的,与背景贴图的原理不同,
 /// **不在当前范围内**:它们的槽位在这里没有登记,`upload_slot` 会直接拒绝.
 /// 宁可报错也不要出现"前端以为在换污渍,实际换了城市层"这种静默错配.
 /// 将来要放开某一层:在下面加一行,并在前端 config.ts 的 `UPLOAD_LAYERS`
 /// 同步加一条(两侧各有单测守着这份跨语言契约).
 pub(crate) const UPLOADABLE_LAYERS: &[(u32, &str)] = &[
-    (0, "city_bg"),
-    (1, "city_far"),
-    (2, "city_mid"),
-    (3, "city_near"),
+    (0, "level_3"),
+    (1, "level_2"),
+    (2, "level_1"),
+    (3, "level_0"),
 ];
 
 // 编译期不变量:槽位号必须等于它在表里的下标.
@@ -319,7 +327,8 @@ mod tests {
     }
 
     /// 前端 config.ts 的 UPLOAD_LAYERS 里的槽位名(跨语言契约,逐字一致).
-    const EXPECTED_UPLOAD_LAYERS: [&str; 4] = ["city_bg", "city_far", "city_mid", "city_near"];
+    /// 顺序即槽位号 0..3,也就是"由远到近",所以 level 编号是递减的.
+    const EXPECTED_UPLOAD_LAYERS: [&str; 4] = ["level_3", "level_2", "level_1", "level_0"];
 
     #[test]
     fn uploadable_layers_match_frontend() {
@@ -335,12 +344,14 @@ mod tests {
     /*
      上传槽位的名字必须与启动时真正 fetch 的那四张 PNG 对应:
      名字只是给前端看的,真正决定"换的是哪张图"的是槽位号 -> material_views 下标,
-     而 material_views 的前四项就是 App::new 里按 CITY_*_FILE 顺序建出来的纹理.
+     而 material_views 的前四项就是 App::new 里按"槽位 0..3"顺序建出来的纹理
+     (背景 -> 近景,所以 LEVEL_*_FILE 在这里是倒着排的).
      这条测试把"名字 <-> 文件名"钉死,前端清单又用同样的名字做契约,两边同时改才漂移.
     */
     #[test]
-    fn uploadable_layers_match_city_files() {
-        let files: [&str; 4] = [CITY_BG_FILE, CITY_FAR_FILE, CITY_MID_FILE, CITY_NEAR_FILE];
+    fn uploadable_layers_match_level_files() {
+        // 顺序与 UPLOADABLE_LAYERS 的槽位号一致(槽位 0 是最远的 level_3).
+        let files: [&str; 4] = [LEVEL_3_FILE, LEVEL_2_FILE, LEVEL_1_FILE, LEVEL_0_FILE];
         for ((slot, name), file) in UPLOADABLE_LAYERS.iter().zip(files) {
             assert_eq!(
                 format!("{name}.png"),

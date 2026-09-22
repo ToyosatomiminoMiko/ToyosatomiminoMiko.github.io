@@ -25,7 +25,7 @@
 | Rust 源码 | `src/metro_window/rust/`(crate `metro-window`,编译为 wasm32-unknown-unknown) |
 | 前端源码 | `src/metro_window/src/` |
 | 组件行为 | `src/metro_window/src/metro_window.ts`,导出 `mountMetroWindow(points: MetroMountPoints)` / `mountMetroWindowAtMountIds()`(站内入口给的是**宿主引用**:`mountMetroWindow({ stage: shell.metroStage, ... })`) |
-| 运行时贴图 | 源码 `public/metro_window/resource/*.png`(站点 public),公开地址 `/metro_window/resource/*.png` |
+| 运行时贴图 | 源码 `public/metro_window/resource/level_0.png` ~ `level_3.png`(站点 public,编号由近到远),公开地址 `/metro_window/resource/*.png` |
 
 ### 组件形态
 
@@ -322,8 +322,10 @@ code --no-sandbox --enable-unsafe-webgpu
 
 ### 图层贴图上传(没有后端的一条链路)
 
-站点自带素材是 `public/metro_window/resource/` 下的四张 PNG(城市背景 / 远景 /
-中景 / 近景),画师按层分开交付;SETTING 标签页里每层一个上传按钮,换掉其中一层
+站点自带素材是 `public/metro_window/resource/` 下的四张 PNG,文件名按**由近到远**
+编号:`level_0.png`(城市近景,滚动最快)/ `level_1.png`(中景)/ `level_2.png`
+(远景)/ `level_3.png`(城市背景,最远,不滚动).画师按层分开交付;
+SETTING 标签页里每层一个上传按钮,换掉其中一层
 不影响另外三层(视差照旧).整条链路是:
 
 1. **前端选文件**(`src/ui/uploads.ts` 的 `createUploadPanel()`):`accept="image/png"`,
@@ -344,7 +346,9 @@ code --no-sandbox --enable-unsafe-webgpu
 - **没有后端**:文件不上传服务器,只在浏览器内存里转成像素喂给 wasm;
   **刷新页面即还原**(要持久化得另说,当前不做);
 - 槽位号与名字是**跨语言契约**:Rust 的 `app_params::UPLOADABLE_LAYERS` 与前端
-  `config.ts` 的 `UPLOAD_LAYERS` 逐字一致,两侧各有单测.没登记的槽位(污渍 /
+  `config.ts` 的 `UPLOAD_LAYERS` 逐字一致,两侧各有单测.名字是 `level_N`,N 跟
+  距离编号(0 最近),而**槽位号跟材质表顺序**(0 是最远的背景,即 `level_3`),
+  两者方向相反 -- 换名字 / 换图片文件名时别只改一边.没登记的槽位(污渍 /
   雾气 / 车厢等程序化贴图)会被 Rust 侧直接拒绝 -- 宁可报错,也不要出现
   "前端以为在换污渍,实际换了城市层"这种静默错配;
 - 采样器仍是 `u=Repeat, v=ClampToEdge`(见"玻璃材质贴图的约定"):城市图横向
@@ -458,6 +462,7 @@ PREVIEW_PARAM=dirt_opacity=0,interior_opacity=0 cargo run --package metro-window
 | 仓库根新增 `Cargo.toml`(cargo workspace),`Cargo.lock` 从 crate 移到仓库根,`[profile.release]` 也从 crate 移到根 manifest | 这个仓库以后还会加别的 Rust crate:workspace 让全仓库共用一份锁文件和一个 `target/`,在仓库根就能 `cargo test/clippy --workspace`,CI 也只缓存一处;成员在根 manifest 的 `members` 里显式列出 |
 | wasm 产物目录 `pkg/` -> `wasm/` | `pkg` 是 wasm-bindgen 的默认叫法,但在这个子项目里它和 `package.json` 的"包",`cargo pkgid` 的"包"都不相干;**目录里装的就是 wasm 产物**,直接叫 `wasm/` 才一眼看得懂.同步改了构建脚本 / `check:wasm` / 前端 import / `tsconfig` exclude / `clean` / `.gitignore` |
 | `preview.png` 与 `cargo test` 的 PPM 统一落到 `rust/test_output/` | 两者都是"生成出来给人看的可视化产物",原先一个落仓库根(为它单开了一条 .gitignore),一个落 `test_output/`.路径改由 `lib.rs::test_output_dir()` 按 `CARGO_MANIFEST_DIR` 算成绝对路径:与调用时的 cwd 无关,从哪跑都落同一处,仓库根也不用再忽略 `preview.png` |
+| 城市贴图从 `city_bg / city_far / city_mid / city_near` 改名为 `level_3 / level_2 / level_1 / level_0`(编号由近到远) | 旧名字是四个语义标签,顺序只能靠读英文单词判断;统一成带编号的 `level_N` 后,远近一眼可见,也和"城市四层"这个说法对齐.改名要同时动:Rust 的 `app_params.rs`(文件名常量 + `UPLOADABLE_LAYERS` 槽位名),`app.rs` 的加载与调试标签,`examples/preview.rs`,前端 `config.ts` 的 `UPLOAD_LAYERS` 与 `config.test.ts` 的镜像清单.注意**槽位号与编号方向相反**(槽位 0 是最远的背景 = `level_3`),两侧单测各钉了一次 |
 
 ### 组件拆分:舞台与控制台
 

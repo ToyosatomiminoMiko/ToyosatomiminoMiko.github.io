@@ -343,8 +343,9 @@ export const PANEL_ID = 'paramPanel';
  *
  * 槽位号 / 名字必须与 Rust 的 src/app_params.rs 的 UPLOADABLE_LAYERS 一致
  * (跨语言契约,两侧各有单测).当前只放开城市背景那四层:它们的原图是
- * public/metro_window/resource/ 下按层分开交付的 PNG,一层一个文件;
- * 效果贴图(污渍 / 雾气 / 车厢)是程序化生成的,不在这一批里.
+ * public/metro_window/resource/ 下按层分开交付的 PNG(level_0.png 最近 ..
+ * level_3.png 最远),一层一个文件;效果贴图(污渍 / 雾气 / 车厢)是程序化
+ * 生成的,不在这一批里.
  */
 
 /** 一个可上传替换的图层(生成一行"层名 + 选文件 + 恢复默认") */
@@ -362,15 +363,19 @@ export interface UploadLayerSpec {
 }
 
 /**
- * 可上传的四层,顺序即界面顺序.
+ * 可上传的四层,顺序即界面顺序(由远到近).
  * slot 与前四项材质槽位(bg / far / mid / near)一一对应:
  * 换掉其中一层不影响另外三层,视差滚动照旧.
+ *
+ * 槽位名用 `level_N`,N 是"由近到远"的距离编号,也就是 PNG 文件名的编号:
+ * level_0 最近(滚动最快),level_3 最远(背景,不滚动).因此名字里的 N 与
+ * slot 号是反着的 -- slot 跟的是材质表顺序,名字跟的是距离.
  */
 export const UPLOAD_LAYERS = [
-    { slot: 0, name: 'city_bg', label: '城市背景', hint: '最远一层,不滚动', file: 'city_bg.png' },
-    { slot: 1, name: 'city_far', label: '城市远景', hint: '滚动最慢', file: 'city_far.png' },
-    { slot: 2, name: 'city_mid', label: '城市中景', hint: '滚动中等', file: 'city_mid.png' },
-    { slot: 3, name: 'city_near', label: '城市近景', hint: '滚动最快', file: 'city_near.png' },
+    { slot: 0, name: 'level_3', label: '城市背景', hint: '最远一层,不滚动', file: 'level_3.png' },
+    { slot: 1, name: 'level_2', label: '城市远景', hint: '滚动最慢', file: 'level_2.png' },
+    { slot: 2, name: 'level_1', label: '城市中景', hint: '滚动中等', file: 'level_1.png' },
+    { slot: 3, name: 'level_0', label: '城市近景', hint: '滚动最快', file: 'level_0.png' },
 ] as const satisfies readonly UploadLayerSpec[];
 
 /** 上传面板 <legend> 文案 */

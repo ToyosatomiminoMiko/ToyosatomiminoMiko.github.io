@@ -81,8 +81,12 @@ describe('地铁车窗风格配置', () => {
  两者错位的后果是**静默换错层**,所以这里逐项对齐.
 */
 describe('地铁车窗上传图层配置', () => {
-    /** Rust 侧 UPLOADABLE_LAYERS 的名字(顺序即槽位号 0..3) */
-    const EXPECTED_UPLOAD_NAMES = ['city_bg', 'city_far', 'city_mid', 'city_near'] as const;
+    /**
+     * Rust 侧 UPLOADABLE_LAYERS 的名字(顺序即槽位号 0..3).
+     * 槽位跟材质表顺序(0 = 最远的背景),名字跟距离编号(level_0 最近),
+     * 所以这里是由远到近,编号递减的.
+     */
+    const EXPECTED_UPLOAD_NAMES = ['level_3', 'level_2', 'level_1', 'level_0'] as const;
 
     it('槽位号连续,名字与 Rust 侧一致', () => {
         expect(UPLOAD_LAYERS.map((layer) => layer.name)).toEqual([...EXPECTED_UPLOAD_NAMES]);
@@ -94,6 +98,20 @@ describe('地铁车窗上传图层配置', () => {
             // 原素材按层分开交付,文件名就是"槽位名 + .png":
             // 名字改了就说明清单和 public/metro_window/resource/ 对不上了.
             expect(layer.file, layer.name).toBe(`${layer.name}.png`);
+        }
+    });
+
+    it('level 编号由近到远:level_0 最近,level_3 最远', () => {
+        // 编号方向写反(level_0 当成最远的背景)会让上传面板张冠李戴,这里钉死两件事:
+        // 编号与"层名"的对应,以及编号与 slot 的相反关系.
+        expect(UPLOAD_LAYERS.map((layer) => layer.label)).toEqual([
+            '城市背景',
+            '城市远景',
+            '城市中景',
+            '城市近景',
+        ]);
+        for (const layer of UPLOAD_LAYERS) {
+            expect(layer.name, layer.label).toBe(`level_${UPLOAD_LAYERS.length - 1 - layer.slot}`);
         }
     });
 

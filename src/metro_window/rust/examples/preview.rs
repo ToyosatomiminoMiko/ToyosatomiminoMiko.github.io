@@ -66,14 +66,14 @@ const PREVIEW_RESOURCE_DIR: &str = concat!(
 fn preview_city_png(file: &str) -> String {
     format!("{PREVIEW_RESOURCE_DIR}/{file}")
 }
-/// 城市背景层贴图文件名.
-const PREVIEW_CITY_BG: &str = "city_bg.png";
-/// 城市远景层贴图文件名.
-const PREVIEW_CITY_FAR: &str = "city_far.png";
-/// 城市中景层贴图文件名.
-const PREVIEW_CITY_MID: &str = "city_mid.png";
-/// 城市近景层贴图文件名.
-const PREVIEW_CITY_NEAR: &str = "city_near.png";
+/// 城市近景层贴图文件名(level 0,最近的一层).
+const PREVIEW_LEVEL_0: &str = "level_0.png";
+/// 城市中景层贴图文件名(level 1).
+const PREVIEW_LEVEL_1: &str = "level_1.png";
+/// 城市远景层贴图文件名(level 2).
+const PREVIEW_LEVEL_2: &str = "level_2.png";
+/// 城市背景层贴图文件名(level 3,最远的一层).
+const PREVIEW_LEVEL_3: &str = "level_3.png";
 
 use std::future::Future;
 use std::pin::pin;
@@ -143,10 +143,11 @@ fn main() {
         // 贴图在站点 public/metro_window/resource/ 下(PREVIEW_RESOURCE_DIR 已拼成
         // 绝对路径,不受 cwd 影响).站点运行时 fetch 的是同一批文件的公开地址
         // /metro_window/resource/...,见 src/app_params.rs 的 RESOURCE_BASE.
-        let bg = load_png(&device, &queue, &preview_city_png(PREVIEW_CITY_BG), false);
-        let far = load_png(&device, &queue, &preview_city_png(PREVIEW_CITY_FAR), true);
-        let mid = load_png(&device, &queue, &preview_city_png(PREVIEW_CITY_MID), true);
-        let near = load_png(&device, &queue, &preview_city_png(PREVIEW_CITY_NEAR), true);
+        // 顺序与运行时一致:背景(level_3)在最下,近景(level_0)在最上.
+        let bg = load_png(&device, &queue, &preview_city_png(PREVIEW_LEVEL_3), false);
+        let far = load_png(&device, &queue, &preview_city_png(PREVIEW_LEVEL_2), true);
+        let mid = load_png(&device, &queue, &preview_city_png(PREVIEW_LEVEL_1), true);
+        let near = load_png(&device, &queue, &preview_city_png(PREVIEW_LEVEL_0), true);
         let (dw, dh, dirt_data) = generate_dirt(DIRT_TEXTURE_SIZE.0, DIRT_TEXTURE_SIZE.1);
         let dirt = create_texture(&device, &queue, "dirt", dw, dh, &dirt_data, false);
         let (fw, fh, fog_data) = generate_fog(FOG_TEXTURE_SIZE.0, FOG_TEXTURE_SIZE.1);

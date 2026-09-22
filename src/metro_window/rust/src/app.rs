@@ -4,8 +4,8 @@ WebGPU 应用主体
 - 每帧更新 Uniforms 并跑一趟渲染(城市视差 / 污渍 / 雾气 / 车厢灯光)
 */
 use crate::app_params::{
-    city_png, upload_slot, upload_target, CITY_BG_FILE, CITY_FAR_FILE, CITY_MID_FILE,
-    CITY_NEAR_FILE, FRAME_INTERVAL_MS, INITIAL_STYLE_ID, INITIAL_TIME_SECONDS,
+    city_png, upload_slot, upload_target, FRAME_INTERVAL_MS, INITIAL_STYLE_ID,
+    INITIAL_TIME_SECONDS, LEVEL_0_FILE, LEVEL_1_FILE, LEVEL_2_FILE, LEVEL_3_FILE,
     MAX_FRAME_DELTA_SECONDS, MS_PER_SECOND,
 };
 use crate::glass_params::GlassParams;
@@ -132,26 +132,20 @@ impl App {
         // 相对路径会随页面 URL 变化(例如 /4xx_page/404.html 这类回退地址),
         // 导致 fetch 拿到 HTML 回退页而不是 PNG,从而报 Invalid PNG signature.
         //
-        // 除 city_bg 外都预乘 alpha(city_bg 实测 alpha 恒为 255,是底层实景).
+        // 除最远的背景层(level_3)外都预乘 alpha(它实测 alpha 恒为 255,是底层实景).
         // 预乘的理由见 textures.rs 的 premultiply_alpha.
         set_status(&status, "正在加载城市纹理 (1/4)...");
         let bg =
-            create_png_texture(&device, &queue, "city_bg", &city_png(CITY_BG_FILE), false).await?;
+            create_png_texture(&device, &queue, "level_3", &city_png(LEVEL_3_FILE), false).await?;
         set_status(&status, "正在加载城市纹理 (2/4)...");
         let far =
-            create_png_texture(&device, &queue, "city_far", &city_png(CITY_FAR_FILE), true).await?;
+            create_png_texture(&device, &queue, "level_2", &city_png(LEVEL_2_FILE), true).await?;
         set_status(&status, "正在加载城市纹理 (3/4)...");
         let mid =
-            create_png_texture(&device, &queue, "city_mid", &city_png(CITY_MID_FILE), true).await?;
+            create_png_texture(&device, &queue, "level_1", &city_png(LEVEL_1_FILE), true).await?;
         set_status(&status, "正在加载城市纹理 (4/4)...");
-        let near = create_png_texture(
-            &device,
-            &queue,
-            "city_near",
-            &city_png(CITY_NEAR_FILE),
-            true,
-        )
-        .await?;
+        let near =
+            create_png_texture(&device, &queue, "level_0", &city_png(LEVEL_0_FILE), true).await?;
 
         set_status(&status, "正在生成玻璃材质纹理...");
         let (dw, dh, dirt_data) = generate_dirt(DIRT_TEXTURE_SIZE.0, DIRT_TEXTURE_SIZE.1);
@@ -323,7 +317,7 @@ impl App {
         rgba: &[u8],
     ) -> Result<(), String> {
         let index = upload_target(layer, width, height, rgba.len())?;
-        // 槽位 0 是 city_bg(实测 alpha 恒为 255,不预乘);1..=3 是带 alpha 的远景层.
+        // 槽位 0 是背景层 level_3(实测 alpha 恒为 255,不预乘);1..=3 是带 alpha 的远景层.
         let premultiply: bool = index != 0;
         let texture = create_texture(
             &self.device,

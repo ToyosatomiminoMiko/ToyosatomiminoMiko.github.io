@@ -37,9 +37,11 @@ Rust + WASM + WebGPU 实时渲染的地铁车窗玻璃效果(窗外城市多层�
 前端工程与构建脚本,放在任意位置都能独立构建运行.两边的代码互不引用.
 
 SETTING 里可以逐层上传替换城市背景那四张 PNG(画师按层分开交付的原素材在
-`public/metro_window/resource/`).这条链路**没有后端**:文件不上传服务器,
-由浏览器解码成像素后交给 wasm 换掉对应的 GPU 纹理,刷新页面即还原;
-机制与约束见 [`src/metro_window/README.md`](src/metro_window/README.md)
+`public/metro_window/resource/`,文件名 `level_0.png` ~ `level_3.png`,
+编号由近到远:`level_0` 最近,`level_3` 是最远的背景).这条链路**没有后端**:
+文件不上传服务器,由浏览器解码成像素后交给 wasm 换掉对应的 GPU 纹理,
+刷新页面即还原;机制与约束见
+[`src/metro_window/README.md`](src/metro_window/README.md)
 的"图层贴图上传"一节.
 
 它原来是 **GPL-3.0**,并入本站后整体按本站的 **AGPL-3.0** 走
