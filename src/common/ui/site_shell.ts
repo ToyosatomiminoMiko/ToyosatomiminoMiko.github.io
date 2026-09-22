@@ -11,9 +11,10 @@
 
     header.site-header
       ├── span.site-brand                      站名(压在首屏画面上时的站点身份)
-      └── ul.nav.nav-tabs                      标签栏(bootstrap 声明式标签页)
-          ├── li.nav-item > a.nav-link[href=#<pane>][data-bs-toggle=tab]
-          └── li.nav-item > a[href=GitHub] > img.rounded-circle.head
+      ├── ul.nav.nav-tabs                      标签栏(bootstrap 声明式标签页)
+      │     └── li.nav-item > a.nav-link[href=#<pane>][data-bs-toggle=tab]
+      └── a.head-link[href=GitHub] > img.rounded-circle.head
+                                               头像(在标签栏**外面**,见下)
     main > div.tab-content
       ├── div.tab-pane#home         > section.hero#hero
       │     ├── div.hero__stage     > div#metro-window      地铁车窗舞台(空宿主)
@@ -33,6 +34,12 @@
 OLED / RBT / IEEE754 三个模块干脆把整个标签页窗格当宿主(窗格本身就是容器),
 所以骨架里给它们建的宿主就是窗格自己.
 
+**头像挂在 header 上,不是标签栏的最后一项**:标签栏 `ul.nav-tabs` 是**横向
+滚动容器**(窄窗口时标签横向滑动,见 index.css),滚动容器的 padding box
+就是裁剪区 -- 头像放进去,hover 辉光的模糊半径会被裁成方块.所以头像与标签栏
+平级,排在 header 末尾;`.head-link` 的负 margin 把 header 的 gap 抵掉,
+头像的落点与当初"排在标签栏末尾"时逐像素一致(见 index.css 的 .head-link).
+
 组件的**修饰类不在这里加**:那是每个组件自己的约定(地铁车窗的 `.metro-window`
 由它自己的挂载函数补到每个宿主上),骨架不替组件记这些.
 */
@@ -42,6 +49,7 @@ import {
     AVATAR_ALT,
     AVATAR_CLASS,
     AVATAR_LINK,
+    AVATAR_LINK_CLASS,
     AVATAR_SRC,
     DEFAULT_NAV_PANE,
     HEADER_CLASS,
@@ -133,12 +141,12 @@ export function mountSiteShell(): SiteShell {
         h('span', { class: SITE_BRAND_CLASS, text: SITE_BRAND_TEXT }),
         h('ul', { class: NAV_LIST_CLASS }, [
             ...NAV_ITEMS.map((item) => h('li', { class: NAV_ITEM_CLASS }, [createNavLink(item)])),
-            // 头像:同一行最右,点了去 GitHub(不是标签页,所以不带 data-bs-toggle)
-            h('li', { class: NAV_ITEM_CLASS }, [
-                h('a', { attrs: { href: AVATAR_LINK } }, [
-                    h('img', { class: AVATAR_CLASS, attrs: { src: AVATAR_SRC, alt: AVATAR_ALT } }),
-                ]),
-            ]),
+        ]),
+        // 头像:导航条最右,点了去 GitHub(不是标签页,所以不带 data-bs-toggle).
+        // 位置在标签栏**外面**:标签栏是横向滚动容器,会把 hover 辉光裁成方块
+        // (完整理由见文件头的结构说明).
+        h('a', { class: AVATAR_LINK_CLASS, attrs: { href: AVATAR_LINK } }, [
+            h('img', { class: AVATAR_CLASS, attrs: { src: AVATAR_SRC, alt: AVATAR_ALT } }),
         ]),
     ]);
 

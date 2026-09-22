@@ -68,6 +68,14 @@ HOME 标签页的最上面是一块**首屏**(`.hero`,由 `src/common/ui/site_sh
 - **首屏满宽是"逃逸"出来的**:`main` 只有 90% 宽,`.hero` 用
   `margin-left/right: calc(50% - 50vw)` 外扩到视口两侧,所以 `body` 上有
   `overflow-x: hidden`(`100vw` 含滚动条宽度,必然溢出一点).
+- **头像挂在 `header` 上,不在标签栏 `ul.nav-tabs` 里**:那个 `ul` 为了窄窗口
+  横向滑动是 `overflow-x: auto` 的滚动容器,而滚动容器的 padding box 就是裁剪区 --
+  头像排在里面,hover 辉光会被裁成方块(位置靠 `.head-link` 的负 margin 找回来).
+  同理辉光只能用 `box-shadow`,不能用 `filter: drop-shadow()`:`head.png` 是不带
+  透明通道的方形位图,`drop-shadow` 取的是位图自己的 alpha 通道,画出来是方影子;
+  `box-shadow` 跟着 `border-radius` 画,才是圆的.两条都在 `public/css/index.css`
+  (`.head` / `.head-link`),结构那半有回归断言
+  (`src/common/ui/site_shell.test.ts`).
 - **首屏的结构与每个模块的宿主都在 `src/common/site.config.ts` 里声明**
   (`HERO_ID` / `HERO_*_CLASS` / `SITE_HOST_IDS`),由 `src/common/ui/site_shell.ts`
   生成并把元素引用交回 `src/main.ts`.要动首屏布局就改这两处 -- `index.html` 里

@@ -63,6 +63,14 @@ export const TAB_TOGGLE_DATA_VALUE = 'tab';
 export const AVATAR_LINK = 'https://github.com/ToyosatomiminoMiko';
 export const AVATAR_SRC = '/images/head.png';
 export const AVATAR_CLASS = 'rounded-circle head';
+/**
+ * 头像链接的类名(样式见 public/css/index.css 的 .head-link).
+ *
+ * 头像挂在**导航条 header 上**,不在标签栏 `ul.nav-tabs` 里:`ul` 为了窄窗口
+ * 横向滚动是 `overflow-x: auto` 的滚动容器,padding box 就是裁剪区,hover 辉光
+ * 放进去会被裁成方块(负 margin 把 header 的 gap 抵掉,位置与"排在标签栏末尾"时一致).
+ */
+export const AVATAR_LINK_CLASS = 'head-link';
 /** 头像的 alt:它同时是链接图标,给它一句可读的替代文本 */
 export const AVATAR_ALT = 'ToyosatomiminoMiko 的 GitHub';
 

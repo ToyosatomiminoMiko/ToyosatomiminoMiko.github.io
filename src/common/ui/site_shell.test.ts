@@ -18,6 +18,7 @@ import {
     AVATAR_ALT,
     AVATAR_CLASS,
     AVATAR_LINK,
+    AVATAR_LINK_CLASS,
     AVATAR_SRC,
     DEFAULT_NAV_PANE,
     HEADER_CLASS,
@@ -114,7 +115,8 @@ describe('首页骨架:导航条', () => {
         const list = document.querySelector(`.${NAV_LIST_CLASS.split(' ')[0]}`);
         expect(list?.tagName).toBe('UL');
         expect(classes(list).join(' ')).toBe(NAV_LIST_CLASS);
-        expect(list?.children).toHaveLength(NAV_ITEMS.length + 1); // +1 是头像那一项
+        // 头像不在里面(它是 header 的子节点,理由见下一条)
+        expect(list?.children).toHaveLength(NAV_ITEMS.length);
     });
 
     it('每个导航项都是 li.nav-item + a.nav-link[href=#窗格][data-bs-toggle=tab]', () => {
@@ -148,6 +150,25 @@ describe('首页骨架:导航条', () => {
         expect(image?.getAttribute('alt')).toBe(AVATAR_ALT);
         // .head 的尺寸与 hover 辉光在 public/css/index.css 里,两边靠这些类对齐
         expect(classes(image ?? null).join(' ')).toBe(AVATAR_CLASS);
+        expect(classes(link ?? null)).toEqual([AVATAR_LINK_CLASS]);
+    });
+
+    it('头像挂在 header 上,不在标签栏的滚动容器里(hover 辉光会被它裁成方块)', () => {
+        /*
+          index.css 的 .site-header .nav-tabs 是 overflow-x: auto 的滚动容器,
+          它的 padding box 就是裁剪区:头像只要还排在 ul 里,hover 辉光的模糊
+          半径就会被裁掉一截(实测会被裁成一个方块).这条断言钉住"头像与标签栏
+          平级"这条结构约束 -- 谁把头像挪回 ul 里,这里就会红.
+        */
+        const shell = setupShell();
+        const list = shell.header.querySelector(`.${NAV_LIST_CLASS.split(' ')[0]}`);
+        const link = shell.header.querySelector(`a[href="${AVATAR_LINK}"]`);
+        expect(list).not.toBeNull();
+        expect(link).not.toBeNull();
+        expect(list?.contains(link ?? null)).toBe(false);
+        expect(link?.closest('ul')).toBeNull();
+        // 位置契约:头像与标签栏都直接躺在 header 的 flex 行里(负 margin 由 CSS 负责)
+        expect(link?.parentElement).toBe(shell.header);
     });
 });
 

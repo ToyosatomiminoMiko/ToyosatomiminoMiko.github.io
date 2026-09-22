@@ -152,6 +152,11 @@ body {
     /*
      * 不折行:导航条是固定高度的,折行会溢出到首屏上(第二行压着画面).
      * 窗口窄到放不下时横向滑动,而不是把行高撑破.
+     *
+     * 注意这是个**滚动容器**:overflow-x: auto 会让 overflow-y 也算成 auto,
+     * 而滚动容器的 padding box 就是裁剪区 -- 任何想画到标签栏外面的东西
+     * (比如头像的 hover 辉光)都会被裁成方块.头像因此不在这个 ul 里,
+     * 而是 header 的最后一个子节点(见 src/common/ui/site_shell.ts 与 .head-link).
      */
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -172,6 +177,14 @@ body {
     padding-right: var(--chrome-nav-padding-x);
     padding-left: var(--chrome-nav-padding-x);
     white-space: nowrap;
+    /*
+     * bootstrap 给 .nav-tabs .nav-link 留了 -1px 的下外边距(它用来把自己的
+     * 下边框压在标签栏的边框上);本站已经把边框去掉了,这 -1px 只剩副作用 --
+     * 标签比 li 高 1px.头像还在标签栏里时,是头像的 45px 把整行撑高,盖住了
+     * 这 1px;头像挪到 header 上之后,这 1px 就会让 ul(overflow-x: auto)平白
+     * 多出一对滚动条,所以这里归零.
+     */
+    margin-bottom: 0;
 }
 
 .site-header .nav-tabs .nav-link:hover,
@@ -216,8 +229,25 @@ main {
     margin: var(--head-margin);
 }
 
+/*
+ * hover 辉光:必须用 box-shadow,**不能**用 filter: drop-shadow().
+ * head.png 是一张不带透明通道的方形位图(圆形是 .rounded-circle 裁出来的),
+ * 而 drop-shadow 取的是位图自己的 alpha 通道 -- 方形不透明的图,影子就是方块,
+ * border-radius 不参与;box-shadow 按元素的圆角画,才是跟着头像的圆.
+ * 辉光要画到头像盒子外面,所以头像自己不能在滚动容器里(见 .head-link).
+ */
 .head:hover {
-    filter: drop-shadow(0 0 var(--head-glow-blur) var(--head-glow));
+    box-shadow: 0 0 var(--head-glow-blur) var(--head-glow);
+}
+
+/*
+ * 头像链接:header 的最后一个子节点,与标签栏平级(不在滚动容器里,见上).
+ * header 是 flex + gap,直接排会被 gap 推远 24px;负 margin 把它抵掉,
+ * 头像的落点就与当初"排在标签栏末尾"时逐像素一致.
+ */
+.head-link {
+    display: block;
+    margin-left: calc(-1 * var(--chrome-gap));
 }
 
 /* 画布样式 */
