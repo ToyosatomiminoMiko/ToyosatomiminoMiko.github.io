@@ -263,7 +263,10 @@ export interface SliderSpec {
     readonly value: number;
     /**
      * 单个滑块的宽度(CSS 长度,如 '320px' / '24rem' / '50%').
-     * 留空 => 库的默认宽度(`.slider-field` 里的 --slider-field-width);
+     * 留空 => 本站的默认宽度.库的样式表只把这条属性当"出口"用(数值框读它,
+     * 兜底 76px),**没有**给 `.slider-field` 本身定义过它;滑块在一排里的默认
+     * 伸缩口径由 `metro_window.css` 的 `.metro-window .slider-field` 给
+     * (`flex: 0 1 var(--slider-field-width, 320px)`),所以留空就落到那里的 320px.
      * 因为默认所有滑块都不写 width,它们的宽度天然统一;只有确实需要特殊宽度
      * (比如名字特别长)才在声明里单独覆盖一条.
      */

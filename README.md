@@ -203,8 +203,8 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
 | 地铁车窗前端 | `src/metro_window/src/config.ts`,`src/metro_window/src/stage_size.ts`,`src/metro_window/src/ui/`,`src/metro_window/src/tokens.css` | DOM id / class / `data-*` 键名,`setParam` 参数名映射,车窗标记 / 设置面板 / 上传图层的声明式模型(画布分辨率 / 滑块分组 / 风格 / 按钮 / 可上传贴图清单 / 文案),后备缓冲尺寸与防抖 / dpr 上限;声明式 DOM 组件(`h()` + 舞台标记 + 风格按钮行 + 设置面板 + 上传面板 + PNG 解码);组件设计令牌.**单个滑块(名称 + 滑杆 + 数值框 + 重置按钮)不在这里**:它是 UI 库 `@miko/ui` 的 `createSlider`,本站只把声明翻译成它的选项(见下一行) |
 | UI 库 | `.cache/miko_ui/current/`(gitignore,由 `scripts/fetch_ui.sh` 取产物);配色与宽度在 `src/metro_window/src/metro_window.css` | 通用控件(滑块 / 按钮 / 开关 / 分段 / 数值框 ...)与它们的样式;取用链路与依赖契约见 [`scripts/fetch_ui.sh`](scripts/fetch_ui.sh) 顶部 |
 | 地铁车窗渲染 | `src/metro_window/rust/src/droplet_params.rs`,`app_params.rs`,`render_params.rs`,`random_params.rs`,`texture_params.rs` | 水滴生成 / 物理 / 折射 / 高光,主循环与资源路径 / 可上传材质槽位白名单,管线与绑定槽位 / 上传纹理尺寸上限,白噪声哈希,程序化贴图生成参数 |
-| 构建 | `vite.config.ts` | 多页入口,4xx 产物路径回移前缀,`@miko/ui` 的 `file:` 依赖去重(`resolve.dedupe`) |
-| 依赖来源 | `package.json`(`"@miko/ui": "file:.cache/miko_ui/current"`),`scripts/fetch_ui.sh` | 前端第三方 UI 库的取用链路(下 release 产物,失败即报错并给手动步骤;`npm run ui:fetch` / `ui:update`) |
+| 构建 | `vite.config.ts` | 多页入口,4xx 产物路径回移前缀,`@miko/ui` 的 `file:` 依赖与它的运行期依赖(`katex` / `@preact/signals-core`)去重(`resolve.dedupe`) |
+| 依赖来源 | `package.json`(`"@miko/ui": "file:.cache/miko_ui/current"`),`scripts/fetch_ui.sh` | 前端第三方 UI 库的取用链路(下 release 产物,失败即报错并给手动步骤;每次构建核对 `gitHead` 与 `ui-latest` 是否一致;`npm run ui:fetch` / `ui:update`) |
 
 维护要点:
 
@@ -279,8 +279,15 @@ registry 上,而是一条本地 `file:` 依赖,取的是库的 **release 产物*
 
 - 库的 `.github/workflows/release.yml` 在 main 每次推送后构建,把"包根"打成
   `miko_ui_dist.tar.gz` 挂在滚动 release `ui-latest` 上;`scripts/fetch_ui.sh`
-  只做"下载 -> 校验 -> 解开 -> 原子替换缓存",落到 `.cache/miko_ui/current`(gitignore).
+  做"下载 -> 校验 -> 解开 -> 原子替换缓存",落到 `.cache/miko_ui/current`(gitignore).
   所以消费者机器上**没有 TypeScript,没有库的源码**,只有产物.
+- **每次构建都核对"手里这份是不是最新发布的"**:库不写版本号,所以"最新"由两串
+  commit sha 定义 -- 资产清单里的 `gitHead`(库打包时写入的构建 commit,权威)与
+  `ui-latest` tag 指向的 commit.相等就复用;落后就自动重取(不用 `--update`).
+  查不到这个结论(断网 / 资产不自证版本)时本地只警告并沿用缓存,而 **CI 里明确失败**
+  -- 部署出去的不能是"说不清哪一版"的缓存.
+- 下载默认用 `wget`(这条线路上实测比 curl 更容易连上;`MIKO_UI_HTTP_TOOL=curl` 可切),
+  先走 github.com,连不上就绕行 GitHub API 的资产端点(同一份字节,只换条路).
 - **没有"克隆源码自己构建"的回退**:拿不到资产就明确失败,并打印 release 页面,
   期望的资产 URL 与手动下载 / 放置的步骤.要靠本地源码构建排查库问题时,去库仓库
   工作副本里跑 `npm run build:dist` -- 那是库自己的事,不经过本仓库.

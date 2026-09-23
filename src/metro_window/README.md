@@ -79,8 +79,9 @@ mountMetroWindow({ stage, styles, panel, uploads });
   `src/common/dom.ts` 共用),
   `src/ui/stage_content.ts`(舞台标记)与 `src/ui/settings.ts`(设置面板)
   都是纯函数,不读页面,不改全局;`metro_window.ts` 把标记插进各自的宿主,拿到组件交回的
-  元素引用后绑事件,不再按 id 去 DOM 里找.滑块布局只在 `createSlider()` 里定义
-  一处:最外层 `div.slider`,上层滑杆,下层"名称(左) + 数值(右)".
+  元素引用后绑事件,不再按 id 去 DOM 里找.滑块布局只在库的 `createSlider()` 里定义
+  一处:最外层 `div.slider-field`,上层滑杆,下层 `div.slider-field-meta` --
+  "名称(左) + 数值(右) + 重置按钮(最右)",本站不再维护第二份.
 - `metro_window.ts` 只做行为,`metro_window.css` 只做组件样式.
   `.metro-window` 类名由 `metro_window.ts` 挂上(宿主不用记这个约定),
   组件只在容器内解析元素.

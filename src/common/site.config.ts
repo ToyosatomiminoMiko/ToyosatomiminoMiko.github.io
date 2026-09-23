@@ -127,7 +127,7 @@ export const TAB_PANE_ACTIVE_CLASS = 'show active';
 // ---------- SETTING:背景切换 ----------
 
 /** 背景区的标题文案 */
-export const BACKGROUND_SECTION_TITLE = '修改背景';
+export const BACKGROUND_SECTION_TITLE = '设置';
 
 /** 背景缩略图清单(列表容器 / 列表项 / 缩略图本身的类名见下) */
 export interface BackgroundPresetSpec {

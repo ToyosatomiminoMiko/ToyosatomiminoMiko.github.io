@@ -206,18 +206,21 @@
 原因在库那边:库的样式表(`@miko/ui/styles/widgets.css`)为它们写了两条规则
 (`.slider-field-range` / `.slider-field-value`),但 `createSlider` 建这两个子控件时
 并没有挂上那两个类名(`RangeInput` / `NumberField` 按设计只产出裸控件,类名归容器
-决定),于是库那两条规则一条也命中不了 -- 表现是这两条控件拿不到宽度 / 边框 / 焦点态,
-而外层 `.slider-field` 一切正常.
+决定),于是库那两条规则一条也命中不了 -- 表现是这两条控件拿不到库给的边框 /
+内边距 / 焦点态(宽度与配色由下面这几条补上).外层 `.slider-field` 不受影响:
+它自己那几条规则的选择器会命中(库的 `.slider-field` 是 (0,1,0),压得过通配重置).
 
 库是**只读**的(消费者这边只有它的构建产物,没有源码,见 `scripts/fetch_ui.sh`),
 所以缺的这点口径由**消费方**在这里按结构补齐,不往库里塞补丁,也不给库的节点改名.等库自己把
 类名挂上(`.slider-field-range` / `.slider-field-value`),这两段可以直接删掉,
-改回用类名选即可.
+改回用类名选即可.要现在就治本,就去库的工作副本(独立仓库
+`/mnt/IVSTINIANVS/__projects_web/miko_ui`)给那两个子控件挂上类名,重出一次资产.
 
-选择器带 `.metro-window` 前缀还有第二个理由:`public/css/index.css` 里那条
-`* { margin:0; padding:0; border:0; font-size:100%; background:none }` 把**每个**元素
-的边框与内边距都清零,库那两条规则只有 (0,1,0) 特异性,压不过通配重置;带前缀之后是
-(0,2,0),本站这几条口径才落得下去. */
+选择器带 `.metro-window` 前缀的第二个理由是**特异性**:下面这几条是本站的口径
+(配色 / 宽度),要压过库的默认值,而 `public/css/index.css` 里那条
+`* { margin:0; padding:0; border:0; font-size:100%; background:none }` 会把**每个**
+元素的边框与内边距清零 -- 将来库那两条子控件规则命中之后,它们只有 (0,1,0),
+仍然压不过这条通配重置;带上前缀是 (0,2,0),本站的口径才落得下去. */
 .metro-window .slider-field > input[type='range'] {
     width: 100%;
     min-width: 0;
