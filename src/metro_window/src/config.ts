@@ -221,37 +221,36 @@ export const LAYERS_NOTE =
     'Layer 2 冷凝雾气 / Layer 3 车厢灯光与倒影';
 
 /**
- * 滑块宽度的 CSS 自定义属性名.组件把它设在每个滑块最外层 div.slider 上,
- * metro_window.css 的 `.slider` 再用 `var(--metro-slider-width)` 取用.
- * 统一加 `--metro-` 前缀,避免和 bootstrap / 站点变量撞名.
+ * 单个滑块声明里 `width` 覆盖用的 CSS 自定义属性名.
+ *
+ * 滑块本身(名称 + 滑杆 + 数值框 + 重置按钮)由 UI 库的 `createSlider` 生成,
+ * 布局与宽度口径都在库的样式表(`@miko/ui/styles/widgets.css` 的
+ * `.slider-field`)里;只有声明里确实写了 `width` 时,组件才把这条属性设在
+ * 该滑块根节点上覆盖库的默认宽度.统一加 `--metro-` 前缀,避免和 bootstrap /
+ * 站点变量撞名.
  */
-export const SLIDER_WIDTH_PROPERTY = '--metro-slider-width';
+export const SLIDER_WIDTH_PROPERTY = '--slider-field-width';
 
 /**
- * 声明里没写 `width` 时的默认宽度.
- * 指向 tokens.css 的设计令牌 `--metro-size-slider-width`,这样"默认宽度到底多少"
- * 只在 tokens.css 里定义一次;不写 width 的滑块全都拿到同一个值,宽度自然统一.
- */
-export const SLIDER_WIDTH_DEFAULT = 'var(--metro-size-slider-width)';
-
-/**
- * 单个实时滑块的声明式描述:既是标记(css 类名 / 范围 / 初始值),
+ * 单个实时滑块的声明式描述:既是标记(范围 / 初始值),
  * 也是行为(param 名 / clamp 区间)的唯一来源.
  *
  * 只有 `param` 是逐字跨语言的契约(Rust 的 SLIDERS 用同一批名字);
  * 区间与初始值都以前端这份为准,Rust 侧的 `GlassParams::DEFAULT` 只是
  * "JS 推入之前的占位值"(详见下面 `value` 一条).
  *
- * id       -- 生成 <input type="range"> 的 id,<label for> 靠它关联;
+ * id       -- 本声明的稳定标识,单测用它断言"没有重复的滑块";
+ *             DOM 里 `<input type="range">` 的 id 由库生成(库的滑块不暴露 id,
+ *             `<label for>` 的关联在库内部接好),它不再进标记;
  * param    -- setParam 参数名,必须与 src/metro_window/rust/src/app_params.rs 的 SLIDERS 一致;
- * label    -- 滑杆下方的名称(左);
+ * label    -- 名称(数值框左侧,同时是重置按钮可访问名的来源);
  * hint     -- 名称后的小字注释(可选),为空不渲染;
  * min/max  -- 前端可调区间(与 Rust 侧 clamp 区间各自独立,前端先夹一次);
- * step     -- 步长,同时决定显示小数位数;
- * value    -- 初始值:同时是滑杆的起始位置与**启动时推给 wasm 的渲染参数**
- *             (挂载函数在 startApp 之后补推一次,见 metro_window.ts 的
- *             pushSliderValues;改这里不需要再动 Rust);
- * width    -- 单个滑块的宽度(CSS 长度,可选),留空用 SLIDER_WIDTH_DEFAULT.
+ * step     -- 步长(数值框的箭头粒度与滑杆的吸附粒度);
+ * value    -- 初始值:同时是滑杆的起始位置,重置按钮的目标值与**启动时推给
+ *             wasm 的渲染参数**(挂载函数在 startApp 之后补推一次,见
+ *             metro_window.ts 的 pushSliderValues;改这里不需要再动 Rust);
+ * width    -- 单个滑块的宽度(CSS 长度,可选),留空用库的默认宽度.
  */
 export interface SliderSpec {
     readonly id: string;
@@ -264,7 +263,7 @@ export interface SliderSpec {
     readonly value: number;
     /**
      * 单个滑块的宽度(CSS 长度,如 '320px' / '24rem' / '50%').
-     * 留空 => SLIDER_WIDTH_DEFAULT,也就是 tokens.css 的 --metro-size-slider-width;
+     * 留空 => 库的默认宽度(`.slider-field` 里的 --slider-field-width);
      * 因为默认所有滑块都不写 width,它们的宽度天然统一;只有确实需要特殊宽度
      * (比如名字特别长)才在声明里单独覆盖一条.
      */
@@ -429,7 +428,7 @@ export const UPLOAD_LAYERS = [
 export const RESOURCE_BASE = '/metro_window/resource';
 
 /** 上传面板 <legend> 文案 */
-export const UPLOAD_LEGEND = '🖼 图层贴图';
+export const UPLOAD_LEGEND = '图层贴图';
 
 /**
  * 上传面板顶部的一句话说明.
@@ -519,9 +518,7 @@ export const WEBGPU_ADAPTER_ERROR_KEYWORD = 'WebGPU 适配器';
 export const EVENTS = {
     /** 标签页可见性变化(document) */
     visibilityChange: 'visibilitychange',
-    /** 滑块/数字框输入(range 拖动,number 输入) */
-    input: 'input',
-    /** 数字框失焦或回车确认 */
+    /** 文件选择框确认(document 级上传面板:选文件后浏览器发 change) */
     change: 'change',
     /** 按钮点击 */
     click: 'click',
@@ -531,12 +528,6 @@ export const EVENTS = {
 
 /** 取 IntersectionObserver 回调里最新一条记录时的倒数偏移(entries.length - 1) */
 export const LAST_ENTRY_OFFSET = 1;
-
-/** 从 step 字面量里解析小数位数时的分隔符 */
-export const DECIMAL_SEPARATOR = '.';
-
-/** split 之后小数部分所在的下标(1) */
-export const DECIMAL_FRACTION_INDEX = 1;
 
 // ---------- 文案 ----------
 

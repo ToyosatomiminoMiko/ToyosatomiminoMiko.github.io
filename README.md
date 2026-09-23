@@ -200,9 +200,11 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
 | 主站行为 | `src/main.ts`,`src/common/header_state.ts`,`src/common/background.ts` | 挂载顺序(骨架 -> 各模块 -> 行为),导航条"透明 / 实底"状态,背景切换令牌写入 |
 | 4xx 页面样式 | `src/4xx_page/418/418_tokens.css`,`src/4xx_page/451/451_tokens.css`;`404/404.css` 与 `shared/icon.css` 顶部的 `:root` 块 | 各彩蛋页的设计令牌(颜色 / 几何 / 阴影 / 时长 / 字体) |
 | 4xx 页面脚本 | `src/4xx_page/418/teapot/config.ts`,`src/4xx_page/451/boot.config.ts`,`src/4xx_page/451/ember/*.config.ts` | 茶壶交互,启动开关,GPU 计时 / 统计 / 资源 / 能力 / 性能面板参数 |
-| 地铁车窗前端 | `src/metro_window/src/config.ts`,`src/metro_window/src/stage_size.ts`,`src/metro_window/src/ui/`,`src/metro_window/src/tokens.css` | DOM id / class / `data-*` 键名,`setParam` 参数名映射,车窗标记 / 设置面板 / 上传图层的声明式模型(画布分辨率 / 滑块分组 / 风格 / 按钮 / 可上传贴图清单 / 文案),后备缓冲尺寸与防抖 / dpr 上限;声明式 DOM 组件(`h()` + 舞台标记 + 风格按钮行 + 设置面板 + 上传面板 + PNG 解码);组件设计令牌 |
+| 地铁车窗前端 | `src/metro_window/src/config.ts`,`src/metro_window/src/stage_size.ts`,`src/metro_window/src/ui/`,`src/metro_window/src/tokens.css` | DOM id / class / `data-*` 键名,`setParam` 参数名映射,车窗标记 / 设置面板 / 上传图层的声明式模型(画布分辨率 / 滑块分组 / 风格 / 按钮 / 可上传贴图清单 / 文案),后备缓冲尺寸与防抖 / dpr 上限;声明式 DOM 组件(`h()` + 舞台标记 + 风格按钮行 + 设置面板 + 上传面板 + PNG 解码);组件设计令牌.**单个滑块(名称 + 滑杆 + 数值框 + 重置按钮)不在这里**:它是 UI 库 `@miko/ui` 的 `createSlider`,本站只把声明翻译成它的选项(见下一行) |
+| UI 库 | `.cache/miko_ui/current/`(gitignore,由 `scripts/fetch_ui.sh` 取产物);配色与宽度在 `src/metro_window/src/metro_window.css` | 通用控件(滑块 / 按钮 / 开关 / 分段 / 数值框 ...)与它们的样式;取用链路与依赖契约见 [`scripts/fetch_ui.sh`](scripts/fetch_ui.sh) 顶部 |
 | 地铁车窗渲染 | `src/metro_window/rust/src/droplet_params.rs`,`app_params.rs`,`render_params.rs`,`random_params.rs`,`texture_params.rs` | 水滴生成 / 物理 / 折射 / 高光,主循环与资源路径 / 可上传材质槽位白名单,管线与绑定槽位 / 上传纹理尺寸上限,白噪声哈希,程序化贴图生成参数 |
-| 构建 | `vite.config.ts` | 多页入口,4xx 产物路径回移前缀 |
+| 构建 | `vite.config.ts` | 多页入口,4xx 产物路径回移前缀,`@miko/ui` 的 `file:` 依赖去重(`resolve.dedupe`) |
+| 依赖来源 | `package.json`(`"@miko/ui": "file:.cache/miko_ui/current"`),`scripts/fetch_ui.sh` | 前端第三方 UI 库的取用链路(下 release 产物,失败即报错并给手动步骤;`npm run ui:fetch` / `ui:update`) |
 
 维护要点:
 
@@ -270,4 +272,27 @@ lint:rs -> clean -> build:wasm -> test(vitest) -> test:rs(cargo) -> build:app
 等命令在仓库根直接跑 `--workspace` 即可,不必 cd 进子目录.
 wasm 产物(`src/metro_window/wasm/`)与 `target/` 不入库,
 缺产物时 `npm run dev` 会直接提示跑 `npm run build:wasm`,而不是抛 Vite 的解析错误.
+
+前端还有一条**第三方 UI 库**依赖:通用控件(地铁车窗的参数滑块就是库的
+`createSlider`:名称 + 滑杆 + 数值框 + **重置按钮**)来自 `@miko/ui`.它不在 npm
+registry 上,而是一条本地 `file:` 依赖,取的是库的 **release 产物**:
+
+- 库的 `.github/workflows/release.yml` 在 main 每次推送后构建,把"包根"打成
+  `miko_ui_dist.tar.gz` 挂在滚动 release `ui-latest` 上;`scripts/fetch_ui.sh`
+  只做"下载 -> 校验 -> 解开 -> 原子替换缓存",落到 `.cache/miko_ui/current`(gitignore).
+  所以消费者机器上**没有 TypeScript,没有库的源码**,只有产物.
+- **没有"克隆源码自己构建"的回退**:拿不到资产就明确失败,并打印 release 页面,
+  期望的资产 URL 与手动下载 / 放置的步骤.要靠本地源码构建排查库问题时,去库仓库
+  工作副本里跑 `npm run build:dist` -- 那是库自己的事,不经过本仓库.
+
+根 `package.json` 用 `"@miko/ui": "file:.cache/miko_ui/current"` 链接它,并**自己声明**
+库的运行时依赖 `@preact/signals-core`(`file:` 链接的传递依赖装不装取决于目标目录
+在不在应用根内,自己声明才不依赖这个细节),所以只有这一份实例;`vite.config.ts` 的
+`resolve.dedupe` 是第二道保险.脚本挂在
+`npm ci` 的 `preinstall` 上,`./build.sh` 与 CI 都自动经过;手动入口是
+`npm run ui:fetch`(已有产物就复用)与 `npm run ui:update`(强制重取);
+本机已下好资产时用 `MIKO_UI_ASSET_FILE=<路径> npm run ui:fetch -- --update`.
+完整契约(为什么不用 npm / tag / submodule,产物是只读的,资产清单为什么不能带
+`scripts`)见脚本顶部.
+
 CI 见 [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml).

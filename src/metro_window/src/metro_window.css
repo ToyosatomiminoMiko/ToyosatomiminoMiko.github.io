@@ -160,6 +160,11 @@
     color: var(--metro-color-accent);
 }
 
+/* 一排滑块:换行 + 间距.
+   单个滑块(名称 / 滑杆 / 数值框 / 重置按钮)的**结构,布局与配色都归 UI 库**
+   (`@miko/ui` 的 `.slider-field`,见 styles/widgets.css),本站不再维护
+   `.slider / .slider-meta / .slider-label / .slider-range / .slider-value`
+   那一套,只保留这一层"怎么排列若干滑块"的规则与下面两条按本站主题改的口径. */
 .metro-window .slider-grid {
     display: flex;
     flex-wrap: wrap;
@@ -167,69 +172,85 @@
     margin-top: var(--metro-space-6);
 }
 
-/* 单个滑块:最外层是 div,内边距/间距/圆角/底色/宽度都只在这一层统一控制.
-   宽度取组件写在元素上的 --metro-slider-width(声明留空时由 JS 落到
-   --metro-size-slider-width);`0 1` 表示只收缩不伸张 -- 一排里的滑块不会
-   因为分摊剩余空间而宽度各不相同,只有窄到放不下时才允许收缩.
-   内部固定两层:上层滑杆,下层"名称(左) + 数值(右)". */
-.metro-window .slider {
-    display: flex;
-    flex-direction: column;
-    flex: 0 1 var(--metro-slider-width);
+/* 宽度:单个滑块在一排里的伸缩口径.
+   库的 `.slider-field` 只负责"内部怎么排",宽度取它自己的 --slider-field-width;
+   这里补 `flex: 0 1 <同一口径>` -- 只收缩不伸张,所以一排里的滑块不会因为分摊
+   剩余空间而宽窄不一,只有窄到放不下时才允许收缩.声明里单独写了 `width` 的滑块
+   由组件把 --slider-field-width 设在它自己的根节点上,后者覆盖这里的继承值,
+   于是"声明级覆盖"照常生效. */
+.metro-window .slider-field {
+    flex: 0 1 var(--slider-field-width, 320px);
     max-width: 100%;
-    gap: var(--metro-space-6);
-    min-width: 0;
-    padding: var(--metro-space-8);
-    border-radius: var(--metro-radius-sm);
-    background: var(--metro-color-panel);
-    font-size: var(--metro-font-size-base);
+}
+
+/* 配色:库的滑块读的是库主题 token(--color-*),本站控制台用自己那套
+   --metro-color-*;在车窗作用域内把两者接上,免得滑块与周围面板两套观感.
+   值与 tokens.css 里各自对应的 --metro-* 同一个来源,不新造颜色. */
+.metro-window .slider-field {
     color: var(--metro-color-text);
+    background: var(--metro-color-panel);
+    border-radius: var(--metro-radius-sm);
 }
 
-.metro-window .slider-meta {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--metro-space-8);
-    min-width: 0;
-}
-
-.metro-window .slider-label {
-    display: flex;
-    align-items: baseline;
-    gap: var(--metro-space-6);
-    min-width: 0;
-}
-
-.metro-window .slider-label small {
+.metro-window .slider-field-label {
     color: var(--metro-color-muted);
-    font-size: var(--metro-font-size-small);
-    white-space: nowrap;
 }
 
-.metro-window .slider-range {
+.metro-window .slider-field-label small {
+    color: var(--metro-color-muted);
+}
+
+/*
+滑杆与数值框这两个成员控件没有类名,所以这里按**标签 + 结构**选.
+
+原因在库那边:库的样式表(`@miko/ui/styles/widgets.css`)为它们写了两条规则
+(`.slider-field-range` / `.slider-field-value`),但 `createSlider` 建这两个子控件时
+并没有挂上那两个类名(`RangeInput` / `NumberField` 按设计只产出裸控件,类名归容器
+决定),于是库那两条规则一条也命中不了 -- 表现是这两条控件拿不到宽度 / 边框 / 焦点态,
+而外层 `.slider-field` 一切正常.
+
+库是**只读**的(消费者这边只有它的构建产物,没有源码,见 `scripts/fetch_ui.sh`),
+所以缺的这点口径由**消费方**在这里按结构补齐,不往库里塞补丁,也不给库的节点改名.等库自己把
+类名挂上(`.slider-field-range` / `.slider-field-value`),这两段可以直接删掉,
+改回用类名选即可.
+
+选择器带 `.metro-window` 前缀还有第二个理由:`public/css/index.css` 里那条
+`* { margin:0; padding:0; border:0; font-size:100%; background:none }` 把**每个**元素
+的边框与内边距都清零,库那两条规则只有 (0,1,0) 特异性,压不过通配重置;带前缀之后是
+(0,2,0),本站这几条口径才落得下去. */
+.metro-window .slider-field > input[type='range'] {
     width: 100%;
     min-width: 0;
     accent-color: var(--metro-color-accent);
     cursor: pointer;
 }
 
-.metro-window .slider-value {
+.metro-window .slider-field-meta > input[type='number'] {
     flex: none;
-    width: var(--metro-size-slider-value-col);
-    text-align: right;
+    width: var(--slider-field-value-width, 76px);
     background: var(--metro-color-input-bg);
     color: var(--metro-color-text);
     border: var(--metro-size-border) solid var(--metro-color-border);
     border-radius: var(--metro-radius-sm);
     padding: var(--metro-space-4) var(--metro-space-6);
     font-family: var(--metro-font-family-mono);
-    font-size: var(--metro-font-size-input);
+    text-align: right;
 }
 
-.metro-window .slider-value:focus {
+.metro-window .slider-field-meta > input[type='number']:focus {
     border-color: var(--metro-color-accent);
     outline: none;
+}
+
+/* 重置按钮:回到该参数在 config.ts 里的声明值(库的滑块自带这颗按钮). */
+.metro-window .slider-field-reset {
+    color: var(--metro-color-muted);
+    border-color: var(--metro-color-border);
+}
+
+.metro-window .slider-field-reset:hover:not(:disabled) {
+    color: var(--metro-color-text);
+    border-color: var(--metro-color-accent);
 }
 
 .metro-window .controls {

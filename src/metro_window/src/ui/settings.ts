@@ -6,17 +6,15 @@ TRANSPORT_BUTTONS 等模型,本模块只负责"把模型变成元素"并交回�
 
   - 每个组件都是一个纯函数:接收 props,返回刚建好的元素,不读页面,不改全局;
   - `createSettingsPanel()` 一次建出整块 <fieldset>,并把行为代码需要绑事件的
-    元素(风格按钮 / 播放控制 / 每个滑块的 range 与 number / 状态 span)一起返回,
+    元素(风格按钮 / 播放控制 / 每个滑块的滑杆与数值框 / 状态 span)一起返回,
     因此 metro_window.ts 不再需要按 id 去 DOM 里"找"这些元素;
-  - 滑块的新布局在 `createSlider()` 里一处定义:
-        <div class="slider">            <- 最外层 div,样式统一由它控制
-          <input class="slider-range">
-          <div class="slider-meta">
-            <label class="slider-label">名称</label>
-            <input class="slider-value"> <- 数值靠右
-          </div>
-        </div>
+  - **滑块本身不再由本模块拼**:名称 + 滑杆 + 数值框 + 重置按钮是 UI 库的
+    `createSlider`(`@miko/ui`),本模块只把 config.ts 的声明翻译成它的选项,
+    再把句柄摊平进返回值.结构与样式(类名 `.slider-field*`)都归库,本站不再
+    维护第二份;库的取用链路见 `scripts/fetch_ui.sh` 顶部.
 */
+
+import { createSlider, type SliderHandle } from '@miko/ui';
 
 import {
     DEFAULT_STYLE_INDEX,
@@ -24,7 +22,6 @@ import {
     PANEL_ID,
     PANEL_LEGEND,
     SLIDER_GROUPS,
-    SLIDER_WIDTH_DEFAULT,
     SLIDER_WIDTH_PROPERTY,
     STATUS_ID,
     STATUS_INITIAL,
@@ -37,17 +34,25 @@ import {
     type SliderSpec,
     type TransportAction,
 } from '@/metro_window/src/config';
-import { h, type DomChild } from '@/common/dom';
+import { h } from '@/common/dom';
 
-/** 一个滑块组件:根元素 + 两个输入框 + 它的声明式配置(行为代码按 spec 写参数) */
+/**
+ * 一个滑块组件:库交回的句柄 + 它的声明式配置(行为代码按 spec 写参数).
+ *
+ * 后面四个字段都是转发自 {@link SliderHandle} 的**元素引用**,行为代码因此不必
+ * 按 id 去 DOM 里找节点;另加一个 `spec`,让"这个控件对应哪个参数"与元素引用
+ * 待在一起,`pushSliderValues()` 也知道要推给哪个 wasm 参数.
+ */
 export interface SliderControl {
     readonly spec: SliderSpec;
-    /** 最外层 <div class="slider"> */
+    /** 库的滑块句柄(值源 / 名称标签 / 重置按钮 / 生命周期都在它上面). */
+    readonly slider: SliderHandle;
+    /** 根节点(`<div class="slider-field">`),插进分组用这个. */
     readonly root: HTMLDivElement;
-    /** 上方的滑杆 <input type="range"> */
+    /** 原生滑杆 `<input type="range">`. */
     readonly range: HTMLInputElement;
-    /** 下方的数值框 <input type="number"> */
-    readonly number: HTMLInputElement;
+    /** 数值框句柄:`read` / `readText` / `write` 在它上面,`min`/`max` 在 `.input` 上. */
+    readonly number: SliderHandle['number'];
 }
 
 /**
@@ -71,39 +76,62 @@ export interface SettingsPanel {
 }
 
 /**
- * 一个实时滑块:上层滑杆,下层"名称(左) + 数值(右)".
- * 最外层是 div.slider,内边距/间距/圆角/底色/宽度都由这一层统一控制.
+ * 一个实时滑块:名称 + 滑杆 + 数值框 + 重置按钮,整条行由 UI 库的
+ * `createSlider` 生成(值源是库内部的 signal,拖动 / 输入 / 重置都写回它).
+ *
+ * 本函数只做"声明 -> 选项"的翻译,再把句柄摊平成 {@link SliderControl}.
+ * 库的滑块**不暴露 id**,`<label for>` 与两个输入框的关联由库内部接好,
+ * 所以 config.ts 里的 `id` 在这里不再进 DOM(它仍用于声明自身的唯一性校验).
  */
-function createSlider(spec: SliderSpec): SliderControl {
-    const range = h('input', {
-        class: 'slider-range',
-        attrs: { id: spec.id, type: 'range', min: spec.min, max: spec.max, step: spec.step, value: spec.value },
-    });
-    const number = h('input', {
-        class: 'slider-value',
-        attrs: { type: 'number', min: spec.min, max: spec.max, step: spec.step, value: spec.value },
+function createSliderControl(spec: SliderSpec): SliderControl {
+    /**
+     * 数值框写回值源前的夹取:与滑杆落在同一个区间里.
+     *
+     * 只在数值框这条路上:**滑杆本身越不了界**(range 由浏览器按 min/max 夹住),
+     * 再走一遍夹取是多余的.
+     *
+     * 时机:`input` 与 `change`(失焦 / 回车)两次写回都会经过它(见库
+     * `NumberField` 的 `pushToSource`),所以值源里**永远**是区间内的数,
+     * 滑杆与 wasm 都不会拿到越界值;输入框里那串原始文本要到 `change` 才被
+     * 回填成夹取后的文本.注意别照抄库注释里"归一化只在 change"的说法 --
+     * 那是过期描述,库自己的实现与注释在这一点上不一致.
+     */
+    const clampNumber = (value: number): number =>
+        Math.min(spec.max, Math.max(spec.min, value));
+
+    const slider = createSlider({
+        // 区间与初值都从声明来:滑杆与数值框拿到的是同一份解析后的区间.
+        value: spec.value,
+        min: spec.min,
+        max: spec.max,
+        step: spec.step,
+        label: spec.label,
+        hint: spec.hint,
+        // 重置目标 = 声明值:点一下回到 config.ts 里写的那一档.
+        resetValue: spec.value,
+        // 数值框的越界输入夹回区间(与 Rust 侧的 clamp 同区间,前端先夹一次).
+        normalize: clampNumber,
     });
 
-    const labelChildren: DomChild[] = [spec.label];
-    if (spec.hint !== undefined) {
-        labelChildren.push(h('small', { text: spec.hint }));
+    // 宽度:声明里写了 width 才覆盖,留空时用库的默认值(styles/widgets.css 里
+    // `.slider-field` 的 --slider-field-width 口径).这里只设一个 CSS 自定义属性,
+    // 布局规则仍留在库的样式表里;默认所有声明都不写 width,宽度自然统一.
+    if (spec.width !== undefined) {
+        slider.element.style.setProperty(SLIDER_WIDTH_PROPERTY, spec.width);
     }
-    const label = h('label', { class: 'slider-label', attrs: { for: spec.id } }, labelChildren);
 
-    const root = h('div', { class: 'slider' }, [
-        range,
-        h('div', { class: 'slider-meta' }, [label, number]),
-    ]);
-    // 宽度:声明里写了 width 就用它,留空回落默认值(tokens.css 的 --metro-size-slider-width).
-    // 这里只设一个 CSS 自定义属性,真正的布局规则仍留在 metro_window.css 的 .slider 里;
-    // 因为默认所有声明都不写 width,所有滑块拿到同一个值,宽度自然统一.
-    root.style.setProperty(SLIDER_WIDTH_PROPERTY, spec.width ?? SLIDER_WIDTH_DEFAULT);
-    return { spec, root, range, number };
+    return {
+        spec,
+        slider,
+        root: slider.element,
+        range: slider.input,
+        number: slider.number,
+    };
 }
 
 /** 一个可折叠分组:summary + 若干滑块 */
 function createSliderGroup(group: SliderGroupSpec): { element: HTMLDetailsElement; controls: SliderControl[] } {
-    const controls = group.sliders.map(createSlider);
+    const controls = group.sliders.map(createSliderControl);
     const details = h('details', { class: 'slider-group' }, [
         h('summary', { text: group.title }),
         h('div', { class: 'slider-grid' }, controls.map((control) => control.root)),

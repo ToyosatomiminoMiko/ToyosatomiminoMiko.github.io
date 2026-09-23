@@ -4,6 +4,13 @@ dist/
 /prompt
 __pycache__/
 
+# miko_ui 的**产物**落地处:由 scripts/fetch_ui.sh 取(优先下 release 资产,
+# 拉不到才回退 clone + 本地构建),根 package.json 的
+# `"@miko/ui": "file:.cache/miko_ui/current"` 就指这里.里面只有库的构建产物
+# (dist/ + styles/ + 生成的 package.json),没有库源码,也不入库 -- 契约见
+# fetch_ui.sh 顶部.
+/.cache/
+
 # metro_window 子项目(src/metro_window/)的生成物,生成过程见 package.json 的 build:wasm
 # cargo 的构建缓存:workspace 根在仓库根(见根 Cargo.toml),所有成员共用这个 target/
 /target

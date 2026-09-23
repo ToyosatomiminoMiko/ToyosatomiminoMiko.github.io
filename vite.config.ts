@@ -86,6 +86,21 @@ export default defineConfig({
     base: '/',
     resolve: {
         alias: [{ find: /^@\//, replacement: `${SRC_ALIAS}/` }],
+        /**
+         * `@miko/ui` 是 `file:` 链接进来的**构建产物**(`.cache/miko_ui/current`,
+         * 由 `scripts/fetch_ui.sh` 取 release 资产 / 回退本地构建).它声明了运行时
+         * 依赖 `@preact/signals-core`,但 npm 对 `file:` 链接的包**不装传递依赖**
+         * (实测),所以根 `package.json` 自己也声明了它,实例只有一份.
+         *
+         * 这条 dedupe 因此是**保险**而不是必需:万一将来某条路径(嵌套的
+         * `node_modules`,另一个包也依赖它)又引入第二份,`signal` 与 `effect` 就会
+         * 跨在两条注册表上,表现是"值变了界面不动"(库的 `Slider` 正是靠 signal 让
+         * 滑杆与数值框互相同步的).
+         *
+         * 为什么库是产物而不是源码,样式为什么走 `@miko/ui/styles/*` 子路径,
+         * 见 `scripts/fetch_ui.sh` 顶部的依赖契约.
+         */
+        dedupe: ['@preact/signals-core'],
     },
     plugins: [
         fourXXPage(),
@@ -120,6 +135,8 @@ export default defineConfig({
     // 排除 target/ 是必须的而不是洁癖:cargo 的 workspace 缓存就在仓库根
     // (构建后体积以 GB 计,文件数十万),让 vitest 去 glob 一遍会白白卡住整条流水线.
     // 地铁车窗的前端单测在新位置 src/metro_window/src 下,要照常收集.
+    // include 只认 `src/**`,所以 `.cache/miko_ui/` 里的产物(库自己的测试不在
+    // 产物里,但产物目录也不该被 glob 碰到)天然收不进来.
     test: {
         include: ['src/**/*.test.ts'],
         exclude: ['node_modules/**', 'dist/**', 'target/**'],

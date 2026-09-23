@@ -64,8 +64,6 @@ import {
     CANVAS_ASPECT_PROPERTY,
     CANVAS_HEIGHT,
     CANVAS_WIDTH,
-    DECIMAL_FRACTION_INDEX,
-    DECIMAL_SEPARATOR,
     DEFAULT_STYLE_INDEX,
     ELEMENT_IDS,
     ERROR_LABEL,
@@ -151,12 +149,6 @@ function mustFind<T extends HTMLElement>(root: ParentNode, id: string): T {
         throw new Error(`${MISSING_ELEMENT_MESSAGE_PREFIX}${id}`);
     }
     return element;
-}
-
-/** step(如 0.01)的小数位数,用于数值框夹取后的显示精度 */
-function decimalPlaces(step: number): number {
-    const fraction = String(step).split(DECIMAL_SEPARATOR)[DECIMAL_FRACTION_INDEX];
-    return fraction === undefined ? 0 : fraction.length;
 }
 
 /**
@@ -434,50 +426,43 @@ export function mountMetroWindow(points: MetroMountPoints): void {
     }
 
     /**
-     * 把滑块当前值(= `SLIDER_GROUPS` 里声明的 `value`)一次性推给 wasm.
+     * 把每个滑块的声明初值一次性推给 wasm.
      *
-     * 为什么必须有这一步:[`bindSlider`] 末尾那次同步跑在 `booted` 之前,里面的
-     * `setParam` 会被 `if (booted)` 主动跳过(wasm 还没就绪),于是首帧用的是
-     * Rust `glass_params.rs` 的 `GlassParams::DEFAULT`,而不是 config.ts 里写的
-     * `value` -- 只改 `SLIDER_GROUPS` 会得到"滑杆显示新值,画面还是旧值"的错配.
-     * 启动完成后补推一次,`config.ts` 才真的是"参数名 / 区间 / 初始值"的唯一来源;
-     * Rust 那份 DEFAULT 退化成"JS 推入之前的占位值"(单测与 `examples/preview.rs`
-     * 仍然直接用它).
+     * 为什么必须有这一步:滑块的初值由 UI 库的 `createSlider` 在装配期写进值源,
+     * 那时那次通知跑在 `booted` 之前,里面的 `setParam` 会被 `if (booted)` 主动
+     * 跳过(wasm 还没就绪),于是首帧用的是 Rust `glass_params.rs` 的
+     * `GlassParams::DEFAULT`,而不是 config.ts 里写的 `value` -- 只改
+     * `SLIDER_GROUPS` 会得到"滑杆显示新值,画面还是旧值"的错配.启动完成后补推
+     * 一次,`config.ts` 才真的是"参数名 / 区间 / 初始值"的唯一来源;Rust 那份
+     * DEFAULT 退化成"JS 推入之前的占位值"(单测与 `examples/preview.rs` 仍然直接用它).
+     *
+     * 推的是声明值(`spec.value`)而不是从 DOM 读回来的数:值源就在库的句柄里,
+     * 读 DOM 只会把"格式化后的文本"再解析一遍,声明才是那一份真值.
      */
     function pushSliderValues(): void {
-        settings.sliders.forEach(({ spec, range }) => {
-            setParam(spec.param, Number(range.value));
+        settings.sliders.forEach(({ spec }) => {
+            setParam(spec.param, spec.value);
         });
     }
 
-    /** 绑定一个滑块:拖动实时写入 Rust 参数,数值框输入反向同步并夹取 */
-    function bindSlider({ spec, range, number }: SliderControl): void {
-        const decimals = decimalPlaces(spec.step);
-        const clamp = (value: number): number =>
-            Number(Math.min(spec.max, Math.max(spec.min, value)).toFixed(decimals));
-
-        const syncFromRange = (): void => {
-            const value = Number(range.value);
-            number.value = String(value);
+    /**
+     * 绑定一个滑块:值一变(**拖动滑杆 / 输入数值框 / 点重置按钮**三条入口都算)
+     * 就把新值交给 wasm.
+     *
+     * 控件内部的三条同步回路(滑杆 ↔ 值源 ↔ 数值框)与数值框的夹取 / 归一化都由
+     * UI 库的 `createSlider` 负责,这里只剩"参数变了要通知渲染内核"这一件业务语义;
+     * 重置按钮的目标值是建控件时给它的 `resetValue`(= 声明值),因此点重置等价于
+     * 把参数改回声明值,走的是同一个出口.
+     *
+     * `if (booted)` 的守卫不能省:建控件时那次初值通知跑在 wasm 就绪之前,补推由
+     * [`pushSliderValues`] 在 `startApp` 之后统一做,否则初值会被推两遍.
+     */
+    function bindSlider({ spec, slider }: SliderControl): void {
+        slider.onInput((value) => {
             if (booted) {
                 setParam(spec.param, value);
             }
-        };
-        const syncFromNumber = (): void => {
-            const raw = Number(number.value);
-            if (!Number.isFinite(raw)) return;
-            const value = clamp(raw);
-            range.value = String(value);
-            number.value = String(value);
-            if (booted) {
-                setParam(spec.param, value);
-            }
-        };
-
-        range.addEventListener(EVENTS.input, syncFromRange);
-        number.addEventListener(EVENTS.input, syncFromNumber);
-        number.addEventListener(EVENTS.change, syncFromNumber);
-        syncFromRange();
+        });
     }
 
     /**

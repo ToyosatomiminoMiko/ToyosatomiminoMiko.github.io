@@ -170,9 +170,16 @@ const report = await cdp.eval(`(() => {
         */
         ok('车窗舞台宿主拿到了组件的修饰类', q('#metro-window')?.classList.contains('metro-window--stage') === true);
         ok('风格按钮长进了首屏宿主(3 颗 data-style)', qa('#metro-styles > .style-row button[data-style]').length === 3);
+        // 滑块的两个成员 input(range / number)在库补上类名之前**没有**类名
+        // (见 metro_window.css 里那段说明),所以按标签选;行数即滑块条数.
+        const sliderRanges = qa('#metro-params .slider-field input[type=range]');
         ok('控制台长进了 SETTING 宿主(fieldset + 7 条滑块)',
-            q('#metro-params > fieldset.sliders') !== null && qa('#metro-params input.slider-range').length === 7,
-            qa('#metro-params input.slider-range').length + ' 条');
+            q('#metro-params > fieldset.sliders') !== null && sliderRanges.length === 7,
+            sliderRanges.length + ' 条');
+        // 滑块的重置按钮由 UI 库的 createSlider 生成:条数与滑块一致(每条行末一颗).
+        ok('每条滑块都带库的重置按钮',
+            qa('#metro-params button.slider-field-reset').length === 7,
+            qa('#metro-params button.slider-field-reset').length + ' 颗');
         ok('上传面板四层各一个 file input', qa('#metro-uploads input[type=file]').length === 4);
 
         /*

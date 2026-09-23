@@ -56,7 +56,7 @@ const SLIDER_SPECS: readonly SliderSpec[] = SLIDER_GROUPS.flatMap(
 );
 
 /** 装出四个空宿主并挂载车窗(挂载即开始异步 boot) */
-function mountAtEmptyHosts(): void {
+function mountAtEmptyHosts(): HTMLDivElement {
     const host = document.createElement('div');
     const stage = document.createElement('div');
     const styles = document.createElement('div');
@@ -65,7 +65,35 @@ function mountAtEmptyHosts(): void {
     host.append(stage, styles, panel, uploads);
     document.body.append(host);
     mountMetroWindow({ stage, styles, panel, uploads });
+    return host;
 }
+
+/**
+ * 本次挂载长进面板宿主里的第 `index` 条滑块行(库生成的 `.slider-field`).
+ *
+ * 从 `beforeEach` 交回的宿主往下查,而不是 `document.querySelector`:每次用例都往
+ * `document.body` 追加一个新宿主,按文档查会命中上一个用例留下的那份旧标记.
+ */
+function sliderRow(host: HTMLElement, index: number): HTMLElement {
+    const row = host.querySelectorAll<HTMLElement>('.metro-window .slider-field')[index];
+    if (!row) throw new Error(`没有第 ${index} 条滑块行`);
+    return row;
+}
+
+/** 等启动补推完成:此时 `booted = true`,滑块的改动才会真的落到 wasm. */
+async function waitBooted(): Promise<void> {
+    await vi.waitFor(() => {
+        expect(wasm.setParam).toHaveBeenCalledTimes(SLIDER_SPECS.length);
+    });
+}
+
+/**
+ * 本次用例的挂载宿主(由 `beforeEach` 赋值).
+ *
+ * 滑块相关的断言都从它往下查,而不是 `document.querySelector`:每次挂载都往
+ * `document.body` 追加一个新宿主,按文档查会命中上一个用例留下的那份旧标记.
+ */
+let mountedHost: HTMLDivElement;
 
 beforeEach(() => {
     // mock 是模块级的,用例之间要清掉调用记录,否则后面的 "调用一次" 会数到前面那次.
@@ -77,15 +105,13 @@ beforeEach(() => {
             requestAdapter: async () => ({ info: { vendor: 'AMD', architecture: 'rdna3' } }),
         },
     });
-    mountAtEmptyHosts();
+    mountedHost = mountAtEmptyHosts();
 });
 
 describe('地铁车窗启动参数', () => {
     it('boot 后把每个滑块的声明初值推给 wasm', async () => {
         // boot 是异步的(init wasm -> requestAdapter -> startApp),等补推做完.
-        await vi.waitFor(() => {
-            expect(wasm.setParam).toHaveBeenCalledTimes(SLIDER_SPECS.length);
-        });
+        await waitBooted();
         for (const spec of SLIDER_SPECS) {
             expect(wasm.setParam).toHaveBeenCalledWith(spec.param, spec.value);
         }
@@ -119,5 +145,77 @@ describe('地铁车窗启动参数', () => {
         expect(stage?.style.getPropertyValue(CANVAS_ASPECT_PROPERTY)).toBe(
             `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}`,
         );
+    });
+});
+
+/*
+ 滑块的三条入口(拖动滑杆 / 输入数值框 / 点重置按钮)都要落到 `setParam`.
+
+ 滑块本身由 UI 库的 `createSlider` 生成,本站只剩 `slider.onInput(...)` 这一条
+ "参数变了就通知渲染内核"的业务语义.这条绑定错了不会报错,只会"界面动了画面不动",
+ 所以在这里把三条入口各钉一次.
+*/
+describe('地铁车窗滑块的写回', () => {
+    /** 取本次挂载的第 `index` 条滑块声明(与界面顺序一致). */
+    const specAt = (index: number): SliderSpec => {
+        const spec = SLIDER_SPECS[index];
+        if (!spec) throw new Error(`没有第 ${index} 条滑块声明`);
+        return spec;
+    };
+
+    it('拖动滑杆把新值写进对应的 wasm 参数', async () => {
+        await waitBooted();
+        vi.clearAllMocks();
+
+        // 取中间那条:值肯定与声明值不同,免得被"同值不通知"短路掉.
+        const spec = specAt(2);
+        const range = sliderRow(mountedHost, 2).querySelector<HTMLInputElement>('input[type=range]');
+        expect(range).not.toBeNull();
+        range!.value = String(spec.max);
+        range!.dispatchEvent(new Event('input', { bubbles: true }));
+
+        expect(wasm.setParam).toHaveBeenCalledTimes(1);
+        expect(wasm.setParam).toHaveBeenCalledWith(spec.param, spec.max);
+    });
+
+    it('数值框输入把夹取后的值写进对应的 wasm 参数', async () => {
+        await waitBooted();
+        vi.clearAllMocks();
+
+        const spec = specAt(2);
+        const number = sliderRow(mountedHost, 2).querySelector<HTMLInputElement>('input[type=number]');
+        expect(number).not.toBeNull();
+
+        // 越界输入由本站传给滑块的 normalize 夹回上限后才进值源:
+        // 因此 wasm 拿到的已经是区间内的值,滑杆也不会被更大的数顶到区间外.
+        number!.value = String(spec.max + 100);
+        number!.dispatchEvent(new Event('input', { bubbles: true }));
+        expect(wasm.setParam).toHaveBeenCalledTimes(1);
+        expect(wasm.setParam).toHaveBeenCalledWith(spec.param, spec.max);
+
+        // `change`(失焦 / 回车)阶段:库把最终文本回填到输入框(值没变就不再通知).
+        vi.clearAllMocks();
+        number!.dispatchEvent(new Event('change', { bubbles: true }));
+        expect(number!.value).toBe(String(spec.max));
+        expect(wasm.setParam).not.toHaveBeenCalled();
+    });
+
+    it('重置按钮把参数改回声明值', async () => {
+        await waitBooted();
+
+        // 先把值拖离声明值,再点重置:重置是"回到声明值",不是"清空".
+        const spec = specAt(2);
+        const range = sliderRow(mountedHost, 2).querySelector<HTMLInputElement>('input[type=range]');
+        expect(range).not.toBeNull();
+        range!.value = String(spec.max);
+        range!.dispatchEvent(new Event('input', { bubbles: true }));
+        vi.clearAllMocks();
+
+        const reset = sliderRow(mountedHost, 2).querySelector<HTMLButtonElement>('.slider-field-reset');
+        expect(reset).not.toBeNull();
+        reset!.click();
+
+        expect(wasm.setParam).toHaveBeenCalledTimes(1);
+        expect(wasm.setParam).toHaveBeenCalledWith(spec.param, spec.value);
     });
 });
