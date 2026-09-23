@@ -40,6 +40,23 @@ require_command cargo
 require_command rustc
 
 log "installing pinned dependencies from package-lock.json"
+# 顺序说明:根 package.json 的 preinstall 会先跑 scripts/fetch_ui.sh -- 从库
+# 仓库(GitHub 上的 `miko_ui`)的滚动 release(`ui-latest` 上的
+# miko_ui_dist.tar.gz)取**产物**,校验后解开到 .cache/miko_ui/current,然后把
+# `"@miko/ui": "file:.cache/miko_ui/current"` 这条链接装上.npm 解析 file: 依赖时
+# 那个目录必须已经存在,所以"取产物"只能挂在 preinstall;CI 也不需要 checkout
+# submodule,不需要任何 npm 凭据 -- 公开 release 资产,能访问 GitHub
+# (actions/checkout 本来就要)就够了.
+#
+# 这次 npm ci 还会核对"缓存是不是最新":资产清单里的 gitHead(库打包时写入的构建
+# commit)与 ui-latest tag 指向的 commit 不一致就自动重取;查不到这个结论(断网 /
+# 资产不自证版本)时本地只警告,CI 里明确失败 -- 所以"库刚推,资产还没带上 gitHead"
+# 时,CI 可能就红在这一步,那不是配置错误(见 fetch_ui.sh 顶部 §7).
+#
+# 再往下 build:all 的顺序是 lint:rs -> clean -> build:wasm -> test -> test:rs ->
+# build:app;其中 clean 只删根 dist/ 与 src/metro_window/wasm/,不碰 .cache/miko_ui,
+# 所以"产物在第一步就绪,后面全程可用".取产物 / 链接 / 模块去重的全部规则见
+# scripts/fetch_ui.sh 顶部与 vite.config.ts 的 resolve.dedupe.
 npm ci --no-audit --no-fund
 
 # 流水线 = lint:rs -> clean -> build:wasm -> test(vitest) -> test:rs -> build:app
