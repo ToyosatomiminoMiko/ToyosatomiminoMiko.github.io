@@ -15,7 +15,7 @@
  *   --setting-*   SETTING 标签页
  *   --hero-*      首屏(hero)
  *   --chrome-*    固定导航条(站名 / 导航项 / 透明↔实底)
- *   --radius-*    圆角
+ *   --radius-*    圆角(**由 miko_ui 主题提供,本站只引用**)
  *   --z-*         层级
  *   --transition-* 过渡
  * ================================================================ */
@@ -42,19 +42,20 @@
     --bg-image-active: var(--bg-image-default);
 
     /* ---------- 基础色 ---------- */
-    --color-white: #ffffff;
-    --color-black: #000000;
-    /* 时钟面板底色:原实现写作 #000(与 --color-black 同色但保持字面量形态) */
+    /* 纯白 / 纯黑两个通用色已随按钮与卡片改走 miko_ui 令牌而不再被引用,
+       这里删掉;要纯色直接用库的 --color-text-strong / --color-bg-sunken. */
+    /* 时钟面板底色:原实现写作 #000(保持字面量形态) */
     --clock-panel-bg: #000;
 
     /* ---------- 通用尺寸 / 圆角 / 过渡 ---------- */
     --card-width: 100%;
     /* 主内容区占视口宽度比例(首屏会从这里满宽逃逸到 100vw,见 index.css 的 .hero) */
     --main-width: 90%;
-    /* 小圆角(卡片 / 坐标显示条) */
-    --radius-sm: 5px;
-    /* 中圆角(时钟面板) */
-    --radius-md: 10px;
+    /*
+     * 圆角:本站不再自己定值,--radius-sm / --radius-md 直接用 miko_ui 主题令牌
+     * (main.ts 引了库的 tokens.css,库默认全站直角 0px).本站只是**引用**,
+     * 要改圆角就改库主题,不在下游另存一份尺寸.
+     */
     /* 像素指示器移动过渡 */
     --transition-indicator: 10ms linear;
 
@@ -117,6 +118,7 @@
     --chrome-transition: 180ms ease;
 
     /* ---------- LED 时钟 ---------- */
+    /* 时钟面板圆角:直接引用 miko_ui 主题的中圆角(库默认 0px) */
     --clock-panel-radius: var(--radius-md);
     --clock-panel-padding: 20px;
     /* 时钟面板辉光阴影 */
@@ -137,8 +139,9 @@
     --oled-tools-margin-top: 15px;
     /* 面板里每颗按钮的外边距(全局 `*` 已把 margin 归零,这里统一补回来) */
     --oled-button-margin: 4px;
-    /* 坐标显示条的背景 */
-    --oled-coords-bg: #f0f0f0;
+    /* 坐标显示条的背景:卡片现在走库的暗色面板,这里也用库的凹陷底,
+       文字沿用卡片的正文色(--color-text),不再是一块浅色条 */
+    --oled-coords-bg: var(--color-bg-sunken);
     /* 坐标显示条的内边距 */
     --oled-coords-padding: 8px 15px;
     /* 坐标显示条与上方元素的间距 */
@@ -194,8 +197,8 @@
     --ieee-border-color: #334155;
     /* 区块 / 单元格边框宽度 */
     --ieee-border-width: 1px;
-    /* 区块圆角(比通用小圆角略大) */
-    --ieee-radius: 6px;
+    /* 区块圆角不在这里:它是 miko_ui 主题的中圆角,由 ieee754.css 直接引用
+       var(--radius-md)(库默认 0px). */
     /* 位与分组的底色(深蓝黑) */
     --ieee-bit-bg: #0f172a;
     /* 区块底色(更深蓝黑) */

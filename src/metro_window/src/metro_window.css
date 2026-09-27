@@ -236,17 +236,6 @@
     outline: none;
 }
 
-/* 重置按钮:回到该参数在 config.ts 里的声明值(库的滑块自带这颗按钮). */
-.metro-window .slider-field-reset {
-    color: var(--metro-color-muted);
-    border-color: var(--metro-color-border);
-}
-
-.metro-window .slider-field-reset:hover:not(:disabled) {
-    color: var(--metro-color-text);
-    border-color: var(--metro-color-accent);
-}
-
 .metro-window .controls {
     display: flex;
     flex-wrap: wrap;
@@ -267,31 +256,20 @@
     gap: var(--metro-space-8);
 }
 
-.metro-window button {
-    padding: var(--metro-space-8) var(--metro-space-14);
-    border: var(--metro-size-border) solid var(--metro-color-border);
-    border-radius: var(--metro-radius-sm);
-    color: var(--metro-color-text);
-    background-color: var(--metro-color-bg);
-    font-size: var(--metro-font-size-base);
-    cursor: pointer;
-    transition: all var(--metro-duration-fast) var(--metro-easing-standard);
-}
-
-.metro-window button:hover:not(:disabled) {
-    border-color: var(--metro-color-accent);
-    color: var(--metro-color-accent);
-}
-
-.metro-window button:disabled {
-    opacity: var(--metro-alpha-disabled);
-    cursor: not-allowed;
-}
-
+/*
+ * 按钮的**外观不再由本站写**:风格按钮 / 播放控制 / 上传的"恢复默认"全由
+ * `miko_ui` 的 `createButton` 生成,描边 / 底色 / 文字 / 悬停 / 焦点 / 禁用
+ * 都在库的 `.ui-button` 基线里(见 main.ts 引的库样式).原先这里那份
+ * `.metro-window button` 规则与库的基线是同一个东西的两份写法,已撤掉.
+ *
+ * 只留"当前项"这一条,而且**描边只引库的令牌**(`--color-accent-border` 等,
+ * 与库自己的 `.dock-btn.is-active` / `.menu-item.is-active` 同一组设置)--
+ * 库的按钮没有"当前项"这个概念,但变体的增量该用库的口径,不是本站另造一套色.
+ */
 .metro-window button.active {
-    border-color: var(--metro-color-accent);
-    background: var(--metro-color-accent-veil);
-    color: var(--metro-color-accent);
+    border-color: var(--color-accent-border);
+    background: var(--color-accent-active-bg);
+    color: var(--color-text-active);
 }
 
 .metro-window .gpu_info {
@@ -372,22 +350,26 @@
     font-size: var(--metro-font-size-small);
 }
 
-/* 原生"选择文件"按钮套用面板按钮的观感:数值与 .metro-window button 一致,
-   改按钮样式时两处要一起看(这里没法复用那条规则:伪元素不在 button 选择器范围内). */
+/* 原生"选择文件"按钮:它是 `<input type="file">` 的伪元素,**不是** `<button>`,
+   拿不到库的 `.ui-button` 类(伪元素不在类的选择器范围内).这里的数值**逐条
+   对齐库的按钮基线**(1px 描边 + 透明底 + 方角 + 次要文字色 + 悬停/焦点),
+   描边引的是库的令牌(`--color-border-strong` / `--color-accent-border`),
+   不再用面板自己那套 `--metro-color-*`;要改按钮长相仍以库为准. */
 .metro-window .upload-file::file-selector-button {
     margin-right: var(--metro-space-8);
-    padding: var(--metro-space-8) var(--metro-space-14);
-    border: var(--metro-size-border) solid var(--metro-color-border);
-    border-radius: var(--metro-radius-sm);
-    color: var(--metro-color-text);
-    background-color: var(--metro-color-bg);
-    font-family: var(--metro-font-family-base);
-    font-size: var(--metro-font-size-base);
+    padding: 3px 7px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text-muted);
+    font-family: inherit;
+    font-size: 12px;
+    line-height: 1.2;
+    white-space: nowrap;
     cursor: pointer;
-    transition: all var(--metro-duration-fast) var(--metro-easing-standard);
 }
 
 .metro-window .upload-file::file-selector-button:hover {
-    border-color: var(--metro-color-accent);
-    color: var(--metro-color-accent);
+    color: var(--color-text-strong);
+    border-color: var(--color-accent-border);
 }

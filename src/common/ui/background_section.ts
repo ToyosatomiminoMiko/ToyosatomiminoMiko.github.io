@@ -12,7 +12,6 @@ BACKGROUND_PRESETS 里声明,标记由这里生成.
 import { h, type DomChild } from '@/common/dom';
 import {
     BACKGROUND_IMAGE_CLASS,
-    BACKGROUND_IMAGE_ROUNDED_CLASS,
     BACKGROUND_ITEM_CLASS,
     BACKGROUND_LIST_CLASS,
     BACKGROUND_PRESETS,
@@ -24,12 +23,16 @@ import {
  *
  * 缩略图带 `alt=""`:它右边紧挨着的 `<span>` 已经写着同一张图的名字,
  * 再念一遍文件名对读屏用户只是噪音(装饰性图片的标准写法).
+ *
+ * 圆角不再靠 bootstrap 的 `.rounded` 工具类(那会把圆角绑死在
+ * `--bs-border-radius*` 上):缩略图只有 `.bgimg` 一个类,圆角写在站点的
+ * `.bgimg` 规则里,引 miko_ui 主题的 `--radius-sm`.
  */
 export function createBackgroundSection(): readonly DomChild[] {
     const items = BACKGROUND_PRESETS.map((preset) =>
         h('li', { class: BACKGROUND_ITEM_CLASS }, [
             h('img', {
-                class: `${BACKGROUND_IMAGE_ROUNDED_CLASS} ${BACKGROUND_IMAGE_CLASS}`,
+                class: BACKGROUND_IMAGE_CLASS,
                 attrs: { src: preset.src, alt: '' },
             }),
             h('span', { text: preset.label }),

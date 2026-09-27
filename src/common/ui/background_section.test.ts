@@ -11,7 +11,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
     BACKGROUND_IMAGE_CLASS,
-    BACKGROUND_IMAGE_ROUNDED_CLASS,
     BACKGROUND_ITEM_CLASS,
     BACKGROUND_LIST_CLASS,
     BACKGROUND_PRESETS,
@@ -53,8 +52,8 @@ describe('SETTING:背景切换区', () => {
         images.forEach((image, index) => {
             const preset = BACKGROUND_PRESETS[index];
             expect(image.getAttribute('src'), preset.label).toBe(preset.src);
-            expect(image.className, preset.label)
-                .toBe(`${BACKGROUND_IMAGE_ROUNDED_CLASS} ${BACKGROUND_IMAGE_CLASS}`);
+            // 圆角不再走 bootstrap 的 `.rounded`,缩略图只有一个站点类
+            expect(image.className, preset.label).toBe(BACKGROUND_IMAGE_CLASS);
             // 图名由紧邻的 span 报给读屏,图片本身是装饰性的(alt="")
             expect(image.getAttribute('alt'), preset.label).toBe('');
             expect(image.nextElementSibling?.textContent, preset.label).toBe(preset.label);

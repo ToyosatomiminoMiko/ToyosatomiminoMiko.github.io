@@ -17,8 +17,6 @@ import { FLOAT64 } from '@/ieee754/config';
 import {
     IEEE754_BITSTRING_CLASS,
     IEEE754_BREAKDOWN_CLASS,
-    IEEE754_BUTTON_CLASS,
-    IEEE754_BUTTON_TYPE,
     IEEE754_CARD_BODY_CLASS,
     IEEE754_CARD_CLASS,
     IEEE754_CARD_HEADER_CLASS,
@@ -120,14 +118,17 @@ describe('IEEE754:精度与输入那一行', () => {
         expect(panel.formatSelect.value).toBe(FLOAT64 === undefined ? '' : 'f64');
     });
 
-    it('十进制输入框与转换按钮:初值 / 类名 / type 都与原来一致', () => {
+    it('十进制输入框沿用 bootstrap,转换按钮改成库按钮:初值 / 类名 / type 都对得上', () => {
         const panel = render();
         expect(panel.input.getAttribute('value')).toBe(IEEE754_INPUT_INITIAL_VALUE);
         expect(panel.input.className).toBe(IEEE754_INPUT_CLASS);
         expect(panel.input.getAttribute('spellcheck')).toBe(IEEE754_INPUT_SPELLCHECK);
         expect(panel.input.parentElement?.className).toBe(IEEE754_INPUT_GROUP_CLASS);
-        expect(panel.convertButton.className).toBe(IEEE754_BUTTON_CLASS);
-        expect(panel.convertButton.getAttribute('type')).toBe(IEEE754_BUTTON_TYPE);
+        // 转换按钮归 UI 库(`miko_ui` 的 `createButton`):带基线类 `.ui-button`,
+        // 站点原来的 bootstrap 类 `btn btn-primary` 已不用
+        expect(panel.convertButton.classList.contains('ui-button')).toBe(true);
+        expect(panel.convertButton.classList.contains('btn')).toBe(false);
+        expect(panel.convertButton.getAttribute('type')).toBe('button');
         expect(panel.convertButton.textContent).toBe(IEEE754_CONVERT_LABEL);
         // 按钮与输入框在同一个 input-group 里(原标记如此)
         expect(panel.input.parentElement?.querySelector('button')).toBe(panel.convertButton);

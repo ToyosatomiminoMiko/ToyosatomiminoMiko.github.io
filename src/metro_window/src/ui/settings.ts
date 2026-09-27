@@ -12,9 +12,12 @@ TRANSPORT_BUTTONS 等模型,本模块只负责"把模型变成元素"并交回�
     `createSlider`(`miko_ui`),本模块只把 config.ts 的声明翻译成它的选项,
     再把句柄摊平进返回值.结构与样式(类名 `.slider-field*`)都归库,本站不再
     维护第二份;库从 npm 装,本地联调与取用链路见 `scripts/dev_ui_link.py` 顶部.
+  - **按钮同样归库**:风格按钮与播放/暂停/重置都由 `createButton` 生成(基线类
+    `.ui-button`),本站只补声明里的 id 与 `data-*`,以及"当前风格"的激活类;
+    本站不再给按钮写外观(原先那份 `.metro-window button` 规则已撤掉).
 */
 
-import { createSlider, type SliderHandle } from 'miko_ui';
+import { createButton, createSlider, type SliderHandle } from 'miko_ui';
 
 import {
     DEFAULT_STYLE_INDEX,
@@ -146,11 +149,14 @@ function createSliderGroup(group: SliderGroupSpec): { element: HTMLDetailsElemen
 export function createStyleRow(): StyleRow {
     const buttons = STYLE_PRESETS.map((preset) => {
         const active = preset.index === DEFAULT_STYLE_INDEX;
-        return h('button', {
-            class: active ? STYLE_BUTTON_ACTIVE_CLASS : '',
+        // 按钮本体(基线 `.ui-button`)归库;`.active` 是本站叠在基线之后的
+        // 状态钩子(库的按钮没有"当前项"这个概念,见 metro_window.css 那一条).
+        const button = createButton({
             text: preset.label,
-            dataset: { [STYLE_DATA_KEY]: preset.index },
-        });
+            class: active ? STYLE_BUTTON_ACTIVE_CLASS : undefined,
+        }).element;
+        button.dataset[STYLE_DATA_KEY] = String(preset.index);
+        return button;
     });
     return { root: h('div', { class: 'style-row' }, buttons), buttons };
 }
@@ -158,8 +164,8 @@ export function createStyleRow(): StyleRow {
 /** 播放 / 暂停 / 重置;初始禁用状态由配置决定 */
 function createTransportButtons(): Record<TransportAction, HTMLButtonElement> {
     const entries = TRANSPORT_BUTTONS.map((spec) => {
-        const button = h('button', { attrs: { id: spec.id }, text: spec.label });
-        button.disabled = spec.disabled;
+        const button = createButton({ text: spec.label, disabled: spec.disabled }).element;
+        button.id = spec.id;
         return [spec.action, button] as const;
     });
     return Object.fromEntries(entries) as Record<TransportAction, HTMLButtonElement>;

@@ -20,10 +20,15 @@ setLayerImage -- 那些纹理是 wgpu 的 GPU 资源,只有 wasm 内部能改.�
       </div>
       <div class="upload-actions">
         <input class="upload-file" type="file" accept="image/png">
-        <button class="upload-reset" type="button">恢复默认</button>
+        <button type="button" class="ui-button upload-reset">恢复默认</button>
       </div>
     </div>
+
+按钮由 UI 库(`miko_ui` 的 `createButton`)生成,`.ui-button` 是库的基线类,
+`.upload-reset` 只是本站的定位钩子;按钮外观一律归库,本站不再写.
 */
+
+import { createButton } from 'miko_ui';
 
 import {
     UPLOAD_ACCEPT,
@@ -76,12 +81,9 @@ function createUploadRow(spec: UploadLayerSpec): UploadControl {
         class: 'upload-file',
         attrs: { id: inputId, type: 'file', accept: UPLOAD_ACCEPT },
     });
-    // type="button" 明确写出来:这个按钮不该有任何"提交"语义.
-    const reset = h('button', {
-        class: 'upload-reset',
-        attrs: { type: 'button' },
-        text: UPLOAD_RESET_LABEL,
-    });
+    // 恢复默认按钮由 UI 库(`miko_ui` 的 `createButton`)生成:type="button" 与
+    // 按钮外观都在库里;`upload-reset` 只是本站的定位钩子(见 metro_window.css).
+    const reset = createButton({ text: UPLOAD_RESET_LABEL, class: 'upload-reset' }).element;
 
     const root = h('div', { class: 'upload' }, [
         h('div', { class: 'upload-meta' }, [label, status]),

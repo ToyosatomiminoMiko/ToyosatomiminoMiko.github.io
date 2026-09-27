@@ -201,7 +201,7 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
 | 4xx 页面样式 | `src/4xx_page/418/418_tokens.css`,`src/4xx_page/451/451_tokens.css`;`404/404.css` 与 `shared/icon.css` 顶部的 `:root` 块 | 各彩蛋页的设计令牌(颜色 / 几何 / 阴影 / 时长 / 字体) |
 | 4xx 页面脚本 | `src/4xx_page/418/teapot/config.ts`,`src/4xx_page/451/boot.config.ts`,`src/4xx_page/451/ember/*.config.ts` | 茶壶交互,启动开关,GPU 计时 / 统计 / 资源 / 能力 / 性能面板参数 |
 | 地铁车窗前端 | `src/metro_window/src/config.ts`,`src/metro_window/src/stage_size.ts`,`src/metro_window/src/ui/`,`src/metro_window/src/tokens.css` | DOM id / class / `data-*` 键名,`setParam` 参数名映射,车窗标记 / 设置面板 / 上传图层的声明式模型(画布分辨率 / 滑块分组 / 风格 / 按钮 / 可上传贴图清单 / 文案),后备缓冲尺寸与防抖 / dpr 上限;声明式 DOM 组件(`h()` + 舞台标记 + 风格按钮行 + 设置面板 + 上传面板 + PNG 解码);组件设计令牌.**单个滑块(名称 + 滑杆 + 数值框 + 重置按钮)不在这里**:它是 UI 库 `miko_ui` 的 `createSlider`,本站只把声明翻译成它的选项(见下一行) |
-| UI 库 | npm 包 `miko_ui`(声明在 `package.json`);配色与宽度在 `src/metro_window/src/metro_window.css` | 通用控件(滑块 / 按钮 / 开关 / 分段 / 数值框 ...)与它们的样式;本地联调与依赖契约见 [`scripts/dev_ui_link.py`](scripts/dev_ui_link.py) 顶部 |
+| UI 库 | npm 包 `miko_ui`(声明在 `package.json`);配色与宽度在 `src/metro_window/src/metro_window.css` | 通用控件(滑块 / 按钮 / 开关 / 分段 / 数值框 ...)与它们的样式.站内**所有按钮**都由库的 `createButton` 生成(基线类 `.ui-button`),本站不再写按钮外观;库的默认主题由 `src/main.ts` 引 `miko_ui/styles/tokens.css` 接进来.本地联调与依赖契约见 [`scripts/dev_ui_link.py`](scripts/dev_ui_link.py) 顶部 |
 | 地铁车窗渲染 | `src/metro_window/rust/src/droplet_params.rs`,`app_params.rs`,`render_params.rs`,`random_params.rs`,`texture_params.rs` | 水滴生成 / 物理 / 折射 / 高光,主循环与资源路径 / 可上传材质槽位白名单,管线与绑定槽位 / 上传纹理尺寸上限,白噪声哈希,程序化贴图生成参数 |
 | 构建 | `vite.config.ts` | 多页入口,4xx 产物路径回移前缀,`miko_ui` 的运行期依赖(`katex` / `@preact/signals-core`)去重(`resolve.dedupe`) |
 | 依赖来源 | `package.json`(`"miko_ui": "^0.1.6"`),`scripts/dev_ui_link.py` | 前端第三方 UI 库从 npm registry 装;改库时本地联调用 `bash scripts/dev_ui_link.sh` 把 `node_modules/miko_ui` 换成指向工作副本的符号链接(只动 `node_modules/`) |
@@ -232,6 +232,31 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
   加一个背景缩略图只往 `BACKGROUND_PRESETS` 加一条,换 OLED 的一句提示只改
   `src/oled/config.ts`;`index.html` 里没有第二处标记要同步.
   完整约定(含目录地图与"加东西改哪里")见[「UI 在哪里」](#ui-在哪里).
+- **按钮只在库那边写**:站内(OLED / IEEE754 / 地铁车窗)的每一颗按钮都由
+  `miko_ui` 的 `createButton` 生成,基线类 `.ui-button` 与全部外观(描边
+  `1px solid var(--color-border-strong)` / 底色 / 文字 / 悬停 / 焦点 / 禁用)都在库的
+  `styles/widgets.css`;本站的组件只补 id / `data-*` / 激活态类,样式表里不再出现
+  按钮的描边 / 底色 / 文字规则.原先是 bootstrap `.btn.btn-primary`,已撤掉,
+  这是"逐渐移除 bs5"的一步.要改按钮长相就改库,不在下游给它的节点补类名.
+
+  **一组选项也不自己拼**:OLED 的三个绘图工具由库的 `createSegmented` 生成
+  (`div.segmented` + 组内按钮,单选),不再是 `input[name="tools"]` 那组 radio;
+  本站只把 `OLED_PANEL_TOOL_OPTIONS` 原样喂进去,并用句柄的 `onChange` 接选中.
+
+  **唯一的两处例外**都不是"另造一套":地铁车窗风格按钮的"当前项"
+  (`.metro-window button.active`)与 `<input type="file">` 的原生
+  `::file-selector-button`(伪元素拿不到库的类),两者的描边 / 文字都**只引库的
+  令牌**(`--color-border-strong` / `--color-accent-border` / `--color-text-muted`
+  / `--radius-*`),不引 `--metro-color-*`;圆角也全部走库主题(库默认 0px),
+  本站不再自己存圆角尺寸,也不再用 bootstrap 的圆角工具类(背景缩略图原来的
+  `.rounded` 已撤,圆角写在 `.bgimg` 里引 `--radius-sm`).
+- **卡片底也接回库**:OLED 与 IEEE754 的 bootstrap `.card` 原先吃
+  `--bs-card-bg`(白底),暗色描边的按钮落在上面等于看不见.现在
+  `public/css/index.css` 在 `body .card` 作用域里把背景 / 描边 / 圆角 / 标题栏
+  四个 bootstrap 变量接回库的 `--color-bg-panel` / `--color-border-panel` /
+  `--radius-md` / `--color-bg-header`,并给 `<html>` 加 `data-bs-theme="dark"`
+  让剩下的表单件(下拉框 / 输入框)也走深色那套.这两处都是过渡,bs5 移除时
+  一起删.
 - 等价性回归网:`cargo test` 与 `vitest` 覆盖参数布局与公式;
   首页**生成的标记**由 `src/**/ui/*.test.ts` 在 happy-dom 里逐条断言(进 `npm test`);
   真浏览器那层只剩"必须真渲染"的部分(`npm run smoke:home`);
@@ -307,7 +332,9 @@ wasm 产物(`src/metro_window/wasm/`)与 `target/` 不入库,
 - `package.json` 里一条 `"miko_ui": "^0.1.6"`,`npm ci` 直接从 registry 装好,
   **没有** submodule / 本地 `file:` 依赖 / 需要预先下载的资产,所以 CI 不需要
   任何额外凭据或步骤.库的发布流程(CI 检查,打 tag,npm 发版)在库自己的仓库里.
-- 样式走库的 exports 子路径(`import 'miko_ui/styles/widgets.css'`);库的运行时依赖
+- 样式走库的 exports 子路径:站点引 `import 'miko_ui/styles/tokens.css'`(库的默认
+  主题,控件读的 `--color-*` / `--radius-*` 都在这一层)与
+  `import 'miko_ui/styles/widgets.css'`(控件结构);库的运行时依赖
   `@preact/signals-core` 与可选 peer `katex` 由本站根 `package.json` **自己声明**
   (本站也直接用它们),`vite.config.ts` 的 `resolve.dedupe` 是第二道保险,保证
   全程只有一份实例.

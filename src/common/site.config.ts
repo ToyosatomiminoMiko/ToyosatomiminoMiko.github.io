@@ -148,8 +148,6 @@ export const BACKGROUND_LIST_CLASS = 'bgul';
 export const BACKGROUND_ITEM_CLASS = 'bgli';
 /** 缩略图本身的类名:background.ts 的点击委托就是按它命中"被点的是哪张背景" */
 export const BACKGROUND_IMAGE_CLASS = 'bgimg';
-/** 缩略图的圆角(bootstrap 的工具类,与 .bgimg 一起写在 class 里) */
-export const BACKGROUND_IMAGE_ROUNDED_CLASS = 'rounded';
 
 // ---------- 背景切换(行为侧) ----------
 

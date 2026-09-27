@@ -6,7 +6,7 @@
 // 数值与拆分前的字面量逐位一致,不改变任何行为.
 // ================================================================
 
-import type { OledRgb } from './types';
+import type { DrawTool, OledRgb } from './types';
 
 // ---------- 默认配置对象 ----------
 
@@ -134,42 +134,25 @@ export const OLED_DEFAULT_BYTE_ORDER = 'lsb';
 export const OLED_DEFAULT_TOOL = 'free';
 
 /**
- * 把一个 RGB 颜色写成 CSS 颜色(如 {51,51,51).
- * 画板像素与按钮底色共用同一个颜色对象,以后改颜色两处一起变.
- */
-const rgbToCssColor = ({ r, g, b }: OledRgb): string =>
-    `#${[r, g, b].map(v => v.toString(OLED_HEX_RADIX).padStart(OLED_HEX_DIGITS_PER_BYTE, '0')).join('')}`;
-
-/** 画板"未亮起"像素的 CSS 颜色(由 OLED_COLOR_UNLIT 推出) */
-export const OLED_UNLIT_CSS_COLOR = rgbToCssColor(OLED_COLOR_UNLIT);
-
-/** 画板"亮起"像素的 CSS 颜色(由 OLED_COLOR_LIT 推出) */
-export const OLED_LIT_CSS_COLOR = rgbToCssColor(OLED_COLOR_LIT);
-
-/**
- * 颜色模式相关的文案与配色.
- * 每个模式给出:按钮文案,按钮底色,画笔写入的像素颜色.
- * 画笔颜色与画面像素共用 OLED_COLOR_UNLIT / OLED_COLOR_LIT,
- * 按钮底色也由同一对颜色推出(OLED_UNLIT_CSS_COLOR / OLED_LIT_CSS_COLOR),
- * 保证"按钮显示什么颜色,画笔就写什么颜色".
- * 按钮文字颜色不在这里声明(由 public/css/index.css 的 `#change-color` 定).
+ * 颜色模式相关的文案与画笔颜色.
+ * 每个模式给出:按钮文案 + 画笔写入的像素颜色;画笔颜色与画面像素共用
+ * OLED_COLOR_UNLIT / OLED_COLOR_LIT.
+ * 按钮文案是二值位图的读数:**亮起写 1,未亮写 0**,与导出的 bit 一一对应.
+ * 按钮的底色 / 文字颜色都不在这里声明:按钮整颗归 UI 库(`miko_ui`)的基线,
+ * 本站不往它身上写任何背景色(所以这颗按钮是透明的,只有 0 / 1 两个字).
  */
 export const OLED_COLOR_MODES = {
     /** 暗色模式:画笔把像素关掉(中性灰) */
     dark: {
-        /** 按钮文案(暗色) */
-        buttonText: '🔄️',
-        /** 按钮背景颜色(与画板未亮像素同源) */
-        buttonBackgroundColor: OLED_UNLIT_CSS_COLOR,
+        /** 按钮文案(未亮 = 0) */
+        buttonText: '0',
         /** 画笔写入的像素颜色(未亮起的中性灰) */
         pixelColor: OLED_COLOR_UNLIT,
     },
     /** 亮色模式:画笔把像素点亮(青) */
     light: {
-        /** 按钮文案(亮色) */
-        buttonText: '🔄️',
-        /** 按钮背景颜色(与画板亮起像素同源) */
-        buttonBackgroundColor: OLED_LIT_CSS_COLOR,
+        /** 按钮文案(亮起 = 1) */
+        buttonText: '1',
         /** 画笔写入的像素颜色(亮起的青) */
         pixelColor: OLED_COLOR_LIT,
     },
@@ -183,9 +166,9 @@ export const OLED_BYTE_ORDER_TEXT = {
     msb: '⬆高位模式(MSB)',
 } as const;
 
-// ---------- DOM 契约(id / name / class,与 index.html 完全一致) ----------
+// ---------- DOM 契约(id / class,与 index.html 完全一致) ----------
 
-/** OLED 控件用到的 DOM 元素 id / name(主画布 id 见 OLED_DEFAULT_CONFIG.canvasId) */
+/** OLED 控件用到的 DOM 元素 id(主画布 id 见 OLED_DEFAULT_CONFIG.canvasId) */
 export const OLED_DOM = {
     /** 鼠标位置指示器(红框)的 id */
     indicatorId: 'pixelIndicator',
@@ -209,13 +192,6 @@ export const OLED_DOM = {
     exportBtnId: 'export-btn',
     /** 导入数据按钮的 id */
     importBtnId: 'import-btn',
-    /**
-     * 工具 radio 的 name(`input[name="tools"]`).
-     * id 只留给 CSS 与调试定位,radio 靠 name 成组,顺序由
-     * OLED_PANEL_TOOL_OPTIONS 声明 -- 面板直接把 radio 引用交回行为代码,
-     * 不再用 `input[name="tools"]` 选择器回头查 DOM.
-     */
-    toolRadioName: 'tools',
 } as const;
 
 // ---------- 可见文案(保持原样,集中一处便于校对) ----------
@@ -300,17 +276,11 @@ export const OLED_PANEL_INDICATOR_CLASS = 'pixel-indicator';
 /** 工具控制区类名(CSS 的 `.tools`) */
 export const OLED_PANEL_TOOLS_CLASS = 'tools';
 
-/** 画笔颜色按钮前面的说明文字(说明它旁边那颗按钮就是画笔) */
-export const OLED_PANEL_BRUSH_LABEL_TEXT = '画笔:';
-
 /** 数据输入输出行类名(CSS 的 `.area-data` 提供上下外边距) */
 export const OLED_PANEL_ROW_CLASS = 'area-data';
 
 /** 数据 textarea 类名(CSS 的 `.textarea-data` 锁宽 / 等宽字体) */
 export const OLED_PANEL_TEXTAREA_CLASS = 'textarea-data';
-
-/** bootstrap 按钮类名(原先每个按钮都写 `btn btn-primary`) */
-export const OLED_PANEL_BUTTON_CLASS = 'btn btn-primary';
 
 /** 颜色重置按钮的文案 */
 export const OLED_PANEL_REFILL_BUTTON_TEXT = '颜色重置';
@@ -324,20 +294,25 @@ export const OLED_PANEL_PNG_BUTTON_TEXT = '下载PNG';
 /** 导入数据按钮的文案 */
 export const OLED_PANEL_IMPORT_BUTTON_TEXT = '导入数据';
 
-/** 一个绘图工具 radio 的声明(value 即 DrawTool,label 是 radio 后面的文字) */
+/** 一个绘图工具选项的声明(value 即 DrawTool,label 是按钮上的文字) */
 export interface OledToolOption {
-    /** radio 的 value(DrawTool 取值) */
-    readonly value: string;
-    /** radio 后面的可见文字 */
+    /** 选项值(DrawTool 取值) */
+    readonly value: DrawTool;
+    /** 按钮上的可见文字 */
     readonly label: string;
 }
 
 /**
- * 工具 radio 的声明清单(顺序即原标记的顺序).
+ * 工具选项的声明清单(顺序即界面上的先后).
  * 默认选中哪一项由 OLED_DEFAULT_TOOL 决定,不在这里重复写死.
+ * 这份清单直接喂给 `miko_ui` 的 `createSegmented`(分段选择器,单选),
+ * 结构与库的 `SegmentedItem<DrawTool>` 一致.
  */
 export const OLED_PANEL_TOOL_OPTIONS: readonly OledToolOption[] = [
     { value: 'free', label: '绘制' },
     { value: 'line', label: '直线' },
     { value: 'rectangle', label: '矩形' },
 ];
+
+/** 工具分段选择器的组名(读屏把整组念成一个整体,取 createSegmented 的 ariaLabel) */
+export const OLED_PANEL_TOOL_GROUP_LABEL = '绘图工具';

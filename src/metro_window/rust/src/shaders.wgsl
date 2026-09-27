@@ -74,7 +74,7 @@ fn applyStyle(c: vec3f, uv: vec2f, time: f32, id: u32) -> vec3f {
         col = col + vec3f(0.0, 0.9, 1.0) * grid * 0.06;
         col = col * (1.0 - 0.12 * step(0.5, fract(uv.y * 480.0)));
     } else {
-        // 上海磁悬浮:冷白高速感 + 速度线
+        // 上海磁浮:冷白高速感 + 速度线
         col = col * vec3f(0.92, 0.99, 1.12);
         col = mix(col, vec3f(0.90, 0.96, 1.00), 0.18);
         let speed = pow(1.0 - abs(fract(uv.y * 22.0 + time * 2.2) * 2.0 - 1.0), 16.0);

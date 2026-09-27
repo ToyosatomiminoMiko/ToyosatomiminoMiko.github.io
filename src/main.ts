@@ -14,16 +14,19 @@
 // --- 导入样式 ---
 import 'bootstrap/dist/css/bootstrap.min.css';
 /*
-UI 库的控件样式(站点的滑块现在由 `miko_ui` 的 `createSlider` 生成).
+UI 库的主题与控件样式.
 
-为什么不引库的 `tokens.css`:那一层是库自带的**默认主题**,一引就会把库里那套
-`--color-text` / `--color-accent` / `--radius-sm` 等写进本站的 `:root` -- 本站
-自己也有 `--radius-sm` 等同名令牌(见 public/css/tokens.css),那会变成一次
-静默的主题覆盖.库的控件在**没有**那一层时也照常工作:`.slider-field` 里只有
-`gap` / `padding` / `width` 这类有兜底值的声明,而配色读的是 `--color-*`,
-由 `metro_window.css` 在车窗作用域内接回 `--metro-color-*`(单一来源仍是本站
-自己的令牌).哪天整站都换成库的控件,再把 tokens.css 一起引进来也不迟.
+站内**所有按钮**现在都由 `miko_ui` 生成(OLED / IEEE754 / 地铁车窗),滑块也一直
+是库的 `createSlider`,所以库自带的默认主题(`tokens.css`)必须引进来:库的控件
+只写结构,颜色 / 圆角 / 间距一律 `var(--...)`,那一层的默认值就在 `tokens.css`.
+库的主题是暗色,与本站深色画面同一路.
+
+撞名处理:`tokens.css` 会把 `--radius-sm` / `--radius-md` 写成它自己的默认值
+(0px),而本站原来也用这两个名字给坐标条与时钟面板定圆角.本站那两条已按用途
+改名(`--coords-radius` / `--clock-panel-radius`,见 `public/css/tokens.css`),
+所以库主题进来不会顺手把非按钮的圆角改掉.
 */
+import 'miko_ui/styles/tokens.css';
 import 'miko_ui/styles/widgets.css';
 
 // --- 导入 JS 依赖 ---

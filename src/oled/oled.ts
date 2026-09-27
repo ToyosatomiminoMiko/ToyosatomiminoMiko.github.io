@@ -7,6 +7,8 @@
 // 不再有 `document.getElementById` / `querySelectorAll` 之类的"回头查 DOM".
 // ================================================================
 
+import type { SegmentedHandle } from 'miko_ui';
+
 import { h } from '@/common/dom';
 import type {
     PixelPos,
@@ -81,7 +83,8 @@ export class OLEDCanvas {
     private readonly refillBtn: HTMLButtonElement;
     private readonly exportBtn: HTMLButtonElement;
     private readonly importBtn: HTMLButtonElement;
-    private readonly toolRadios: readonly HTMLInputElement[];
+    /** 绘图工具分段选择器(库的 `createSegmented` 句柄;选中回调在 bindEvents 里接) */
+    private readonly toolSelect: SegmentedHandle<DrawTool>;
 
     // ======================
     // 画布初始化
@@ -131,7 +134,7 @@ export class OLEDCanvas {
         this.refillBtn = panel.refillButton;
         this.exportBtn = panel.exportButton;
         this.importBtn = panel.importButton;
-        this.toolRadios = panel.toolRadios;
+        this.toolSelect = panel.toolSelect;
 
         const ctx = this.canvas.getContext('2d');
         if (!ctx) throw new Error(OLED_CONTEXT_UNAVAILABLE);
@@ -181,10 +184,8 @@ export class OLEDCanvas {
             alert((result.success ? '✅' : '❌') + result.message);
         });
 
-        // --- 工具 radio(面板交回的三项,顺序即 free / line / rectangle) ---
-        this.toolRadios.forEach(radio => {
-            radio.addEventListener('change', () => this.setTool(radio.value as DrawTool));
-        });
+        // --- 绘图工具(库的分段选择器:用户选中哪一项由 onChange 报回来) ---
+        this.toolSelect.onChange((tool) => this.setTool(tool));
 
         // ======================
         // 鼠标事件监听
@@ -226,13 +227,12 @@ export class OLEDCanvas {
     }
 
     /**
-     * 把当前画笔模式的文案与底色刷到颜色按钮上.
-     * 按钮文字颜色不在这里设(由 index.css 的 `#change-color` 定),构造与切换共用这一处.
+     * 把当前画笔模式的读数刷到颜色按钮上.
+     * 只改文案(亮起 1 / 未亮 0):按钮的底色与文字颜色全归 UI 库(`miko_ui`)
+     * 的按钮基线,本站不给它写任何背景色.构造与切换共用这一处.
      */
     private applyColorMode(): void {
-        const mode = OLED_COLOR_MODES[this.pixelColorMode];
-        this.colorBtn.textContent = mode.buttonText;
-        this.colorBtn.style.backgroundColor = mode.buttonBackgroundColor;
+        this.colorBtn.textContent = OLED_COLOR_MODES[this.pixelColorMode].buttonText;
     }
 
     /** 画笔颜色切换 */

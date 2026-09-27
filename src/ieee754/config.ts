@@ -281,12 +281,6 @@ export const IEEE754_INPUT_GROUP_CLASS = 'input-group input-group-sm';
 /** 十进制输入框类名(bootstrap) */
 export const IEEE754_INPUT_CLASS = 'form-control';
 
-/** 转换按钮类名(bootstrap) */
-export const IEEE754_BUTTON_CLASS = 'btn btn-primary';
-
-/** 转换按钮的 type:普通按钮,不提交表单(原标记就是 type="button") */
-export const IEEE754_BUTTON_TYPE = 'button';
-
 /** 精度下拉框的 label 文案 */
 export const IEEE754_FORMAT_LABEL = '精度';
 

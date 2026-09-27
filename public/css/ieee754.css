@@ -15,7 +15,8 @@
     margin: var(--ieee-section-margin);
     padding: var(--ieee-section-padding);
     border: var(--ieee-border-width) solid var(--ieee-border-color);
-    border-radius: var(--ieee-radius);
+    /* 圆角归 miko_ui 主题(库默认 0px),本站不另存尺寸 */
+    border-radius: var(--radius-md);
     background: var(--ieee-section-bg);
 }
 

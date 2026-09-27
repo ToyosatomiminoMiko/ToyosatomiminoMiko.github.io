@@ -328,12 +328,12 @@ export interface StylePresetSpec {
 
 /**
  * 三颗风格按钮,顺序即界面顺序.
- * 其中 `{ index: 1, label: '赛博朋克' }` 是默认风格(见 DEFAULT_STYLE_INDEX).
+ * 其中 `index: 1` 是默认风格(见 DEFAULT_STYLE_INDEX).
  */
 export const STYLE_PRESETS = [
     { index: 0, label: '东京电车' },
     { index: 1, label: '赛博朋克' },
-    { index: 2, label: '上海磁悬浮' },
+    { index: 2, label: '上海磁浮' },
 ] as const satisfies readonly StylePresetSpec[];
 
 /** 播放控制按钮的用途,行为代码按它绑定事件 */

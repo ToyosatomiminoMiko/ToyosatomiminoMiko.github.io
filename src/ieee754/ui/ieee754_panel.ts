@@ -35,16 +35,17 @@ IEEE 754 面板的**标记组件**(声明式).
 本模块是纯函数:不读页面,不改全局,不绑事件(`addEventListener` / 初始渲染都是
 ieee754.ts 的事),只把"描述"变成元素并交回引用 -- 与 ui/settings.ts 的分工一致.
 标记的形状与类名逐个照搬重构前的 index.html,`public/css/ieee754.css` 按这些
-id / class 命中,不得合并或省略.
+id / class 命中,不得合并或省略.**例外是转换按钮**:它改由 `miko_ui` 的
+`createButton` 生成(基线类 `.ui-button`,外观归库),站点不再给按钮写外观.
 */
+
+import { createButton } from 'miko_ui';
 
 import { h, type DomChild } from '@/common/dom';
 import {
     IEEE754_BITS_CLASS,
     IEEE754_BITSTRING_CLASS,
     IEEE754_BREAKDOWN_CLASS,
-    IEEE754_BUTTON_CLASS,
-    IEEE754_BUTTON_TYPE,
     IEEE754_CARD_BODY_CLASS,
     IEEE754_CARD_CLASS,
     IEEE754_CARD_HEADER_CLASS,
@@ -151,11 +152,10 @@ export function createIeee754Panel(): Ieee754Panel {
             spellcheck: IEEE754_INPUT_SPELLCHECK,
         },
     });
-    const convertButton = h('button', {
-        class: IEEE754_BUTTON_CLASS,
-        text: IEEE754_CONVERT_LABEL,
-        attrs: { type: IEEE754_BUTTON_TYPE, id: IEEE754_DOM.convertId },
-    });
+    // 转换按钮整颗由 UI 库(`miko_ui` 的 `createButton`)生成:基线类 `.ui-button`
+    // 与 type="button" 都在库里,本站只补一个 id(CSS 与测试的定位契约).
+    const convertButton = createButton({ text: IEEE754_CONVERT_LABEL }).element;
+    convertButton.id = IEEE754_DOM.convertId;
 
     const error = h('div', {
         class: IEEE754_ERROR_CLASS,

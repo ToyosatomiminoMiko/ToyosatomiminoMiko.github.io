@@ -42,6 +42,33 @@ body {
 }
 
 /* ================================================================
+ * bootstrap 卡片的底色:换成 miko_ui 的暗色面板令牌
+ *
+ * OLED(oled-card)与 IEEE754 用 bootstrap 的 `.card`,它默认从
+ * `--bs-card-bg: var(--bs-body-bg)` 取白底;库的按钮是暗色主题(1px 描边
+ * `--color-border-strong` + 次要文字色),落在白底上等于看不见.站点是深色
+ * 画面,卡片本来就该是暗的,所以这里把卡片这几个 bootstrap 变量接回库的
+ * 令牌(背景 / 描边 / 圆角 / 标题栏),不再吃 bootstrap 的浅色默认值.
+ *
+ * 为什么要 `body` 前缀:bootstrap 在 `main.ts` 里 import,产物里的样式表排在
+ * `public/css/*.css`(index.html 的 <link>)**之后**,同为 `.card` 时后者会输;
+ * 带一层 `body` 把特异性提到 (0,1,1),本站的口径才落得下去(同样的做法见
+ * metro_window.css 顶部的说明).这几个变量是 bootstrap 自己的出口,
+ * 覆盖它们比逐条重写 `.card` / `.card-header` 的声明更不容易漏.
+ * ================================================================ */
+body .card {
+    /* 卡片底与文字:库的窗口底 / 正文色 */
+    --bs-card-bg: var(--color-bg-panel);
+    --bs-card-border-color: var(--color-border-panel);
+    /* 圆角归库主题(默认 0px),不再吃 bootstrap 的 0.375rem */
+    --bs-card-border-radius: var(--radius-md);
+    /* 标题栏底与文字 */
+    --bs-card-cap-bg: var(--color-bg-header);
+    --bs-card-cap-color: var(--color-text);
+    color: var(--color-text);
+}
+
+/* ================================================================
  * 首屏(hero)
  *
  * 只属于 HOME 标签页:视口在页面顶部时,地铁车窗的画布铺满整个屏幕.
@@ -269,19 +296,25 @@ canvas#pixelCanvas {
     border: var(--ieee-border-width) solid var(--oled-border);
 }
 
-/* 工具区布局 */
+/* 工具区布局:一排可换行的控件(按钮 + 库的分段选择器) */
 .tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--oled-button-margin);
     margin-top: var(--oled-tools-margin-top);
-    color: var(--color-white);
+    /* 文字色归库:与卡片正文同一色(原先写死白色,是给浅色底准备的) */
+    color: var(--color-text);
 }
 
 /*
  * 面板里的按钮统一留出外边距.
- * 令牌 --oled-button-margin 是**默认值**,工具区与数据区的按钮一视同仁;
- * 某颗按钮要有自己的间距时,在它自己的规则(如 #change-color)里另声明即可
- * -- 届时那条规则的选择器更具体,会盖过这一条.
+ * 按钮本身的观感(描边 / 底色 / 文字 / 悬停 / 焦点 / 禁用)全部归 UI 库
+ * (`miko_ui` 的 `.ui-button` 基线,见 main.ts 引的 widgets.css)与库的
+ * `.segmented`;**分段选择器里面的按钮不算**:它们是库的组内成员,间距由
+ * 库的 `.segmented` gap 管,这里只给"独立按钮"补外边距(数据区那两颗).
  */
-.oled-card button {
+.oled-card .area-data button {
     margin: var(--oled-button-margin);
 }
 
@@ -289,6 +322,7 @@ canvas#pixelCanvas {
 .coords-display {
     background: var(--oled-coords-bg);
     padding: var(--oled-coords-padding);
+    /* 小控件圆角:用 miko_ui 主题的小圆角(库默认 0px),本站不另存尺寸 */
     border-radius: var(--radius-sm);
     font-family: var(--font-mono);
     margin-top: var(--oled-coords-margin-top);
@@ -323,11 +357,6 @@ canvas#pixelCanvas {
     margin-bottom: var(--oled-area-margin);
 }
 
-#change-color {
-    color: var(--color-white);
-    background-color: var(--color-black);
-}
-
 .bgul {
     list-style: none;
     /*
@@ -352,6 +381,9 @@ canvas#pixelCanvas {
 .bgimg {
     width: var(--setting-thumb-width);
     height: var(--setting-thumb-height);
+    /* 圆角归 miko_ui 主题(库默认 0px):不再用 bootstrap 的 `.rounded`
+       工具类,那会把圆角绑死在 --bs-border-radius* 上 */
+    border-radius: var(--radius-sm);
     cursor: pointer;
 }
 
