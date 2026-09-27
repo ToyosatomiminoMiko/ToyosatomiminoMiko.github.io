@@ -14,7 +14,7 @@
 // --- 导入样式 ---
 import 'bootstrap/dist/css/bootstrap.min.css';
 /*
-UI 库的控件样式(站点的滑块现在由 `@miko/ui` 的 `createSlider` 生成).
+UI 库的控件样式(站点的滑块现在由 `miko_ui` 的 `createSlider` 生成).
 
 为什么不引库的 `tokens.css`:那一层是库自带的**默认主题**,一引就会把库里那套
 `--color-text` / `--color-accent` / `--radius-sm` 等写进本站的 `:root` -- 本站
@@ -24,7 +24,7 @@ UI 库的控件样式(站点的滑块现在由 `@miko/ui` 的 `createSlider` 生
 由 `metro_window.css` 在车窗作用域内接回 `--metro-color-*`(单一来源仍是本站
 自己的令牌).哪天整站都换成库的控件,再把 tokens.css 一起引进来也不迟.
 */
-import '@miko/ui/styles/widgets.css';
+import 'miko_ui/styles/widgets.css';
 
 // --- 导入 JS 依赖 ---
 import 'bootstrap/dist/js/bootstrap.bundle.min.js';

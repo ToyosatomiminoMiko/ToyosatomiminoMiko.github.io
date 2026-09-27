@@ -170,9 +170,9 @@ const report = await cdp.eval(`(() => {
         */
         ok('车窗舞台宿主拿到了组件的修饰类', q('#metro-window')?.classList.contains('metro-window--stage') === true);
         ok('风格按钮长进了首屏宿主(3 颗 data-style)', qa('#metro-styles > .style-row button[data-style]').length === 3);
-        // 滑块的两个成员 input(range / number)在库补上类名之前**没有**类名
-        // (见 metro_window.css 里那段说明),所以按标签选;行数即滑块条数.
-        const sliderRanges = qa('#metro-params .slider-field input[type=range]');
+        // 库的 createSlider 给成员控件挂了定位类名(.slider-field-range),按它选;
+        // 行数即滑块条数.
+        const sliderRanges = qa('#metro-params .slider-field-range');
         ok('控制台长进了 SETTING 宿主(fieldset + 7 条滑块)',
             q('#metro-params > fieldset.sliders') !== null && sliderRanges.length === 7,
             sliderRanges.length + ' 条');

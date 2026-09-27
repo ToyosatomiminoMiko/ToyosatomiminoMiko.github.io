@@ -19,7 +19,7 @@ members = [
 
 # 编译配置必须写在 workspace 根:成员 crate 里的 [profile.*] 会被 cargo 忽略,
 # 只认根 manifest 这一份.这里的瘦身参数原本写在 crate 的 Cargo.toml 里,
-# 是给 wasm 产物用的(见 scripts/build_wasm.sh);它对 workspace 内所有 crate 生效.
+# 是给 wasm 产物用的(见 scripts/build_wasm.py);它对 workspace 内所有 crate 生效.
 [profile.release]
 opt-level = "s"
 lto = true

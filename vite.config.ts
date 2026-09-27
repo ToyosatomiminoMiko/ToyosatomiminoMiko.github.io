@@ -87,21 +87,20 @@ export default defineConfig({
     resolve: {
         alias: [{ find: /^@\//, replacement: `${SRC_ALIAS}/` }],
         /**
-         * `@miko/ui` 是 `file:` 链接进来的**构建产物**(`.cache/miko_ui/current`,
-         * 由 `scripts/fetch_ui.sh` 从库的滚动 release `ui-latest` 下载资产解开;
-         * **没有"clone 源码本地构建"这条回退**).它声明了运行时依赖
-         * `@preact/signals-core`,以及可选 peer `katex`,但 npm 对 `file:` 链接的包
-         * **不装传递依赖**(实测),所以根 `package.json` 自己也声明了这两个,实例
-         * 只有一份.
+         * `miko_ui` 从 npm 装(`"miko_ui": "^0.1.6"`,与 miko_graphcalc 同一口径),
+         * 它自己的运行时依赖只有 `@preact/signals-core`,可选 peer 是 `katex`.
+         * 根 `package.json` 也**显式**声明了这两个:本站自己要直接用它们,而且声明在
+         * 那里才能保证解析到根目录的那一份实例.
          *
          * 这条 dedupe 因此是**保险**而不是必需:万一将来某条路径(嵌套的
          * `node_modules`,另一个包也依赖它)又引入第二份,`signal` 与 `effect` 就会
-         * 跨在两条注册表上,表现是"值变了界面不动"(库的 `Slider` 正是靠 signal 让
+         * 跨在两条注册表上,表现是"值变了界面不动"(库的 Slider 正是靠 signal 让
          * 滑杆与数值框互相同步的).`katex` 同理:库的 `dist/formula/FormulaView.js`
          * 与本站的 `src/ieee754/ieee754.ts` 都要 `import katex`,必须是同一个实例.
          *
-         * 为什么库是产物而不是源码,样式为什么走 `@miko/ui/styles/*` 子路径,
-         * 见 `scripts/fetch_ui.sh` 顶部的依赖契约.
+         * 改库的时候**不要**改这里:本地联调走 `scripts/dev_ui_link.sh`,它只把
+         * node_modules/miko_ui 换成指向工作副本的符号链接(package.json /
+         * package-lock.json 一个字节都不动),见那个脚本顶部.
          */
         dedupe: ['katex', '@preact/signals-core'],
     },
@@ -138,10 +137,21 @@ export default defineConfig({
     // 排除 target/ 是必须的而不是洁癖:cargo 的 workspace 缓存就在仓库根
     // (构建后体积以 GB 计,文件数十万),让 vitest 去 glob 一遍会白白卡住整条流水线.
     // 地铁车窗的前端单测在新位置 src/metro_window/src 下,要照常收集.
-    // include 只认 `src/**`,所以 `.cache/miko_ui/` 里的产物(库自己的测试不在
-    // 产物里,但产物目录也不该被 glob 碰到)天然收不进来.
+    // include 只认 `src/**`,所以 node_modules 里库自己的测试(库的产物里本来也
+    // 没有测试)天然收不进来;库的测试由库自己的仓库与 CI 负责,不在这里重复跑.
     test: {
         include: ['src/**/*.test.ts'],
         exclude: ['node_modules/**', 'dist/**', 'target/**'],
+        // 库从 npm 装进 node_modules/ 后,Vitest 默认把它当外部依赖交给 Node 原生
+        // ESM 解析 -- 而库产物里的相对导入不带扩展名(如 dist/index.js 里的
+        // `./reactive`),Node 会报 ERR_UNSUPPORTED_DIR_IMPORT.把它 inline 进来走
+        // Vite 的解析器 / 转换链,顺带处理 `dist/formula/FormulaView.js` 里的
+        // `katex/dist/katex.min.css`.
+        // 本地联调时 node_modules/miko_ui 是指向工作副本的符号链接,这一条同样适用.
+        server: {
+            deps: {
+                inline: ['miko_ui'],
+            },
+        },
     },
 });

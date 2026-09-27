@@ -162,9 +162,9 @@
 
 /* 一排滑块:换行 + 间距.
    单个滑块(名称 / 滑杆 / 数值框 / 重置按钮)的**结构,布局与配色都归 UI 库**
-   (`@miko/ui` 的 `.slider-field`,见 styles/widgets.css),本站不再维护
+   (`miko_ui` 的 `.slider-field`,见 styles/widgets.css),本站不再维护
    `.slider / .slider-meta / .slider-label / .slider-range / .slider-value`
-   那一套,只保留这一层"怎么排列若干滑块"的规则与下面两条按本站主题改的口径. */
+   那一套,只保留这一层"怎么排列若干滑块"的规则与下面几条按本站主题改的口径. */
 .metro-window .slider-grid {
     display: flex;
     flex-wrap: wrap;
@@ -173,13 +173,14 @@
 }
 
 /* 宽度:单个滑块在一排里的伸缩口径.
-   库的 `.slider-field` 只负责"内部怎么排",宽度取它自己的 --slider-field-width;
-   这里补 `flex: 0 1 <同一口径>` -- 只收缩不伸张,所以一排里的滑块不会因为分摊
-   剩余空间而宽窄不一,只有窄到放不下时才允许收缩.声明里单独写了 `width` 的滑块
-   由组件把 --slider-field-width 设在它自己的根节点上,后者覆盖这里的继承值,
-   于是"声明级覆盖"照常生效. */
+   库的 `.slider-field` 只负责"内部怎么排"(它给的尺寸出口是数值框的
+   --slider-field-value-width),**"一块滑块占多宽"是本站的口径**,就在这里用
+   --metro-slider-field-width 定义.补 `flex: 0 1 <同一口径>` -- 只收缩不伸张,
+   所以一排里的滑块不会因为分摊剩余空间而宽窄不一,只有窄到放不下时才允许收缩.
+   声明里单独写了 `width` 的滑块由组件把 --metro-slider-field-width 设在它自己的
+   根节点上,后者覆盖这里的继承值,于是"声明级覆盖"照常生效. */
 .metro-window .slider-field {
-    flex: 0 1 var(--slider-field-width, 320px);
+    flex: 0 1 var(--metro-slider-field-width, 320px);
     max-width: 100%;
 }
 
@@ -201,34 +202,24 @@
 }
 
 /*
-滑杆与数值框这两个成员控件没有类名,所以这里按**标签 + 结构**选.
+滑杆与数值框:库给这两个成员控件挂上了定位类名,库的样式表也为它们写了默认规则
+(`.slider-field-range` / `.slider-field-value`,见库 `widgets/Slider.ts`),所以这里
+直接按类名选 -- 不比按"标签 + 结构"猜,库的标记怎么变都跟得上.
 
-原因在库那边:库的样式表(`@miko/ui/styles/widgets.css`)为它们写了两条规则
-(`.slider-field-range` / `.slider-field-value`),但 `createSlider` 建这两个子控件时
-并没有挂上那两个类名(`RangeInput` / `NumberField` 按设计只产出裸控件,类名归容器
-决定),于是库那两条规则一条也命中不了 -- 表现是这两条控件拿不到库给的边框 /
-内边距 / 焦点态(宽度与配色由下面这几条补上).外层 `.slider-field` 不受影响:
-它自己那几条规则的选择器会命中(库的 `.slider-field` 是 (0,1,0),压得过通配重置).
+选择器带 `.metro-window` 前缀的理由是**特异性**:下面这几条是本站的口径(配色 /
+宽度 / 焦点态),要压过库的默认值,而库那两条只有 (0,1,0);带上前缀是 (0,2,0),
+本站的口径才落得下去.外层 `.slider-field` 同理(见上面那条).
 
-库是**只读**的(消费者这边只有它的构建产物,没有源码,见 `scripts/fetch_ui.sh`),
-所以缺的这点口径由**消费方**在这里按结构补齐,不往库里塞补丁,也不给库的节点改名.等库自己把
-类名挂上(`.slider-field-range` / `.slider-field-value`),这两段可以直接删掉,
-改回用类名选即可.要现在就治本,就去库的工作副本(独立仓库
-`/mnt/IVSTINIANVS/__projects_web/miko_ui`)给那两个子控件挂上类名,重出一次资产.
-
-选择器带 `.metro-window` 前缀的第二个理由是**特异性**:下面这几条是本站的口径
-(配色 / 宽度),要压过库的默认值,而 `public/css/index.css` 里那条
-`* { margin:0; padding:0; border:0; font-size:100%; background:none }` 会把**每个**
-元素的边框与内边距清零 -- 将来库那两条子控件规则命中之后,它们只有 (0,1,0),
-仍然压不过这条通配重置;带上前缀是 (0,2,0),本站的口径才落得下去. */
-.metro-window .slider-field > input[type='range'] {
+库是上游(`https://github.com/ToyosatomiminoMiko/miko_ui`),本站只从 npm 装它的
+发布版:要改库的标记或样式就改库,不在下游这里给它的节点改名 / 补类名. */
+.metro-window .slider-field-range {
     width: 100%;
     min-width: 0;
     accent-color: var(--metro-color-accent);
     cursor: pointer;
 }
 
-.metro-window .slider-field-meta > input[type='number'] {
+.metro-window .slider-field-value {
     flex: none;
     width: var(--slider-field-value-width, 76px);
     background: var(--metro-color-input-bg);
@@ -240,7 +231,7 @@
     text-align: right;
 }
 
-.metro-window .slider-field-meta > input[type='number']:focus {
+.metro-window .slider-field-value:focus {
     border-color: var(--metro-color-accent);
     outline: none;
 }

@@ -1,68 +1,19 @@
 #!/usr/bin/env bash
-# Production build entrypoint.
-# 这里只负责"安装锁定依赖"和"调用统一流水线",真正的构建/检查步骤序列
-# 定义在 package.json 的 build:all 脚本(单一事实源,避免两处重复).
+# 生产构建入口的壳. 真正的逻辑在 scripts/build.py(见那里的模块说明):
+# 安装锁定依赖 -> 决定这次用哪份 miko_ui -> 调用 package.json 的 build:all.
 #
-# 为什么要保留这个壳而非直接内联到 CI:
-#   - 提供可复现的本地入口(bash ./build.sh 与 CI 完全一致);
-#   - 覆盖 npm run 无法提供的缺工具快速失败(require_command)
-#     与失败时的行号上下文(trap ... ERR),以及分阶段日志前缀.
-
+# 为什么保留这个壳: `bash ./build.sh ...` 这个入口被 README 与
+# .github/workflows/deploy.yml 依赖, 不能改; 参数与环境变量语义与旧版逐字兼容
+# (--ui local|npm, --ui-local, -h/--help, MIKO_UI_SOURCE / MIKO_UI_DIR /
+# MIKO_UI_SYNC / MIKO_UI_LATEST_VERSION / MIKO_UI_REQUIRE_LATEST).
 set -Eeuo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$PROJECT_ROOT"
 
-log() {
-    printf '[BUILD][%s] %s\n' "$(date '+%Y.%m.%d.%H:%M:%S')" "$*"
-}
+# python3 是构建的硬依赖: 先把"缺工具快速失败"这一条提供出来, 否则连壳都进不去.
+if ! command -v python3 >/dev/null 2>&1; then
+    printf '[BUILD][ERROR][%s] missing required command: python3\n' "$(date '+%Y.%m.%d.%H:%M:%S')" >&2
+    exit 127
+fi
 
-err() {
-    printf '[BUILD][ERROR][%s] %s\n' "$(date '+%Y.%m.%d.%H:%M:%S')" "$*" >&2
-}
-
-require_command() {
-    local name="$1"
-    if ! command -v "$name" >/dev/null 2>&1; then
-        err "missing required command: ${name}"
-        exit 127
-    fi
-}
-
-trap 'err "build failed at line ${LINENO}"' ERR
-
-require_command node
-require_command npm
-# 地铁车窗(metro_window)是 Rust -> wasm 的,前端入口静态 import 它的产物,
-# 所以 cargo/rustc 已经是本仓库的构建期硬依赖.缺工具时在这里就说清楚,
-# 而不是等 npm run build:all 跑到一半才报.
-require_command cargo
-require_command rustc
-
-log "installing pinned dependencies from package-lock.json"
-# 顺序说明:根 package.json 的 preinstall 会先跑 scripts/fetch_ui.sh -- 从库
-# 仓库(GitHub 上的 `miko_ui`)的滚动 release(`ui-latest` 上的
-# miko_ui_dist.tar.gz)取**产物**,校验后解开到 .cache/miko_ui/current,然后把
-# `"@miko/ui": "file:.cache/miko_ui/current"` 这条链接装上.npm 解析 file: 依赖时
-# 那个目录必须已经存在,所以"取产物"只能挂在 preinstall;CI 也不需要 checkout
-# submodule,不需要任何 npm 凭据 -- 公开 release 资产,能访问 GitHub
-# (actions/checkout 本来就要)就够了.
-#
-# 这次 npm ci 还会核对"缓存是不是最新":资产清单里的 gitHead(库打包时写入的构建
-# commit)与 ui-latest tag 指向的 commit 不一致就自动重取;查不到这个结论(断网 /
-# 资产不自证版本)时本地只警告,CI 里明确失败 -- 所以"库刚推,资产还没带上 gitHead"
-# 时,CI 可能就红在这一步,那不是配置错误(见 fetch_ui.sh 顶部 §7).
-#
-# 再往下 build:all 的顺序是 lint:rs -> clean -> build:wasm -> test -> test:rs ->
-# build:app;其中 clean 只删根 dist/ 与 src/metro_window/wasm/,不碰 .cache/miko_ui,
-# 所以"产物在第一步就绪,后面全程可用".取产物 / 链接 / 模块去重的全部规则见
-# scripts/fetch_ui.sh 顶部与 vite.config.ts 的 resolve.dedupe.
-npm ci --no-audit --no-fund
-
-# 流水线 = lint:rs -> clean -> build:wasm -> test(vitest) -> test:rs -> build:app
-# (build:app 内含 check:wasm + typecheck + vite build)
-log "running full build pipeline (lint -> clean -> wasm -> test -> app)"
-npm run build:all
-
-log "build succeeded"
-log "output directory: ${PROJECT_ROOT}/dist"
+exec python3 "${PROJECT_ROOT}/scripts/build.py" "$@"

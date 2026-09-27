@@ -44,7 +44,7 @@ jobs:
       # 那一整棵依赖树要重编,所以两者的缓存都交给 rust-cache:
       #   workspaces        -> target(cargo workspace 根就是仓库根,见根 Cargo.toml,
       #                        所有 Rust crate 共用这一个 target/)
-      #   cache-directories -> src/metro_window/.cargo-tools(build_wasm.sh 把
+      #   cache-directories -> src/metro_window/.cargo-tools(build_wasm.py 把
       #                        wasm-bindgen CLI 装在这里,版本对齐 Cargo.lock)
       # cache-bin 关掉:命令行的 rustup/工具链代理由上面的 action 负责,
       # 再叠一层 ~/.cargo/bin 缓存只会把刚装好的代理换成旧的.
@@ -58,25 +58,17 @@ jobs:
       # 生产构建唯一入口:安装锁定依赖 -> Rust lint -> wasm -> 测试 ->
       # TypeScript 检查 -> Vite 构建,分阶段日志由脚本输出.
       #
-      # miko_ui 的产物在这一步开头就被取回来:`npm ci` 的 `preinstall` 会跑
-      # `scripts/fetch_ui.sh`,从库仓库(GitHub 上的 `miko_ui`)的滚动 release
-      # (`ui-latest` 上的 `miko_ui_dist.tar.gz`)下载公开资产,校验后解开到
-      # `.cache/miko_ui/current`,再由 `"@miko/ui": "file:.cache/miko_ui/current"`
-      # 链接进来.所以这里不需要 checkout submodule,也不需要任何 npm 凭据 --
-      # 只要能访问 GitHub(actions/checkout 本来就要)就够了.
-      # 同一步还会核对"手里这份是不是最新发布的":资产清单里的 `gitHead`(库打包时
-      # 写入的构建 commit)与 `ui-latest` tag 指向的 commit 不一致就自动重取;查不到
-      # 这个结论(资产不自证版本 / 断网)时这里**明确失败** -- 部署出去的不能是
-      # "说不清哪一版"的缓存(本地开发只警告).见 `scripts/fetch_ui.sh` 顶部 §7.
-      # 顺序提醒:库那边的 Release workflow 得先绿,资产挂上了,这里的 CI 才有得取;
-      # 在那之前本 job 会**明确失败**,这是刻意设计,不是配置错误.
+      # 前端 UI 库 `miko_ui` 是 npm 上发布的包(package.json 里一条
+      # `"miko_ui": "^0.1.6"`),`npm ci` 从 registry 直接装好:不需要 checkout
+      # submodule,也不需要 npm 之外的任何凭据.
+      #
+      # `--ui npm` 必须显式带上:不带参数时本机默认用本地工作副本,而 CI 上既没有
+      # 那份副本(显式要 local 会被 build.py 直接拒绝),部署出去的也必须是 npm 上能
+      # 说清哪一版的产物.带上它之后,build.py 还会把 miko_ui 对齐到 npm 的
+      # `latest`(MIKO_UI_SYNC=auto),所以**每次 Pages 部署拿到的都是库的最新发布
+      # 版**;CI=true 让"查不到 latest"直接失败,不会静默部署旧版本.
       - name: Install, test and build
-        # GITHUB_TOKEN 是给 preinstall 用的:查 `ui-latest` 的 tag,以及 github.com
-        # 连不上时绕行 API 资产端点.公开仓库匿名也能查,但限额是 60 次/小时/出口 IP,
-        # 而 runner 是共享出口;带上 token(contents: read 就够)才稳.
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: bash ./build.sh
+        run: bash ./build.sh --ui npm
 
       - name: Setup Pages
         uses: actions/configure-pages@v6

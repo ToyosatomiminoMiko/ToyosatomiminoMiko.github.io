@@ -218,8 +218,8 @@ src/metro_window/
 所以搬走后这里不会有任何悬空引用.
 ```
 
-Rust -> wasm 的构建脚本放在**仓库的 tools 目录** `scripts/build_wasm.sh`(和
-`scripts/check_wasm.mjs`, `scripts/perf/451.mjs` 一起),因为它要做 npm 脚本做不到
+Rust -> wasm 的构建脚本放在**仓库的 tools 目录** `scripts/build_wasm.py`(和
+`scripts/check_wasm.py`, `scripts/perf/451.mjs` 一起),因为它要做 npm 脚本做不到
 的事:探测/补装 wasm32 target,并按 `Cargo.lock` 对齐 wasm-bindgen CLI 版本.
 
 > 这里没有 `index.html` / `page.ts` / `metro_index.css` / `public/`:并入站点后
@@ -249,7 +249,7 @@ Rust -> wasm 的构建脚本放在**仓库的 tools 目录** `scripts/build_wasm
 ```bash
 ./build.sh          # 完整构建:检查工具链 -> npm ci -> 跑完整流水线
 npm run build:all   # 跳过依赖安装,只跑流水线(CI 与本地完全一致的步骤序列)
-npm run build:wasm  # 只重新编译 Rust->wasm(等价于 bash scripts/build_wasm.sh)
+npm run build:wasm  # 只重新编译 Rust->wasm(等价于 python3 scripts/build_wasm.py)
 ```
 
 流水线步骤定义在仓库根 `package.json` 的 `build:all`(单一事实源),顺序如下:
@@ -280,7 +280,7 @@ npm run preview    # 预览 dist/ 里的构建产物
 ```
 
 缺 wasm 产物时 `npm run dev` 会先报错提示先跑 `npm run build:wasm`
-(`scripts/check_wasm.mjs`),而不是让 Vite 抛一句 "Failed to resolve import".
+(`scripts/check_wasm.py`),而不是让 Vite 抛一句 "Failed to resolve import".
 
 > 开发时改动 `src/metro_window/src/` 下的 TypeScript/CSS 会自动热更新;改动
 > Rust/WGSL 需要重新运行 `npm run build:wasm`(会重新生成 `wasm/`,Vite 会自动
@@ -489,7 +489,7 @@ PREVIEW_PARAM=dirt_opacity=0,interior_opacity=0 cargo run --package metro-window
 
 | 改动 | 为什么 |
 | --- | --- |
-| 删掉 `package.json` / `package-lock.json` / `vite.config.ts` / `tsconfig.json` / `build.sh` / `.gitignore` | 独立仓库的边界文件,由站点仓库统一接管;`scripts/build_wasm.sh` 保留了 npm 脚本做不到的那部分,`build:all` 步骤序列仍是单一事实源 |
+| 删掉 `package.json` / `package-lock.json` / `vite.config.ts` / `tsconfig.json` / `build.sh` / `.gitignore` | 独立仓库的边界文件,由站点仓库统一接管;`scripts/build_wasm.py` 保留了 npm 脚本做不到的那部分,`build:all` 步骤序列仍是单一事实源 |
 | 整个子项目从仓库根 `metro_window/` 挪进 `src/metro_window/`(Rust -> `rust/`,前端 -> `web/`,后者后来取消,见下) | 站点约定"代码在 `src/`":并入后不再留一个与 `src/` 平级的源码树;按语言/角色分成 `rust/` 与 `web/` 两个子目录,构建脚本归到仓库 tools 目录 `scripts/` |
 | 前端入口 `main.ts` -> `metro_window.ts`(行为)+ `metro_window.css`(样式) | 把行为做成"有标记就能挂"的模块,不再养一个页面级入口 |
 | 后来撤掉 `/metro_window/` 独立入口页(`index.html` / `page.ts` / `metro_index.css`),并入站点首页 | 车窗只在首页挂一次;页面级标记(画布)改由 `src/ui/stage_content.ts` 生成,宿主只留空容器 `#metro-window` |

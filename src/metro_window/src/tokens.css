@@ -72,10 +72,11 @@
         (站点首页 HOME 卡片与独立页共用;窄屏时由 width:100% 收缩) */
     --metro-size-canvas-max-width: 1600px;
 
-    /* 滑块自身的尺寸(宽度 / 数值框列宽)不在这里:那两档口径随 UI 库的
-       `.slider-field` 走(styles/widgets.css 的 --slider-field-width 与
-       --slider-field-value-width).本站只在 metro_window.css 里把配色接回
-       --metro-color-*,不再另存一份尺寸. */
+    /* 滑块自身的尺寸(宽度 / 数值框列宽)不在这里:数值框列宽随 UI 库的
+       `.slider-field-value` 走(styles/widgets.css 的 --slider-field-value-width,
+       兜底 76px);"一块滑块在一排里占多宽"是本站的口径,写在 metro_window.css 的
+       --metro-slider-field-width 上.本站这边只把配色接回 --metro-color-*,
+       不再另存一份尺寸. */
 
     /* ---------- 间距(按像素值命名,同一像素值只定义一次) ---------- */
 

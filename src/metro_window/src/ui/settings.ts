@@ -9,12 +9,12 @@ TRANSPORT_BUTTONS 等模型,本模块只负责"把模型变成元素"并交回�
     元素(风格按钮 / 播放控制 / 每个滑块的滑杆与数值框 / 状态 span)一起返回,
     因此 metro_window.ts 不再需要按 id 去 DOM 里"找"这些元素;
   - **滑块本身不再由本模块拼**:名称 + 滑杆 + 数值框 + 重置按钮是 UI 库的
-    `createSlider`(`@miko/ui`),本模块只把 config.ts 的声明翻译成它的选项,
+    `createSlider`(`miko_ui`),本模块只把 config.ts 的声明翻译成它的选项,
     再把句柄摊平进返回值.结构与样式(类名 `.slider-field*`)都归库,本站不再
-    维护第二份;库的取用链路见 `scripts/fetch_ui.sh` 顶部.
+    维护第二份;库从 npm 装,本地联调与取用链路见 `scripts/dev_ui_link.py` 顶部.
 */
 
-import { createSlider, type SliderHandle } from '@miko/ui';
+import { createSlider, type SliderHandle } from 'miko_ui';
 
 import {
     DEFAULT_STYLE_INDEX,
@@ -113,9 +113,11 @@ function createSliderControl(spec: SliderSpec): SliderControl {
         normalize: clampNumber,
     });
 
-    // 宽度:声明里写了 width 才覆盖,留空时用库的默认值(styles/widgets.css 里
-    // `.slider-field` 的 --slider-field-width 口径).这里只设一个 CSS 自定义属性,
-    // 布局规则仍留在库的样式表里;默认所有声明都不写 width,宽度自然统一.
+    // 宽度:声明里写了 width 才覆盖,留空时用本站控制台的口径(metro_window.css
+    // 里 `.metro-window .slider-field` 的 `--metro-slider-field-width`,本站自己的
+    // 变量,不是库的令牌 -- 库只给数值框留了 `--slider-field-value-width`).这里只设
+    // 一个 CSS 自定义属性,布局规则仍留在样式表里;默认所有声明都不写 width,
+    // 宽度自然统一.
     if (spec.width !== undefined) {
         slider.element.style.setProperty(SLIDER_WIDTH_PROPERTY, spec.width);
     }
