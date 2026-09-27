@@ -148,12 +148,11 @@
     --oled-coords-margin-top: 10px;
     /* 鼠标像素指示器的背景(红色半透明) */
     --oled-indicator-bg: rgba(255, 0, 0, 0.6);
-    /* 数据文本框背景 */
-    --oled-textarea-bg: #555555;
-    /* 数据文本框最小高度 */
-    --oled-textarea-min-height: 150px;
-    /* 数据文本框内边距(占位边框) */
-    --oled-textarea-border: 10px;
+    /* 数据编辑器的高度(结构与配色归 miko_ui 的 `.code-editor`):固定值,
+       导出数据再长也由内部 textarea 自己滚,不把卡片撑高;
+       原先那三条 `--oled-textarea-*` 已随 `textarea.textarea-data` 一起撤掉
+       (底色 / 边框走库的主题令牌,最小高度由本条取代) */
+    --oled-editor-height: 150px;
     /* 导入 / 导出区块的上下外边距 */
     --oled-area-margin: 10px;
 

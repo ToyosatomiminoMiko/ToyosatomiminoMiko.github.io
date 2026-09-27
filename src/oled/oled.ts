@@ -7,7 +7,7 @@
 // 不再有 `document.getElementById` / `querySelectorAll` 之类的"回头查 DOM".
 // ================================================================
 
-import type { SegmentedHandle } from 'miko_ui';
+import type { CodeEditorHandle, SegmentedHandle } from 'miko_ui';
 
 import { h } from '@/common/dom';
 import type {
@@ -74,8 +74,8 @@ export class OLEDCanvas {
     private readonly ctx: CanvasRenderingContext2D;
     private readonly indicator: HTMLElement;
     private readonly coordsDisplay: HTMLElement;
-    private readonly exportTextarea: HTMLTextAreaElement;
-    private readonly importTextarea: HTMLTextAreaElement;
+    private readonly exportEditor: CodeEditorHandle;
+    private readonly importEditor: CodeEditorHandle;
     private readonly copyBtn: HTMLButtonElement;
     private readonly byteOrderBtn: HTMLButtonElement;
     private readonly colorBtn: HTMLButtonElement;
@@ -125,8 +125,8 @@ export class OLEDCanvas {
         this.canvas = panel.canvas;
         this.indicator = panel.indicator;
         this.coordsDisplay = panel.coordsDisplay;
-        this.exportTextarea = panel.exportTextarea;
-        this.importTextarea = panel.importTextarea;
+        this.exportEditor = panel.exportEditor;
+        this.importEditor = panel.importEditor;
         this.copyBtn = panel.copyButton;
         this.byteOrderBtn = panel.byteOrderButton;
         this.colorBtn = panel.colorButton;
@@ -258,7 +258,10 @@ export class OLEDCanvas {
     /** 数据导出 */
     exportData(): string {
         const cSource = this.generateEmbeddedData();
-        this.exportTextarea.value = cSource;
+        this.exportEditor.textarea.value = cSource;
+        // 程序化写 `.value` 不派发 `input`:行号栏与高亮层要显式刷新一次
+        // (库的 `CodeEditor.refresh`,它转给两个装饰件;见 ui/oled_panel.ts).
+        this.exportEditor.refresh();
         return cSource;
     }
 
@@ -276,7 +279,7 @@ export class OLEDCanvas {
 
     /** 复制导出数据到剪贴板(带视觉反馈) */
     async copyExport(): Promise<void> {
-        const textarea = this.exportTextarea;
+        const textarea = this.exportEditor.textarea;
         try {
             // 使用现代 Clipboard API
             await navigator.clipboard.writeText(textarea.value);
@@ -293,7 +296,7 @@ export class OLEDCanvas {
 
     /** 数据导入 */
     importDataFromText(): ImportResult {
-        const input = this.importTextarea.value;
+        const input = this.importEditor.textarea.value;
         try {
             // 提取十六进制数据
             const hexValues = input.match(OLED_HEX_BYTE_PATTERN);

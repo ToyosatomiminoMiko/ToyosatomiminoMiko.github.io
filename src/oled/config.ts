@@ -174,10 +174,10 @@ export const OLED_DOM = {
     indicatorId: 'pixelIndicator',
     /** 坐标文本显示的 id */
     coordsDisplayId: 'coordsDisplay',
-    /** 导出结果 textarea 的 id */
-    exportTextareaId: 'exportOutput',
-    /** 导入数据 textarea 的 id */
-    importTextareaId: 'importData',
+    /** 导出结果编辑器(`.code-editor` 外框)的 id */
+    exportEditorId: 'exportOutput',
+    /** 导入编辑器(`.code-editor` 外框)的 id */
+    importEditorId: 'importData',
     /** 复制按钮的 id */
     copyBtnId: 'output-button',
     /** 字节序切换按钮的 id */
@@ -279,8 +279,24 @@ export const OLED_PANEL_TOOLS_CLASS = 'tools';
 /** 数据输入输出行类名(CSS 的 `.area-data` 提供上下外边距) */
 export const OLED_PANEL_ROW_CLASS = 'area-data';
 
-/** 数据 textarea 类名(CSS 的 `.textarea-data` 锁宽 / 等宽字体) */
-export const OLED_PANEL_TEXTAREA_CLASS = 'textarea-data';
+/*
+ * 本站只补 id / 槽宽 / 高亮注入 / 滚动条这四件事
+ * (见 ui/oled_panel.ts).
+ */
+
+/**
+ * 数据编辑器行号槽的宽度(px).
+ *
+ * 导出数据的形态是固定的(每行同样多的字节),行号槽没有"随行数变宽"的必要;
+ * 而库默认按"最大行号位数 × 当前字体的数字宽"自己量,量出来的宽度会在
+ * 1 位行号(刚粘贴)与 2 位行号(导出的 67 行)之间跳(实测 32px / 35px),
+ * 两个上下叠着的编辑器就对不齐.所以这里钉一个常量:既作为库的
+ * `gutterMinWidth`,也由 ui/oled_panel.ts 以内联 `!important` 压住库随后写上的
+ * 内联值.取值按"3 位数 + 槽内边距 / 边框"留量(实测 3 位需约 45px).
+ * 位数再多(例如把 1024 个字节一行一个粘进来)会被 `overflow: hidden` 裁掉,
+ * 而不是给行号栏加一条自己的滑条 -- 这是刻意的,见 index.css 的说明.
+ */
+export const OLED_PANEL_EDITOR_GUTTER_WIDTH = 48;
 
 /** 颜色重置按钮的文案 */
 export const OLED_PANEL_REFILL_BUTTON_TEXT = '颜色重置';

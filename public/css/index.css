@@ -341,15 +341,57 @@ canvas#pixelCanvas {
     display: none;
 }
 
-.textarea-data {
-    /*锁定宽度*/
+/*
+ * 数据区的两套编辑器:`miko_ui` 的 `createCodeEditor`(外框类 `.code-editor`,
+ * 见 src/oled/ui/oled_panel.ts).外框 / 行号槽 / "透明 textarea + 背后高亮层"的
+ * 严格重叠,以及等宽字体 / 配色,全部归库的 `styles/editor.css`(由 src/main.ts
+ * 引入);本站原来那条 `.textarea-data` 里只有两件事与编辑器有关,现在原样落到
+ * 库的外框上:高度,与纵向可拖动.
+ *
+ * 为什么要 `.oled-card` 前缀:库的样式表由 main.ts 引入(排在 public/css/*.css
+ * 之后),`.code-editor` 在库里已经写了 `height: 100%` / `min-height: 0`,平局时
+ * 后者胜;加一层把特异性提到 (0,2,0),本站的定高口径才落得下去(与 `body .card`
+ * 同因).
+ *
+ * 为什么是 height 而不是 min-height:`.code-editor` 的父元素是自动高度,库那条
+ * `height: 100%` 退化成 auto,盒子会被内容撑高 -- 点一次"导出数据",67 行 C 源码
+ * 把编辑器从 150px 撑到 1300px,滚动条反而不会出现.定高之后超出的部分由库的
+ * textarea 自己滚(`.ui-scrollbar`,见 oled_panel.ts),与换成编辑器之前那条
+ * `textarea.textarea-data` 的手感一致.
+ */
+.oled-card .code-editor {
+    height: var(--oled-editor-height);
     resize: vertical;
-    min-height: var(--oled-textarea-min-height);
-    width: var(--card-width);
-    font-family: var(--font-mono);
-    display: block;
-    background-color: var(--oled-textarea-bg);
-    border: var(--oled-textarea-border);
+}
+
+/*
+ * 行号槽永不滚动:整个编辑器只有 textarea 一个滚动容器,行号栏内容超高时也是
+ * 裁掉,不给它自己加滑条.槽宽本身由 ui/oled_panel.ts 钉成常量(库按字体量的
+ * 内联值被 `!important` 压住,见那里的说明和 config.ts 的常量).
+ * `overflow: hidden` 与库的 `styles/editor.css` 一致,写在这里是让"行号栏不滚"
+ * 这条要求在本站样式表里也一眼可见.
+ */
+.oled-card .code-editor-gutter {
+    overflow: hidden;
+}
+
+/*
+ * 编辑器里那两个 `<pre>` 都不是滚动容器 -- 这一条是在还原 bootstrap 的 reboot.
+ *
+ * bootstrap 给所有 `pre` 写了 `overflow: auto`,而库的 `editor.css` 刻意没给
+ * `.code-editor-lines` / `.code-editor-highlight-code` 写 overflow(行号靠外层
+ * `.code-editor-gutter` 裁,高亮正文靠 `.code-editor-highlight` 裁),于是
+ * bootstrap 那条在库的编辑器里生效了:行号栏被画上一条自己的竖向滑条 -- 经典
+ * 带上下箭头的滑条,直接压在行号上,而且**只有一行时也出现**(行盒高度的小数
+ * 舍入就够触发).这里把两个 `<pre>` 还原成 `visible`,让"整个编辑器只有一个
+ * 滚动容器(库的 textarea)"这条结构约定落定;行号与高亮正文的溢出仍旧由各自
+ * 的裁剪框裁掉.
+ * 选择器带 `.oled-card` 只为与本块其它规则同一口径(不是为压 bootstrap:
+ * `.code-editor-lines` 一个类就已经赢过 `pre` 那个标签选择器).
+ */
+.oled-card .code-editor-lines,
+.oled-card .code-editor-highlight-code {
+    overflow: visible;
 }
 
 .area-data {

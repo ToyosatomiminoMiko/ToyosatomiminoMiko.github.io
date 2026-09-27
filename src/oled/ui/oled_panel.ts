@@ -8,11 +8,14 @@ OLED 像素画板的**标记组件**(声明式).
 
 生成的结构与原 index.html **逐字对应**(标签名 / 类名 / id / 文本 / 属性都不变),
 因为 public/css/index.css 与 bootstrap 直接命中这些类与 id(如
-`canvas#pixelCanvas`,`#change-color`,`.oled-card`,`.tools`,`.textarea-data`).
-**两处例外都归库**:面板里的七颗按钮改由 `miko_ui` 的 `createButton` 生成
+`canvas#pixelCanvas`,`#change-color`,`.oled-card`,`.tools`).
+**三处例外都归库**:面板里的七颗按钮改由 `miko_ui` 的 `createButton` 生成
 (基线类 `.ui-button`);三个绘图工具由库的 `createSegmented` 生成
-(`div.segmented` + 三颗组内按钮),不再是 `input[name="tools"]` 那组 radio.
-id 仍按下面的契约写上,`#change-color` 那条配色规则已从 index.css 撤掉.
+(`div.segmented` + 三颗组内按钮),不再是 `input[name="tools"]` 那组 radio;
+数据区的两块 `textarea.textarea-data` 换成库的 `createCodeEditor`
+(`div.code-editor`:行号槽 + 真 textarea + 高亮层,装配见下面的 `createDataEditor`).
+id 仍按下面的契约写上,`#change-color` 那条配色规则已从 index.css 撤掉,
+`.textarea-data` 那条也已撤(本站样式表现在只给编辑器补最小高度与可纵向拖动).
 
     div.card.oled-card
       div.card-header > h4       'OLED Canvas'
@@ -25,15 +28,21 @@ id 仍按下面的契约写上,`#change-color` 那条配色规则已从 index.cs
         div.tools               按钮 + div.segmented(库的分段选择器) + 按钮 ...
         br
         div
-          div.area-data > textarea#exportOutput.textarea-data + br + button#output-button
-          div.area-data > textarea#importData.textarea-data   + br + button#import-btn
+          div.area-data > div.code-editor#exportOutput(库的编辑器) + br + button#output-button
+          div.area-data > div.code-editor#importData(库的编辑器)   + br + button#import-btn
 
 本模块是纯函数:不读页面,不改全局,不绑事件,不查 DOM,只把"描述"变成元素并把
 行为代码需要的引用一次交回(与 ui/settings.ts,clock/ui/clock_display.ts 的分工一致).
 插进宿主与绑事件都是 oled.ts 的事.
 */
 
-import { createButton, createSegmented, type SegmentedHandle } from 'miko_ui';
+import {
+    createButton,
+    createCodeEditor,
+    createSegmented,
+    type CodeEditorHandle,
+    type SegmentedHandle,
+} from 'miko_ui';
 
 import { h } from '@/common/dom';
 import {
@@ -50,13 +59,13 @@ import {
     OLED_PANEL_CARD_HEADER_CLASS,
     OLED_PANEL_COORDS_CLASS,
     OLED_PANEL_COORDS_TEXT,
+    OLED_PANEL_EDITOR_GUTTER_WIDTH,
     OLED_PANEL_EXPORT_BUTTON_TEXT,
     OLED_PANEL_IMPORT_BUTTON_TEXT,
     OLED_PANEL_INDICATOR_CLASS,
     OLED_PANEL_PNG_BUTTON_TEXT,
     OLED_PANEL_REFILL_BUTTON_TEXT,
     OLED_PANEL_ROW_CLASS,
-    OLED_PANEL_TEXTAREA_CLASS,
     OLED_PANEL_TITLE_TEXT,
     OLED_PANEL_TOOLS_CLASS,
     OLED_PANEL_TOOL_GROUP_LABEL,
@@ -88,10 +97,10 @@ export interface OledPanel {
     readonly copyButton: HTMLButtonElement;
     /** 导入按钮:解析导入框里的十六进制字节,文案 = OLED_PANEL_IMPORT_BUTTON_TEXT,id 'import-btn' */
     readonly importButton: HTMLButtonElement;
-    /** 导出结果输入框:textarea#exportOutput(放生成的 C 源码) */
-    readonly exportTextarea: HTMLTextAreaElement;
-    /** 导入输入框:textarea#importData(粘贴 1024 个十六进制字节) */
-    readonly importTextarea: HTMLTextAreaElement;
+    /** 导出结果编辑器:库的 `.code-editor`(句柄的 textarea 放生成的 C 源码,id 'exportOutput') */
+    readonly exportEditor: CodeEditorHandle;
+    /** 导入编辑器:库的 `.code-editor`(句柄的 textarea 粘贴 1024 个十六进制字节,id 'importData') */
+    readonly importEditor: CodeEditorHandle;
     /** 绘图工具分段选择器:`miko_ui` 的 `createSegmented`(顺序 = OLED_PANEL_TOOL_OPTIONS,默认项已选中) */
     readonly toolSelect: SegmentedHandle<DrawTool>;
 }
@@ -127,6 +136,61 @@ function createToolSelect(): SegmentedHandle<DrawTool> {
         value: OLED_DEFAULT_TOOL,
         items: OLED_PANEL_TOOL_OPTIONS,
     });
+}
+
+/** 高亮层要转义的三个字符:唯一一处把源码变成 HTML 的地方(见 highlightSource) */
+const HIGHLIGHT_ESCAPES: Readonly<Record<string, string>> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+};
+
+/**
+ * 高亮注入:`source -> HTML` 的函数,整颗由 UI 库(`miko_ui` 的
+ * `createCodeEditor`)要求消费者提供 -- 库不认识任何具体语言的词法.
+ *
+ * 本站**不做词法分析**:OLED 数据区放的是导出出来的 C 数组源码与粘贴进来的
+ * 十六进制字节,没有值得着色的词法类别.所以这里只把 `&` / `<` / `>` 转义,
+ * 高亮层于是等价于"与 textarea 逐像素重叠的一层纯文本",不改变输入行为的
+ * 前提下拿到库的行号栏与滚动同步(见库 `editor/EditorHighlight.ts` 的文件头).
+ * 以后要加 C 语法高亮,只换这一个函数(配色类名由本站样式表给),编辑器结构
+ * 与行为代码一行都不用动.
+ */
+function highlightSource(source: string): string {
+    return source.replace(/[&<>]/g, (char) => HIGHLIGHT_ESCAPES[char] ?? char);
+}
+
+/**
+ * 数据区的一套编辑器:整颗由 UI 库(`miko_ui` 的 `createCodeEditor`)生成.
+ *
+ * 库给的是 `div.code-editor`(行号槽 + 真 textarea + 高亮层 + 滚动/尺寸同步),
+ * 结构 / 交互 / 外观都归库的 `styles/editor.css`;本站只补四件事:
+ *   - **id**:CSS 与测试的定位契约(库的选项里没有 id,句柄拿到外框后补上);
+ *   - **槽宽**:钉成常量,不让它随行数变(见下面与 config.ts 的同名常量);
+ *   - **高亮注入**:库不认识本站放的是什么语言(见上面的 highlightSource);
+ *   - **滚动条**:唯一会滚的 textarea 挂上库的 `.ui-scrollbar`.
+ * 句柄整颗交回:行为代码用 `textarea` 读写值,程序化写值后调 `refresh()`
+ * 让行号栏与高亮层跟上(直接写 `.value` 不派发 `input`,见 oled.ts 的 exportData).
+ */
+function createDataEditor(id: string): CodeEditorHandle {
+    const editor = createCodeEditor({
+        gutterMinWidth: OLED_PANEL_EDITOR_GUTTER_WIDTH,
+        highlight: highlightSource,
+    });
+    editor.element.id = id;
+    // 行号槽宽度钉死:库在构造时与"最大行号位数进位"时都会按当前字体重量一遍,
+    // 再把结果写成 gutter 的内联 `--code-gutter-width`(实测在 32px / 35px 之间
+    // 跳).内联 `!important` 压得住库随后的内联普通值,两个编辑器的行号槽于是
+    // 永远同宽;行号栏自己不滚动(overflow: hidden,见 index.css).
+    editor.gutter.style.setProperty(
+        '--code-gutter-width',
+        `${OLED_PANEL_EDITOR_GUTTER_WIDTH}px`,
+        'important',
+    );
+    // 编辑器里唯一该滚的地方是 textarea(固定高度下竖着滚导出的 C 源码,长行
+    // 横着滚):挂上库的滚动条规定(`styles/scrollbar.css`,由 main.ts 引入).
+    editor.textarea.classList.add('ui-scrollbar');
+    return editor;
 }
 
 /** 按 config.ts 的 DOM 契约生成整块 OLED 面板,并把所有引用交给调用方 */
@@ -170,30 +234,24 @@ export function createOledPanel(): OledPanel {
     });
 
     // --- 数据输入输出区 ---
-    /** 导出结果输入框:放导出按钮生成的 C 源码,id 'exportOutput' */
-    const exportTextarea = h('textarea', {
-        class: OLED_PANEL_TEXTAREA_CLASS,
-        attrs: { id: OLED_DOM.exportTextareaId },
-    });
-    /** 导入输入框:粘贴 1024 个十六进制字节,id 'importData' */
-    const importTextarea = h('textarea', {
-        class: OLED_PANEL_TEXTAREA_CLASS,
-        attrs: { id: OLED_DOM.importTextareaId },
-    });
+    /** 导出结果编辑器:放导出按钮生成的 C 源码,id 'exportOutput' */
+    const exportEditor = createDataEditor(OLED_DOM.exportEditorId);
+    /** 导入编辑器:粘贴 1024 个十六进制字节,id 'importData' */
+    const importEditor = createDataEditor(OLED_DOM.importEditorId);
     /** 复制按钮:把导出文本送进剪贴板,文案 = OLED_COPY_BUTTON_TEXT,id 'output-button' */
     const copyButton = createPanelButton(OLED_DOM.copyBtnId, OLED_COPY_BUTTON_TEXT);
     /** 导入按钮:解析导入框里的十六进制字节,文案 = OLED_PANEL_IMPORT_BUTTON_TEXT,id 'import-btn' */
     const importButton = createPanelButton(OLED_DOM.importBtnId, OLED_PANEL_IMPORT_BUTTON_TEXT);
 
-    /** 导出区一行:导出输入框 + 换行 + 复制按钮 */
+    /** 导出区一行:导出编辑器 + 换行 + 复制按钮 */
     const exportRow = h('div', { class: OLED_PANEL_ROW_CLASS }, [
-        exportTextarea,
+        exportEditor.element,
         h('br'),
         copyButton,
     ]);
-    /** 导入区一行:导入输入框 + 换行 + 导入按钮 */
+    /** 导入区一行:导入编辑器 + 换行 + 导入按钮 */
     const importRow = h('div', { class: OLED_PANEL_ROW_CLASS }, [
-        importTextarea,
+        importEditor.element,
         h('br'),
         importButton,
     ]);
@@ -241,8 +299,8 @@ export function createOledPanel(): OledPanel {
         byteOrderButton,
         copyButton,
         importButton,
-        exportTextarea,
-        importTextarea,
+        exportEditor,
+        importEditor,
         toolSelect,
     };
 }
