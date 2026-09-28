@@ -60,11 +60,15 @@ HOME 标签页的最上面是一块**首屏**(`.hero`,由 `src/common/ui/site_sh
 - **导航条脱离文档流**(`header.site-header` 是 `position: fixed`).它要是还占位,
   首屏就只能从它下沿开始,顶部那一条盖不住.代价是它会压在内容上,所以除首屏外
   每个标签页自己用 `padding-top` 让开(见 `public/css/index.css` 的 `.tab-pane`).
-- **导航条在首屏上是"隐形"的**:没有底色,没有边框,没有磨砂,只有站名与导航
-  文字压在画面上.可读性靠两样东西 -- 首屏自己顶部那条渐变压暗(`.hero__scrim`,
-  属于画面,不属于导航条),以及文字投影.滚过首屏或切到别的标签页时它变实底,
-  切换逻辑在 `src/common/header_state.ts`(用 `IntersectionObserver` 而不是
-  `scroll` 事件;`rootMargin` 从 CSS 令牌 `--nav-height` 读,不在 JS 里再写一遍).
+- **导航条在"底下没有内容"时是"隐形"的**:没有底色,没有边框,没有磨砂,只有
+  站名与导航文字.两种情形算"底下没有内容" -- 首屏还压在它下面(HOME,可读性靠
+  首屏自己顶部那条渐变压暗 `.hero__scrim`,属于画面,不属于导航条,以及文字投影),
+  以及**任何标签页停在页面顶端时**(窗格顶部用 `padding-top` 让开了导航条,内容
+  还在导航条下沿以下,底下只有全站背景图).内容一滑到导航条下面(滚过首屏,
+  或者在别的标签页滚动)它立刻变实底.切换逻辑在 `src/common/header_state.ts`:
+  首屏那条用 `IntersectionObserver` 而不是 `scroll` 事件(`rootMargin` 从 CSS 令牌
+  `--nav-height` 读,不在 JS 里再写一遍),"页面在不在顶端"那条直接读 `scrollY`
+  (读它不触发重排,滚动事件本身已按帧合并).
 - **首屏满宽是"逃逸"出来的**:`main` 只有 90% 宽,`.hero` 用
   `margin-left/right: calc(50% - 50vw)` 外扩到视口两侧,所以 `body` 上有
   `overflow-x: hidden`(`100vw` 含滚动条宽度,必然溢出一点).
@@ -120,7 +124,7 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
 | 红黑树的提示文案 / 画布尺寸 / 占位符 | `src/rbt/config.ts`,面板标记在 `src/rbt/ui/rbt_panel.ts` |
 | IEEE 754 的标签 / 下拉项 / 初值 | `src/ieee754/config.ts`,面板标记在 `src/ieee754/ui/ieee754_panel.ts` |
 | 地铁车窗的滑块 / 风格按钮 / 上传图层 | `src/metro_window/src/config.ts`,面板在 `src/metro_window/src/ui/`(见它自己的 README) |
-| 导航条"透明 / 实底",背景切换 | `src/common/header_state.ts` / `src/common/background.ts`(行为),令牌与类名在 `src/common/site.config.ts` |
+| 导航条"隐形 / 实底"(首屏,各标签页),背景切换 | `src/common/header_state.ts` / `src/common/background.ts`(行为),令牌与类名在 `src/common/site.config.ts` |
 | 样式 | `public/css/*.css`;选择器按**类名与 id** 命中(config.ts 里的 id 契约),不依赖结构位置 |
 
 几条硬约束:
@@ -148,7 +152,7 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
 | 层 | 跑什么 | 在哪 |
 | --- | --- | --- |
 | 标记契约(进程内) | 生成的标签 / 类名 / id / `data-*` / 文案与 CSS,bootstrap 是否对得上 | `src/**/ui/*.test.ts`,文件头 `@vitest-environment happy-dom`,进 `npm test`(不需要 build,CI 里也跑) |
-| 真浏览器验收 | canvas 真的画出来了吗,bootstrap 真的认这排标签吗,布局与 CSS 级联对不对,宿主与车窗组件接上了吗 | `npm run smoke:home`(要 `dist/` 与 chromium,见[「构建」](#构建)) |
+| 真浏览器验收 | canvas 真的画出来了吗,bootstrap 真的认这排标签吗,布局与 CSS 级联对不对,导航条隐形/实底的翻转对不对,宿主与车窗组件接上了吗 | `npm run smoke:home`(要 `dist/` 与 chromium,见[「构建」](#构建)) |
 
 加/改 UI 之后:`npm test` 跑第一层;涉及渲染/交互/样式的改动再跑一次 `smoke:home`.
 
@@ -198,7 +202,7 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
 | 主站样式 | `public/css/tokens.css` | 站点设计令牌(`:root`):字体栈,调色板,尺寸,圆角,间距,`z-index`,过渡;首屏(`--hero-*`)与固定导航条(`--chrome-*`) |
 | 主站脚本 | `src/clock/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,OLED 画板尺寸/通道/文案,红黑树布局与配色,IEEE 754 精度格式与掩码,站点级声明式模型(导航项 / 首屏结构 / SETTING 整页卡片的类名与标题 / 背景缩略图清单 / 各模块宿主 id / `is-over-hero` 类名 / `--nav-height` 令牌名) |
 | 首页骨架 | `src/common/ui/site_shell.ts`,`src/common/ui/background_section.ts`,`src/common/dom.ts` | 骨架(含 SETTING 那张 bootstrap 卡片)与背景缩略图两块声明式组件,以及全站唯一的 DOM 构造原语 `h()` |
-| 主站行为 | `src/main.ts`,`src/common/header_state.ts`,`src/common/background.ts` | 挂载顺序(骨架 -> 各模块 -> 行为),导航条"透明 / 实底"状态,背景切换令牌写入 |
+| 主站行为 | `src/main.ts`,`src/common/header_state.ts`,`src/common/background.ts` | 挂载顺序(骨架 -> 各模块 -> 行为),导航条"隐形 / 实底"状态(首屏还压在它下面时,以及任何标签页停在页面顶端时),背景切换令牌写入 |
 | 4xx 页面样式 | `src/4xx_page/418/418_tokens.css`,`src/4xx_page/451/451_tokens.css`;`404/404.css` 与 `shared/icon.css` 顶部的 `:root` 块 | 各彩蛋页的设计令牌(颜色 / 几何 / 阴影 / 时长 / 字体) |
 | 4xx 页面脚本 | `src/4xx_page/418/teapot/config.ts`,`src/4xx_page/451/boot.config.ts`,`src/4xx_page/451/ember/*.config.ts` | 茶壶交互,启动开关,GPU 计时 / 统计 / 资源 / 能力 / 性能面板参数 |
 | 地铁车窗前端 | `src/metro_window/src/config.ts`,`src/metro_window/src/stage_size.ts`,`src/metro_window/src/ui/`,`src/metro_window/src/tokens.css` | DOM id / class / `data-*` 键名,`setParam` 参数名映射,车窗标记 / 设置面板 / 上传图层的声明式模型(画布分辨率 / 滑块分组 / 风格 / 按钮 / 可上传贴图清单 / 文案),后备缓冲尺寸与防抖 / dpr 上限;声明式 DOM 组件(`h()` + 舞台标记 + 风格按钮行 + 设置面板 + 上传面板 + PNG 解码);组件设计令牌.**单个滑块(名称 + 滑杆 + 数值框 + 重置按钮)不在这里**:它是 UI 库 `miko_ui` 的 `createSlider`,本站只把声明翻译成它的选项(见下一行) |

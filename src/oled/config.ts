@@ -160,10 +160,8 @@ export const OLED_COLOR_MODES = {
 
 /** 字节序按钮的文案(低位 / 高位模式) */
 export const OLED_BYTE_ORDER_TEXT = {
-    /** 低位模式(LSB)按钮文案 */
-    lsb: '⬇低位模式(LSB)',
-    /** 高位模式(MSB)按钮文案 */
-    msb: '⬆高位模式(MSB)',
+    lsb: '⬆低位模式(LSB)',
+    msb: '⬇高位模式(MSB)',
 } as const;
 
 // ---------- DOM 契约(id / class,与 index.html 完全一致) ----------

@@ -278,6 +278,32 @@ const tabSwitch = await cdp.eval(`(() => {
     return { afterOled, afterHome };
 })()`);
 
+// ---- 交互:导航条的"隐形 / 实底"(非 HOME 顶端隐形,滚动后实底;HOME 顶端隐形) ----
+// 类的加减是进程内单测抓不到的那一半:IO 的 rootMargin,scroll 事件,以及"切标签页后
+// 首屏隐藏,由 scrollY 那条判据接管"都只有在真引擎里跑一遍才算数.
+const headerState = await cdp.eval(`(async () => {
+    const header = document.querySelector('header.site-header');
+    const click = (href) => document.querySelector('a[href="' + href + '"]').click();
+    // 等两帧:class 的切换发生在 IO 回调 / scroll 回调里,写进去之后要等一次重绘
+    const nextFrame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    // behavior: 'instant' 必须写:bootstrap 的 reboot 给 :root 开了 scroll-behavior: smooth,
+    // 用默认行为滚 400px 时读到的还是动画刚起步的那一两个像素.
+    const scrollTo = (y) => window.scrollTo({ top: y, behavior: 'instant' });
+    const over = () => header.classList.contains('is-over-hero');
+    click('#setting');
+    scrollTo(0);
+    await nextFrame();
+    const settingTop = over();
+    scrollTo(400);
+    await nextFrame();
+    const settingScrolled = over();
+    click('#home');
+    scrollTo(0);
+    await nextFrame();
+    const homeTop = over();
+    return { settingTop, settingScrolled, homeTop };
+})()`);
+
 // ---- 时钟是不是真的在走(每秒重绘) ----
 const clockTick = await cdp.eval(`(async () => {
     const c = document.querySelector('#time_canvas');
@@ -296,10 +322,15 @@ const tabOk = tabSwitch?.afterOled?.oled && tabSwitch?.afterOled?.link && !tabSw
     tabSwitch?.afterHome?.home && !tabSwitch?.afterHome?.oled;
 console.log(`${tabOk ? '  ok  ' : ' FAIL '} 点标签页能切窗格(生成的标签栏被 bootstrap 认下,再切回来也对)`);
 if (!tabOk) failed++;
+const headerOk = headerState?.settingTop === true && headerState?.settingScrolled === false &&
+    headerState?.homeTop === true;
+console.log(`${headerOk ? '  ok  ' : ' FAIL '} 导航条隐形/实底正确` +
+    `(非 HOME 顶端隐形,滚动后实底,HOME 顶端隐形;实得 ${JSON.stringify(headerState)})`);
+if (!headerOk) failed++;
 console.log(`${clockTick?.changed ? '  ok  ' : ' FAIL '} 时钟每秒重绘`);
 if (!clockTick?.changed) failed++;
 
-console.log(`\n共 ${report.length + 2} 项,失败 ${failed} 项`);
+console.log(`\n共 ${report.length + 3} 项,失败 ${failed} 项`);
 console.log('(结构/类名/文案契约由 `npm test` 的 happy-dom 单测覆盖,这里不重复)');
 console.log(`\n页面 console(${cdp.logs.length} 条):`);
 for (const log of cdp.logs.slice(0, 12)) console.log('  ' + log);

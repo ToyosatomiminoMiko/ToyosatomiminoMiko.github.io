@@ -14,7 +14,7 @@
  *   --ieee-*      IEEE 754 面板
  *   --setting-*   SETTING 标签页
  *   --hero-*      首屏(hero)
- *   --chrome-*    固定导航条(站名 / 导航项 / 透明↔实底)
+ *   --chrome-*    固定导航条(站名 / 导航项 / 隐形↔实底)
  *   --radius-*    圆角(**由 miko_ui 主题提供,本站只引用**)
  *   --z-*         层级
  *   --transition-* 过渡
@@ -105,16 +105,16 @@
     --chrome-text-muted: #eef3f8b8;
     /* 文字投影:隐形导航条压在画面上的可读性兜底 */
     --chrome-text-shadow: 0 1px 3px #000000a6;
-    /* 实底导航条底色(滚过首屏 / 切到别的标签页时) */
+    /* 实底导航条底色(内容压到导航条下面时) */
     --chrome-bg-solid: #0a0c10eb;
-    /* 首屏上的导航条底色:全透明(只剩字浮在画面上) */
+    /* 隐形导航条的底色:全透明(只剩字浮在画面上/背景图上) */
     --chrome-bg-over-hero: #00000000;
     /* 实底导航条的下边框 */
     --chrome-border-width: 1px;
     --chrome-border: #ffffff1f;
-    /* 首屏上的导航条边框:同样透明 */
+    /* 隐形导航条的边框:同样透明 */
     --chrome-border-over-hero: #00000000;
-    /* 透明 ↔ 实底的过渡时长与缓动 */
+    /* 隐形 ↔ 实底的过渡时长与缓动 */
     --chrome-transition: 180ms ease;
 
     /* ---------- LED 时钟 ---------- */

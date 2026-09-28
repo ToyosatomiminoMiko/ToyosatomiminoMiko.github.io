@@ -175,16 +175,21 @@ export const BACKGROUND_IMAGE_CLASS = 'bgimg';
  */
 export const BACKGROUND_IMAGE_VARIABLE = '--bg-image-active';
 
-// ---------- 导航条"透明 / 实底"状态(行为侧) ----------
+// ---------- 导航条"隐形 / 实底"状态(行为侧) ----------
 
-/** 首屏还压在导航条下面时,加在导航条上的类名(样式见 public/css/index.css) */
+/**
+ * 导航条"隐形"时加在它身上的类名(样式见 public/css/index.css 的 `.is-over-hero`).
+ * 两种情形都会加:首屏还压在导航条下面(HOME),或页面停在顶端(所有标签页,
+ * 此时窗格顶上只有全站背景图).名字沿用最初只有首屏时的那个,没跟着改 --
+ * 两处消费方(site.config.ts 与 index.css)是同一份契约,改它没有任何行为收益.
+ */
 export const HEADER_OVER_HERO_CLASS = 'is-over-hero';
 
 /**
  * 导航条高度的 CSS 自定义属性名.
  * 与 public/css/tokens.css 的 `--nav-height` 是跨语言契约:JS 要读它来给
- * IntersectionObserver 设 rootMargin,让"透明 -> 实底"正好发生在首屏底边越过
- * 导航条下沿的那一刻(改 tokens.css 必须同步改这里的字面量).
+ * 首屏那个 IntersectionObserver 设 rootMargin,让"隐形 -> 实底"正好发生在
+ * 首屏底边越过导航条下沿的那一刻(改 tokens.css 必须同步改这里的字面量).
  */
 export const NAV_HEIGHT_VARIABLE = '--nav-height';
 
