@@ -133,17 +133,22 @@ function createSliderControl(spec: SliderSpec): SliderControl {
     };
 }
 
-/** 一个可折叠分组:summary + 若干滑块 */
-function createSliderGroup(group: SliderGroupSpec): { element: HTMLDetailsElement; controls: SliderControl[] } {
+/**
+ * 一个滑块分组:**一行静态标题 + 若干滑块,不可折叠**.
+ *
+ * 实时参数一共两组 7 个滑块,两组原本都默认展开,`<details>` / `<summary>` 只剩
+ * 一层多余的点击(以及一套"可折叠"的样式);直接铺在面板里,标题只负责说明
+ * "这一排调的是什么",所以是 `<div class="slider-group-title">`,不再是 `<summary>`.
+ */
+function createSliderGroup(group: SliderGroupSpec): { element: HTMLDivElement; controls: SliderControl[] } {
     const controls = group.sliders.map(createSliderControl);
-    const details = create_element(
-        { tag: 'details' },
+    const element = create_element(
+        { tag: 'div' },
         { class: 'slider-group' },
-        create_element({ tag: 'summary' }, {}, group.title),
+        create_element({ tag: 'div' }, { class: 'slider-group-title' }, group.title),
         create_element({ tag: 'div' }, { class: 'slider-grid' }, ...controls.map((control) => control.root)),
     );
-    details.open = group.open;
-    return { element: details, controls };
+    return { element, controls };
 }
 
 /** 三颗风格按钮;当前风格(DEFAULT_STYLE_INDEX)初始即高亮 */
@@ -177,8 +182,10 @@ function createTransportButtons(): Record<TransportAction, HTMLButtonElement> {
  *
  *     <fieldset class="sliders">         <- root,初始 disabled
  *       <legend>实时参数</legend>
- *       <div class="controls">           <- [风格按钮行?] + .spacer + 播放控制
- *       <details class="slider-group">   <- 每个分组一个(来自 SLIDER_GROUPS)
+ *       <div class="controls">           <- [风格按钮行?] + 播放控制(按文档流排)
+ *       <div class="slider-group">       <- 每个分组一个(来自 SLIDER_GROUPS)
+ *         <div class="slider-group-title">  <- 静态标题,不可折叠
+ *         <div class="slider-grid">        <- 该组的滑块
  *       <div class="gpu_info">           <- 状态 span + 图层说明
  *     </fieldset>
  *
@@ -188,20 +195,19 @@ function createTransportButtons(): Record<TransportAction, HTMLButtonElement> {
  *
  * `styleRow` 是**传进来**的,不在这里新建:风格按钮行可能被挂到首屏底部
  * (切风格属于"看",与时钟同排更顺手),那时面板里就不该再多出第二份.
- * 传 null 表示风格按钮行挂在别处 -- 此时控制条只剩 .spacer 与播放控制.
+ * 传 null 表示风格按钮行挂在别处 -- 此时控制条只剩播放控制(开关 + 重置).
  */
 export function createSettingsPanel(styleRow: StyleRow | null): SettingsPanel {
-    // 三个滑块分组,顺序即 config.ts 里的声明顺序(各自带已建好的滑块控件).
+    // 两组滑块分组,顺序即 config.ts 里的声明顺序(各自带已建好的滑块控件).
     const groups = SLIDER_GROUPS.map(createSliderGroup);
     const transport = createTransportButtons();
 
-    // .spacer 是 flex:1 的空 span:把后面的播放-暂停开关与重置推到右边.
-    // 两颗按钮的顺序在这里显式写出,和 TRANSPORT_BUTTONS 的声明顺序保持一致.
+    // 播放控制直接按文档流排(控制条不再声明 flex 布局,也没有把按钮推到右边的
+    // .spacer):两颗按钮的顺序在这里显式写出,和 TRANSPORT_BUTTONS 的声明顺序一致.
     const controls = create_element(
         { tag: 'div' },
         { class: 'controls' },
         ...(styleRow ? [styleRow.root] : []),
-        create_element({ tag: 'span' }, { class: 'spacer' }),
         transport.toggle,
         transport.reset,
     );

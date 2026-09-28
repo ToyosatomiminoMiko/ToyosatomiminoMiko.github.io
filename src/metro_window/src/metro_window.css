@@ -148,16 +148,12 @@
     border: none;
 }
 
-.metro-window .slider-group summary {
-    cursor: pointer;
+/* 分组标题:静态说明文字.分组**不可折叠**,所以这里没有 summary 那套
+   cursor / user-select 与悬停态 -- 它只回答"这一排滑块调的是什么". */
+.metro-window .slider-group-title {
     color: var(--metro-color-muted);
     font-size: var(--metro-font-size-base);
     padding: var(--metro-space-4) 0;
-    user-select: none;
-}
-
-.metro-window .slider-group summary:hover {
-    color: var(--metro-color-accent);
 }
 
 /* 一排滑块:换行 + 间距.
@@ -236,20 +232,16 @@
     outline: none;
 }
 
-.metro-window .controls {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--metro-space-8);
-}
-
-/* 把播放/暂停/重置推到右边, 与三颗风格按钮分开.
-   以前这里是 <span style="flex:1"> 内联样式, 已外置 */
-.metro-window .spacer {
-    flex: 1;
+/* .controls 只是播放控制那一行的定位钩子(单测 / 冒烟脚本按它选按钮),
+   本身不再声明布局:两颗按钮(暂停-开关 / 重置)按文档流排在风格按钮行之后. */
+.metro-window .controls button + button {
+    /* 生成的 DOM 里元素之间没有空白文本节点,而控制条也不再是 flex 容器
+       (`gap` 没了),两颗按钮会贴着共边 -- 间距在这里补一次. */
+    margin-left: var(--metro-space-8);
 }
 
 /* 风格按钮行:三颗按钮横排.挂在首屏底部时它是独立的一行(不跟滑块挤在一起),
-   挂在控制台里时它正好落在 .controls 行的开头. */
+   挂在控制台里时它是控制条里的一整行(块级),播放控制排在它下面. */
 .metro-window .style-row {
     display: flex;
     flex-wrap: wrap;

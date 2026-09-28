@@ -548,7 +548,7 @@ PREVIEW_PARAM=dirt_opacity=0,interior_opacity=0 cargo run --package metro-window
 | 解码放前端(`createImageBitmap` + canvas `getImageData`) | 浏览器自带 PNG 解码器,wasm 侧只有 `png` crate,再养一套纯属重复;顺带拿到"文件不出浏览器"这条性质(整条链路**没有后端**) |
 | 上传面板与设置面板共用同一套卡片样式(选择器写在一起) | 两块面板分属两个宿主,外观必须一致;复制一份迟早漂移 |
 
-### 水珠拆分(本次)
+### 水珠拆分
 
 | 改动 | 为什么 |
 | --- | --- |
@@ -559,6 +559,13 @@ PREVIEW_PARAM=dirt_opacity=0,interior_opacity=0 cargo run --package metro-window
 | 车窗贴图改为单级(不再生成 mip 链),`textures.rs` 的 mip 相关函数删除 | mip 链本是给"背景景深"用的,而背景景深是水珠效果的一部分;视差滚动只改采样坐标,单级就够 |
 | 前端去掉"水滴与风""背景景深"两组滑块,`LAYERS_NOTE` 改写 | 这些滑块对应的参数已经不在本 crate 里,留着就是"拖了没反应"的静默失效 |
 | `examples/` 只剩 `validate_wgsl` | `preview`(水珠离线预览)与 `native_smoke`(水珠管线冒烟)都是水珠的验证工具,已随水珠搬走 |
+
+### 控制台去掉折叠与 flex 控制条(本次)
+
+| 改动 | 为什么 |
+| --- | --- |
+| 实时参数的滑块分组从 `<details class="slider-group">` + `<summary>` 改成 `<div class="slider-group">` + `<div class="slider-group-title">`,`SliderGroupSpec` 删掉 `open` 字段(连带 `metro_window.css` 的 `summary` 那两条规则改成一条静态标题规则) | 一共两组 7 个滑块,两组原本都默认展开 -- 折叠只剩一层多余的点击,`summary` 的 cursor / user-select / 悬停高亮也没有对应的行为了;标题留着当"这一排调的是什么"的静态说明 |
+| `metro_window.css` 的 `.metro-window .controls` 删掉 `display: flex` / `flex-wrap: wrap` / `gap`,并把只为"把按钮推到右边"而存在的 `.spacer`(元素 + 规则)一起删掉;间距改由 `.controls button + button` 的 `margin-left` 补 | 控制条里只有播放-暂停开关与重置两颗按钮,摆成一行不需要 flex 容器;`.spacer` 的 `flex: 1` 在非 flex 容器里不再有任何作用,留着就是看不见的空元素.两颗按钮按文档流排在风格按钮行之后(生成的 DOM 里没有空白文本节点,`gap` 也随 flex 一起没了,所以两按钮之间那 8px 用 `button + button` 的 margin 补上) |
 
 ### 归档状态与遗留
 

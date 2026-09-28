@@ -276,12 +276,10 @@ export interface SliderSpec {
     readonly width?: string;
 }
 
-/** 一个可折叠的滑块分组(<details class="slider-group">) */
+/** 一个滑块分组(不可折叠的 `<div class="slider-group">` + 一行静态标题) */
 export interface SliderGroupSpec {
-    /** <summary> 文案 */
+    /** 分组标题(静态文案,不是可点击的 `<summary>`) */
     readonly title: string;
-    /** 是否默认展开 */
-    readonly open: boolean;
     readonly sliders: readonly SliderSpec[];
 }
 
@@ -293,7 +291,6 @@ export interface SliderGroupSpec {
 export const SLIDER_GROUPS = [
     {
         title: '车速与背景距离',
-        open: true,
         sliders: [
             /** 车速(倍率) */
             { id: 'vehicleSpeed', param: 'vehicle_speed', label: '车速', hint: '倍率', min: 0, max: 3, step: 0.01, value: 3 },
@@ -307,7 +304,6 @@ export const SLIDER_GROUPS = [
     },
     {
         title: '玻璃质感',
-        open: true,
         sliders: [
             /** 玻璃污渍浓度 */
             { id: 'dirtOpacity', param: 'dirt_opacity', label: '污渍浓度', min: 0, max: 1, step: 0.01, value: 0.55 },
@@ -366,7 +362,7 @@ export const TRANSPORT_TOGGLE_LABEL = {
     paused: '播放',
 } as const;
 
-/** 播放-暂停开关 + 重置,顺序即界面顺序(中间由 .spacer 与风格按钮分开) */
+/** 播放-暂停开关 + 重置,顺序即界面顺序(紧跟在风格按钮行之后,不再有 .spacer 分隔) */
 export const TRANSPORT_BUTTONS = [
     { action: 'toggle', id: 'playPauseBtn', label: TRANSPORT_TOGGLE_LABEL.running, disabled: false },
     { action: 'reset', id: 'resetBtn', label: '重置', disabled: false },

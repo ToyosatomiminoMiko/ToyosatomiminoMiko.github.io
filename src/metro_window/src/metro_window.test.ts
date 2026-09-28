@@ -255,5 +255,28 @@ describe('地铁车窗播放-暂停开关', () => {
         expect(ids).toEqual([TRANSPORT_BUTTONS[0].id, TRANSPORT_BUTTONS[1].id]);
         expect(document.querySelector('#startBtn')).toBeNull();
         expect(document.querySelector('#pauseBtn')).toBeNull();
+        // 控制条不再用 flex 布局,那个把按钮推到右边的 .spacer 也随之撤掉
+        // (见 metro_window.css 的 .controls 一条):留着就是"看不见的空元素".
+        expect(mountedHost.querySelector('.controls .spacer')).toBeNull();
+    });
+});
+
+/*
+ 控制台的结构:实时参数的分组**不再可折叠**(见 ui/settings.ts 的 createSliderGroup).
+ 这条决策错了不会报错,只会"面板里又冒出两个可点的分组条";标记对不对得上也只有
+ 在这里能钉,所以按 DOM 断言一次:没有 <details> / <summary>,每个分组一个静态标题.
+*/
+describe('地铁车窗实时参数的分组', () => {
+    it('分组不可折叠,标题是静态文案(与声明一一对应)', async () => {
+        await waitBooted();
+        const panel = mountedHost.querySelector('#paramPanel');
+        expect(panel).not.toBeNull();
+        expect(panel!.querySelector('details')).toBeNull();
+        expect(panel!.querySelector('summary')).toBeNull();
+
+        const titles = [...panel!.querySelectorAll('.slider-group-title')].map(
+            (element) => element.textContent,
+        );
+        expect(titles).toEqual(SLIDER_GROUPS.map((group) => group.title));
     });
 });
