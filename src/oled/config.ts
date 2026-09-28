@@ -97,11 +97,11 @@ export const OLED_HEX_BYTE_PATTERN = /0x[0-9a-fA-F]{2}/g;
 export const OLED_HEX_RADIX = 16;
 
 /**
- * 导入数据的错误提示文案(可见文本,保持原样).
+ * 导入数据的错误提示文案(可见文本,全站不用 emoji).
  * 其中 1024 与 OLED_BUFFER_BYTES 同源,用模板保证两处只有一个数值来源.
  */
 export const OLED_IMPORT_FORMAT_ERROR =
-    `❌数据格式错误,需要包含${OLED_BUFFER_BYTES}个十六进制值`;
+    `数据格式错误,需要包含${OLED_BUFFER_BYTES}个十六进制值`;
 
 // ---------- 覆盖层 / 离屏画布 ----------
 
@@ -158,10 +158,13 @@ export const OLED_COLOR_MODES = {
     },
 } as const;
 
-/** 字节序按钮的文案(低位 / 高位模式) */
+/**
+ * 字节序按钮的文案(低位 / 高位模式).
+ * 原先用上下两个箭头当图示,现在全站不用 emoji,改为文字说明.
+ */
 export const OLED_BYTE_ORDER_TEXT = {
-    lsb: '⬆低位模式(LSB)',
-    msb: '⬇高位模式(MSB)',
+    lsb: '低位模式(LSB)',
+    msb: '高位模式(MSB)',
 } as const;
 
 // ---------- DOM 契约(id / class,与 index.html 完全一致) ----------
@@ -219,19 +222,19 @@ export const OLED_EXPORT_ARRAY_LENGTH = OLED_BUFFER_BYTES;
 export const OLED_COPY_BUTTON_TEXT = '复制到剪贴板';
 
 /** 复制成功后的按钮文案 */
-export const OLED_COPY_SUCCESS_TEXT = '✅已复制!';
+export const OLED_COPY_SUCCESS_TEXT = '已复制!';
 
 /** 复制失败时的告警文案 */
-export const OLED_COPY_FAILED_ALERT = '❌复制失败,请手动选择文本后按 Ctrl+C';
+export const OLED_COPY_FAILED_ALERT = '复制失败,请手动选择文本后按 Ctrl+C';
 
 /** 复制失败时的 console.error 前缀 */
-export const OLED_COPY_FAILED_LOG = '❌复制失败:';
+export const OLED_COPY_FAILED_LOG = '复制失败:';
 
 /** 导入成功时的结果文案 */
-export const OLED_IMPORT_SUCCESS_MESSAGE = '✅数据格式正确,已导入!';
+export const OLED_IMPORT_SUCCESS_MESSAGE = '数据格式正确,已导入!';
 
 /** 导入失败时的结果文案前缀 */
-export const OLED_IMPORT_FAILED_PREFIX = '❌导入失败:';
+export const OLED_IMPORT_FAILED_PREFIX = '导入失败:';
 
 /** 坐标显示文本的格式前缀 */
 export const OLED_COORDS_PREFIX = 'coordinate:';

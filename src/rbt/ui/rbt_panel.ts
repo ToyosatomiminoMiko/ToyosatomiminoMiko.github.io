@@ -8,11 +8,11 @@
 shell.panes.rbt),整块面板按 config.ts 的声明在这里生成:
 
     <section class="ui-panel">                        面板框体(库的 createPanel)
-      <header class="ui-panel-header"><span class="ui-panel-title">🌳 Red-Black Tree</span></header>
+      <header class="ui-panel-header"><span class="ui-panel-title">Red-Black Tree</span></header>
       <div class="ui-panel-body">
         <div>
-          <span>💡 支持简写叶子节点 ...</span><br>
-          <span>🔴 R 红色 &nbsp;|&nbsp; ⚫ B 黒色</span><br>
+          <span>支持简写叶子节点 ...</span><br>
+          <span>R 红色 &nbsp;|&nbsp; B 黒色</span><br>
         </div>
         <textarea id="treeInput" spellcheck="false" placeholder="..."></textarea>
         <div id="treeError" hidden></div>

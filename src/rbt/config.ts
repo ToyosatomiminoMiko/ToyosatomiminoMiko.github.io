@@ -29,18 +29,19 @@ export const RBT_DOM = {
 // 现在由 miko_ui 的 `createPanel` 建,类名归库;原先夹在标题栏与正文之间的提示区
 // 移进了正文容器(见 ui/rbt_panel.ts),这是唯一一处结构变化.
 
-/** 面板标题(可见文本,保持原样) */
-export const RBT_PANEL_TITLE = '🌳 Red-Black Tree';
+/** 面板标题(可见文本,全站不用 emoji) */
+export const RBT_PANEL_TITLE = 'Red-Black Tree';
 
-/** 提示区第一行:简写叶子节点说明(可见文本,保持原样) */
-export const RBT_HINT_SHORTHAND = '💡 支持简写叶子节点 (例如 "5R" 等价于 "5R(nil,nil)")';
+/** 提示区第一行:简写叶子节点说明(可见文本) */
+export const RBT_HINT_SHORTHAND = '支持简写叶子节点 (例如 "5R" 等价于 "5R(nil,nil)")';
 
 /**
- * 提示区第二行:配色图例(可见文本,保持原样).
+ * 提示区第二行:配色图例(可见文本).
+ * 颜色说明用汉字(红色 / 黒色)而不是彩色圆点:全站不用 emoji.
  * 分隔符两侧是 HTML 的 `&nbsp;`(Unicode 不换行空格 U+00A0),必须原样保留:
  * 这里直接写 `\u00a0` 而不是普通空格,免得不换行语义在纯文本里丢失.
  */
-export const RBT_HINT_COLOR_LEGEND = '🔴 R 红色 \u00a0|\u00a0 ⚫ B 黒色';
+export const RBT_HINT_COLOR_LEGEND = 'R 红色 \u00a0|\u00a0 B 黒色';
 
 /** 表达式输入框的占位文案(可见文本,保持原样) */
 export const RBT_INPUT_PLACEHOLDER =
@@ -154,15 +155,15 @@ export const RBT_TEXT_ALIGN = 'center';
 /** canvas 2D 文本的垂直基线 */
 export const RBT_TEXT_BASELINE = 'middle';
 
-/** 空树提示文案(可见文本,保持原样) */
+/** 空树提示文案(可见文本,全站不用 emoji) */
 export const RBT_EMPTY_HINT_TEXT =
-    '✨ 请输入红黑树表达式 (例如: 13B(8R(1B,11R),17R(15B,25B)))';
+    '请输入红黑树表达式 (例如: 13B(8R(1B,11R),17R(15B,25B)))';
 
-/** 解析错误提示前缀(可见文本,保持原样) */
-export const RBT_ERROR_PREFIX = '❌ 解析错误: ';
+/** 解析错误提示前缀(可见文本) */
+export const RBT_ERROR_PREFIX = '解析错误: ';
 
-/** 错误提示在 UI 上显示时的前缀表情 */
-export const RBT_ERROR_UI_PREFIX = '⚠️ ';
+/** 错误提示在 UI 上显示时的前缀(不用符号 / 表情,直接用字说明) */
+export const RBT_ERROR_UI_PREFIX = '错误: ';
 
 /**
  * 错误文案截断上限(字符数).

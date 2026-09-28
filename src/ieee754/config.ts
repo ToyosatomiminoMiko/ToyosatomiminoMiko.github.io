@@ -238,15 +238,15 @@ export const IEEE754_DOM = {
 // 逐个照搬原标记,不合并 / 不省略.
 // ============================================================
 
-/** 面板标题文案(面板框体由库的 `createPanel` 建,类名不在本站) */
-export const IEEE754_PANEL_TITLE = '🧮 IEEE 754 浮点可视化';
+/** 面板标题文案(面板框体由库的 `createPanel` 建,类名不在本站;全站不用 emoji) */
+export const IEEE754_PANEL_TITLE = 'IEEE 754 浮点可视化';
 
 /**
  * 顶部提示段落文案(逐字照搬原标记里的三句).
  * 原先分三行写,浏览器按空白折叠渲染;这里合成一行(用空格连接),可见文本不变.
  */
 export const IEEE754_HINT_TEXT =
-    '💡 输入十进制小数或长度匹配的 0/1 位串后点「转换」按钮转二进制;也可以点按下面的二进制位(0/1)直接改位. ' +
+    '输入十进制小数或长度匹配的 0/1 位串后点「转换」按钮转二进制;也可以点按下面的二进制位(0/1)直接改位. ' +
     '一切以二进制位为准,KaTeX 公式按递等链单向展示(二进制带入 = 十进制 = 精确十进制值). ' +
     '尾数高位在左,低位在右,每 4 位一组.';
 
@@ -444,8 +444,8 @@ export const IEEE754_ERR_UNPARSABLE_PREFIX = '无法解析的数值: "';
 /** 无法解析数值时的错误文案后缀 */
 export const IEEE754_ERR_UNPARSABLE_SUFFIX = '"';
 
-/** 错误提示在 UI 上显示时的前缀表情 */
-export const IEEE754_ERROR_UI_PREFIX = '⚠️ ';
+/** 错误提示在 UI 上显示时的前缀(不用符号 / 表情,直接用字说明) */
+export const IEEE754_ERROR_UI_PREFIX = '错误: ';
 
 /** 公式渲染相关:KaTeX 选项(保持与原先完全一致) */
 export const IEEE754_KATEX_OPTIONS = {

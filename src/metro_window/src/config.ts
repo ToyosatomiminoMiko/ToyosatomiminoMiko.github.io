@@ -292,7 +292,7 @@ export interface SliderGroupSpec {
  */
 export const SLIDER_GROUPS = [
     {
-        title: '🚄 车速与背景距离',
+        title: '车速与背景距离',
         open: true,
         sliders: [
             /** 车速(倍率) */
@@ -306,7 +306,7 @@ export const SLIDER_GROUPS = [
         ],
     },
     {
-        title: '🪟 玻璃质感',
+        title: '玻璃质感',
         open: true,
         sliders: [
             /** 玻璃污渍浓度 */
@@ -336,8 +336,13 @@ export const STYLE_PRESETS = [
     { index: 2, label: '上海磁浮' },
 ] as const satisfies readonly StylePresetSpec[];
 
-/** 播放控制按钮的用途,行为代码按它绑定事件 */
-export type TransportAction = 'start' | 'pause' | 'reset';
+/**
+ * 播放控制按钮的用途,行为代码按它绑定事件.
+ *
+ * 播放与暂停**合成了一颗开关**(见 TRANSPORT_BUTTONS):点一下就在"想跑 /
+ * 不想跑"之间切,文案跟着换(见 TRANSPORT_TOGGLE_LABEL),所以不再分两个 action.
+ */
+export type TransportAction = 'toggle' | 'reset';
 
 /** 一颗播放控制按钮 */
 export interface TransportButtonSpec {
@@ -349,11 +354,22 @@ export interface TransportButtonSpec {
     readonly disabled?: boolean;
 }
 
-/** 播放 / 暂停 / 重置,顺序即界面顺序(中间由 .spacer 与风格按钮分开) */
+/**
+ * 播放-暂停开关的两种文案(全站可见文本不用 emoji,用字说明动作).
+ * 按钮上的字说的是**点下去会发生什么**:画面正在跑时显示"暂停",已暂停时显示
+ * "播放".初值取 running,与 metro_window.ts 的 `wantRunning = true` 一致.
+ */
+export const TRANSPORT_TOGGLE_LABEL = {
+    /** 正在跑:点它 = 暂停 */
+    running: '暂停',
+    /** 已暂停:点它 = 播放 */
+    paused: '播放',
+} as const;
+
+/** 播放-暂停开关 + 重置,顺序即界面顺序(中间由 .spacer 与风格按钮分开) */
 export const TRANSPORT_BUTTONS = [
-    { action: 'start', id: 'startBtn', label: '▶ 播放', disabled: false },
-    { action: 'pause', id: 'pauseBtn', label: '⏸ 暂停', disabled: true },
-    { action: 'reset', id: 'resetBtn', label: '🔄 重置', disabled: false },
+    { action: 'toggle', id: 'playPauseBtn', label: TRANSPORT_TOGGLE_LABEL.running, disabled: false },
+    { action: 'reset', id: 'resetBtn', label: '重置', disabled: false },
 ] as const satisfies readonly TransportButtonSpec[];
 
 /** 状态 <span> 的 id(便于调试/自动化定位) */
@@ -537,8 +553,8 @@ export const LAST_ENTRY_OFFSET = 1;
 
 // ---------- 文案 ----------
 
-/** 所有报错/提示前的统一前缀(❌ + 一个空格) */
-export const ERROR_LABEL = '❌ ';
+/** 所有报错/提示前的统一前缀(全站不用 emoji,用文字标明是错误) */
+export const ERROR_LABEL = '错误: ';
 
 /** 状态区在正文与帮助步骤之间的分隔 */
 export const STATUS_HTML_SEPARATOR = '<br><br>';

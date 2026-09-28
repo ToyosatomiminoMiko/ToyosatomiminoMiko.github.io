@@ -278,7 +278,7 @@ impl App {
             },
         );
 
-        set_status(&status, "✅ WebGPU 初始化成功");
+        set_status(&status, "WebGPU 初始化成功");
 
         Ok(Self {
             device,

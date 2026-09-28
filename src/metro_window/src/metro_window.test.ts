@@ -42,6 +42,8 @@ import {
     CANVAS_WIDTH,
     RUNTIME_CONFIG,
     SLIDER_GROUPS,
+    TRANSPORT_BUTTONS,
+    TRANSPORT_TOGGLE_LABEL,
     type SliderGroupSpec,
     type SliderSpec,
 } from './config';
@@ -217,5 +219,41 @@ describe('地铁车窗滑块的写回', () => {
 
         expect(wasm.setParam).toHaveBeenCalledTimes(1);
         expect(wasm.setParam).toHaveBeenCalledWith(spec.param, spec.value);
+    });
+});
+
+/*
+ 播放与暂停合成了一颗开关(见 config.ts 的 TRANSPORT_BUTTONS / TRANSPORT_TOGGLE_LABEL):
+ 点一下在 "想跑 / 不想跑" 之间切,文案跟着换.这条链路错了不会报错,只会"按钮点了
+ 画面照跑"(或反过来),所以在 mock wasm 上把两个方向各钉一次.
+*/
+describe('地铁车窗播放-暂停开关', () => {
+    it('点一下切到暂停(文案变"播放"),再点一下切回播放("暂停")', async () => {
+        await waitBooted();
+        vi.clearAllMocks();
+
+        const toggle = mountedHost.querySelector<HTMLButtonElement>('#playPauseBtn');
+        expect(toggle).not.toBeNull();
+        // 初始状态:App 默认就在跑,所以按钮上的字是"暂停"(点它会发生的事)
+        expect(toggle!.textContent).toBe(TRANSPORT_TOGGLE_LABEL.running);
+
+        toggle!.click();
+        expect(wasm.setRunning).toHaveBeenCalledTimes(1);
+        expect(wasm.setRunning).toHaveBeenCalledWith(false);
+        expect(toggle!.textContent).toBe(TRANSPORT_TOGGLE_LABEL.paused);
+
+        vi.clearAllMocks();
+        toggle!.click();
+        expect(wasm.setRunning).toHaveBeenCalledTimes(1);
+        expect(wasm.setRunning).toHaveBeenCalledWith(true);
+        expect(toggle!.textContent).toBe(TRANSPORT_TOGGLE_LABEL.running);
+    });
+
+    it('播放控制只有开关与重置两颗按钮(旧的三颗已合并)', async () => {
+        await waitBooted();
+        const ids = [...mountedHost.querySelectorAll('.controls button')].map((btn) => btn.id);
+        expect(ids).toEqual([TRANSPORT_BUTTONS[0].id, TRANSPORT_BUTTONS[1].id]);
+        expect(document.querySelector('#startBtn')).toBeNull();
+        expect(document.querySelector('#pauseBtn')).toBeNull();
     });
 });

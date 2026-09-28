@@ -181,6 +181,54 @@ const report = await cdp.eval(`(() => {
             qa('#metro-params button.slider-field-reset').length === 7,
             qa('#metro-params button.slider-field-reset').length + ' 颗');
         ok('上传面板四层各一个 file input', qa('#metro-uploads input[type=file]').length === 4);
+        /*
+          播放与暂停合成了一颗开关:控制条里只该有"开关 + 重置"两颗按钮,
+          点一下文案在"暂停 / 播放"之间切(见 config.ts 的 TRANSPORT_BUTTONS /
+          TRANSPORT_TOGGLE_LABEL).这里点两次,回到原状态.
+        */
+        const transportButtons = qa('#paramPanel .controls button');
+        const transportToggle = q('#playPauseBtn');
+        const toggledTransport = (() => {
+            if (!transportToggle) return { before: '没有开关', after: '', back: '' };
+            // headless 里没有 GPU,boot 失败后面板仍是 disabled(按钮点不动),
+            // 所以这里临时把 fieldset 解开再点 -- 只改 disabled,不动别的状态,
+            // 点完还原.booted 为假时点击只切文案,不会碰 wasm.
+            const panel = q('#paramPanel');
+            const wasDisabled = panel ? panel.disabled : false;
+            if (panel) panel.disabled = false;
+            const before = transportToggle.textContent;
+            transportToggle.click();
+            const after = transportToggle.textContent;
+            transportToggle.click();
+            const back = transportToggle.textContent;
+            if (panel) panel.disabled = wasDisabled;
+            return { before, after, back };
+        })();
+        ok('播放控制只剩"播放-暂停开关 + 重置"两颗(旧三颗已合并)',
+            transportButtons.length === 2 && transportButtons[0].id === 'playPauseBtn' &&
+            transportButtons[1].id === 'resetBtn' && q('#startBtn') === null && q('#pauseBtn') === null,
+            transportButtons.map((b) => b.id).join(' / '));
+        ok('开关文案点一下就换("暂停" -> "播放" -> "暂停")',
+            toggledTransport.before === '暂停' && toggledTransport.after === '播放' &&
+            toggledTransport.back === '暂停',
+            toggledTransport.before + ' -> ' + toggledTransport.after + ' -> ' + toggledTransport.back);
+        /*
+          全站可见文本里不允许出现 emoji(导航 / 首屏 / 五个窗格的全部文本节点;
+          隐藏窗格也在 DOM 里,一并过一遍).这条守着"不用图标做提示"的约定 --
+          以后谁再往按钮或提示里塞 emoji,真机验收会当场失败.
+        */
+        const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2300}-\u{23FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{25A0}-\u{25FF}\u{FE0F}]/u;
+        const emojiHits = [];
+        const textWalker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        while (textWalker.nextNode()) {
+            const node = textWalker.currentNode;
+            const text = (node.nodeValue || '').trim();
+            if (text && EMOJI.test(text)) {
+                emojiHits.push((node.parentElement ? node.parentElement.tagName : '?') + ':' + text.slice(0, 30));
+            }
+        }
+        ok('页面上没有任何 emoji(全部可见文本过一遍)',
+            emojiHits.length === 0, emojiHits.slice(0, 3).join(' / '));
 
         /*
           ---- 第 2 组:必须真渲染才成立的事 ----

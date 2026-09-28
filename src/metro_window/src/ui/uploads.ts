@@ -99,7 +99,7 @@ function createUploadRow(spec: UploadLayerSpec): UploadControl {
  * 建出整块上传面板:
  *
  *     <fieldset class="uploads" id="uploadPanel">   <- root,初始 disabled
- *       <legend>🖼 图层贴图</legend>
+ *       <legend>图层贴图</legend>
  *       <p class="upload-note">说明</p>
  *       <div class="upload"> ... 每层一行(来自 UPLOAD_LAYERS)...
  *     </fieldset>

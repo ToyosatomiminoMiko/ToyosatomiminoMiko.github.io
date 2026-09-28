@@ -93,6 +93,7 @@ import {
     STATUS_NO_WEBGPU_API,
     STYLE_BUTTON_ACTIVE_CLASS,
     STYLE_DATA_KEY,
+    TRANSPORT_TOGGLE_LABEL,
     UNKNOWN_ADAPTER_LABEL,
     UPLOAD_MIME_TYPE,
     UPLOAD_STATUS_DECODING,
@@ -131,7 +132,7 @@ interface GpuNavigator {
 let booted = false;
 
 // --- 渲染生命周期 ---
-// 「用户想不想跑」(▶/⏸)与「现在能不能看见」分开记,实际渲染 = wantRunning && 可见.
+// 「用户想不想跑」(那颗播放-暂停开关)与「现在能不能看见」分开记,实际渲染 = wantRunning && 可见.
 // 这样做是因为:车窗是常驻的 rAF + 计算着色器负载,一旦它嵌进标签页,切走以后
 // 标签页只是 display:none,浏览器不会自动停 rAF,GPU 会一直空转.
 // 分开记的另一个好处是切回来能恢复用户原来的选择,而不是把"暂停"覆盖掉.
@@ -401,8 +402,11 @@ export function mountMetroWindow(points: MetroMountPoints): void {
             styleButtons.forEach((btn) => {
                 btn.disabled = false;
             });
-            settings.pauseButton.disabled = false;
+            // 播放-暂停开关与重置按钮都在 fieldset 里,由它统一解禁
+            // (旧标记里"暂停"单独置灰过一次,合成一颗开关之后不再需要)
             settings.root.disabled = false;
+            // 文案按当前状态刷一次:面板初值取的是 running,这里确认一遍
+            syncTransportLabel();
             // 上传同样要等 WebGPU 就绪:wasm 没初始化好时 setLayerImage 会直接报错.
             uploads.root.disabled = false;
             // startApp 里的 App 默认就是 running,这里按当前可见性同步一次,
@@ -530,6 +534,17 @@ export function mountMetroWindow(points: MetroMountPoints): void {
         }
     }
 
+    /**
+     * 把播放-暂停开关的文案刷成"点下去会发生什么".
+     * 按钮上的字随 `wantRunning` 变(见 config.ts 的 TRANSPORT_TOGGLE_LABEL):
+     * 正在跑显示"暂停",已暂停显示"播放".改状态的地方都要跟着调一次.
+     */
+    function syncTransportLabel(): void {
+        settings.toggleButton.textContent = wantRunning
+            ? TRANSPORT_TOGGLE_LABEL.running
+            : TRANSPORT_TOGGLE_LABEL.paused;
+    }
+
     function setup(): void {
         styleButtons.forEach((btn) => {
             btn.disabled = true;
@@ -540,12 +555,10 @@ export function mountMetroWindow(points: MetroMountPoints): void {
             });
         });
 
-        settings.startButton.addEventListener(EVENTS.click, () => {
-            wantRunning = true;
-            bootedRunning();
-        });
-        settings.pauseButton.addEventListener(EVENTS.click, () => {
-            wantRunning = false;
+        // 播放与暂停是同一颗开关:点一下在"想跑 / 不想跑"之间切,文案跟着换.
+        settings.toggleButton.addEventListener(EVENTS.click, () => {
+            wantRunning = !wantRunning;
+            syncTransportLabel();
             bootedRunning();
         });
         settings.resetButton.addEventListener(EVENTS.click, () => {

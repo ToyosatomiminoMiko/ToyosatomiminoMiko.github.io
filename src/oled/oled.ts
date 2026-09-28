@@ -184,8 +184,9 @@ export class OLEDCanvas {
         this.copyBtn.addEventListener('click', () => this.copyExport());
         this.exportBtn.addEventListener('click', () => this.exportData());
         this.importBtn.addEventListener('click', () => {
+            // 成功 / 失败都靠文案本身说明(见 config.ts 的两条结果文案),不加图标前缀
             const result = this.importDataFromText();
-            alert((result.success ? '✅' : '❌') + result.message);
+            alert(result.message);
         });
         this.editorToggleBtn.addEventListener('click', () => this.toggleEditorExpanded());
 
@@ -494,7 +495,7 @@ export class OLEDCanvas {
         // 4. 将离屏 canvas 叠加到主画布上
         // 透明区域不会影响主画布
         // 红色半透明矩形会叠加显示
-        // ⚠️ 这不会修改 imageData 对象
+        // 注意:这不会修改 imageData 对象
         // ===========================================
         this.ctx.drawImage(tempCanvas, 0, 0);
     }

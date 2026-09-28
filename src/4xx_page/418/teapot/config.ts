@@ -141,20 +141,20 @@ export const TEAS: readonly string[] = ['大吉岭', '伯爵茶', '乌龙茶', '
 /** 泡茶 toast: 茶名之前的部分 */
 export const TOAST_TEA_PREFIX = '正在为您冲泡 ';
 
-/** 泡茶 toast: 茶名之后的部分 */
-export const TOAST_TEA_SUFFIX = ' ...  🍵 好香!茶壶露出了欣慰的表情.';
+/** 泡茶 toast: 茶名之后的部分(全站不用 emoji) */
+export const TOAST_TEA_SUFFIX = ' ... 好香!茶壶露出了欣慰的表情.';
 
-/** 拒绝咖啡 toast 正文(图标之后) */
+/** 拒绝咖啡 toast 正文 */
 export const TOAST_COFFEE_MESSAGE = "<strong>418 I'm a teapot</strong> -- 拒绝冲煮咖啡.茶壶甚至翻了个白眼.";
 
 /** 泡茶时替换主消息区的傲娇文案 */
-export const MESSAGE_TEA = '🫖 茶壶:"这才是正确的打开方式."';
+export const MESSAGE_TEA = '茶壶:"这才是正确的打开方式."';
 
 /** 拒绝咖啡时替换主消息区的文案 */
-export const MESSAGE_COFFEE = '😤 茶壶:"我说了我是茶壶!再问就滋你一脸红茶!"';
+export const MESSAGE_COFFEE = '茶壶:"我说了我是茶壶!再问就滋你一脸红茶!"';
 
 /** 拒绝咖啡时替换副消息区的文案 */
-export const MESSAGE_COFFEE_SUB = '⚠️ HTCPCP 错误: 实体是茶壶,无法处理咖啡请求.';
+export const MESSAGE_COFFEE_SUB = 'HTCPCP 错误: 实体是茶壶,无法处理咖啡请求.';
 
 /** 页面加载完成后的欢迎语 */
 export const MESSAGE_WELCOME = '欢迎!本茶壶今日心情:拒绝咖啡,从我做起.';

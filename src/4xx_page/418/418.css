@@ -30,36 +30,6 @@ body {
     overflow-x: hidden;
 }
 
-/* 背景装饰:飘浮的茶叶/咖啡豆 (幽默小点缀) */
-.bg-float {
-    position: absolute;
-    opacity: var(--teapot-bg-float-opacity);
-    pointer-events: none;
-    font-size: var(--teapot-bg-float-font-size);
-    user-select: none;
-    z-index: 0;
-}
-
-.float-tea1 {
-    top: var(--teapot-float-tea1-top);
-    left: var(--teapot-float-tea1-left);
-    transform: rotate(var(--teapot-float-tea1-angle));
-}
-
-.float-tea2 {
-    bottom: var(--teapot-float-tea2-bottom);
-    right: var(--teapot-float-tea2-right);
-    transform: rotate(var(--teapot-float-tea2-angle));
-}
-
-.float-coffee {
-    top: var(--teapot-float-coffee-top);
-    right: var(--teapot-float-coffee-right);
-    opacity: var(--teapot-float-coffee-opacity);
-    font-size: var(--teapot-float-coffee-font-size);
-    color: var(--teapot-float-coffee-color);
-}
-
 /* 主卡片 -- 茶壶的尊严 */
 .card {
     max-width: var(--teapot-card-max-width);

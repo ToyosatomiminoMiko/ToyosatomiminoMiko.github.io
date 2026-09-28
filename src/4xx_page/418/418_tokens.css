@@ -32,21 +32,6 @@
     --teapot-shadow-hard-mid: #8b5e3c;
     --teapot-shadow-hard-dark: #7a4f2e;
 
-    /* ----- 背景装饰: 飘浮的茶叶 / 咖啡豆 ----- */
-    --teapot-bg-float-opacity: 0.08;
-    --teapot-bg-float-font-size: 8rem;
-    --teapot-float-tea1-top: 5%;
-    --teapot-float-tea1-left: 2%;
-    --teapot-float-tea1-angle: -15deg;
-    --teapot-float-tea2-bottom: 8%;
-    --teapot-float-tea2-right: 3%;
-    --teapot-float-tea2-angle: 20deg;
-    --teapot-float-coffee-top: 15%;
-    --teapot-float-coffee-right: 8%;
-    --teapot-float-coffee-opacity: 0.05;
-    --teapot-float-coffee-font-size: 12rem;
-    --teapot-float-coffee-color: #6f4e37;
-
     /* ----- 主卡片 ----- */
     --teapot-card-max-width: 750px;
     --teapot-card-bg: rgba(255, 251, 245, 0.85);

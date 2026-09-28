@@ -119,7 +119,7 @@ mountMetroWindow({ stage, styles, panel, uploads });
 
 `requestAnimationFrame` 不会因为容器被 `display:none` 就停下来.车窗是常驻的
 逐帧合成负载,如果不管,切走标签页以后 GPU 会一直空转.所以组件把
-**「用户想不想跑」(▶/⏸)和「现在能不能看见」分开记**,实际渲染 = 两者相与:
+**「用户想不想跑」(那颗播放-暂停开关)和「现在能不能看见」分开记**,实际渲染 = 两者相与:
 
 - `IntersectionObserver` 盯容器(标签页切走时交集为空);
 - `visibilitychange` 盯整个文档(浏览器最小化/切到后台标签);

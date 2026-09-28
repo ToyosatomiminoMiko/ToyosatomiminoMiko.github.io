@@ -12,7 +12,7 @@ TRANSPORT_BUTTONS 等模型,本模块只负责"把模型变成元素"并交回�
     `createSlider`(`miko_ui`),本模块只把 config.ts 的声明翻译成它的选项,
     再把句柄摊平进返回值.结构与样式(类名 `.slider-field*`)都归库,本站不再
     维护第二份;库从 npm 装,本地联调与取用链路见 `scripts/dev_ui_link.py` 顶部.
-  - **按钮同样归库**:风格按钮与播放/暂停/重置都由 `createButton` 生成(基线类
+  - **按钮同样归库**:风格按钮与播放-暂停开关 / 重置都由 `createButton` 生成(基线类
     `.ui-button`),本站只补声明里的 id 与 `data-*`,以及"当前风格"的激活类;
     本站不再给按钮写外观(原先那份 `.metro-window button` 规则已撤掉).
 */
@@ -71,8 +71,8 @@ export interface StyleRow {
 export interface SettingsPanel {
     readonly root: HTMLFieldSetElement;
     readonly status: HTMLSpanElement;
-    readonly startButton: HTMLButtonElement;
-    readonly pauseButton: HTMLButtonElement;
+    /** 播放-暂停开关(同一颗按钮,文案随状态切,见 config.ts 的 TRANSPORT_TOGGLE_LABEL) */
+    readonly toggleButton: HTMLButtonElement;
     readonly resetButton: HTMLButtonElement;
     readonly sliders: readonly SliderControl[];
 }
@@ -162,7 +162,7 @@ export function createStyleRow(): StyleRow {
     return { root: create_element({ tag: 'div' }, { class: 'style-row' }, ...buttons), buttons };
 }
 
-/** 播放 / 暂停 / 重置;初始禁用状态由配置决定 */
+/** 播放-暂停开关 + 重置;初始禁用状态由配置决定 */
 function createTransportButtons(): Record<TransportAction, HTMLButtonElement> {
     const entries = TRANSPORT_BUTTONS.map((spec) => {
         const button = createButton({ text: spec.label, disabled: spec.disabled }).element;
@@ -176,7 +176,7 @@ function createTransportButtons(): Record<TransportAction, HTMLButtonElement> {
  * 建出整块设置面板,顺序与重构前的 HTML 完全一致:
  *
  *     <fieldset class="sliders">         <- root,初始 disabled
- *       <legend>🎚 实时参数</legend>
+ *       <legend>实时参数</legend>
  *       <div class="controls">           <- [风格按钮行?] + .spacer + 播放控制
  *       <details class="slider-group">   <- 每个分组一个(来自 SLIDER_GROUPS)
  *       <div class="gpu_info">           <- 状态 span + 图层说明
@@ -195,15 +195,14 @@ export function createSettingsPanel(styleRow: StyleRow | null): SettingsPanel {
     const groups = SLIDER_GROUPS.map(createSliderGroup);
     const transport = createTransportButtons();
 
-    // .spacer 是 flex:1 的空 span:把后面的播放/暂停/重置推到右边.
-    // 三颗播放按钮的顺序在这里显式写出,和 TRANSPORT_BUTTONS 的声明顺序保持一致.
+    // .spacer 是 flex:1 的空 span:把后面的播放-暂停开关与重置推到右边.
+    // 两颗按钮的顺序在这里显式写出,和 TRANSPORT_BUTTONS 的声明顺序保持一致.
     const controls = create_element(
         { tag: 'div' },
         { class: 'controls' },
         ...(styleRow ? [styleRow.root] : []),
         create_element({ tag: 'span' }, { class: 'spacer' }),
-        transport.start,
-        transport.pause,
+        transport.toggle,
         transport.reset,
     );
 
@@ -238,8 +237,7 @@ export function createSettingsPanel(styleRow: StyleRow | null): SettingsPanel {
     return {
         root,
         status,
-        startButton: transport.start,
-        pauseButton: transport.pause,
+        toggleButton: transport.toggle,
         resetButton: transport.reset,
         sliders: groups.flatMap((group) => group.controls),
     };

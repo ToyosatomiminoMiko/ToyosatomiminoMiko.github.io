@@ -7,7 +7,7 @@ IEEE 754 面板的**标记组件**(声明式).
 标记按 config.ts 的声明生成,并把行为代码要用的**元素引用**一起交回:
 
     <section class="ui-panel">                       面板框体(库的 createPanel)
-      <header class="ui-panel-header"><span class="ui-panel-title">🧮 IEEE 754 浮点可视化</span></header>
+      <header class="ui-panel-header"><span class="ui-panel-title">IEEE 754 浮点可视化</span></header>
       <div class="ui-panel-body">
         <p class="ieee-hint">...</p>
         <div class="ieee-controls">
