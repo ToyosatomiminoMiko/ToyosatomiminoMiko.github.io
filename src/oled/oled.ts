@@ -55,6 +55,9 @@ import {
     OLED_MOUSE_BUTTON_MASK,
     OLED_MSB_TOP_BIT,
     OLED_PAGE_ROWS,
+    OLED_PANEL_EDITOR_COLLAPSE_TEXT,
+    OLED_PANEL_EDITOR_EXPAND_TEXT,
+    OLED_PANEL_EDITOR_EXPANDED_CLASS,
     OLED_PNG_FILENAME,
     OLED_PREVIEW_COMPOSITE_OPERATION,
     OLED_PREVIEW_HALF_PIXEL,
@@ -82,6 +85,8 @@ export class OLEDCanvas {
     private readonly refillBtn: HTMLButtonElement;
     private readonly exportBtn: HTMLButtonElement;
     private readonly importBtn: HTMLButtonElement;
+    /** 折叠 / 展开按钮(切数据编辑器的 `is-expanded` 类,见 toggleEditorExpanded) */
+    private readonly editorToggleBtn: HTMLButtonElement;
     /** 绘图工具分段选择器(库的 `createSegmented` 句柄;选中回调在 bindEvents 里接) */
     private readonly toolSelect: SegmentedHandle<DrawTool>;
 
@@ -132,6 +137,7 @@ export class OLEDCanvas {
         this.refillBtn = panel.refillButton;
         this.exportBtn = panel.exportButton;
         this.importBtn = panel.importButton;
+        this.editorToggleBtn = panel.editorToggleButton;
         this.toolSelect = panel.toolSelect;
 
         const ctx = this.canvas.getContext('2d');
@@ -181,6 +187,7 @@ export class OLEDCanvas {
             const result = this.importDataFromText();
             alert((result.success ? '✅' : '❌') + result.message);
         });
+        this.editorToggleBtn.addEventListener('click', () => this.toggleEditorExpanded());
 
         // --- 绘图工具(库的分段选择器:用户选中哪一项由 onChange 报回来) ---
         this.toolSelect.onChange((tool) => this.setTool(tool));
@@ -316,6 +323,29 @@ export class OLEDCanvas {
             const err = e as Error;
             return { success: false, message: `${OLED_IMPORT_FAILED_PREFIX}${err.message}` };
         }
+    }
+
+    /**
+     * 折叠 / 展开数据编辑器,返回切换后的状态(true = 展开).
+     *
+     * 两种高度都是设计参数,留在样式表里(见 public/css/index.css 与 tokens.css):
+     * 折叠态 = `--oled-editor-height`(同时也是最小高度,折叠态就是原来那个默认
+     * 高度),展开态 = 70 行的 `--oled-editor-expanded-height`.这里只切一个类名,
+     * 并把按钮文案与 `aria-expanded` 同步过去.
+     *
+     * 为什么还要清一次内联 height:库的外框是 `overflow: hidden`,本站又给了
+     * `resize: vertical`,用户手动拖过之后浏览器会在外框上留下内联 height --
+     * 内联样式压得过样式表里的两种高度,不清掉的话"点了没反应".
+     */
+    toggleEditorExpanded(): boolean {
+        const editor = this.dataEditor.element;
+        const expanded = editor.classList.toggle(OLED_PANEL_EDITOR_EXPANDED_CLASS);
+        editor.style.height = '';
+        this.editorToggleBtn.textContent = expanded
+            ? OLED_PANEL_EDITOR_COLLAPSE_TEXT
+            : OLED_PANEL_EDITOR_EXPAND_TEXT;
+        this.editorToggleBtn.setAttribute('aria-expanded', String(expanded));
+        return expanded;
     }
 
     // ======================

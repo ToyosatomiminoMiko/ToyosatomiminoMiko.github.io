@@ -462,8 +462,8 @@ canvas#pixelCanvas {
 }
 
 /*
- * 工具区布局:一排可换行的控件 -- 七颗按钮(颜色重置 / 画笔颜色 / 导出数据 /
- * 复制到剪贴板 / 导入数据 / 下载PNG / 字节序)加库的分段选择器.
+ * 工具区布局:一排可换行的控件 -- 八颗按钮(颜色重置 / 画笔颜色 / 导出数据 /
+ * 复制到剪贴板 / 导入数据 / 展开-折叠编辑器 / 下载PNG / 字节序)加库的分段选择器.
  * 按钮间距统一由这里的 `gap` 给(`--oled-button-margin`);数据区现在只剩一颗
  * 编辑器,原先给行内的复制 / 导入两颗按钮补 margin 的 `.oled-card .area-data
  * button` 规则已随之上移并撤掉.按钮本身的观感(描边 / 底色 / 文字 / 悬停 /
@@ -520,10 +520,21 @@ canvas#pixelCanvas {
  * 把编辑器从 150px 撑到 1300px,滚动条反而不会出现.定高之后超出的部分由库的
  * textarea 自己滚(`.ui-scrollbar`,见 oled_panel.ts),与换成编辑器之前那条
  * `textarea.textarea-data` 的手感一致.
+ *
+ * 折叠 / 展开:折叠态就是上面这个 `--oled-editor-height`,同时被钉成 min-height
+ * (手动拖动拖不到更矮,`resize: vertical` 会尊重 min-height);展开态换成
+ * `--oled-editor-expanded-height`(= 70 行,算式见 tokens.css).两态只差一个
+ * `is-expanded` 类,由 oled.ts 的 toggleEditorExpanded 切.
  */
 .oled-card .code-editor {
     height: var(--oled-editor-height);
+    min-height: var(--oled-editor-height);
     resize: vertical;
+}
+
+/* 展开态:70 行的高度(选择器多一个类,特异性 (0,3,0),稳压上面那条) */
+.oled-card .code-editor.is-expanded {
+    height: var(--oled-editor-expanded-height);
 }
 
 /*

@@ -270,7 +270,11 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
   1 位行号(刚粘贴)与 2 位行号(导出的 67 行)之间忽宽忽窄;
   唯一会滚的 textarea 挂库的 `.ui-scrollbar`,滚动条走
   `miko_ui/styles/scrollbar.css`.程序化写值(导出数据)之后要调句柄的
-  `refresh()`,否则行号栏与高亮层不知道 `.value` 变了.
+  `refresh()`,否则行号栏与高亮层不知道 `.value` 变了.**折叠 / 展开**也归本站:
+  折叠态高度 = `--oled-editor-height`(150px,同时也是外框的 `min-height`,手动
+  拖动拖不到更矮),展开态 = `--oled-editor-expanded-height`(1366px = 70 行,
+  算式在 `public/css/tokens.css`),`.tools` 里那颗"展开 / 折叠编辑器"按钮只切
+  外框上的 `is-expanded` 类并同步按钮文案与 `aria-expanded`.
 
   **唯一的两处例外**都不是"另造一套":地铁车窗风格按钮的"当前项"
   (`.metro-window button.active`)与 `<input type="file">` 的原生

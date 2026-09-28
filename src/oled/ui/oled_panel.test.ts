@@ -31,6 +31,8 @@ import {
     OLED_DOM,
     OLED_PANEL_COORDS_CLASS,
     OLED_PANEL_COORDS_TEXT,
+    OLED_PANEL_EDITOR_EXPAND_TEXT,
+    OLED_PANEL_EDITOR_EXPANDED_CLASS,
     OLED_PANEL_EDITOR_GUTTER_WIDTH,
     OLED_PANEL_EXPORT_BUTTON_TEXT,
     OLED_PANEL_EXTRA_CLASS,
@@ -99,7 +101,7 @@ describe('OLED:状态区与画布', () => {
 });
 
 describe('OLED:工具控制区', () => {
-    it('七个按钮的 id / 文案 / 库基线类与原来一致', () => {
+    it('八个按钮的 id / 文案 / 库基线类与原来一致', () => {
         const panel = render();
         const expected = [
             [panel.refillButton, OLED_DOM.refillBtnId, OLED_PANEL_REFILL_BUTTON_TEXT],
@@ -109,6 +111,7 @@ describe('OLED:工具控制区', () => {
             [panel.byteOrderButton, OLED_DOM.byteOrderBtnId, OLED_BYTE_ORDER_TEXT[OLED_DEFAULT_BYTE_ORDER]],
             [panel.copyButton, OLED_DOM.copyBtnId, OLED_COPY_BUTTON_TEXT],
             [panel.importButton, OLED_DOM.importBtnId, OLED_PANEL_IMPORT_BUTTON_TEXT],
+            [panel.editorToggleButton, OLED_DOM.editorToggleBtnId, OLED_PANEL_EDITOR_EXPAND_TEXT],
         ] as const;
         for (const [button, id, text] of expected) {
             expect(button.id, id).toBe(id);
@@ -153,11 +156,11 @@ describe('OLED:工具控制区', () => {
         const panel = render();
         const tools = panel.root.querySelector(`.${OLED_PANEL_TOOLS_CLASS}`);
         expect(tools).not.toBeNull();
-        // .tools 的直接子节点是 7 颗按钮(原 refill / color / export / png / byte-order
-        // 加合并后上移过来的 copy / import)再加 1 组分段选择器(组内另有 3 颗按钮);
-        // radio 已全部去掉
+        // .tools 的直接子节点是 8 颗按钮(原 refill / color / export / png / byte-order
+        // 加合并后上移过来的 copy / import / editor-toggle)再加 1 组分段选择器
+        // (组内另有 3 颗按钮);radio 已全部去掉
         const directButtons = [...(tools?.children ?? [])].filter((child) => child.tagName === 'BUTTON');
-        expect(directButtons).toHaveLength(7);
+        expect(directButtons).toHaveLength(8);
         expect(tools?.querySelector('.segmented')).toBe(panel.toolSelect.element);
         expect(tools?.querySelectorAll('input')).toHaveLength(0);
         expect(panel.root.querySelectorAll(`.${OLED_PANEL_ROW_CLASS}`)).toHaveLength(1);
@@ -199,15 +202,29 @@ describe('OLED:数据区', () => {
             .toBe('important');
         // 唯一会滚的 textarea 挂库的滚动条规定(见 main.ts 引的 scrollbar.css)
         expect(editor.textarea.classList.contains('ui-scrollbar'), id).toBe(true);
-        // 数据区只有这一行,且行内只有编辑器:按钮全在工具区(导出 / 复制 / 导入相邻)
+        // 数据区只有这一行,且行内只有编辑器:按钮全在工具区(四颗数据按钮相邻)
         expect(editor.element.parentElement?.className).toBe(OLED_PANEL_ROW_CLASS);
         expect(editor.element.parentElement?.querySelector('button')).toBeNull();
         const tools = panel.root.querySelector(`.${OLED_PANEL_TOOLS_CLASS}`);
         expect(tools?.contains(panel.copyButton)).toBe(true);
         expect(tools?.contains(panel.importButton)).toBe(true);
-        // 三颗数据按钮在工具区里相邻:导出 -> 复制 -> 导入
+        expect(tools?.contains(panel.editorToggleButton)).toBe(true);
+        // 四颗数据按钮在工具区里相邻:导出 -> 复制 -> 导入 -> 展开/折叠
         expect(panel.copyButton.previousElementSibling).toBe(panel.exportButton);
         expect(panel.importButton.previousElementSibling).toBe(panel.copyButton);
+        expect(panel.editorToggleButton.previousElementSibling).toBe(panel.importButton);
+    });
+
+    it('折叠 / 展开按钮:初值折叠态,带 aria-expanded / aria-controls', () => {
+        const panel = render();
+        const button = panel.editorToggleButton;
+        // 初值就是折叠态(面板只给文案,展开态类由 oled.ts 的 toggleEditorExpanded 切)
+        expect(button.textContent).toBe(OLED_PANEL_EDITOR_EXPAND_TEXT);
+        expect(button.getAttribute('aria-expanded')).toBe('false');
+        // 控制关系指向那颗编辑器(库外框上的 id)
+        expect(button.getAttribute('aria-controls')).toBe(OLED_DOM.dataEditorId);
+        expect(panel.dataEditor.element.classList.contains(OLED_PANEL_EDITOR_EXPANDED_CLASS))
+            .toBe(false);
     });
 
     it('程序化写值后 refresh():行号与高亮层跟上,源码里的尖括号只当文本', () => {

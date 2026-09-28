@@ -193,6 +193,8 @@ export const OLED_DOM = {
     exportBtnId: 'export-btn',
     /** 导入数据按钮的 id */
     importBtnId: 'import-btn',
+    /** 数据编辑器折叠 / 展开按钮的 id */
+    editorToggleBtnId: 'editor-toggle-btn',
 } as const;
 
 // ---------- 可见文案(保持原样,集中一处便于校对) ----------
@@ -294,6 +296,16 @@ export const OLED_PANEL_ROW_CLASS = 'area-data';
  */
 export const OLED_PANEL_EDITOR_GUTTER_WIDTH = 48;
 
+/**
+ * 数据编辑器"展开"状态的类名(挂在库的 `.code-editor` 外框上).
+ *
+ * 折叠态高度 = `--oled-editor-height`,`is-expanded` 时换成
+ * `--oled-editor-expanded-height`(70 行,见 public/css/tokens.css 的算式);
+ * 两个高度都由 public/css/index.css 落在 `.oled-card .code-editor` 上.
+ * 用类名而不是内联 style:高度是"设计参数",该留在样式表里;行为代码只切状态.
+ */
+export const OLED_PANEL_EDITOR_EXPANDED_CLASS = 'is-expanded';
+
 /** 颜色重置按钮的文案 */
 export const OLED_PANEL_REFILL_BUTTON_TEXT = '颜色重置';
 
@@ -305,6 +317,12 @@ export const OLED_PANEL_PNG_BUTTON_TEXT = '下载PNG';
 
 /** 导入数据按钮的文案 */
 export const OLED_PANEL_IMPORT_BUTTON_TEXT = '导入数据';
+
+/** 折叠 / 展开按钮在**折叠态**下的文案(点一下展开,文案随之换成下面那条) */
+export const OLED_PANEL_EDITOR_EXPAND_TEXT = '展开编辑器';
+
+/** 折叠 / 展开按钮在**展开态**下的文案 */
+export const OLED_PANEL_EDITOR_COLLAPSE_TEXT = '折叠编辑器';
 
 /** 一个绘图工具选项的声明(value 即 DrawTool,label 是按钮上的文字) */
 export interface OledToolOption {

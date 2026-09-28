@@ -351,17 +351,46 @@ const tabSwitch = await cdp.eval(`(async () => {
     };
     const active = (href) => document.querySelector('a[href="' + href + '"]').classList.contains('active');
     // OLED 数据区在真引擎里的样子:合并之后只有一颗库编辑器,高度由本站令牌定,
-    // 复制 / 导入两颗按钮住在工具区那一排(这两件事进程内单测只能验类名与结构,
-    // "定高真的落地了"要真级联才算数).
+    // 复制 / 导入 / 折叠三颗按钮住在工具区那一排(这几件事进程内单测只能验类名与
+    // 结构,"定高真的落地了""展开后真的放得下 70 行"要真级联 + 真布局才算数).
+    const editorFacts = () => {
+      const editor = document.querySelector('#oled .code-editor');
+      const textarea = editor ? editor.querySelector('textarea') : null;
+      const cs = textarea ? getComputedStyle(textarea) : null;
+      // 可见正文行数 = (textarea 内容盒高度) / 行高;clientHeight 含上下 padding
+      const content = textarea && cs
+        ? textarea.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
+        : 0;
+      return {
+        height: editor ? getComputedStyle(editor).height : '没有编辑器',
+        minHeight: editor ? getComputedStyle(editor).minHeight : '没有编辑器',
+        lines: cs ? Math.round(content / parseFloat(cs.lineHeight)) : 0,
+      };
+    };
     const oledData = () => {
       const editors = [...document.querySelectorAll('#oled .code-editor')];
       const tools = document.querySelector('#oled .tools');
+      const toggle = document.querySelector('#editor-toggle-btn');
+      const collapsed = editorFacts();
+      toggle.click();
+      const expanded = editorFacts();
+      const expandedText = toggle.textContent;
+      const expandedAria = toggle.getAttribute('aria-expanded');
+      toggle.click();
+      const backToCollapsed = editorFacts();
       return {
         editors: editors.length,
         textareas: document.querySelectorAll('#oled .code-editor textarea').length,
-        height: editors.length ? getComputedStyle(editors[0]).height : '没有编辑器',
         copyInTools: tools.contains(document.querySelector('#output-button')),
         importInTools: tools.contains(document.querySelector('#import-btn')),
+        toggleInTools: tools.contains(toggle),
+        collapsed,
+        expanded,
+        backToCollapsed,
+        expandedText,
+        expandedAria,
+        collapsedText: toggle.textContent,
+        collapsedAria: toggle.getAttribute('aria-expanded'),
       };
     };
 
@@ -464,15 +493,21 @@ const tabOk = shownOk(tabSwitch?.afterOled?.oled) && tabSwitch?.afterOled?.link 
 console.log(`${tabOk ? '  ok  ' : ' FAIL '} 点标签页能切窗格(站点自己的控制器认下这排触发器,` +
     `切过去的 window 真的 display: block + opacity: 1,切走的 display: none)`);
 if (!tabOk) failed++;
-// 合并后的 OLED 数据区:一颗编辑器 + 真 textarea,定高 150px 落地,
-// 复制 / 导入两颗按钮在 .tools 里(见 config.ts 的 OLED_PANEL_EDITOR_GUTTER_WIDTH
-// 与 tokens.css 的 --oled-editor-height)
+// 合并后的 OLED 数据区:一颗编辑器 + 真 textarea;折叠态 = 150px(也是最小高度),
+// 点一下"展开编辑器"变 1366px(70 行,算式见 tokens.css),再点一下回到 150px;
+// 复制 / 导入 / 折叠三颗按钮都在 .tools 里
 const oledData = tabSwitch?.afterOled?.data;
 const oledDataOk = oledData?.editors === 1 && oledData?.textareas === 1 &&
-    oledData?.height === '150px' && oledData?.copyInTools === true &&
-    oledData?.importInTools === true;
-console.log(`${oledDataOk ? '  ok  ' : ' FAIL '} OLED 数据区只有一颗编辑器` +
-    `(高度吃到 --oled-editor-height,复制 / 导入按钮住进 .tools;实得 ${JSON.stringify(oledData)})`);
+    oledData?.copyInTools === true && oledData?.importInTools === true &&
+    oledData?.toggleInTools === true &&
+    oledData?.collapsed?.height === '150px' && oledData?.collapsed?.minHeight === '150px' &&
+    oledData?.expanded?.height === '1366px' && oledData?.expanded?.lines === 70 &&
+    oledData?.backToCollapsed?.height === '150px' &&
+    oledData?.expandedText === '折叠编辑器' && oledData?.expandedAria === 'true' &&
+    oledData?.collapsedText === '展开编辑器' && oledData?.collapsedAria === 'false';
+console.log(`${oledDataOk ? '  ok  ' : ' FAIL '} OLED 数据区只有一颗编辑器,可折叠 / 展开` +
+    `(折叠 150px(含 min-height)= 展开 1366px / 70 行,按钮文案与 aria-expanded 跟着切;` +
+    `实得 ${JSON.stringify(oledData)})`);
 if (!oledDataOk) failed++;
 const headerOk = headerState?.settingTop === true && headerState?.settingScrolled === false &&
     headerState?.homeTop === true;
