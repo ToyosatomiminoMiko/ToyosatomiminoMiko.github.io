@@ -73,8 +73,8 @@ export class OLEDCanvas {
     private readonly ctx: CanvasRenderingContext2D;
     private readonly indicator: HTMLElement;
     private readonly coordsDisplay: HTMLElement;
-    private readonly exportEditor: CodeEditorHandle;
-    private readonly importEditor: CodeEditorHandle;
+    /** 数据编辑器(库的 `createCodeEditor` 句柄):导出写入 / 复制读取 / 导入读取都是这一颗 */
+    private readonly dataEditor: CodeEditorHandle;
     private readonly copyBtn: HTMLButtonElement;
     private readonly byteOrderBtn: HTMLButtonElement;
     private readonly colorBtn: HTMLButtonElement;
@@ -124,8 +124,7 @@ export class OLEDCanvas {
         this.canvas = panel.canvas;
         this.indicator = panel.indicator;
         this.coordsDisplay = panel.coordsDisplay;
-        this.exportEditor = panel.exportEditor;
-        this.importEditor = panel.importEditor;
+        this.dataEditor = panel.dataEditor;
         this.copyBtn = panel.copyButton;
         this.byteOrderBtn = panel.byteOrderButton;
         this.colorBtn = panel.colorButton;
@@ -254,13 +253,18 @@ export class OLEDCanvas {
         this.byteOrderBtn.textContent = OLED_BYTE_ORDER_TEXT[this.byteOrderMode];
     }
 
-    /** 数据导出 */
+    /**
+     * 数据导出:把当前画布生成成 C 源码,写进数据框.
+     * 数据框只有一颗,所以这一次写入会**覆盖**框里原有的内容(包括刚粘进去,
+     * 还没导入的字节);导出的源码本身就是导入正则认的 `0x??` 形式,覆盖之后
+     * 立刻点"导入数据"读回来的仍是同一幅图.
+     */
     exportData(): string {
         const cSource = this.generateEmbeddedData();
-        this.exportEditor.textarea.value = cSource;
+        this.dataEditor.textarea.value = cSource;
         // 程序化写 `.value` 不派发 `input`:行号栏与高亮层要显式刷新一次
         // (库的 `CodeEditor.refresh`,它转给两个装饰件;见 ui/oled_panel.ts).
-        this.exportEditor.refresh();
+        this.dataEditor.refresh();
         return cSource;
     }
 
@@ -277,9 +281,9 @@ export class OLEDCanvas {
         document.body.removeChild(link);
     }
 
-    /** 复制导出数据到剪贴板(带视觉反馈) */
+    /** 把数据框里的文本复制到剪贴板(带视觉反馈) */
     async copyExport(): Promise<void> {
-        const textarea = this.exportEditor.textarea;
+        const textarea = this.dataEditor.textarea;
         try {
             // 使用现代 Clipboard API
             await navigator.clipboard.writeText(textarea.value);
@@ -294,9 +298,9 @@ export class OLEDCanvas {
         }
     }
 
-    /** 数据导入 */
+    /** 数据导入:解析数据框里的十六进制字节(导出源码也能原样喂回来) */
     importDataFromText(): ImportResult {
-        const input = this.importEditor.textarea.value;
+        const input = this.dataEditor.textarea.value;
         try {
             // 提取十六进制数据
             const hexValues = input.match(OLED_HEX_BYTE_PATTERN);

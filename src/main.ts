@@ -16,7 +16,7 @@
 UI 库的主题与控件样式.
 
 站内**所有按钮**现在都由 `miko_ui` 生成(OLED / IEEE754 / 地铁车窗),滑块也一直
-是库的 `createSlider`,OLED 数据区那两个输入框则是库的 `createCodeEditor`,所以
+是库的 `createSlider`,OLED 数据区那颗输入框则是库的 `createCodeEditor`,所以
 库自带的默认主题(`tokens.css`)必须引进来:库的控件
 只写结构,颜色 / 圆角 / 间距一律 `var(--...)`,那一层的默认值就在 `tokens.css`.
 库的主题是暗色,与本站深色画面同一路.
@@ -29,9 +29,10 @@ UI 库的主题与控件样式.
 import 'miko_ui/styles/tokens.css';
 import 'miko_ui/styles/widgets.css';
 /*
-编辑器外壳:OLED 数据区的两套 `createCodeEditor`(见 src/oled/ui/oled_panel.ts)
-读这一层的 `.code-editor*` 规则 -- 外框 / 行号槽 / "透明 textarea + 背后高亮层"
-的严格重叠都在里面.本站样式表只给这个外框补最小高度与可纵向拖动.
+编辑器外壳:OLED 数据区那颗 `createCodeEditor`(导出与导入共用,见
+src/oled/ui/oled_panel.ts)读这一层的 `.code-editor*` 规则 -- 外框 / 行号槽 /
+"透明 textarea + 背后高亮层"的严格重叠都在里面.本站样式表只给这个外框补
+定高与可纵向拖动.
 */
 import 'miko_ui/styles/editor.css';
 /*

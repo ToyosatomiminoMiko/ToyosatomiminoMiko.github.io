@@ -231,12 +231,13 @@ const report = await cdp.eval(`(() => {
         ok('首屏铺满视口高度(hero 的 100dvh 令牌生效)',
             q('#hero').getBoundingClientRect().height > 200,
             Math.round(q('#hero').getBoundingClientRect().height) + 'px');
-        // 令牌 --oled-button-margin 若写错名字,var() 会退化成 margin:0(不报错),所以这里验真值.
-        // 它有两处消费:数据区按钮的 margin(.oled-card .area-data button)与工具区的 gap;
-        // 这里查数据区的复制按钮 -- 工具区那几颗吃的是 gap,不是 margin.
-        const btnMargin = getComputedStyle(q('#output-button')).marginTop;
-        ok('OLED 面板的按钮真的吃到了外边距令牌(--oled-button-margin)',
-            btnMargin !== '0px' && btnMargin !== '', btnMargin);
+        // 令牌 --oled-button-margin 若写错名字,var() 会退化成 gap:normal(不报错),
+        // 所以这里验真值.它是工具区那一排(七颗按钮 + 分段选择器)唯一的间距来源:
+        // 数据区合并成一颗编辑器之后,复制 / 导入两颗按钮也搬进了 .tools,
+        // 原先给它们补 margin 的 .oled-card .area-data button 规则已撤.
+        const toolsGap = getComputedStyle(q('#oled .tools')).columnGap;
+        ok('OLED 工具区的间距真的吃到了令牌(--oled-button-margin)',
+            toolsGap !== '0px' && toolsGap !== '' && toolsGap !== 'normal', toolsGap);
         /*
           SETTING 整页面板与 OLED 面板都用库的同一个 .ui-panel 框体,所以两边必须
           拿到同一个底色 -- 库的 widgets.css 没被引进来的话,这里就会出现"一张没
@@ -349,10 +350,24 @@ const tabSwitch = await cdp.eval(`(async () => {
                display: cs.display, opacity: cs.opacity };
     };
     const active = (href) => document.querySelector('a[href="' + href + '"]').classList.contains('active');
+    // OLED 数据区在真引擎里的样子:合并之后只有一颗库编辑器,高度由本站令牌定,
+    // 复制 / 导入两颗按钮住在工具区那一排(这两件事进程内单测只能验类名与结构,
+    // "定高真的落地了"要真级联才算数).
+    const oledData = () => {
+      const editors = [...document.querySelectorAll('#oled .code-editor')];
+      const tools = document.querySelector('#oled .tools');
+      return {
+        editors: editors.length,
+        textareas: document.querySelectorAll('#oled .code-editor textarea').length,
+        height: editors.length ? getComputedStyle(editors[0]).height : '没有编辑器',
+        copyInTools: tools.contains(document.querySelector('#output-button')),
+        importInTools: tools.contains(document.querySelector('#import-btn')),
+      };
+    };
 
     click('#oled');
     await settle();
-    const afterOled = { oled: pane('oled'), home: pane('home'), link: active('#oled') };
+    const afterOled = { oled: pane('oled'), home: pane('home'), link: active('#oled'), data: oledData() };
     click('#home');
     await settle();
     const afterHome = { home: pane('home'), oled: pane('oled') };
@@ -449,6 +464,16 @@ const tabOk = shownOk(tabSwitch?.afterOled?.oled) && tabSwitch?.afterOled?.link 
 console.log(`${tabOk ? '  ok  ' : ' FAIL '} 点标签页能切窗格(站点自己的控制器认下这排触发器,` +
     `切过去的 window 真的 display: block + opacity: 1,切走的 display: none)`);
 if (!tabOk) failed++;
+// 合并后的 OLED 数据区:一颗编辑器 + 真 textarea,定高 150px 落地,
+// 复制 / 导入两颗按钮在 .tools 里(见 config.ts 的 OLED_PANEL_EDITOR_GUTTER_WIDTH
+// 与 tokens.css 的 --oled-editor-height)
+const oledData = tabSwitch?.afterOled?.data;
+const oledDataOk = oledData?.editors === 1 && oledData?.textareas === 1 &&
+    oledData?.height === '150px' && oledData?.copyInTools === true &&
+    oledData?.importInTools === true;
+console.log(`${oledDataOk ? '  ok  ' : ' FAIL '} OLED 数据区只有一颗编辑器` +
+    `(高度吃到 --oled-editor-height,复制 / 导入按钮住进 .tools;实得 ${JSON.stringify(oledData)})`);
+if (!oledDataOk) failed++;
 const headerOk = headerState?.settingTop === true && headerState?.settingScrolled === false &&
     headerState?.homeTop === true;
 console.log(`${headerOk ? '  ok  ' : ' FAIL '} 导航条隐形/实底正确` +
@@ -468,7 +493,7 @@ if (!formatMenuOk) failed++;
 console.log(`${clockTick?.changed ? '  ok  ' : ' FAIL '} 时钟每秒重绘`);
 if (!clockTick?.changed) failed++;
 
-console.log(`\n共 ${report.length + 4} 项,失败 ${failed} 项`);
+console.log(`\n共 ${report.length + 5} 项,失败 ${failed} 项`);
 console.log('(结构/类名/文案契约由 `npm test` 的 happy-dom 单测覆盖,这里不重复)');
 console.log(`\n页面 console(${cdp.logs.length} 条):`);
 for (const log of cdp.logs.slice(0, 12)) console.log('  ' + log);

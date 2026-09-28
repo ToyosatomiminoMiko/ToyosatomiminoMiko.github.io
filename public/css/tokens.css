@@ -169,7 +169,8 @@
     --oled-border: #00785c;
     /* 工具区与上方元素的间距 */
     --oled-tools-margin-top: 15px;
-    /* 面板里每颗按钮的外边距(全局 `*` 已把 margin 归零,这里统一补回来) */
+    /* 面板里每颗按钮的间距(七颗按钮同排在 .tools 里,由那里的 gap 消费;
+       全局 `*` 已把 margin 归零,这里统一补回来) */
     --oled-button-margin: 4px;
     /* 坐标显示条的背景:卡片现在走库的暗色面板,这里也用库的凹陷底,
        文字沿用卡片的正文色(--color-text),不再是一块浅色条 */
@@ -180,12 +181,12 @@
     --oled-coords-margin-top: 10px;
     /* 鼠标像素指示器的背景(红色半透明) */
     --oled-indicator-bg: rgba(255, 0, 0, 0.6);
-    /* 数据编辑器的高度(结构与配色归 miko_ui 的 `.code-editor`):固定值,
-       导出数据再长也由内部 textarea 自己滚,不把卡片撑高;
+    /* 数据编辑器的高度(结构与配色归 miko_ui 的 `.code-editor`;导出与导入
+       共用这一颗):固定值,导出数据再长也由内部 textarea 自己滚,不把卡片撑高;
        原先那三条 `--oled-textarea-*` 已随 `textarea.textarea-data` 一起撤掉
        (底色 / 边框走库的主题令牌,最小高度由本条取代) */
     --oled-editor-height: 150px;
-    /* 导入 / 导出区块的上下外边距 */
+    /* 数据区(唯一一行,只放那颗编辑器)的上下外边距 */
     --oled-area-margin: 10px;
 
     /* ---------- SETTING 标签页 ---------- */

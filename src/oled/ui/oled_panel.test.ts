@@ -12,8 +12,9 @@
  * 按钮本身现在归 UI 库(`miko_ui` 的 `createButton`):带库的基线类 `.ui-button`,
  * 不再带本站原来的 bootstrap 类 `btn btn-primary`;三个绘图工具归库的
  * `createSegmented`(`div.segmented` + 组内按钮),不再有 `input[name="tools"]`;
- * 数据区两块输入框归库的 `createCodeEditor`(`div.code-editor`:行号槽 + 真
- * textarea + 高亮层),不再有 `textarea.textarea-data`.
+ * 数据区归库的 `createCodeEditor`(`div.code-editor`:行号槽 + 真 textarea +
+ * 高亮层),不再有 `textarea.textarea-data`;数据区只有**一颗**编辑框(导出写它,
+ * 导入读它),复制 / 导入两颗按钮随之上移到 `.tools`.
  *
  * @vitest-environment happy-dom
  */
@@ -148,23 +149,23 @@ describe('OLED:工具控制区', () => {
         });
     });
 
-    it('工具区与两块数据区的类名不变', () => {
+    it('工具区与唯一一行数据区的类名不变', () => {
         const panel = render();
         const tools = panel.root.querySelector(`.${OLED_PANEL_TOOLS_CLASS}`);
         expect(tools).not.toBeNull();
-        // .tools 的直接子节点是 5 颗独立按钮(refill / color / export / png / byte-order)
-        // 加 1 组分段选择器(组内另有 3 颗按钮);radio 已全部去掉;
-        // 复制与导入那两颗按钮属于下面的数据区,不在这里(原标记即如此)
+        // .tools 的直接子节点是 7 颗按钮(原 refill / color / export / png / byte-order
+        // 加合并后上移过来的 copy / import)再加 1 组分段选择器(组内另有 3 颗按钮);
+        // radio 已全部去掉
         const directButtons = [...(tools?.children ?? [])].filter((child) => child.tagName === 'BUTTON');
-        expect(directButtons).toHaveLength(5);
+        expect(directButtons).toHaveLength(7);
         expect(tools?.querySelector('.segmented')).toBe(panel.toolSelect.element);
         expect(tools?.querySelectorAll('input')).toHaveLength(0);
-        expect(panel.root.querySelectorAll(`.${OLED_PANEL_ROW_CLASS}`)).toHaveLength(2);
-        // 数据区两块输入框是库 `createCodeEditor` 的 `.code-editor` 外框:
+        expect(panel.root.querySelectorAll(`.${OLED_PANEL_ROW_CLASS}`)).toHaveLength(1);
+        // 数据区是库 `createCodeEditor` 的**一套** `.code-editor` 外框:
         // 本站的 `textarea.textarea-data` 已撤,库自己那颗真 textarea 在里面
-        expect(panel.root.querySelectorAll('.code-editor')).toHaveLength(2);
+        expect(panel.root.querySelectorAll('.code-editor')).toHaveLength(1);
         expect(panel.root.querySelectorAll('textarea.textarea-data')).toHaveLength(0);
-        expect(panel.root.querySelectorAll('.code-editor-textarea')).toHaveLength(2);
+        expect(panel.root.querySelectorAll('.code-editor-textarea')).toHaveLength(1);
     });
 
     it('画笔颜色按钮紧跟在颜色重置按钮后面(工具区不再有"画笔:"说明文字)', () => {
@@ -176,59 +177,57 @@ describe('OLED:工具控制区', () => {
     });
 });
 
-describe('OLED:数据输入输出区', () => {
-    it('两块数据区各是一套库编辑器(.code-editor)的 id / 结构 / 相邻按钮对得上', () => {
+describe('OLED:数据区', () => {
+    it('只有一颗库编辑器(.code-editor)承载导出与导入,三颗接口按钮同在 .tools', () =>  {
         const panel = render();
-        const editors = [panel.exportEditor, panel.importEditor] as const;
-        const ids = [OLED_DOM.exportEditorId, OLED_DOM.importEditorId] as const;
-        editors.forEach((editor, index) => {
-            const id = ids[index];
-            // id 挂在外框上:库的选项里没有 id,句柄拿到元素后由本站补(与按钮同一条口径)
-            expect(document.getElementById(id), id).toBe(editor.element);
-            expect(editor.element.classList.contains('code-editor'), id).toBe(true);
-            // 库的结构契约:行号槽 + 真 textarea + 高亮层,高亮层与 textarea 必须相邻
-            expect(editor.element.querySelector('.code-editor-gutter'), id).toBe(editor.gutter);
-            expect(editor.textarea.classList.contains('code-editor-textarea'), id).toBe(true);
-            expect(editor.textarea.nextElementSibling, id).toBe(editor.highlightScroller);
-            // 高亮层已就位:脚本跑通后库才加这个开关(文字透明 + 高亮层显示)
-            expect(editor.textarea.classList.contains('is-highlighted'), id).toBe(true);
-            // 行号槽宽度钉成常量:库按字体量的内联值被 !important 压住,
-            // 两个编辑器(以及行数变化前后)永远同宽,行号栏自己不滚
-            expect(editor.gutter.style.getPropertyValue('--code-gutter-width'), id)
-                .toBe(`${OLED_PANEL_EDITOR_GUTTER_WIDTH}px`);
-            expect(editor.gutter.style.getPropertyPriority('--code-gutter-width'), id)
-                .toBe('important');
-            // 唯一会滚的 textarea 挂库的滚动条规定(见 main.ts 引的 scrollbar.css)
-            expect(editor.textarea.classList.contains('ui-scrollbar'), id).toBe(true);
-        });
-        // 导出区:.code-editor + br + 复制按钮;导入区:.code-editor + br + 导入按钮
-        expect(panel.exportEditor.element.parentElement?.className).toBe(OLED_PANEL_ROW_CLASS);
-        expect(panel.importEditor.element.parentElement?.className).toBe(OLED_PANEL_ROW_CLASS);
-        expect(panel.exportEditor.element.nextElementSibling?.tagName).toBe('BR');
-        expect(panel.exportEditor.element.parentElement?.querySelector('button')).toBe(panel.copyButton);
-        expect(panel.importEditor.element.parentElement?.querySelector('button')).toBe(panel.importButton);
+        const editor = panel.dataEditor;
+        const id = OLED_DOM.dataEditorId;
+        // id 挂在外框上:库的选项里没有 id,句柄拿到元素后由本站补(与按钮同一条口径)
+        expect(document.getElementById(id), id).toBe(editor.element);
+        expect(editor.element.classList.contains('code-editor'), id).toBe(true);
+        // 库的结构契约:行号槽 + 真 textarea + 高亮层,高亮层与 textarea 必须相邻
+        expect(editor.element.querySelector('.code-editor-gutter'), id).toBe(editor.gutter);
+        expect(editor.textarea.classList.contains('code-editor-textarea'), id).toBe(true);
+        expect(editor.textarea.nextElementSibling, id).toBe(editor.highlightScroller);
+        // 高亮层已就位:脚本跑通后库才加这个开关(文字透明 + 高亮层显示)
+        expect(editor.textarea.classList.contains('is-highlighted'), id).toBe(true);
+        // 行号槽宽度钉成常量:库按字体量的内联值被 !important 压住,
+        // 行数变化前后槽宽不变,行号栏自己不滚
+        expect(editor.gutter.style.getPropertyValue('--code-gutter-width'), id)
+            .toBe(`${OLED_PANEL_EDITOR_GUTTER_WIDTH}px`);
+        expect(editor.gutter.style.getPropertyPriority('--code-gutter-width'), id)
+            .toBe('important');
+        // 唯一会滚的 textarea 挂库的滚动条规定(见 main.ts 引的 scrollbar.css)
+        expect(editor.textarea.classList.contains('ui-scrollbar'), id).toBe(true);
+        // 数据区只有这一行,且行内只有编辑器:按钮全在工具区(导出 / 复制 / 导入相邻)
+        expect(editor.element.parentElement?.className).toBe(OLED_PANEL_ROW_CLASS);
+        expect(editor.element.parentElement?.querySelector('button')).toBeNull();
+        const tools = panel.root.querySelector(`.${OLED_PANEL_TOOLS_CLASS}`);
+        expect(tools?.contains(panel.copyButton)).toBe(true);
+        expect(tools?.contains(panel.importButton)).toBe(true);
+        // 三颗数据按钮在工具区里相邻:导出 -> 复制 -> 导入
+        expect(panel.copyButton.previousElementSibling).toBe(panel.exportButton);
+        expect(panel.importButton.previousElementSibling).toBe(panel.copyButton);
     });
 
     it('程序化写值后 refresh():行号与高亮层跟上,源码里的尖括号只当文本', () => {
         const panel = render();
-        panel.exportEditor.textarea.value = '<a>\n<b>';
-        panel.exportEditor.refresh();
+        panel.dataEditor.textarea.value = '<a>\n<b>';
+        panel.dataEditor.refresh();
         // 行号栏按 \n 计数(库的 EditorLineNumbers):两行 -> 1 / 2
-        expect(panel.exportEditor.lines.textContent).toBe('1\n2');
+        expect(panel.dataEditor.lines.textContent).toBe('1\n2');
         // 高亮注入只转义,不做词法:源码原样可见,`<b>` 不会被解析成标签
-        expect(panel.exportEditor.highlightCode.innerHTML).toBe('&lt;a&gt;\n&lt;b&gt;');
-        expect(panel.exportEditor.highlightCode.textContent).toBe('<a>\n<b>');
+        expect(panel.dataEditor.highlightCode.innerHTML).toBe('&lt;a&gt;\n&lt;b&gt;');
+        expect(panel.dataEditor.highlightCode.textContent).toBe('<a>\n<b>');
     });
 
     it('行数进位也改不动行号槽宽度(库重量后仍是我们钉的常量)', () => {
         const panel = render();
         // 三位行号:库会重量一次并写内联值,但压不过我们带 !important 的那一份
-        panel.exportEditor.textarea.value = Array.from({ length: 120 }, (_, i) => `line ${i}`).join('\n');
-        panel.exportEditor.refresh();
-        for (const editor of [panel.exportEditor, panel.importEditor]) {
-            expect(editor.gutter.style.getPropertyValue('--code-gutter-width'))
-                .toBe(`${OLED_PANEL_EDITOR_GUTTER_WIDTH}px`);
-            expect(editor.gutter.style.getPropertyPriority('--code-gutter-width')).toBe('important');
-        }
+        panel.dataEditor.textarea.value = Array.from({ length: 120 }, (_, i) => `line ${i}`).join('\n');
+        panel.dataEditor.refresh();
+        expect(panel.dataEditor.gutter.style.getPropertyValue('--code-gutter-width'))
+            .toBe(`${OLED_PANEL_EDITOR_GUTTER_WIDTH}px`);
+        expect(panel.dataEditor.gutter.style.getPropertyPriority('--code-gutter-width')).toBe('important');
     });
 });

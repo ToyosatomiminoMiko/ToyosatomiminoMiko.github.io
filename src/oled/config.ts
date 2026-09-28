@@ -172,10 +172,13 @@ export const OLED_DOM = {
     indicatorId: 'pixelIndicator',
     /** 坐标文本显示的 id */
     coordsDisplayId: 'coordsDisplay',
-    /** 导出结果编辑器(`.code-editor` 外框)的 id */
-    exportEditorId: 'exportOutput',
-    /** 导入编辑器(`.code-editor` 外框)的 id */
-    importEditorId: 'importData',
+    /**
+     * 数据编辑器(`.code-editor` 外框)的 id.
+     * 导出写入与导入读取的是**同一颗框**:导出的源码本身就是 `0x??` 形式
+     * (见 OLED_HEX_BYTE_PATTERN),一个缓冲足够跑完"导出 -> 改 / 粘 -> 导入",
+     * 不再分导出框 / 导入框两个 id.
+     */
+    dataEditorId: 'oledData',
     /** 复制按钮的 id */
     copyBtnId: 'output-button',
     /** 字节序切换按钮的 id */
@@ -269,7 +272,7 @@ export const OLED_PANEL_INDICATOR_CLASS = 'pixel-indicator';
 /** 工具控制区类名(CSS 的 `.tools`) */
 export const OLED_PANEL_TOOLS_CLASS = 'tools';
 
-/** 数据输入输出行类名(CSS 的 `.area-data` 提供上下外边距) */
+/** 数据区行类名(CSS 的 `.area-data` 提供上下外边距;唯一一行,只放那颗数据编辑器) */
 export const OLED_PANEL_ROW_CLASS = 'area-data';
 
 /*
@@ -282,8 +285,8 @@ export const OLED_PANEL_ROW_CLASS = 'area-data';
  *
  * 导出数据的形态是固定的(每行同样多的字节),行号槽没有"随行数变宽"的必要;
  * 而库默认按"最大行号位数 × 当前字体的数字宽"自己量,量出来的宽度会在
- * 1 位行号(刚粘贴)与 2 位行号(导出的 67 行)之间跳(实测 32px / 35px),
- * 两个上下叠着的编辑器就对不齐.所以这里钉一个常量:既作为库的
+ * 1 位行号(刚粘贴)与 2 位行号(导出的 67 行)之间跳(实测 32px / 35px),同一颗
+ * 框在"粘贴一小段"与"导出整份"之间就会忽宽忽窄.所以这里钉一个常量:既作为库的
  * `gutterMinWidth`,也由 ui/oled_panel.ts 以内联 `!important` 压住库随后写上的
  * 内联值.取值按"3 位数 + 槽内边距 / 边框"留量(实测 3 位需约 45px).
  * 位数再多(例如把 1024 个字节一行一个粘进来)会被 `overflow: hidden` 裁掉,

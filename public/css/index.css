@@ -461,7 +461,15 @@ canvas#pixelCanvas {
     border: var(--ieee-border-width) solid var(--oled-border);
 }
 
-/* 工具区布局:一排可换行的控件(按钮 + 库的分段选择器) */
+/*
+ * 工具区布局:一排可换行的控件 -- 七颗按钮(颜色重置 / 画笔颜色 / 导出数据 /
+ * 复制到剪贴板 / 导入数据 / 下载PNG / 字节序)加库的分段选择器.
+ * 按钮间距统一由这里的 `gap` 给(`--oled-button-margin`);数据区现在只剩一颗
+ * 编辑器,原先给行内的复制 / 导入两颗按钮补 margin 的 `.oled-card .area-data
+ * button` 规则已随之上移并撤掉.按钮本身的观感(描边 / 底色 / 文字 / 悬停 /
+ * 焦点 / 禁用)归 UI 库(`miko_ui` 的 `.ui-button` 基线,见 main.ts 引的
+ * widgets.css);分段选择器组内按钮的间距由库的 `.segmented` gap 管.
+ */
 .tools {
     display: flex;
     flex-wrap: wrap;
@@ -470,17 +478,6 @@ canvas#pixelCanvas {
     margin-top: var(--oled-tools-margin-top);
     /* 文字色归库:与卡片正文同一色(原先写死白色,是给浅色底准备的) */
     color: var(--color-text);
-}
-
-/*
- * 面板里的按钮统一留出外边距.
- * 按钮本身的观感(描边 / 底色 / 文字 / 悬停 / 焦点 / 禁用)全部归 UI 库
- * (`miko_ui` 的 `.ui-button` 基线,见 main.ts 引的 widgets.css)与库的
- * `.segmented`;**分段选择器里面的按钮不算**:它们是库的组内成员,间距由
- * 库的 `.segmented` gap 管,这里只给"独立按钮"补外边距(数据区那两颗).
- */
-.oled-card .area-data button {
-    margin: var(--oled-button-margin);
 }
 
 /* 状态指示器样式 */
@@ -507,11 +504,11 @@ canvas#pixelCanvas {
 }
 
 /*
- * 数据区的两套编辑器:`miko_ui` 的 `createCodeEditor`(外框类 `.code-editor`,
- * 见 src/oled/ui/oled_panel.ts).外框 / 行号槽 / "透明 textarea + 背后高亮层"的
- * 严格重叠,以及等宽字体 / 配色,全部归库的 `styles/editor.css`(由 src/main.ts
- * 引入);本站原来那条 `.textarea-data` 里只有两件事与编辑器有关,现在原样落到
- * 库的外框上:高度,与纵向可拖动.
+ * 数据区那颗编辑器:`miko_ui` 的 `createCodeEditor`(外框类 `.code-editor`,
+ * 见 src/oled/ui/oled_panel.ts;导出与导入共用这一颗).外框 / 行号槽 /
+ * "透明 textarea + 背后高亮层"的严格重叠,以及等宽字体 / 配色,全部归库的
+ * `styles/editor.css`(由 src/main.ts 引入);本站原来那条 `.textarea-data` 里只有
+ * 两件事与编辑器有关,现在原样落到库的外框上:高度,与纵向可拖动.
  *
  * 为什么要 `.oled-card` 前缀:库的样式表由 main.ts 引入(排在 public/css/*.css
  * 之后),`.code-editor` 在库里已经写了 `height: 100%` / `min-height: 0`,平局时
