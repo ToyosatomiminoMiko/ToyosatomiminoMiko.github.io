@@ -28,13 +28,11 @@ import {
     OLED_DEFAULT_CONFIG,
     OLED_DEFAULT_TOOL,
     OLED_DOM,
-    OLED_PANEL_CARD_BODY_CLASS,
-    OLED_PANEL_CARD_CLASS,
-    OLED_PANEL_CARD_HEADER_CLASS,
     OLED_PANEL_COORDS_CLASS,
     OLED_PANEL_COORDS_TEXT,
     OLED_PANEL_EDITOR_GUTTER_WIDTH,
     OLED_PANEL_EXPORT_BUTTON_TEXT,
+    OLED_PANEL_EXTRA_CLASS,
     OLED_PANEL_IMPORT_BUTTON_TEXT,
     OLED_PANEL_INDICATOR_CLASS,
     OLED_PANEL_PNG_BUTTON_TEXT,
@@ -56,14 +54,15 @@ function render(): OledPanel {
 }
 
 describe('OLED:面板外壳', () => {
-    it('是 div.card.oled-card,标题文案来自 config(.oled-card 定宽)', () => {
+    it('是 section.ui-panel.oled-card,标题文案来自 config(.oled-card 定宽)', () => {
         const panel = render();
-        expect(panel.root.tagName).toBe('DIV');
-        expect(panel.root.className).toBe(OLED_PANEL_CARD_CLASS);
+        expect(panel.root.tagName).toBe('SECTION');
+        expect(panel.root.className).toBe(`ui-panel ${OLED_PANEL_EXTRA_CLASS}`);
         expect(panel.root.classList.contains('oled-card')).toBe(true);
-        expect(panel.root.querySelector(`.${OLED_PANEL_CARD_HEADER_CLASS} h4`)?.textContent)
+        // 框体(标题栏 / 标题 / 正文容器)由库的 `createPanel` 建
+        expect(panel.root.querySelector('.ui-panel-header .ui-panel-title')?.textContent)
             .toBe(OLED_PANEL_TITLE_TEXT);
-        expect(panel.root.querySelector(`.${OLED_PANEL_CARD_BODY_CLASS}`)).not.toBeNull();
+        expect(panel.root.querySelector('.ui-panel-body')).not.toBeNull();
     });
 
     it('文档里没有重复 id', () => {

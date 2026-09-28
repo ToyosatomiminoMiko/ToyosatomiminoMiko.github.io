@@ -19,11 +19,8 @@ import {
     FLOAT64,
     IEEE754_BITSTRING_CLASS,
     IEEE754_BREAKDOWN_CLASS,
-    IEEE754_CARD_BODY_CLASS,
-    IEEE754_CARD_CLASS,
-    IEEE754_CARD_HEADER_CLASS,
-    IEEE754_COL_AUTO_CLASS,
-    IEEE754_COL_HALF_CLASS,
+    IEEE754_CONTROLS_FORMAT_CLASS,
+    IEEE754_CONTROLS_INPUT_CLASS,
     IEEE754_CONTROLS_ROW_CLASS,
     IEEE754_CONVERT_LABEL,
     IEEE754_DEFAULT_FORMAT_VALUE,
@@ -74,12 +71,14 @@ function mustQuery(selector: string): Element {
 }
 
 describe('IEEE754:面板外壳与提示', () => {
-    it('是 div.card,标题与提示段落文案来自 config', () => {
+    it('是 section.ui-panel,标题与提示段落文案来自 config', () => {
         const panel = render();
-        expect(panel.root.className).toBe(IEEE754_CARD_CLASS);
-        expect(panel.root.querySelector(`.${IEEE754_CARD_HEADER_CLASS} h4`)?.textContent)
+        expect(panel.root.tagName).toBe('SECTION');
+        expect(panel.root.className).toBe('ui-panel');
+        // 框体(标题栏 / 标题 / 正文容器)由库的 `createPanel` 建
+        expect(panel.root.querySelector('.ui-panel-header .ui-panel-title')?.textContent)
             .toBe(IEEE754_PANEL_TITLE);
-        const hint = panel.root.querySelector(`.${IEEE754_CARD_BODY_CLASS} > p.${IEEE754_HINT_CLASS}`);
+        const hint = panel.root.querySelector(`.ui-panel-body > p.${IEEE754_HINT_CLASS}`);
         expect(hint?.textContent).toBe(IEEE754_HINT_TEXT);
     });
 
@@ -91,12 +90,12 @@ describe('IEEE754:面板外壳与提示', () => {
 });
 
 describe('IEEE754:精度与输入那一行', () => {
-    it('bootstrap 栅格类与原来一致(.row / .col-auto / .col-6 / .form-label)', () => {
+    it('精度 / 输入那一行的站点布局类与原来一致(.ieee-controls / 两列 / 两个标签)', () => {
         render();
-        const row = mustQuery(`.${IEEE754_CARD_BODY_CLASS} > .row`);
+        const row = mustQuery(`.ui-panel-body > .${IEEE754_CONTROLS_ROW_CLASS}`);
         expect(row.className).toBe(IEEE754_CONTROLS_ROW_CLASS);
         expect([...row.children].map((child) => child.className))
-            .toEqual([IEEE754_COL_AUTO_CLASS, IEEE754_COL_HALF_CLASS]);
+            .toEqual([IEEE754_CONTROLS_FORMAT_CLASS, IEEE754_CONTROLS_INPUT_CLASS]);
         expect(row.querySelectorAll(`label.${IEEE754_LABEL_CLASS.split(' ')[0]}`)).toHaveLength(2);
     });
 
@@ -145,19 +144,20 @@ describe('IEEE754:精度与输入那一行', () => {
             .toEqual(IEEE754_FORMAT_CHOICES.map((choice) => choice.active));
     });
 
-    it('十进制输入框沿用 bootstrap,转换按钮改成库按钮:初值 / 类名 / type 都对得上', () => {
+    it('十进制输入框改用站点样式类,转换按钮是库按钮:初值 / 类名 / type 都对得上', () => {
         const panel = render();
         expect(panel.input.getAttribute('value')).toBe(IEEE754_INPUT_INITIAL_VALUE);
         expect(panel.input.className).toBe(IEEE754_INPUT_CLASS);
         expect(panel.input.getAttribute('spellcheck')).toBe(IEEE754_INPUT_SPELLCHECK);
         expect(panel.input.parentElement?.className).toBe(IEEE754_INPUT_GROUP_CLASS);
         // 转换按钮归 UI 库(`miko_ui` 的 `createButton`):带基线类 `.ui-button`,
-        // 站点原来的 bootstrap 类 `btn btn-primary` 已不用
+        // 站点原先的 bootstrap 类 `btn btn-primary` 与输入框的 `.form-control`
+        // 都已不用(输入框观感改由站点 `.ieee-input` 引库令牌)
         expect(panel.convertButton.classList.contains('ui-button')).toBe(true);
         expect(panel.convertButton.classList.contains('btn')).toBe(false);
         expect(panel.convertButton.getAttribute('type')).toBe('button');
         expect(panel.convertButton.textContent).toBe(IEEE754_CONVERT_LABEL);
-        // 按钮与输入框在同一个 input-group 里(原标记如此)
+        // 按钮与输入框在同一个输入组里(原标记如此)
         expect(panel.input.parentElement?.querySelector('button')).toBe(panel.convertButton);
     });
 

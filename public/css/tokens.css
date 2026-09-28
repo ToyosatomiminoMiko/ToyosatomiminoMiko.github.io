@@ -51,6 +51,8 @@
     --card-width: 100%;
     /* 主内容区占视口宽度比例(首屏会从这里满宽逃逸到 100vw,见 index.css 的 .hero) */
     --main-width: 90%;
+    /* 面板框体的内边距归 miko_ui(`--panel-header-padding` / `--panel-body-padding`,
+       默认值在库的 tokens.css);本站不再另存一份. */
     /*
      * 圆角:本站不再自己定值,--radius-sm / --radius-md 直接用 miko_ui 主题令牌
      * (main.ts 引了库的 tokens.css,库默认全站直角 0px).本站只是**引用**,
@@ -246,4 +248,10 @@
     --ieee-cell-padding: 5px 10px;
     /* 图例项间距 */
     --ieee-legend-gap: 16px;
+    /* 精度 / 输入那一行:两列间距与输入列宽度(替代 bootstrap 栅格的 g-3 / col-6) */
+    --ieee-controls-gap: 1rem;
+    --ieee-controls-input-width: 50%;
+    /* 十进制输入框:内边距与字号(观感对齐 miko_ui 的数字框) */
+    --ieee-input-padding: 4px 8px;
+    --ieee-input-font-size: 0.875rem;
 }

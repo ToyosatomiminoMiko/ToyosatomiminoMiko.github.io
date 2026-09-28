@@ -24,15 +24,10 @@ export const RBT_DOM = {
 } as const;
 
 // ---------- 面板标记契约(声明式模型,逐字照搬旧 #rbt 窗格) ----------
-
-/** 面板根元素的类名(旧标记 `<div class="card">`) */
-export const RBT_PANEL_ROOT_CLASS = 'card';
-
-/** 面板头部容器的类名(旧标记 `<div class="card-header">`) */
-export const RBT_PANEL_HEADER_CLASS = 'card-header';
-
-/** 面板主体容器的类名(旧标记 `<div class="card-body">`) */
-export const RBT_PANEL_BODY_CLASS = 'card-body';
+//
+// 结构 / 文案 / id 与原标记逐字一致.框体(section.ui-panel + 标题栏 + 正文容器)
+// 现在由 miko_ui 的 `createPanel` 建,类名归库;原先夹在标题栏与正文之间的提示区
+// 移进了正文容器(见 ui/rbt_panel.ts),这是唯一一处结构变化.
 
 /** 面板标题(可见文本,保持原样) */
 export const RBT_PANEL_TITLE = '🌳 Red-Black Tree';

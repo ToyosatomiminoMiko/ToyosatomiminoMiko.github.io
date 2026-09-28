@@ -6,19 +6,19 @@ IEEE 754 面板的**标记组件**(声明式).
 和地铁车窗控制台同一条约定:宿主只提供空窗格(骨架里的 `.tab-pane#ieee754`),
 标记按 config.ts 的声明生成,并把行为代码要用的**元素引用**一起交回:
 
-    <div class="card">
-      <div class="card-header"><h4>🧮 IEEE 754 浮点可视化</h4></div>
-      <div class="card-body">
+    <section class="ui-panel">                       面板框体(库的 createPanel)
+      <header class="ui-panel-header"><span class="ui-panel-title">🧮 IEEE 754 浮点可视化</span></header>
+      <div class="ui-panel-body">
         <p class="ieee-hint">...</p>
-        <div class="row g-3 align-items-center mb-3">
-          <div class="col-auto">
+        <div class="ieee-controls">
+          <div class="ieee-controls__format">
             精度 label(for 指触发按钮)
             div.menu-anchor                      精度菜单的锚点(库的定位参照)
               button#ieee-format.ui-button       触发按钮:显示当前精度
               div.menu-panel.menu-popover        菜单面板(role="menu",两项,当前项带 .is-active)
                 button.menu-item                 主文案是 <code>float (32bit)</code>,行右弱色小字"单精度"
           </div>
-          <div class="col-6">十进制 label + input-group(input#ieee-input + button#ieee-convert)</div>
+          <div class="ieee-controls__input">十进制 label + div.ieee-input-group(input#ieee-input + button#ieee-convert)</div>
         </div>
         <div id="ieee-error" class="ieee-error" hidden></div>
         <div class="ieee-section">
@@ -36,12 +36,14 @@ IEEE 754 面板的**标记组件**(声明式).
           <div id="ieee-special" class="ieee-special"></div>
         </div>
       </div>
-    </div>
+    </section>
 
 本模块是纯函数:不读页面,不改全局,不绑事件(`addEventListener` / 初始渲染都是
 ieee754.ts 的事),只把"描述"变成元素并交回引用 -- 与 ui/settings.ts 的分工一致.
 标记的形状与类名逐个照搬重构前的 index.html,`public/css/ieee754.css` 按这些
-id / class 命中,不得合并或省略.
+id / class 命中,不得合并或省略;例外有两处 -- 面板框体现在由 miko_ui 的
+`createPanel` 建(类名归库,本站不再声明),顶部那一行从 bootstrap 的栅格 /
+表单件换成站点自研的 `.ieee-controls*` / `.ieee-input*`(见 ieee754.css).
 
 **两处归 UI 库(`miko_ui`)**:转换按钮是 `createButton`(基线类 `.ui-button`),
 精度那一列则由 `createMenu` 生成的**折叠菜单**替换了原来的 `<select>`
@@ -49,17 +51,14 @@ id / class 命中,不得合并或省略.
 与一个挂载锚点);站点不再给两者写外观,也没有 bootstrap 的 `.form-select` 了.
 */
 
-import { createButton, createMenu, create_element, type Child, type MenuHandle } from 'miko_ui';
+import { createButton, createMenu, createPanel, create_element, type Child, type MenuHandle } from 'miko_ui';
 
 import {
     IEEE754_BITS_CLASS,
     IEEE754_BITSTRING_CLASS,
     IEEE754_BREAKDOWN_CLASS,
-    IEEE754_CARD_BODY_CLASS,
-    IEEE754_CARD_CLASS,
-    IEEE754_CARD_HEADER_CLASS,
-    IEEE754_COL_AUTO_CLASS,
-    IEEE754_COL_HALF_CLASS,
+    IEEE754_CONTROLS_FORMAT_CLASS,
+    IEEE754_CONTROLS_INPUT_CLASS,
     IEEE754_CONTROLS_ROW_CLASS,
     IEEE754_CONVERT_LABEL,
     IEEE754_DOM,
@@ -91,7 +90,7 @@ import {
 
 /** 面板的全部结构,以及行为代码要用的元素引用 */
 export interface Ieee754Panel {
-    /** div.card */
+    /** div.ui-panel(库的 `createPanel` 建的框体) */
     readonly root: HTMLElement;
     /** 精度菜单的句柄:开合 / 选中回调 / 当前项都在它上面 */
     readonly formatMenu: MenuHandle<string>;
@@ -234,18 +233,19 @@ export function createIeee754Panel(): Ieee754Panel {
         { class: IEEE754_SPECIAL_CLASS, id: IEEE754_DOM.specialId },
     );
 
-    // 精度 / 输入那一行:两列都按原标记的栅格类摆放.
+    // 精度 / 输入那一行:两列按站点自研的 `.ieee-controls` 布局摆放(替代原 bootstrap
+    // 栅格),宽度语义不变 -- 左列随内容,右列半宽.
     // 精度那一列的 label 仍指向 #ieee-format,只是它现在是菜单的触发按钮
     // (`<label for>` 认所有可标注元素,按钮是其中之一).
     const controlsRow = create_element({ tag: 'div' }, { class: IEEE754_CONTROLS_ROW_CLASS },
-        create_element({ tag: 'div' }, { class: IEEE754_COL_AUTO_CLASS },
+        create_element({ tag: 'div' }, { class: IEEE754_CONTROLS_FORMAT_CLASS },
             create_element({ tag: 'label' }, {
                 class: IEEE754_LABEL_CLASS,
                 for: IEEE754_DOM.formatId,
             }, IEEE754_FORMAT_LABEL),
             formatAnchor,
         ),
-        create_element({ tag: 'div' }, { class: IEEE754_COL_HALF_CLASS },
+        create_element({ tag: 'div' }, { class: IEEE754_CONTROLS_INPUT_CLASS },
             create_element({ tag: 'label' }, {
                 class: IEEE754_LABEL_CLASS,
                 for: IEEE754_DOM.inputId,
@@ -254,11 +254,11 @@ export function createIeee754Panel(): Ieee754Panel {
         ),
     );
 
-    // 三个分区:位图(S/E/M + 位串)/ 公式(KaTeX)/ 特殊值参考
-    const root = create_element({ tag: 'div' }, { class: IEEE754_CARD_CLASS },
-        create_element({ tag: 'div' }, { class: IEEE754_CARD_HEADER_CLASS },
-            create_element({ tag: 'h4' }, {}, IEEE754_PANEL_TITLE)),
-        create_element({ tag: 'div' }, { class: IEEE754_CARD_BODY_CLASS },
+    // 面板框体(标题栏 / 正文容器)归库;正文顺序:提示 -> 精度/输入那一行 ->
+    // 错误提示 -> 位图分区 -> 分解 -> 公式分区 -> 特殊值分区
+    const root = createPanel({
+        title: IEEE754_PANEL_TITLE,
+        body: [
             create_element({ tag: 'p' }, { class: IEEE754_HINT_CLASS }, IEEE754_HINT_TEXT),
             controlsRow,
             error,
@@ -272,8 +272,8 @@ export function createIeee754Panel(): Ieee754Panel {
                 create_element({ tag: 'div' }, { class: IEEE754_FORMULA_TITLE_CLASS }, IEEE754_SPECIAL_TITLE),
                 special,
             ),
-        ),
-    );
+        ],
+    }).element;
 
     return {
         root,

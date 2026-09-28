@@ -118,7 +118,7 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
 | --- | --- |
 | 站名 / 标签栏 / 头像 / 首屏结构 / 标签页清单 | `src/common/site.config.ts`(`NAV_ITEMS` / `SITE_BRAND_TEXT` / `AVATAR_*` / `HERO_*`),骨架代码在 `src/common/ui/site_shell.ts` |
 | 背景缩略图(加一张图 / 换名字) | `src/common/site.config.ts` 的 `BACKGROUND_PRESETS`,标记在 `src/common/ui/background_section.ts` |
-| SETTING 页的卡片 / 标题 | `src/common/site.config.ts` 的 `SETTING_CARD_*`(bootstrap 的 `.card` / `.card-header` / `.card-body` 与标题"设置"),卡片结构在 `src/common/ui/site_shell.ts` |
+| SETTING 页的面板 / 标题 | `src/common/site.config.ts` 的 `SETTING_PANEL_TITLE`(标题"设置");框体由 miko_ui 的 `createPanel` 建(`section.ui-panel`),结构与外观都在库(`styles/widgets.css`),面板结构在 `src/common/ui/site_shell.ts` |
 | LED 时钟的画布尺寸 / 时间戳格式 | `src/clock/config.ts`;标记在 `src/clock/ui/clock_display.ts`;绘制在 `src/clock/clock.ts` |
 | OLED 画板的按钮 / 文案 / 提示 | `src/oled/config.ts`,面板标记在 `src/oled/ui/oled_panel.ts` |
 | 红黑树的提示文案 / 画布尺寸 / 占位符 | `src/rbt/config.ts`,面板标记在 `src/rbt/ui/rbt_panel.ts` |
@@ -145,7 +145,7 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
   改 id 要同步 `public/css/*.css`(写错不会报错,只会静默失效).
 - **组件不写页面级选择器**:`body { margin: 0 }` 这类规则属于站点的
   `public/css/index.css`,组件样式只作用在自己的作用域类下(地铁车窗是
-  `.metro-window`,其余模块用 bootstrap 的卡片结构 + 自己的类名).
+  `.metro-window`,其余模块用库的面板框体 `.ui-panel` + 自己的类名).
 - **修饰类由挂载函数补**:组件的样式作用域类不写在 HTML 里(骨架不替组件记约定),
   宿主换了位置照样能命中.
 
@@ -153,8 +153,8 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
 
 | 层 | 跑什么 | 在哪 |
 | --- | --- | --- |
-| 标记契约(进程内) | 生成的标签 / 类名 / id / `data-*` / 文案与 CSS,bootstrap 是否对得上 | `src/**/ui/*.test.ts`,文件头 `@vitest-environment happy-dom`,进 `npm test`(不需要 build,CI 里也跑) |
-| 真浏览器验收 | canvas 真的画出来了吗,bootstrap 真的认这排标签吗,布局与 CSS 级联对不对,导航条隐形/实底的翻转对不对,宿主与车窗组件接上了吗 | `npm run smoke:home`(要 `dist/` 与 chromium,见[「构建」](#构建)) |
+| 标记契约(进程内) | 生成的标签 / 类名 / id / `data-*` / 文案与 CSS 是否对得上 | `src/**/ui/*.test.ts`,文件头 `@vitest-environment happy-dom`,进 `npm test`(不需要 build,CI 里也跑) |
+| 真浏览器验收 | canvas 真的画出来了吗,bootstrap 的标签页真的认这排标签吗,布局与 CSS 级联对不对,导航条隐形/实底的翻转对不对,宿主与车窗组件接上了吗 | `npm run smoke:home`(要 `dist/` 与 chromium,见[「构建」](#构建)) |
 
 加/改 UI 之后:`npm test` 跑第一层;涉及渲染/交互/样式的改动再跑一次 `smoke:home`.
 
@@ -202,13 +202,13 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
 | 作用域 | 配置文件 | 放什么 |
 | --- | --- | --- |
 | 主站样式 | `public/css/tokens.css` | 站点设计令牌(`:root`):字体栈,调色板,尺寸,圆角,间距,`z-index`,过渡;首屏(`--hero-*`)与固定导航条(`--chrome-*`) |
-| 主站脚本 | `src/clock/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,OLED 画板尺寸/通道/文案,红黑树布局与配色,IEEE 754 精度格式与掩码,站点级声明式模型(导航项 / 首屏结构 / SETTING 整页卡片的类名与标题 / 背景缩略图清单 / 各模块宿主 id / `is-over-hero` 类名 / `--nav-height` 令牌名) |
-| 首页骨架 | `src/common/ui/site_shell.ts`,`src/common/ui/background_section.ts` | 骨架(含 SETTING 那张 bootstrap 卡片)与背景缩略图两块声明式组件(标记用库的 `create_element`) |
+| 主站脚本 | `src/clock/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,OLED 画板尺寸/通道/文案,红黑树布局与配色,IEEE 754 精度格式与掩码,站点级声明式模型(导航项 / 首屏结构 / SETTING 整页面板的类名与标题 / 背景缩略图清单 / 各模块宿主 id / `is-over-hero` 类名 / `--nav-height` 令牌名) |
+| 首页骨架 | `src/common/ui/site_shell.ts`,`src/common/ui/background_section.ts` | 骨架(含 SETTING 那面站点面板)与背景缩略图两块声明式组件(标记用库的 `create_element`) |
 | 主站行为 | `src/main.ts`,`src/common/header_state.ts`,`src/common/background.ts` | 挂载顺序(骨架 -> 各模块 -> 行为),导航条"隐形 / 实底"状态(首屏还压在它下面时,以及任何标签页停在页面顶端时),背景切换令牌写入 |
 | 4xx 页面样式 | `src/4xx_page/418/418_tokens.css`,`src/4xx_page/451/451_tokens.css`;`404/404.css` 与 `shared/icon.css` 顶部的 `:root` 块 | 各彩蛋页的设计令牌(颜色 / 几何 / 阴影 / 时长 / 字体) |
 | 4xx 页面脚本 | `src/4xx_page/418/teapot/config.ts`,`src/4xx_page/451/boot.config.ts`,`src/4xx_page/451/ember/*.config.ts` | 茶壶交互,启动开关,GPU 计时 / 统计 / 资源 / 能力 / 性能面板参数 |
 | 地铁车窗前端 | `src/metro_window/src/config.ts`,`src/metro_window/src/stage_size.ts`,`src/metro_window/src/ui/`,`src/metro_window/src/tokens.css` | DOM id / class / `data-*` 键名,`setParam` 参数名映射,车窗标记 / 设置面板 / 上传图层的声明式模型(画布分辨率 / 滑块分组 / 风格 / 按钮 / 可上传贴图清单 / 文案),后备缓冲尺寸与防抖 / dpr 上限;声明式 DOM 组件(库的 `create_element` + 舞台标记 + 风格按钮行 + 设置面板 + 上传面板 + PNG 解码);组件设计令牌.**单个滑块(名称 + 滑杆 + 数值框 + 重置按钮)不在这里**:它是 UI 库 `miko_ui` 的 `createSlider`,本站只把声明翻译成它的选项(见下一行) |
-| UI 库 | npm 包 `miko_ui`(声明在 `package.json`);配色与宽度在 `src/metro_window/src/metro_window.css` | 通用控件(滑块 / 按钮 / 开关 / 分段 / 数值框 / **折叠菜单** ...)与它们的样式.**全站标记的唯一原语**也是库的 `create_element`(站点没有自己的 DOM 原语);站内**所有按钮**都由库的 `createButton` 生成(基线类 `.ui-button`),本站不再写按钮外观;IEEE754 的精度选择是库的 `createMenu`(触发按钮 + `.menu-popover` 浮层,本站只给数据与一个 `.menu-anchor` 锚点);OLED 数据区那两个输入框也整颗是库的 `createCodeEditor`(`.code-editor`:行号槽 + 真 textarea + 高亮层),本站只注入 id / 槽宽下限 / 高亮函数;库的默认主题由 `src/main.ts` 引 `miko_ui/styles/tokens.css` 接进来.本地联调与依赖契约见 [`scripts/dev_ui_link.py`](scripts/dev_ui_link.py) 顶部 |
+| UI 库 | npm 包 `miko_ui`(声明在 `package.json`);配色与宽度在 `src/metro_window/src/metro_window.css` | 通用控件(滑块 / 按钮 / 开关 / 分段 / 数值框 / **折叠菜单** ...)与它们的样式.**全站标记的唯一原语**也是库的 `create_element`(站点没有自己的 DOM 原语);站内**所有按钮**都由库的 `createButton` 生成(基线类 `.ui-button`),本站不再写按钮外观;IEEE754 的精度选择是库的 `createMenu`(触发按钮 + `.menu-popover` 浮层,本站只给数据与一个 `.menu-anchor` 锚点);OLED 数据区那两个输入框也整颗是库的 `createCodeEditor`(`.code-editor`:行号槽 + 真 textarea + 高亮层),本站只注入 id / 槽宽下限 / 高亮函数;库的默认主题由 `src/main.ts` 引 `miko_ui/styles/tokens.css` 接进来.四块面板的框体是库的 `createPanel`(`section.ui-panel` + 标题栏 + 正文容器,与桌面窗口同源).**面板框体是本轮新加进库的**:`package.json` / `package-lock.json` 仍钉在 npm 上那一版,所以**库发版并把依赖 bump 到含 `createPanel` 的版本之前,CI / Pages 会缺这个导出**(本地走 `dev_ui_link` 的符号链接不受影响).本地联调与依赖契约见 [`scripts/dev_ui_link.py`](scripts/dev_ui_link.py) 顶部 |
 | 地铁车窗渲染 | `src/metro_window/rust/src/droplet_params.rs`,`app_params.rs`,`render_params.rs`,`random_params.rs`,`texture_params.rs` | 水滴生成 / 物理 / 折射 / 高光,主循环与资源路径 / 可上传材质槽位白名单,管线与绑定槽位 / 上传纹理尺寸上限,白噪声哈希,程序化贴图生成参数 |
 | 构建 | `vite.config.ts` | 多页入口,4xx 产物路径回移前缀,`miko_ui` 的运行期依赖(`katex` / `@preact/signals-core`)去重(`resolve.dedupe`) |
 | 依赖来源 | `package.json`(`"miko_ui": "^0.1.6"`),`scripts/dev_ui_link.py` | 前端第三方 UI 库从 npm registry 装;改库时本地联调用 `bash scripts/dev_ui_link.sh` 把 `node_modules/miko_ui` 换成指向工作副本的符号链接(只动 `node_modules/`) |
@@ -270,25 +270,34 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
   / `--radius-*`),不引 `--metro-color-*`;圆角也全部走库主题(库默认 0px),
   本站不再自己存圆角尺寸,也不再用 bootstrap 的圆角工具类(背景缩略图原来的
   `.rounded` 已撤,圆角写在 `.bgimg` 里引 `--radius-sm`).
-- **卡片底也接回库**:OLED / IEEE754 / SETTING 的 bootstrap `.card` 原先吃
-  `--bs-card-bg`(白底),暗色描边的按钮落在上面等于看不见.现在
-  `public/css/index.css` 在 `body .card` 作用域里把背景 / 描边 / 圆角 / 标题栏
-  四个 bootstrap 变量接回库的 `--color-bg-panel` / `--color-border-panel` /
-  `--radius-md` / `--color-bg-header`,并给 `<html>` 加 `data-bs-theme="dark"`
-  让剩下的表单件(输入框 / 滚动条)也走深色那套(IEEE754 的精度下拉框已换成
-  库的 `createMenu`,不再有 bootstrap 的 `.form-select`).同一处还有两条小的
-  出口:`body` 上的 `--bs-border-radius*` 接回库的 `--radius-sm` / `--radius-md`
-  (否则 `.form-control` / `.input-group-sm > .form-control` 会留着 0.375rem /
-  0.25rem 的"残余圆角"),`body code` 让 `<code>` 继承所在元素的文字色并用库的
-  代码字体栈(IEEE754 精度菜单项的主文案是 `<code>`,否则会吃 bootstrap 的粉色
-  `--bs-code-color`).这几处都是过渡,bs5 移除时一起删.
+- **面板框体归 miko_ui**:OLED / RBT / IEEE754 三块面板与 SETTING 整页都用库的
+  `createPanel`(`section.ui-panel > header.ui-panel-header > span.ui-panel-title`
+  + `div.ui-panel-body`),外观在库的 `styles/widgets.css`;桌面窗口复用同一组
+  `.ui-panel*` 基类(`window = panel + 几何/拖动`),两边不会各写一份框体.
+  本站只给标题文案与作用域类(如 `.oled-card` 定宽),不再有面板类名常量.
+  这一层原先走过两站:bootstrap 的 `.card` 三件套(靠 `body .card` 覆盖
+  `--bs-card-*` 变量染暗)-> 站点自研的 `.panel` 三件套 -> 现在收进库.
+- **IEEE754 顶部那一行 + 头像圆形也是站点自研**:那一行从 bootstrap 的
+  `.row.g-3` 栅格与 `.form-control` / `.input-group` 换成站点的 `.ieee-controls*` /
+  `.ieee-input-group` / `.ieee-input`(观感引库令牌);头像的圆形从 `.rounded-circle`
+  收回 `.head` 的 `border-radius`.
+- **RBT 唯一一处结构变化**:提示区原先夹在标题栏与正文之间,框体归库之后正文只有
+  一个入口,提示区移进了 `.ui-panel-body` 最前(其余面板结构不变).
+- **仅剩的 bootstrap 用法是标签页**(`.nav-tabs` / `.nav-item` / `.nav-link` /
+  `.tab-pane` 与 `data-bs-toggle="tab"` 的 data-api).在它迁走,bootstrap 整包
+  移除之前,下面两条 reboot 补偿必须留着:
+  `body code` 让 `<code>` 继承所在元素的文字色并用库的代码字体栈(IEEE754 精度
+  菜单项的主文案是 `<code>`,否则会吃 reboot 的粉色 `--bs-code-color`);
+  `<html data-bs-theme="dark">` 让 reboot 给 `body` 写的
+  `background-color: var(--bs-body-bg)` 是深色,否则整页会露出白底.
 - **bootstrap 的 `pre { overflow: auto }` 在库的编辑器里要还原**:库的
   `.code-editor-lines` / `.code-editor-highlight-code` 自己不写 overflow
   (行号靠 `.code-editor-gutter` 裁,高亮正文靠 `.code-editor-highlight` 裁),
   于是 bootstrap 那条标签选择器在编辑器里生效,行号栏会被画上它自己的竖向滑条
   (经典带上下箭头的滑条,直接压在行号上,**只有一行时也出现**:行盒高度的小数
   舍入就够触发).`public/css/index.css` 给这两个 `<pre>` 写回 `overflow: visible`,
-  编辑器于是只有一个滚动容器 -- 库的 textarea.
+  编辑器于是只有一个滚动容器 -- 库的 textarea.这条与上面两条一样,属于
+  "标签页还带着 bootstrap"期间的过渡代码.
 - 等价性回归网:`cargo test` 与 `vitest` 覆盖参数布局与公式;
   首页**生成的标记**由 `src/**/ui/*.test.ts` 在 happy-dom 里逐条断言(进 `npm test`);
   真浏览器那层只剩"必须真渲染"的部分(`npm run smoke:home`);

@@ -18,9 +18,6 @@ import {
     RBT_HINT_SHORTHAND,
     RBT_INPUT_PLACEHOLDER,
     RBT_INPUT_SPELLCHECK,
-    RBT_PANEL_BODY_CLASS,
-    RBT_PANEL_HEADER_CLASS,
-    RBT_PANEL_ROOT_CLASS,
     RBT_PANEL_TITLE,
 } from '@/rbt/config';
 import { createRbtPanel, type RbtPanel } from '@/rbt/ui/rbt_panel';
@@ -34,31 +31,31 @@ function render(): RbtPanel {
 }
 
 describe('红黑树:面板结构', () => {
-    it('是 div.card,标题与提示区在卡片主体之前', () => {
+    it('是 section.ui-panel,标题在 .ui-panel-header,提示区在正文最前', () => {
         const panel = render();
-        expect(panel.root.className).toBe(RBT_PANEL_ROOT_CLASS);
-        expect(panel.root.querySelector(`.${RBT_PANEL_HEADER_CLASS} h4`)?.textContent)
+        expect(panel.root.tagName).toBe('SECTION');
+        expect(panel.root.className).toBe('ui-panel');
+        // 框体(标题栏 / 标题 / 正文容器)由库的 `createPanel` 建
+        expect(panel.root.querySelector('.ui-panel-header .ui-panel-title')?.textContent)
             .toBe(RBT_PANEL_TITLE);
         const children = [...panel.root.children];
-        expect(children[0].className).toBe(RBT_PANEL_HEADER_CLASS);
-        // 第二块是无类名的提示 div,第三块才是 card-body
-        expect(children[1].tagName).toBe('DIV');
-        expect(children[1].className).toBe('');
-        expect(children[2].className).toBe(RBT_PANEL_BODY_CLASS);
+        expect(children[0].className).toBe('ui-panel-header');
+        expect(children[1].className).toBe('ui-panel-body');
     });
 
     it('两行提示逐字保留(含不换行空格 U+00A0 与「黒」)', () => {
         const panel = render();
-        const hintBox = panel.root.children[1];
-        expect(hintBox.className).toBe('');
-        const spans = [...hintBox.querySelectorAll('span')];
+        // 提示区从"标题栏与正文之间"移进了正文容器(唯一一处结构变化)
+        const hintBox = panel.root.querySelector('.ui-panel-body')?.children[0];
+        expect(hintBox?.className).toBe('');
+        const spans = [...(hintBox?.querySelectorAll('span') ?? [])];
         expect(spans.map((span) => span.textContent))
             .toEqual([RBT_HINT_SHORTHAND, RBT_HINT_COLOR_LEGEND]);
         // &nbsp; 在不换行语义上有意义,不能退化成普通空格
         expect(RBT_HINT_COLOR_LEGEND).toContain('\u00a0');
         expect(RBT_HINT_COLOR_LEGEND).toContain('黒');
         // 两行各自以 <br> 结束(原标记如此)
-        expect(panel.root.children[1].querySelectorAll('br')).toHaveLength(2);
+        expect(hintBox?.querySelectorAll('br')).toHaveLength(2);
     });
 });
 
@@ -87,11 +84,11 @@ describe('红黑树:输入与画布', () => {
         expect(panel.canvas.getAttribute('height')).toBe(String(RBT_CANVAS_HEIGHT));
     });
 
-    it('三件套都在 card-body 里,顺序是 输入框 -> 错误提示 -> 画布', () => {
+    it('提示区与三件套都在 .ui-panel-body 里,顺序是 提示 -> 输入框 -> 错误提示 -> 画布', () => {
         const panel = render();
-        const body = panel.root.querySelector(`.${RBT_PANEL_BODY_CLASS}`);
+        const body = panel.root.querySelector('.ui-panel-body');
         expect([...(body?.children ?? [])].map((child) => child.id))
-            .toEqual([RBT_DOM.inputId, RBT_DOM.errorId, RBT_DOM.canvasId]);
+            .toEqual(['', RBT_DOM.inputId, RBT_DOM.errorId, RBT_DOM.canvasId]);
     });
 
     it('文档里没有重复 id', () => {

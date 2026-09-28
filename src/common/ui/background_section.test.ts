@@ -27,11 +27,11 @@ function render(): HTMLElement {
 }
 
 describe('SETTING:背景切换区', () => {
-    it('只交出一个 ul(SETTING 的标题属于整页卡片的 .card-header,不在这里)', () => {
+    it('只交出一个 ul(SETTING 的标题属于整页面板的 .ui-panel-header,不在这里)', () => {
         const container = render();
         expect([...container.children].map((child) => child.tagName)).toEqual(['UL']);
-        expect(container.querySelector('.card-header')).toBeNull();
-        expect(container.querySelector('h4')).toBeNull();
+        expect(container.querySelector('.ui-panel-header')).toBeNull();
+        expect(container.querySelector('.ui-panel-title')).toBeNull();
     });
 
     it('列表与列表项用 CSS 约定的类名', () => {
@@ -52,7 +52,7 @@ describe('SETTING:背景切换区', () => {
         images.forEach((image, index) => {
             const preset = BACKGROUND_PRESETS[index];
             expect(image.getAttribute('src'), preset.label).toBe(preset.src);
-            // 圆角不再走 bootstrap 的 `.rounded`,缩略图只有一个站点类
+            // 缩略图只有一个站点类,圆角写在 .bgimg 规则里
             expect(image.className, preset.label).toBe(BACKGROUND_IMAGE_CLASS);
             // 图名由紧邻的 span 报给读屏,图片本身是装饰性的(alt="")
             expect(image.getAttribute('alt'), preset.label).toBe('');

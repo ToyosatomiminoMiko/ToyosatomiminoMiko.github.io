@@ -7,25 +7,28 @@
 同一条约定:骨架只提供空的标签页窗格(src/common/ui/site_shell.ts 的
 shell.panes.rbt),整块面板按 config.ts 的声明在这里生成:
 
-    <div class="card">
-      <div class="card-header"><h4>🌳 Red-Black Tree</h4></div>
-      <div>
-        <span>💡 支持简写叶子节点 ...</span><br>
-        <span>🔴 R 红色 &nbsp;|&nbsp; ⚫ B 黒色</span><br>
-      </div>
-      <div class="card-body">
+    <section class="ui-panel">                        面板框体(库的 createPanel)
+      <header class="ui-panel-header"><span class="ui-panel-title">🌳 Red-Black Tree</span></header>
+      <div class="ui-panel-body">
+        <div>
+          <span>💡 支持简写叶子节点 ...</span><br>
+          <span>🔴 R 红色 &nbsp;|&nbsp; ⚫ B 黒色</span><br>
+        </div>
         <textarea id="treeInput" spellcheck="false" placeholder="..."></textarea>
         <div id="treeError" hidden></div>
         <canvas id="rbCanvas" width="1200" height="640"></canvas>
       </div>
-    </div>
+    </section>
+
+提示区原先夹在标题栏与正文之间,现在移进正文容器(框体归库之后正文只有一个入口),
+这是本模块唯一一处结构变化.
 
 本模块是纯函数:不读页面,不改全局,不绑事件,只把"描述"变成元素并把行为
 代码要用的引用一起交回;插进宿主与绑事件都是 rbt.ts 的事
 (与 ui/settings.ts,clock/ui/clock_display.ts 的分工一致).
 */
 
-import { create_element } from 'miko_ui';
+import { create_element, createPanel } from 'miko_ui';
 import {
     RBT_CANVAS_HEIGHT,
     RBT_CANVAS_WIDTH,
@@ -34,15 +37,12 @@ import {
     RBT_HINT_SHORTHAND,
     RBT_INPUT_PLACEHOLDER,
     RBT_INPUT_SPELLCHECK,
-    RBT_PANEL_BODY_CLASS,
-    RBT_PANEL_HEADER_CLASS,
-    RBT_PANEL_ROOT_CLASS,
     RBT_PANEL_TITLE,
 } from '@/rbt/config';
 
 /** 红黑树面板:根元素 + 行为代码要用的元素引用 */
 export interface RbtPanel {
-    /** 面板根 div.card(插进 shell.panes.rbt) */
+    /** 面板根:库的 `createPanel` 建的 `section.ui-panel`(插进 shell.panes.rbt) */
     readonly root: HTMLElement;
     /** 表达式输入框 #treeInput */
     readonly input: HTMLTextAreaElement;
@@ -85,17 +85,11 @@ export function createRbtPanel(): RbtPanel {
         create_element({ tag: 'br' }),
     );
 
-    const root = create_element(
-        { tag: 'div' },
-        { class: RBT_PANEL_ROOT_CLASS },
-        create_element(
-            { tag: 'div' },
-            { class: RBT_PANEL_HEADER_CLASS },
-            create_element({ tag: 'h4' }, {}, RBT_PANEL_TITLE),
-        ),
-        hints,
-        create_element({ tag: 'div' }, { class: RBT_PANEL_BODY_CLASS }, input, error, canvas),
-    );
+    // 框体(标题栏 / 正文容器)归库;正文顺序:提示区 -> 输入框 -> 错误提示 -> 画布
+    const root = createPanel({
+        title: RBT_PANEL_TITLE,
+        body: [hints, input, error, canvas],
+    }).element;
 
     return { root, input, error, canvas };
 }

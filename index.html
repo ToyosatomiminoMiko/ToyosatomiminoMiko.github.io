@@ -4,10 +4,12 @@
 ToyosatomiminoMiko
 -->
 <!--
-`data-bs-theme="dark"`:站点是深色画面,让 bootstrap 自己的组件(表单件 / 滚动条)
-走它的深色那套,不再是一块块白底.卡片(`.card`)的底色另有站点口径:
-不用 bootstrap 的深色默认值,而接回 miko_ui 的主题令牌(见 public/css/index.css
-的"bootstrap 卡片的底色").这一层是过渡:bs5 移除后这两处一起消失.
+`data-bs-theme="dark"`:站点是深色画面.面板 / 按钮 / 输入框 / 编辑器都已归
+miko_ui 与站点样式,不读 bootstrap 的变量;但 bootstrap 的 reboot 仍在给 `body`
+写 `background-color: var(--bs-body-bg)` 与 `color: var(--bs-body-color)`,
+这两条本站的 `* { background: none }` 压不过,所以整页底色仍然是 bootstrap 的
+暗色值 -- 少了 data-bs-theme 就会露出白底.仅剩的 bootstrap 组件(标签页)也走它.
+这是过渡:标签页也迁走,bootstrap 整包移除时,这一条一起消失.
 -->
 <html data-bs-theme="dark">
 

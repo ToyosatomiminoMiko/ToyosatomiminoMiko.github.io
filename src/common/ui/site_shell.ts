@@ -13,7 +13,7 @@
       ├── span.site-brand                      站名(压在首屏画面上时的站点身份)
       ├── ul.nav.nav-tabs                      标签栏(bootstrap 声明式标签页)
       │     └── li.nav-item > a.nav-link[href=#<pane>][data-bs-toggle=tab]
-      └── a.head-link[href=GitHub] > img.rounded-circle.head
+      └── a.head-link[href=GitHub] > img.head
                                                头像(在标签栏**外面**,见下)
     main > div.tab-content
       ├── div.tab-pane#home         > section.hero#hero
@@ -26,9 +26,9 @@
       ├── div.tab-pane#rbt          空宿主:红黑树面板由 rbt/ 长在里面
       ├── div.tab-pane#ieee754      空宿主:IEEE754 面板由 ieee754/ 长在里面
       └── div.tab-pane#setting
-            └── div.card                  整页一张 bootstrap 卡片(与其余三个窗格同一套结构)
-                  ├── div.card-header > h4  '设置'
-                  └── div.card-body
+            └── section.ui-panel          整页一张面板(库的 createPanel;与其余三个窗格同构)
+                  ├── header.ui-panel-header > span.ui-panel-title  '设置'
+                  └── div.ui-panel-body
                         ├── ul.bgul            背景缩略图(ui/background_section.ts 生成)
                         ├── div#metro-params   地铁车窗控制台(空宿主)
                         └── div#metro-uploads  图层贴图上传面板(空宿主)
@@ -47,7 +47,7 @@ OLED / RBT / IEEE754 三个模块干脆把整个标签页窗格当宿主(窗格�
 由它自己的挂载函数补到每个宿主上),骨架不替组件记这些.
 */
 
-import { create_element } from 'miko_ui';
+import { create_element, createPanel } from 'miko_ui';
 import {
     AVATAR_ALT,
     AVATAR_CLASS,
@@ -66,10 +66,7 @@ import {
     NAV_ITEMS,
     NAV_LINK_CLASS,
     NAV_LIST_CLASS,
-    SETTING_CARD_BODY_CLASS,
-    SETTING_CARD_CLASS,
-    SETTING_CARD_HEADER_CLASS,
-    SETTING_CARD_TITLE,
+    SETTING_PANEL_TITLE,
     SITE_BRAND_CLASS,
     SITE_BRAND_TEXT,
     SITE_HOST_IDS,
@@ -182,26 +179,15 @@ export function mountSiteShell(): SiteShell {
     for (const item of NAV_ITEMS) {
         panes[item.pane] = createTabPane(item);
     }
-    // 首屏在 HOME 窗格里;SETTING 窗格 = 一张 bootstrap 卡片,卡片体里依次是
-    // 背景缩略图 + 车窗控制台宿主 + 上传面板宿主(标题"设置"在 .card-header).
+    // 首屏在 HOME 窗格里;SETTING 窗格 = 库的 `createPanel` 建的一张面板
+    // (`section.ui-panel`),面板体里依次是背景缩略图 + 车窗控制台宿主 + 上传面板宿主
+    // (标题"设置"在 `.ui-panel-header`).
     panes.home.append(hero);
     panes.setting.append(
-        create_element(
-            { tag: 'div' },
-            { class: SETTING_CARD_CLASS },
-            create_element(
-                { tag: 'div' },
-                { class: SETTING_CARD_HEADER_CLASS },
-                create_element({ tag: 'h4' }, {}, SETTING_CARD_TITLE),
-            ),
-            create_element(
-                { tag: 'div' },
-                { class: SETTING_CARD_BODY_CLASS },
-                createBackgroundSection(),
-                metroPanel,
-                metroUploads,
-            ),
-        ),
+        createPanel({
+            title: SETTING_PANEL_TITLE,
+            body: [createBackgroundSection(), metroPanel, metroUploads],
+        }).element,
     );
 
     root.replaceChildren(

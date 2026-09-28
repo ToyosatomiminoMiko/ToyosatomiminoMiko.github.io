@@ -7,9 +7,12 @@ OLED 像素画板的**标记组件**(声明式).
 控制台,时钟同一条约定:宿主只提供空的标签页窗格,标记按 config.ts 的声明生成.
 
 生成的结构与原 index.html **逐字对应**(标签名 / 类名 / id / 文本 / 属性都不变),
-因为 public/css/index.css 与 bootstrap 直接命中这些类与 id(如
-`canvas#pixelCanvas`,`#change-color`,`.oled-card`,`.tools`).
-**三处例外都归库**:面板里的七颗按钮改由 `miko_ui` 的 `createButton` 生成
+因为 public/css/index.css 直接命中这些类与 id(如
+`canvas#pixelCanvas`,`#change-color`,`.oled-card`,`.tools`).**面板框体归库**:
+标题栏与正文容器由 `miko_ui` 的 `createPanel` 建(`section.ui-panel.oled-card >
+header.ui-panel-header > span.ui-panel-title` + `div.ui-panel-body`),本站只给
+标题文案与作用域类 `.oled-card`.
+**另有三个结构件也归库**:面板里的七颗按钮改由 `miko_ui` 的 `createButton` 生成
 (基线类 `.ui-button`);三个绘图工具由库的 `createSegmented` 生成
 (`div.segmented` + 三颗组内按钮),不再是 `input[name="tools"]` 那组 radio;
 数据区的两块 `textarea.textarea-data` 换成库的 `createCodeEditor`
@@ -17,10 +20,10 @@ OLED 像素画板的**标记组件**(声明式).
 id 仍按下面的契约写上,`#change-color` 那条配色规则已从 index.css 撤掉,
 `.textarea-data` 那条也已撤(本站样式表现在只给编辑器补最小高度与可纵向拖动).
 
-    div.card.oled-card
-      div.card-header > h4       'OLED Canvas'
-      div.card-body
-        div#coordsDisplay.coords-display.card-text   'coordinate:(X:-,Y:-)'
+    section.ui-panel.oled-card                    面板框体(库的 createPanel)
+      header.ui-panel-header > span.ui-panel-title   'OLED Canvas'
+      div.ui-panel-body
+        div#coordsDisplay.coords-display   'coordinate:(X:-,Y:-)'
         br
         canvas#pixelCanvas
         div#pixelIndicator.pixel-indicator
@@ -39,6 +42,7 @@ id 仍按下面的契约写上,`#change-color` 那条配色规则已从 index.cs
 import {
     createButton,
     createCodeEditor,
+    createPanel,
     createSegmented,
     create_element,
     type CodeEditorHandle,
@@ -54,13 +58,11 @@ import {
     OLED_DEFAULT_CONFIG,
     OLED_DEFAULT_TOOL,
     OLED_DOM,
-    OLED_PANEL_CARD_BODY_CLASS,
-    OLED_PANEL_CARD_CLASS,
-    OLED_PANEL_CARD_HEADER_CLASS,
     OLED_PANEL_COORDS_CLASS,
     OLED_PANEL_COORDS_TEXT,
     OLED_PANEL_EDITOR_GUTTER_WIDTH,
     OLED_PANEL_EXPORT_BUTTON_TEXT,
+    OLED_PANEL_EXTRA_CLASS,
     OLED_PANEL_IMPORT_BUTTON_TEXT,
     OLED_PANEL_INDICATOR_CLASS,
     OLED_PANEL_PNG_BUTTON_TEXT,
@@ -75,7 +77,7 @@ import type { DrawTool } from '@/oled/types';
 
 /** 面板交回的元素引用:行为代码需要的元素**全部**在这里,不允许回头查 DOM */
 export interface OledPanel {
-    /** 整块面板:div.card.oled-card(插进挂载宿主的那一个) */
+    /** 整块面板:库的 `createPanel` 建的 `section.ui-panel.oled-card`(插进挂载宿主的那一个) */
     readonly root: HTMLElement;
     /** 主画布:canvas#pixelCanvas(128x64 物理像素由 oled.ts 写到 width/height 上) */
     readonly canvas: HTMLCanvasElement;
@@ -272,29 +274,25 @@ export function createOledPanel(): OledPanel {
         byteOrderButton,
     );
 
-    /** 卡片主体:坐标显示 -> 画布 -> 指示器 -> 工具区 -> 数据区(自上而下) */
-    const body = create_element(
-        { tag: 'div' },
-        { class: OLED_PANEL_CARD_BODY_CLASS },
-        coordsDisplay,
-        create_element({ tag: 'br' }),
-        canvas,
-        indicator,
-        create_element({ tag: 'br' }),
-        tools,
-        create_element({ tag: 'br' }),
-        create_element({ tag: 'div' }, {}, exportRow, importRow),
-    );
-
-    /** 卡片标题栏:只有 <h4>'OLED Canvas' */
-    const header = create_element(
-        { tag: 'div' },
-        { class: OLED_PANEL_CARD_HEADER_CLASS },
-        create_element({ tag: 'h4' }, {}, OLED_PANEL_TITLE_TEXT),
-    );
-
-    /** 整块面板:div.card.oled-card,由 oled.ts 插进宿主窗格 */
-    const root = create_element({ tag: 'div' }, { class: OLED_PANEL_CARD_CLASS }, header, body);
+    /**
+     * 整块面板:库的 `createPanel` 建(`section.ui-panel.oled-card`),由 oled.ts
+     * 插进宿主窗格.框体(标题栏 / 正文容器 / 标题文案)归库,本站只给作用域类与
+     * 正文节点:坐标显示 -> 画布 -> 指示器 -> 工具区 -> 数据区(自上而下).
+     */
+    const root = createPanel({
+        title: OLED_PANEL_TITLE_TEXT,
+        class: OLED_PANEL_EXTRA_CLASS,
+        body: [
+            coordsDisplay,
+            create_element({ tag: 'br' }),
+            canvas,
+            indicator,
+            create_element({ tag: 'br' }),
+            tools,
+            create_element({ tag: 'br' }),
+            create_element({ tag: 'div' }, {}, exportRow, importRow),
+        ],
+    }).element;
 
     // 交回的引用与上面创建的变量一一对应(名字相同,不另起别名)
     return {

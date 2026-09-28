@@ -12,8 +12,8 @@
 //     site_shell 把**元素引用**交回来,不再按 id 去 DOM 里找.
 //
 // 这里只放纯数据,不放模块级可变状态.凡是"改了必须同步改另一处"的字面量
-// (bootstrap 的类名与 data 属性,CSS 里的 id 选择器,模块的宿主 id)都写成
-// 具名常量,写错不会报错,只会静默失效的东西尤其不能散在各文件里.
+// (标签页的 bootstrap 类名与 data 属性,面板的站点类名,CSS 里的 id 选择器,
+// 模块的宿主 id)都写成具名常量,写错不会报错,只会静默失效的东西尤其不能散在各文件里.
 // ================================================================
 
 import { CLOCK_HOST_ID } from '@/clock/config';
@@ -62,7 +62,12 @@ export const TAB_TOGGLE_DATA_VALUE = 'tab';
 /** 头像:导航条最右侧,点了去 GitHub */
 export const AVATAR_LINK = 'https://github.com/ToyosatomiminoMiko';
 export const AVATAR_SRC = '/images/head.png';
-export const AVATAR_CLASS = 'rounded-circle head';
+/**
+ * 头像的类名:尺寸与圆形都在 public/css/index.css 的 `.head` 里.
+ * 圆形原先借 bootstrap 的 `.rounded-circle` 工具类,现已收回站点样式
+ * (`.head { border-radius: 50% }`),不再依赖 `--bs-border-radius-pill`.
+ */
+export const AVATAR_CLASS = 'head';
 /**
  * 头像链接的类名(样式见 public/css/index.css 的 .head-link).
  *
@@ -124,24 +129,16 @@ export const TAB_PANE_CLASS = 'tab-pane fade';
 /** 激活窗格的类名(bootstrap:active 参与选择器,show 负责透明度) */
 export const TAB_PANE_ACTIVE_CLASS = 'show active';
 
-// ---------- SETTING:整页卡片 ----------
+// ---------- SETTING:整页面板 ----------
 
 /*
- SETTING 标签页与 OLED / RBT / IEEE754 用**同一套 bootstrap 卡片结构**:
- 整页内容装在一张 `.card` 里,标题(设置)在 `.card-header`,其余在 `.card-body`.
- 卡片底 / 描边 / 圆角 / 标题栏四个 bootstrap 变量在 public/css/index.css 的
- `body .card` 里接回 miko_ui 令牌,所以这里只写 bootstrap 自己的类名,本站不给
- 卡片写外观;`.card` 的宽度由 tokens.css 的 `--card-width`(100%)撑满窗格.
+ SETTING 标签页与 OLED / RBT / IEEE754 用**同一套面板结构**:框体由 miko_ui 的
+ `createPanel` 建(`section.ui-panel > header.ui-panel-header > span.ui-panel-title`
+ + `div.ui-panel-body`,外观与桌面窗口同源),本站只给标题文案与作用域类.
 */
 
-/** 卡片外框类名(结构:`div.card > div.card-header + div.card-body`) */
-export const SETTING_CARD_CLASS = 'card';
-/** 卡片标题栏类名:SETTING 的页内标题就放在这里 */
-export const SETTING_CARD_HEADER_CLASS = 'card-header';
-/** 卡片主体类名:背景缩略图 + 车窗控制台宿主 + 上传面板宿主都长在这里 */
-export const SETTING_CARD_BODY_CLASS = 'card-body';
-/** 卡片标题文案(标签栏那一项是 SETTING,页内标题沿用中文"设置") */
-export const SETTING_CARD_TITLE = '设置';
+/** 面板标题文案(标签栏那一项是 SETTING,页内标题沿用中文"设置") */
+export const SETTING_PANEL_TITLE = '设置';
 
 // ---------- SETTING:背景切换 ----------
 

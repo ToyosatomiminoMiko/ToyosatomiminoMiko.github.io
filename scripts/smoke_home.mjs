@@ -231,29 +231,31 @@ const report = await cdp.eval(`(() => {
         ok('首屏铺满视口高度(hero 的 100dvh 令牌生效)',
             q('#hero').getBoundingClientRect().height > 200,
             Math.round(q('#hero').getBoundingClientRect().height) + 'px');
-        // 令牌 --oled-button-margin 若写错名字,var() 会退化成 margin:0(不报错),所以这里验真值
-        const btnMargin = getComputedStyle(q('#refill-btn')).marginTop;
+        // 令牌 --oled-button-margin 若写错名字,var() 会退化成 margin:0(不报错),所以这里验真值.
+        // 它有两处消费:数据区按钮的 margin(.oled-card .area-data button)与工具区的 gap;
+        // 这里查数据区的复制按钮 -- 工具区那几颗吃的是 gap,不是 margin.
+        const btnMargin = getComputedStyle(q('#output-button')).marginTop;
         ok('OLED 面板的按钮真的吃到了外边距令牌(--oled-button-margin)',
             btnMargin !== '0px' && btnMargin !== '', btnMargin);
         /*
-          SETTING 整页卡片:与 OLED 卡片是同一个 bootstrap card 类,所以两边必须拿到
-          同一个底色 -- body .card 那组暗色令牌只要漏了一条或特异性掉了,这里就会
-          出现"一张白底卡片"(进程内 DOM 没有级联与布局,只能在这里验).
+          SETTING 整页面板与 OLED 面板都用库的同一个 .ui-panel 框体,所以两边必须
+          拿到同一个底色 -- 库的 widgets.css 没被引进来的话,这里就会出现"一张没
+          底色的面板"(进程内 DOM 没有级联与布局,只能在这里验).
         */
-        const settingCard = q('#setting > .card');
-        const settingHeader = settingCard?.querySelector(':scope > .card-header');
-        ok('SETTING 页是一张 bootstrap 卡片(.card-header 里是"设置",底色与 OLED 卡片一致)',
-            settingCard !== null && settingHeader?.textContent === '设置' &&
-            getComputedStyle(settingCard).backgroundColor === getComputedStyle(q('#oled .card')).backgroundColor,
-            settingCard ? getComputedStyle(settingCard).backgroundColor : '没有卡片');
+        const settingPanel = q('#setting > .ui-panel');
+        const settingHeader = settingPanel?.querySelector(':scope > .ui-panel-header');
+        ok('SETTING 页是一张面板(.ui-panel-header 里是"设置",底色与 OLED 面板一致)',
+            settingPanel !== null && settingHeader?.textContent === '设置' &&
+            getComputedStyle(settingPanel).backgroundColor === getComputedStyle(q('#oled .ui-panel')).backgroundColor,
+            settingPanel ? getComputedStyle(settingPanel).backgroundColor : '没有面板');
         /*
-          bootstrap 的圆角出口与 <code> 出口都接回库主题(见 index.css):前者让
-          .form-control / .input-group-sm > .form-control 的"残余圆角"变 0,
-          后者让菜单主文案的 code 继承菜单项文字色而不是 bootstrap 的粉色 --
-          两条都是"变量定义在 body 上,由注入在后的 bootstrap 规则消费",只在真级联里成立.
+          十进制输入框的圆角归 miko_ui 主题(站点 .ieee-input 引 --radius-sm,库默认
+          0px);菜单主文案的 <code> 继承所在元素颜色而不是 bootstrap reboot 的粉色
+          (reboot 由 main.ts 注入,标签页还在用 bootstrap,body code 是压它的出口) --
+          后者要在真级联里才验得出来.
         */
         const inputRadius = getComputedStyle(q('#ieee-input')).borderTopLeftRadius;
-        ok('十进制输入框的残余圆角归零(bootstrap 圆角变量接回库主题)',
+        ok('十进制输入框圆角归 miko_ui 主题(.ieee-input 引 --radius-sm = 0px)',
             inputRadius === '0px', inputRadius);
         const codeEl = q('.menu-anchor .menu-item code');
         const codeColor = codeEl ? getComputedStyle(codeEl).color : '没有 <code>';

@@ -2,7 +2,7 @@
  * 首页骨架的**标记契约**回归网(进程内,跑在 happy-dom 里).
  *
  * 为什么这一层要进 `*.test.ts`:首页标记由 `site_shell.ts` 按 `site.config.ts`
- * 生成,而 CSS 与 bootstrap 都是按**类名 / id / data-* 属性**命中的 --
+ * 生成,而站点样式与仅剩的 bootstrap 标签页都是按**类名 / id / data-* 属性**命中的 --
  * 生成结果一旦走样,表现是"样式静默失效"(看着没坏但全乱),没有报错,
  * 也没有类型错误.这类契约的正确断言方式就是"把生成的 DOM 拿来按 CSS 用的选择器查一遍".
  *
@@ -32,10 +32,7 @@ import {
     NAV_ITEMS,
     NAV_LINK_CLASS,
     NAV_LIST_CLASS,
-    SETTING_CARD_BODY_CLASS,
-    SETTING_CARD_CLASS,
-    SETTING_CARD_HEADER_CLASS,
-    SETTING_CARD_TITLE,
+    SETTING_PANEL_TITLE,
     SITE_BRAND_CLASS,
     SITE_BRAND_TEXT,
     SITE_HOST_IDS,
@@ -243,28 +240,28 @@ describe('首页骨架:五个标签页窗格', () => {
         }
     });
 
-    it('SETTING 窗格是"整页一张 bootstrap 卡片",标题在 .card-header', () => {
+    it('SETTING 窗格是"整页一张面板",标题在 .ui-panel-header', () => {
         const shell = setupShell();
         const setting = shell.panes.setting;
-        // 窗格只有卡片这一个子节点;卡片结构是 bootstrap 的 .card > .card-header + .card-body,
-        // 四个 bootstrap 卡片变量由 public/css/index.css 的 `body .card` 接回 miko_ui 令牌.
+        // 窗格只有面板这一个子节点;框体的结构与类名归 miko_ui 的 `createPanel`
+        //(section.ui-panel > header.ui-panel-header > span.ui-panel-title + div.ui-panel-body).
         expect([...setting.children]).toHaveLength(1);
-        const card = setting.firstElementChild;
-        expect(classes(card)).toEqual([SETTING_CARD_CLASS]);
-        const header = card?.querySelector(`:scope > .${SETTING_CARD_HEADER_CLASS}`);
-        const body = card?.querySelector(`:scope > .${SETTING_CARD_BODY_CLASS}`);
+        const panel = setting.firstElementChild;
+        expect(classes(panel)).toEqual(['ui-panel']);
+        const header = panel?.querySelector(':scope > .ui-panel-header');
+        const body = panel?.querySelector(':scope > .ui-panel-body');
         expect(header).not.toBeNull();
         expect(body).not.toBeNull();
-        // 标题("设置")只在卡片头里出现一次,窗格里没有第二份
-        expect(header?.querySelector('h4')?.textContent).toBe(SETTING_CARD_TITLE);
-        expect(setting.querySelectorAll('h4')).toHaveLength(1);
+        // 标题("设置")只在面板头里出现一次,窗格里没有第二份
+        expect(header?.querySelector('.ui-panel-title')?.textContent).toBe(SETTING_PANEL_TITLE);
+        expect(setting.querySelectorAll('.ui-panel-title')).toHaveLength(1);
     });
 
-    it('SETTING 卡片体里依次是"背景缩略图 + 控制台宿主 + 上传面板宿主"', () => {
+    it('SETTING 面板体里依次是"背景缩略图 + 控制台宿主 + 上传面板宿主"', () => {
         const shell = setupShell();
         const setting = shell.panes.setting;
-        const body = setting.querySelector(`.${SETTING_CARD_BODY_CLASS}`);
-        // 背景区只交出一个 ul,后两个是车窗的宿主(宿主仍在卡片体里,组件照旧长进去)
+        const body = setting.querySelector('.ui-panel-body');
+        // 背景区只交出一个 ul,后两个是车窗的宿主(宿主仍在面板体里,组件照旧长进去)
         expect([...(body?.children ?? [])].map((child) => child.tagName))
             .toEqual(['UL', 'DIV', 'DIV']);
         expect(body?.lastElementChild).toBe(shell.metroUploads);

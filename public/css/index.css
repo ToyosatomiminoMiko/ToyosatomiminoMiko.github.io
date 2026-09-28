@@ -42,59 +42,14 @@ body {
 }
 
 /* ================================================================
- * bootstrap 卡片的底色:换成 miko_ui 的暗色面板令牌
+ * 面板框体归 miko_ui
  *
- * OLED(oled-card)与 IEEE754 用 bootstrap 的 `.card`,SETTING 标签页整页也是
- * 同一种卡片(结构在 site_shell.ts,类名与标题在 site.config.ts 的 SETTING_CARD_*):
- * 它默认从
- * `--bs-card-bg: var(--bs-body-bg)` 取白底;库的按钮是暗色主题(1px 描边
- * `--color-border-strong` + 次要文字色),落在白底上等于看不见.站点是深色
- * 画面,卡片本来就该是暗的,所以这里把卡片这几个 bootstrap 变量接回库的
- * 令牌(背景 / 描边 / 圆角 / 标题栏),不再吃 bootstrap 的浅色默认值.
- *
- * 为什么要 `body` 前缀:bootstrap 在 `main.ts` 里 import,产物里的样式表排在
- * `public/css/*.css`(index.html 的 <link>)**之后**,同为 `.card` 时后者会输;
- * 带一层 `body` 把特异性提到 (0,1,1),本站的口径才落得下去(同样的做法见
- * metro_window.css 顶部的说明).这几个变量是 bootstrap 自己的出口,
- * 覆盖它们比逐条重写 `.card` / `.card-header` 的声明更不容易漏.
+ * OLED / RBT / IEEE754 三块面板与 SETTING 整页都用库的 `createPanel`
+ * (`section.ui-panel > header.ui-panel-header > span.ui-panel-title` +
+ * `div.ui-panel-body`),外观在库的 `styles/widgets.css`(底色 / 描边 / 圆角 /
+ * 标题栏与桌面窗口同源),本站不再给框体写样式.这里只剩各面板自己的作用域类
+ * (如 `.oled-card` 定宽)与它们内部的内容样式.
  * ================================================================ */
-body .card {
-    /* 卡片底与文字:库的窗口底 / 正文色 */
-    --bs-card-bg: var(--color-bg-panel);
-    --bs-card-border-color: var(--color-border-panel);
-    /* 圆角归库主题(默认 0px),不再吃 bootstrap 的 0.375rem */
-    --bs-card-border-radius: var(--radius-md);
-    /* 标题栏底与文字 */
-    --bs-card-cap-bg: var(--color-bg-header);
-    --bs-card-cap-color: var(--color-text);
-    color: var(--color-text);
-}
-
-/* ================================================================
- * bootstrap 的圆角出口:接回 miko_ui 主题
- *
- * bootstrap 的表单件自带圆角:`.form-control` 读 `--bs-border-radius`(0.375rem),
- * `.input-group-sm > .form-control` 读 `--bs-border-radius-sm`(0.25rem)......于是
- * IEEE754 的十进制输入框在本站的直角画面里留着"残余圆角"(卡片 / 按钮都已经是
- * 库主题的 0px).与其逐条重写 `.form-control`(还要连带 `.input-group-*` 的组合
- * 选择器,状态类,漏一条就露一个角),不如把 bootstrap 自己的几个圆角出口接到库
- * 主题的 `--radius-sm` / `--radius-md`:组件里那些规则读到的就是库的口径.
- *
- * 变量定义写在 `body` 上(不是 `:root`):bootstrap 由 `main.ts` 注入,排在
- * `<link>` 之后,同在 `:root` 时它的值会赢;自定义属性是可继承的,body 上这份
- * 离元素更近,body 里的元素一律读它(与上面卡片那条同一个理由).
- *
- * 不改的两个圆角:`--bs-border-radius-pill`(50rem,胶囊是"故意圆"的)与
- * `.rounded-circle` 这类工具类(它们写的是字面量,头像的圆形不归这条管).
- * 这条也是过渡:bs5 移除时一起删.
- * ================================================================ */
-body {
-    --bs-border-radius: var(--radius-md);
-    --bs-border-radius-sm: var(--radius-sm);
-    --bs-border-radius-lg: var(--radius-md);
-    --bs-border-radius-xl: var(--radius-md);
-    --bs-border-radius-xxl: var(--radius-md);
-}
 
 /* ================================================================
  * bootstrap 的 `<code>`:颜色与字体接回本站口径
@@ -303,11 +258,13 @@ main {
 .head {
     width: var(--head-size);
     margin: var(--head-margin);
+    /* 圆形:head.png 是方形位图,靠这里裁成圆(原先借 bootstrap 的 .rounded-circle) */
+    border-radius: 50%;
 }
 
 /*
  * hover 辉光:必须用 box-shadow,**不能**用 filter: drop-shadow().
- * head.png 是一张不带透明通道的方形位图(圆形是 .rounded-circle 裁出来的),
+ * head.png 是一张不带透明通道的方形位图(圆形是 .head 的 border-radius 裁出来的),
  * 而 drop-shadow 取的是位图自己的 alpha 通道 -- 方形不透明的图,影子就是方块,
  * border-radius 不参与;box-shadow 按元素的圆角画,才是跟着头像的圆.
  * 辉光要画到头像盒子外面,所以头像自己不能在滚动容器里(见 .head-link).

@@ -247,23 +247,18 @@ export const OLED_MOUSE_BUTTON_MASK = 3;
 //
 // 原先这些字面量写在 index.html 的 `#oled` 窗格里(标签 / 类名 / 文案 / id),
 // 现在集中到此处,由 ui/oled_panel.ts 的纯函数生成标记.字符串与拆分前的
-// index.html **逐字一致**(类名与 id 直接决定 public/css/index.css 与
-// bootstrap 的命中),所以这里只做"搬家",不做任何改名.
+// index.html **逐字一致**(类名与 id 直接决定 public/css/index.css 的命中),
+// 所以这里只做"搬家",不做任何改名.唯一的例外是框体:它现在由 miko_ui 的
+// `createPanel` 建(`section.ui-panel`),类名归库,本站只留定宽的作用域类.
 
-/** 面板标题 `<h4>` 的文案 */
+/** 面板标题文案 */
 export const OLED_PANEL_TITLE_TEXT = 'OLED Canvas';
 
-/** 卡片外框类名:div.card.oled-card(CSS 的 `.oled-card` 定宽) */
-export const OLED_PANEL_CARD_CLASS = 'card oled-card';
+/** 本站给面板根追加的作用域类(喂给库的 `createPanel`;CSS 的 `.oled-card` 定宽) */
+export const OLED_PANEL_EXTRA_CLASS = 'oled-card';
 
-/** 卡片标题栏类名 */
-export const OLED_PANEL_CARD_HEADER_CLASS = 'card-header';
-
-/** 卡片主体类名 */
-export const OLED_PANEL_CARD_BODY_CLASS = 'card-body';
-
-/** 坐标显示类名(`.coords-display` 提供底色与等宽字体,card-text 沿用 bootstrap) */
-export const OLED_PANEL_COORDS_CLASS = 'coords-display card-text';
+/** 坐标显示类名(`.coords-display` 提供底色与等宽字体) */
+export const OLED_PANEL_COORDS_CLASS = 'coords-display';
 
 /** 坐标显示的初始文案(与 OLED_COORDS_EMPTY 同源) */
 export const OLED_PANEL_COORDS_TEXT = OLED_COORDS_EMPTY;

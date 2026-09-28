@@ -229,23 +229,16 @@ export const IEEE754_DOM = {
 } as const;
 
 // ============================================================
-// 面板的声明式模型(整块卡片由 ui/ieee754_panel.ts 按此生成)
+// 面板的声明式模型(整块面板由 ui/ieee754_panel.ts 按此生成)
 //
 // 结构与文案原先写死在 index.html 里,现在只在这里声明一次:组件按模型生成标记,
-// 行为代码只跟组件交回的元素引用打交道.类名是 bootstrap 与 ieee754.css 的契约,
+// 行为代码只跟组件交回的元素引用打交道.面板框体由 miko_ui 的 `createPanel` 建
+// (类名归库,本站不再声明);顶部那一行从 bootstrap 栅格 / 表单件换成站点自研的
+// `.ieee-controls*` / `.ieee-input*`(CSS 见 public/css/ieee754.css);其余类名
 // 逐个照搬原标记,不合并 / 不省略.
 // ============================================================
 
-/** 卡片外壳类名(bootstrap) */
-export const IEEE754_CARD_CLASS = 'card';
-
-/** 卡片标题栏类名(bootstrap) */
-export const IEEE754_CARD_HEADER_CLASS = 'card-header';
-
-/** 卡片主体类名(bootstrap) */
-export const IEEE754_CARD_BODY_CLASS = 'card-body';
-
-/** 卡片标题文案(标题标签是 h4,由组件给出) */
+/** 面板标题文案(面板框体由库的 `createPanel` 建,类名不在本站) */
 export const IEEE754_PANEL_TITLE = '🧮 IEEE 754 浮点可视化';
 
 /**
@@ -260,17 +253,17 @@ export const IEEE754_HINT_TEXT =
 /** 提示段落的类名(样式见 ieee754.css 的 .ieee-hint) */
 export const IEEE754_HINT_CLASS = 'ieee-hint';
 
-/** 精度 / 输入那一行的栅格类名(bootstrap,逐个照搬原标记) */
-export const IEEE754_CONTROLS_ROW_CLASS = 'row g-3 align-items-center mb-3';
+/** 精度 / 输入那一行的类名(替代原 bootstrap 的 `.row.g-3`) */
+export const IEEE754_CONTROLS_ROW_CLASS = 'ieee-controls';
 
-/** 左列(精度菜单)的栅格类名:宽度随内容 */
-export const IEEE754_COL_AUTO_CLASS = 'col-auto';
+/** 左列(精度菜单)的类名:宽度随内容(替代原 `.col-auto`) */
+export const IEEE754_CONTROLS_FORMAT_CLASS = 'ieee-controls__format';
 
-/** 右列(输入框 + 转换按钮)的栅格类名:半宽 */
-export const IEEE754_COL_HALF_CLASS = 'col-6';
+/** 右列(输入框 + 转换按钮)的类名:半宽(替代原 `.col-6`) */
+export const IEEE754_CONTROLS_INPUT_CLASS = 'ieee-controls__input';
 
-/** 表单标签类名(bootstrap;精度那一列现在指向菜单的触发按钮) */
-export const IEEE754_LABEL_CLASS = 'form-label mb-0';
+/** 表单标签类名(替代原 bootstrap 的 `.form-label.mb-0`) */
+export const IEEE754_LABEL_CLASS = 'ieee-controls__label';
 
 /**
  * 精度菜单浮层的锚点类名(库里 `menu-anchor` 这个字面量).
@@ -282,11 +275,11 @@ export const IEEE754_LABEL_CLASS = 'form-label mb-0';
  */
 export const IEEE754_FORMAT_ANCHOR_CLASS = 'menu-anchor';
 
-/** 输入框外层输入组类名(bootstrap) */
-export const IEEE754_INPUT_GROUP_CLASS = 'input-group input-group-sm';
+/** 输入框外层输入组类名(替代原 bootstrap 的 `.input-group.input-group-sm`) */
+export const IEEE754_INPUT_GROUP_CLASS = 'ieee-input-group';
 
-/** 十进制输入框类名(bootstrap) */
-export const IEEE754_INPUT_CLASS = 'form-control';
+/** 十进制输入框类名(替代原 bootstrap 的 `.form-control`) */
+export const IEEE754_INPUT_CLASS = 'ieee-input';
 
 /** 精度菜单的标签文案(label 与菜单分组标题共用) */
 export const IEEE754_FORMAT_LABEL = '精度';
