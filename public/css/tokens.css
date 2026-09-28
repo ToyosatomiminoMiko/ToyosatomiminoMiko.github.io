@@ -201,12 +201,9 @@
     --oled-area-margin: 10px;
 
     /* ---------- SETTING 标签页 ---------- */
-    /* 背景缩略图项的背景色(半透明蓝) */
-    --setting-item-bg: #001fab9f;
-    /* 背景缩略图项的宽高 */
-    --setting-item-width: 90px;
-    --setting-item-height: 60px;
-    /* 背景缩略图项的外边距 / 内边距 */
+    /* 背景缩略图项的外边距(排在浮动项 li 上)/ 内边距(排在库的按钮上):
+       盒子跟着内容走,不再有"项的宽高"两个令牌;底色也不在这里 --
+       整块 tile 是库的按钮,底色用基线的透明,不另铺站点自己的色 */
     --setting-item-margin: 10px;
     --setting-item-padding: 5px;
     /* 背景缩略图自身的宽高 */

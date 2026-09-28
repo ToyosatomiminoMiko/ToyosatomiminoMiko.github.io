@@ -274,6 +274,34 @@ const report = await cdp.eval(`(() => {
         */
         ok('背景列表真的包住了浮动子项(.bgul 的 flow-root 生效,不再压住下面的控制台)',
             getComputedStyle(q('ul.bgul')).display === 'flow-root');
+        /*
+          背景缩略图项整块是库的按钮(见 common/ui/background_section.ts).两件事只有
+          在真级联里才验得出来:本站的 .bgbtn 盖住了库基线的块排布 / 内边距,而"按钮
+          该有的部分"(指针 / 描边 / 悬停 / 焦点)仍由库基线供着 -- 本站样式表或库样式
+          表少引入一份,这两边就会各塌一半,进程内 DOM 看不出来.
+        */
+        const bgButton = q('ul.bgul button.bgbtn');
+        const bgStyle = bgButton ? getComputedStyle(bgButton) : null;
+        const bgPaddingToken = getComputedStyle(document.documentElement)
+            .getPropertyValue('--setting-item-padding').trim();
+        ok('背景缩略图项是库的按钮(块排布归本站,指针与描边归库)',
+            bgStyle !== null && bgStyle.display === 'block' && bgStyle.cursor === 'pointer' &&
+            bgStyle.borderTopStyle === 'solid' && bgStyle.padding === bgPaddingToken,
+            bgStyle ? 'display:' + bgStyle.display + ' cursor:' + bgStyle.cursor +
+                ' padding:' + bgStyle.padding + ' border:' + bgStyle.borderTopWidth : '没有按钮');
+        /*
+          委托按**按钮**命中,再从按钮里取图:所以点按钮自己(文案 / 内边距 / 描边)
+          这一下也要真的换背景 -- 只认 <img> 的话这里会静默失效.点完再切回默认那张
+          (第二项 CODE 与 tokens.css 的 --bg-image-default 是同一张),免得后面几条
+          "底色 / 导航条"的断言读到被换过的页面状态.
+        */
+        const bgBefore = getComputedStyle(document.body).backgroundImage;
+        if (bgButton) bgButton.click();
+        const bgAfter = getComputedStyle(document.body).backgroundImage;
+        ok('点按钮本身(文案 / 内边距)就能换整站背景',
+            bgAfter !== bgBefore && bgAfter.indexOf('bgstar') !== -1,
+            bgBefore.split('/').pop() + ' -> ' + bgAfter.split('/').pop());
+        qa('ul.bgul button.bgbtn')[1]?.click();
         ok('导航条是脱离文档流的固定条(position: fixed)',
             getComputedStyle(q('header.site-header')).position === 'fixed');
         ok('首屏铺满视口高度(hero 的 100dvh 令牌生效)',

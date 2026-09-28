@@ -566,21 +566,36 @@ canvas#pixelCanvas {
 }
 
 .bgli {
-    width: var(--setting-item-width);
-    height: var(--setting-item-height);
     float: left;
     margin: var(--setting-item-margin);
-    background-color: var(--setting-item-bg);
+}
+
+/*
+ * 背景缩略图按钮:整块 tile 就是 miko_ui 的按钮(基线类 `.ui-button`,见库的
+ * styles/widgets.css),本站只盖住基线里"块形状"那一半.
+ *
+ * 为什么不用 !important 也不用调样式表顺序:库的基线四条(默认 / 悬停 / 焦点 /
+ * 禁用)全部写成 `:where(.ui-button)`,**优先级是 0**,这里带类名的 (0,1,0)
+ * 天然压得住它.所以本站只写"基线里要改的那两条"(块的排布与内边距),
+ * 底色**不写**:库基线的透明底就是最终观感,不再往 tile 上铺一层站点自己的色.
+ *
+ * `display: block` 让图与文案竖排(图是 `display:block`,文案自然落下一行),
+ * 按钮的宽度由缩略图与内边距撑出来(浮动项的 shrink-to-fit),不再钉死宽高.
+ * 描边 / 悬停描边变色 / 焦点环 / 禁用透明度仍归库,本站不重写.
+ */
+.bgbtn {
+    display: block;
     padding: var(--setting-item-padding);
 }
 
 .bgimg {
+    display: block;
     width: var(--setting-thumb-width);
     height: var(--setting-thumb-height);
     /* 圆角归 miko_ui 主题(库默认 0px):不再用 bootstrap 的 `.rounded`
-       工具类,那会把圆角绑死在 --bs-border-radius* 上 */
+       工具类,那会把圆角绑死在 --bs-border-radius* 上.
+       指针样式不在这里:cursor:pointer 由按钮基线给(整块 tile 都可点) */
     border-radius: var(--radius-sm);
-    cursor: pointer;
 }
 
 /* LED clock */

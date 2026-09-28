@@ -22,12 +22,21 @@
 //     Dark Reader 选择;
 //   - 监听委托到 document, 增删 / 重建缩略图都不会掉.
 // 这也是 README "CSS 一律用自定义属性引用" 的直接应用.
+//
+// [为什么按按钮找,而不是按 <img> 找]
+// 缩略图现在整块包在一颗库的按钮里(见 ui/background_section.ts).被点的可能是
+// 那张 <img>,也可能是按钮自己(文案 / 内边距 / 描边)-- 只认 <img> 的话,点文案
+// 就静默失效.所以委托先命中按钮,再从按钮里取出那张图.
 // ================================================================
 
-import { BACKGROUND_IMAGE_CLASS, BACKGROUND_IMAGE_VARIABLE } from '@/common/site.config';
+import {
+    BACKGROUND_BUTTON_CLASS,
+    BACKGROUND_IMAGE_CLASS,
+    BACKGROUND_IMAGE_VARIABLE,
+} from '@/common/site.config';
 
-/** 缩略图选择器:命中的最内层元素就是被点的背景缩略图 */
-const THUMBNAIL_SELECTOR = `.${BACKGROUND_IMAGE_CLASS}`;
+/** 缩略图按钮选择器:命中的那个元素就是被点的整块 tile */
+const BUTTON_SELECTOR = `.${BACKGROUND_BUTTON_CLASS}`;
 
 /**
  * CSS `url()` 的引号.URL 来自 img.src,虽然通常没有空格 / 括号,
@@ -38,17 +47,23 @@ const URL_QUOTE = '"';
 /** 挂载背景切换(站点入口 main.ts 在 DOMContentLoaded 时调用一次) */
 export function mountBackgroundSwitcher(): void {
     document.addEventListener('click', (event) => {
-        const thumbnail = findThumbnail(event.target);
-        if (!thumbnail) return;
-        setActiveBackgroundImage(thumbnail.currentSrc || thumbnail.src);
+        const source = findThumbnailSource(event.target);
+        if (!source) return;
+        setActiveBackgroundImage(source);
     });
 }
 
-/** 从事件目标向上找最近的背景缩略图;点击目标不是缩略图时返回 null */
-function findThumbnail(target: EventTarget | null): HTMLImageElement | null {
+/**
+ * 从事件目标向上找最近的缩略图按钮,再取出它里面那张图的地址;
+ * 不在按钮里(或按钮里没有图)时返回 null.
+ */
+function findThumbnailSource(target: EventTarget | null): string | null {
     if (!(target instanceof Element)) return null;
-    const hit = target.closest(THUMBNAIL_SELECTOR);
-    return hit instanceof HTMLImageElement ? hit : null;
+    const button = target.closest(BUTTON_SELECTOR);
+    if (button === null) return null;
+    const image = button.querySelector(`.${BACKGROUND_IMAGE_CLASS}`);
+    if (!(image instanceof HTMLImageElement)) return null;
+    return image.currentSrc || image.src;
 }
 
 /**

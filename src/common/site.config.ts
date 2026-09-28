@@ -146,11 +146,11 @@ export const SETTING_PANEL_TITLE = '设置';
 
 // ---------- SETTING:背景切换 ----------
 
-/** 背景缩略图清单(列表容器 / 列表项 / 缩略图本身的类名见下) */
+/** 背景缩略图清单(列表容器 / 列表项 / 缩略图按钮 / 缩略图本身的类名见下) */
 export interface BackgroundPresetSpec {
     /** 图片地址(站点 public 下的路径) */
     readonly src: string;
-    /** 缩略图下方的名字 */
+    /** 缩略图下方的名字(同时是那颗按钮的可访问名) */
     readonly label: string;
 }
 
@@ -160,10 +160,18 @@ export const BACKGROUND_PRESETS = [
     { src: '/images/bgimg/bgcode.gif', label: 'CODE' },
 ] as const satisfies readonly BackgroundPresetSpec[];
 
-/** 背景列表的类名(样式见 public/css/index.css 的 .bgul / .bgli / .bgimg) */
+/** 背景列表 / 列表项 / 缩略图按钮 / 缩略图本身的类名(样式见 public/css/index.css) */
 export const BACKGROUND_LIST_CLASS = 'bgul';
 export const BACKGROUND_ITEM_CLASS = 'bgli';
-/** 缩略图本身的类名:background.ts 的点击委托就是按它命中"被点的是哪张背景" */
+/**
+ * 缩略图按钮的类名:整块 tile 由库的 `createButton` 生成(基线类 `.ui-button`),
+ * 这个类只叠本站要盖住基线的部分(块的排布与内边距,见 index.css 的 `.bgbtn`).
+ */
+export const BACKGROUND_BUTTON_CLASS = 'bgbtn';
+/**
+ * 缩略图本身的类名:background.ts 的点击委托先按**按钮**命中,
+ * 再从这个按钮里按它取出要切的那张图.
+ */
 export const BACKGROUND_IMAGE_CLASS = 'bgimg';
 
 // ---------- 背景切换(行为侧) ----------
