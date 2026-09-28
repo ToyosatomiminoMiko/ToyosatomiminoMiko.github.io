@@ -74,9 +74,10 @@ mountMetroWindow({ stage, styles, panel, uploads });
     样式会**静默失效**(看着"没坏"但全乱);
   - 渲染可见性只看**舞台**:`IntersectionObserver` 观察的是画布所在容器,
     面板在别的标签页里可见与否不代表画面可见与否,不能拿来当暂停依据.
-- **声明式组件**:`@/common/dom` 的 `h()` 是**全站唯一**的 DOM 构造原语(描述 -> 元素,
-  原先养在本组件的 `src/ui/dom.ts` 里,站点其它 UI 也按同一条约定编排后提升到
-  `src/common/dom.ts` 共用),
+- **声明式组件**:标记一律由 UI 库 `miko_ui` 的 `create_element` 构造(描述 -> 元素;
+  本站**没有**自己的 DOM 原语).它原先养在本组件的 `src/ui/dom.ts` 里,站点其它 UI
+  也按同一条约定编排时提升成 `src/common/dom.ts` 的 `h()`;`h()` 后来也跟着删了
+  (库那层已经够用,第二份没有存在理由),
   `src/ui/stage_content.ts`(舞台标记)与 `src/ui/settings.ts`(设置面板)
   都是纯函数,不读页面,不改全局;`metro_window.ts` 把标记插进各自的宿主,拿到组件交回的
   元素引用后绑事件,不再按 id 去 DOM 里找.滑块布局只在库的 `createSlider()` 里定义

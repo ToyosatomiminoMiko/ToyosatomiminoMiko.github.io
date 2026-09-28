@@ -40,11 +40,11 @@ import {
     createButton,
     createCodeEditor,
     createSegmented,
+    create_element,
     type CodeEditorHandle,
     type SegmentedHandle,
 } from 'miko_ui';
 
-import { h } from '@/common/dom';
 import {
     OLED_BYTE_ORDER_TEXT,
     OLED_COLOR_MODES,
@@ -220,18 +220,18 @@ export function createOledPanel(): OledPanel {
 
     // --- 状态指示区 / 主画布 ---
     /** 坐标文本:'coordinate:(X:-,Y:-)' 起,鼠标移动时由 oled.ts 改写,id 'coordsDisplay' */
-    const coordsDisplay = h('div', {
-        class: OLED_PANEL_COORDS_CLASS,
-        text: OLED_PANEL_COORDS_TEXT,
-        attrs: { id: OLED_DOM.coordsDisplayId },
-    });
+    const coordsDisplay = create_element(
+        { tag: 'div' },
+        { class: OLED_PANEL_COORDS_CLASS, id: OLED_DOM.coordsDisplayId },
+        OLED_PANEL_COORDS_TEXT,
+    );
     /** 主画布:128x64 物理像素(width/height 由 oled.ts 写上),id 'pixelCanvas' */
-    const canvas = h('canvas', { attrs: { id: OLED_DEFAULT_CONFIG.canvasId } });
+    const canvas = create_element({ tag: 'canvas' }, { id: OLED_DEFAULT_CONFIG.canvasId });
     /** 鼠标位置指示器(跟随光标的红框,不属于画布像素),id 'pixelIndicator' */
-    const indicator = h('div', {
-        class: OLED_PANEL_INDICATOR_CLASS,
-        attrs: { id: OLED_DOM.indicatorId },
-    });
+    const indicator = create_element(
+        { tag: 'div' },
+        { class: OLED_PANEL_INDICATOR_CLASS, id: OLED_DOM.indicatorId },
+    );
 
     // --- 数据输入输出区 ---
     /** 导出结果编辑器:放导出按钮生成的 C 源码,id 'exportOutput' */
@@ -244,47 +244,57 @@ export function createOledPanel(): OledPanel {
     const importButton = createPanelButton(OLED_DOM.importBtnId, OLED_PANEL_IMPORT_BUTTON_TEXT);
 
     /** 导出区一行:导出编辑器 + 换行 + 复制按钮 */
-    const exportRow = h('div', { class: OLED_PANEL_ROW_CLASS }, [
+    const exportRow = create_element(
+        { tag: 'div' },
+        { class: OLED_PANEL_ROW_CLASS },
         exportEditor.element,
-        h('br'),
+        create_element({ tag: 'br' }),
         copyButton,
-    ]);
+    );
     /** 导入区一行:导入编辑器 + 换行 + 导入按钮 */
-    const importRow = h('div', { class: OLED_PANEL_ROW_CLASS }, [
+    const importRow = create_element(
+        { tag: 'div' },
+        { class: OLED_PANEL_ROW_CLASS },
         importEditor.element,
-        h('br'),
+        create_element({ tag: 'br' }),
         importButton,
-    ]);
+    );
 
     /** 工具控制区:按屏幕上的从左到右顺序排(上面的按钮声明顺序即此顺序) */
-    const tools = h('div', { class: OLED_PANEL_TOOLS_CLASS }, [
+    const tools = create_element(
+        { tag: 'div' },
+        { class: OLED_PANEL_TOOLS_CLASS },
         refillButton,
         colorButton,
         toolSelect.element,
         exportButton,
         pngButton,
         byteOrderButton,
-    ]);
+    );
 
     /** 卡片主体:坐标显示 -> 画布 -> 指示器 -> 工具区 -> 数据区(自上而下) */
-    const body = h('div', { class: OLED_PANEL_CARD_BODY_CLASS }, [
+    const body = create_element(
+        { tag: 'div' },
+        { class: OLED_PANEL_CARD_BODY_CLASS },
         coordsDisplay,
-        h('br'),
+        create_element({ tag: 'br' }),
         canvas,
         indicator,
-        h('br'),
+        create_element({ tag: 'br' }),
         tools,
-        h('br'),
-        h('div', {}, [exportRow, importRow]),
-    ]);
+        create_element({ tag: 'br' }),
+        create_element({ tag: 'div' }, {}, exportRow, importRow),
+    );
 
     /** 卡片标题栏:只有 <h4>'OLED Canvas' */
-    const header = h('div', { class: OLED_PANEL_CARD_HEADER_CLASS }, [
-        h('h4', { text: OLED_PANEL_TITLE_TEXT }),
-    ]);
+    const header = create_element(
+        { tag: 'div' },
+        { class: OLED_PANEL_CARD_HEADER_CLASS },
+        create_element({ tag: 'h4' }, {}, OLED_PANEL_TITLE_TEXT),
+    );
 
     /** 整块面板:div.card.oled-card,由 oled.ts 插进宿主窗格 */
-    const root = h('div', { class: OLED_PANEL_CARD_CLASS }, [header, body]);
+    const root = create_element({ tag: 'div' }, { class: OLED_PANEL_CARD_CLASS }, header, body);
 
     // 交回的引用与上面创建的变量一一对应(名字相同,不另起别名)
     return {

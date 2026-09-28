@@ -7,9 +7,8 @@
 // 不再有 `document.getElementById` / `querySelectorAll` 之类的"回头查 DOM".
 // ================================================================
 
-import type { CodeEditorHandle, SegmentedHandle } from 'miko_ui';
+import { create_element, type CodeEditorHandle, type SegmentedHandle } from 'miko_ui';
 
-import { h } from '@/common/dom';
 import type {
     PixelPos,
     DrawTool,
@@ -268,10 +267,11 @@ export class OLEDCanvas {
     /** 下载PNG */
     downloadPNG(): void {
         // 这里的 <a> 是"临时下载触发器",不属于页面标记,但同样是 DOM 构造,
-        // 照全站约定用 h() 而不是 document.createElement.
-        const link = h('a', {
-            attrs: { download: OLED_PNG_FILENAME, href: this.canvas.toDataURL('image/png') },
-        });
+        // 照全站约定用库的 create_element 而不是 document.createElement.
+        const link = create_element(
+            { tag: 'a' },
+            { download: OLED_PNG_FILENAME, href: this.canvas.toDataURL('image/png') },
+        );
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);

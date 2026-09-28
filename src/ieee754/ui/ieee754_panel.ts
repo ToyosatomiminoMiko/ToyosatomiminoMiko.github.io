@@ -49,9 +49,8 @@ id / class 命中,不得合并或省略.
 与一个挂载锚点);站点不再给两者写外观,也没有 bootstrap 的 `.form-select` 了.
 */
 
-import { createButton, createMenu, type MenuHandle } from 'miko_ui';
+import { createButton, createMenu, create_element, type Child, type MenuHandle } from 'miko_ui';
 
-import { h, type DomChild } from '@/common/dom';
 import {
     IEEE754_BITS_CLASS,
     IEEE754_BITSTRING_CLASS,
@@ -133,11 +132,11 @@ export function formatTriggerText(value: string): string {
 }
 
 /** 图例里的一段:纯文本直接返回;位数提示生成 <b> 并把它登记进 sink(供调用方交回引用) */
-function createLegendPart(part: IEEE754LegendPart, sink: Record<string, HTMLElement>): DomChild {
+function createLegendPart(part: IEEE754LegendPart, sink: Record<string, HTMLElement>): Child {
     if (!('bitsRole' in part)) {
         return part.text;
     }
-    const label = h('b', { dataset: { role: part.bitsRole }, text: String(part.bits) });
+    const label = create_element({ tag: 'b' }, { 'data-role': part.bitsRole }, String(part.bits));
     sink[part.bitsRole] = label;
     return label;
 }
@@ -151,9 +150,15 @@ function createLegendPart(part: IEEE754LegendPart, sink: Record<string, HTMLElem
  */
 export function createIeee754Panel(): Ieee754Panel {
     const bitsLabels: Record<string, HTMLElement> = {};
-    const legend = h('div', { class: IEEE754_LEGEND_CLASS }, IEEE754_LEGENDS.map((spec) =>
-        h('span', { class: spec.className }, spec.parts.map((part) => createLegendPart(part, bitsLabels))),
-    ));
+    const legend = create_element(
+        { tag: 'div' },
+        { class: IEEE754_LEGEND_CLASS },
+        ...IEEE754_LEGENDS.map((spec) => create_element(
+            { tag: 'span' },
+            { class: spec.className },
+            ...spec.parts.map((part) => createLegendPart(part, bitsLabels)),
+        )),
+    );
 
     // 精度菜单:触发按钮 + 浮层面板都归库的 `createMenu`,本站给的是数据(分组 /
     // 菜单项 / 当前项)与一个锚点.按钮文案由 `formatTriggerText` 从当前项算出来;
@@ -184,81 +189,91 @@ export function createIeee754Panel(): Ieee754Panel {
         const label = button.firstChild;
         // 库一定先写主文案再追加小字,这里的判空只是满足类型(取不到就跳过)
         if (!label) return;
-        button.replaceChild(h('code', { text: choice.label }), label);
+        button.replaceChild(create_element({ tag: 'code' }, {}, choice.label), label);
     });
 
     // 初始当前项:菜单只认"哪一项高亮",不自己记当前值(状态在行为代码那边).
     formatMenu.setActive(initialFormat.value);
-    const formatAnchor = h('div', { class: IEEE754_FORMAT_ANCHOR_CLASS }, [
+    const formatAnchor = create_element({ tag: 'div' }, { class: IEEE754_FORMAT_ANCHOR_CLASS },
         formatTrigger,
         formatMenu.panel,
-    ]);
+    );
 
-    const input = h('input', {
+    const input = create_element({ tag: 'input' }, {
         class: IEEE754_INPUT_CLASS,
-        attrs: {
-            id: IEEE754_DOM.inputId,
-            value: IEEE754_INPUT_INITIAL_VALUE,
-            spellcheck: IEEE754_INPUT_SPELLCHECK,
-        },
+        id: IEEE754_DOM.inputId,
+        value: IEEE754_INPUT_INITIAL_VALUE,
+        spellcheck: IEEE754_INPUT_SPELLCHECK,
     });
     // 转换按钮整颗由 UI 库(`miko_ui` 的 `createButton`)生成:基线类 `.ui-button`
     // 与 type="button" 都在库里,本站只补一个 id(CSS 与测试的定位契约).
     const convertButton = createButton({ text: IEEE754_CONVERT_LABEL }).element;
     convertButton.id = IEEE754_DOM.convertId;
 
-    const error = h('div', {
+    const error = create_element({ tag: 'div' }, {
         class: IEEE754_ERROR_CLASS,
-        attrs: { id: IEEE754_DOM.errorId, hidden: 'hidden' },
+        id: IEEE754_DOM.errorId,
+        hidden: 'hidden',
     });
 
-    const bits = h('div', { class: IEEE754_BITS_CLASS, attrs: { id: IEEE754_DOM.bitsId } });
-    const bitstring = h('div', { class: IEEE754_BITSTRING_CLASS, attrs: { id: IEEE754_DOM.bitstringId } });
-    const breakdown = h('div', { class: IEEE754_BREAKDOWN_CLASS, attrs: { id: IEEE754_DOM.breakdownId } });
-    const formula = h('div', { class: IEEE754_FORMULA_CLASS, attrs: { id: IEEE754_DOM.formulaId } });
-    const special = h('div', { class: IEEE754_SPECIAL_CLASS, attrs: { id: IEEE754_DOM.specialId } });
+    const bits = create_element({ tag: 'div' }, { class: IEEE754_BITS_CLASS, id: IEEE754_DOM.bitsId });
+    const bitstring = create_element(
+        { tag: 'div' },
+        { class: IEEE754_BITSTRING_CLASS, id: IEEE754_DOM.bitstringId },
+    );
+    const breakdown = create_element(
+        { tag: 'div' },
+        { class: IEEE754_BREAKDOWN_CLASS, id: IEEE754_DOM.breakdownId },
+    );
+    const formula = create_element(
+        { tag: 'div' },
+        { class: IEEE754_FORMULA_CLASS, id: IEEE754_DOM.formulaId },
+    );
+    const special = create_element(
+        { tag: 'div' },
+        { class: IEEE754_SPECIAL_CLASS, id: IEEE754_DOM.specialId },
+    );
 
     // 精度 / 输入那一行:两列都按原标记的栅格类摆放.
     // 精度那一列的 label 仍指向 #ieee-format,只是它现在是菜单的触发按钮
     // (`<label for>` 认所有可标注元素,按钮是其中之一).
-    const controlsRow = h('div', { class: IEEE754_CONTROLS_ROW_CLASS }, [
-        h('div', { class: IEEE754_COL_AUTO_CLASS }, [
-            h('label', {
+    const controlsRow = create_element({ tag: 'div' }, { class: IEEE754_CONTROLS_ROW_CLASS },
+        create_element({ tag: 'div' }, { class: IEEE754_COL_AUTO_CLASS },
+            create_element({ tag: 'label' }, {
                 class: IEEE754_LABEL_CLASS,
-                text: IEEE754_FORMAT_LABEL,
-                attrs: { for: IEEE754_DOM.formatId },
-            }),
+                for: IEEE754_DOM.formatId,
+            }, IEEE754_FORMAT_LABEL),
             formatAnchor,
-        ]),
-        h('div', { class: IEEE754_COL_HALF_CLASS }, [
-            h('label', {
+        ),
+        create_element({ tag: 'div' }, { class: IEEE754_COL_HALF_CLASS },
+            create_element({ tag: 'label' }, {
                 class: IEEE754_LABEL_CLASS,
-                text: IEEE754_INPUT_LABEL,
-                attrs: { for: IEEE754_DOM.inputId },
-            }),
-            h('div', { class: IEEE754_INPUT_GROUP_CLASS }, [input, convertButton]),
-        ]),
-    ]);
+                for: IEEE754_DOM.inputId,
+            }, IEEE754_INPUT_LABEL),
+            create_element({ tag: 'div' }, { class: IEEE754_INPUT_GROUP_CLASS }, input, convertButton),
+        ),
+    );
 
     // 三个分区:位图(S/E/M + 位串)/ 公式(KaTeX)/ 特殊值参考
-    const root = h('div', { class: IEEE754_CARD_CLASS }, [
-        h('div', { class: IEEE754_CARD_HEADER_CLASS }, [h('h4', { text: IEEE754_PANEL_TITLE })]),
-        h('div', { class: IEEE754_CARD_BODY_CLASS }, [
-            h('p', { class: IEEE754_HINT_CLASS, text: IEEE754_HINT_TEXT }),
+    const root = create_element({ tag: 'div' }, { class: IEEE754_CARD_CLASS },
+        create_element({ tag: 'div' }, { class: IEEE754_CARD_HEADER_CLASS },
+            create_element({ tag: 'h4' }, {}, IEEE754_PANEL_TITLE)),
+        create_element({ tag: 'div' }, { class: IEEE754_CARD_BODY_CLASS },
+            create_element({ tag: 'p' }, { class: IEEE754_HINT_CLASS }, IEEE754_HINT_TEXT),
             controlsRow,
             error,
-            h('div', { class: IEEE754_SECTION_CLASS }, [legend, bits, bitstring]),
+            create_element({ tag: 'div' }, { class: IEEE754_SECTION_CLASS }, legend, bits, bitstring),
             breakdown,
-            h('div', { class: IEEE754_SECTION_CLASS }, [
-                h('div', { class: IEEE754_FORMULA_TITLE_CLASS, text: IEEE754_FORMULA_TITLE }),
+            create_element({ tag: 'div' }, { class: IEEE754_SECTION_CLASS },
+                create_element({ tag: 'div' }, { class: IEEE754_FORMULA_TITLE_CLASS }, IEEE754_FORMULA_TITLE),
                 formula,
-            ]),
-            h('div', { class: IEEE754_SECTION_CLASS }, [
-                h('div', { class: IEEE754_FORMULA_TITLE_CLASS, text: IEEE754_SPECIAL_TITLE }),
+            ),
+            create_element({ tag: 'div' }, { class: IEEE754_SECTION_CLASS },
+                create_element({ tag: 'div' }, { class: IEEE754_FORMULA_TITLE_CLASS }, IEEE754_SPECIAL_TITLE),
                 special,
-            ]),
-        ]),
-    ]);
+            ),
+        ),
+    );
 
     return {
         root,

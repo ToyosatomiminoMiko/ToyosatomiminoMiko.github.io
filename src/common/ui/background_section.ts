@@ -13,7 +13,7 @@ bootstrap 卡片,由 site_shell.ts 放进 `.card-header`(类名与文案见 site
 所以增删缩略图不会掉监听,也不需要把元素引用传出去.
 */
 
-import { h } from '@/common/dom';
+import { create_element } from 'miko_ui';
 import {
     BACKGROUND_IMAGE_CLASS,
     BACKGROUND_ITEM_CLASS,
@@ -34,13 +34,15 @@ import {
  */
 export function createBackgroundSection(): HTMLUListElement {
     const items = BACKGROUND_PRESETS.map((preset) =>
-        h('li', { class: BACKGROUND_ITEM_CLASS }, [
-            h('img', {
-                class: BACKGROUND_IMAGE_CLASS,
-                attrs: { src: preset.src, alt: '' },
-            }),
-            h('span', { text: preset.label }),
-        ]),
+        create_element(
+            { tag: 'li' },
+            { class: BACKGROUND_ITEM_CLASS },
+            create_element(
+                { tag: 'img' },
+                { class: BACKGROUND_IMAGE_CLASS, src: preset.src, alt: '' },
+            ),
+            create_element({ tag: 'span' }, {}, preset.label),
+        ),
     );
-    return h('ul', { class: BACKGROUND_LIST_CLASS }, items);
+    return create_element({ tag: 'ul' }, { class: BACKGROUND_LIST_CLASS }, ...items);
 }

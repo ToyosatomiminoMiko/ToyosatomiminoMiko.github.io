@@ -46,7 +46,7 @@ IEEE 754 浮点可视化:单精度(float32) / 双精度(float64)
 */
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-import { h } from '@/common/dom';
+import { create_element } from 'miko_ui';
 import type { IEEE754Class, IEEE754Format, IEEE754Value } from './types';
 import { createIeee754Panel, formatTriggerText } from './ui/ieee754_panel';
 import {
@@ -464,23 +464,25 @@ function renderSpecialTable(
 ): void {
     container.replaceChildren();
 
-    const headTr = h('tr', {}, IEEE754_SPECIAL_TABLE_HEADERS.map((label) => h('th', { text: label })));
-    const body = h('tbody', {}, SPECIAL_VALUES.map((row) => {
+    const headTr = create_element({ tag: 'tr' }, {},
+        ...IEEE754_SPECIAL_TABLE_HEADERS.map((label) => create_element({ tag: 'th' }, {}, label)));
+    const body = create_element({ tag: 'tbody' }, {}, ...SPECIAL_VALUES.map((row) => {
         const v = row.make(format);
         const { sign, exponent, fraction } = splitBits(v);
-        const tr = h('tr', { attrs: { title: IEEE754_SPECIAL_ROW_TITLE } }, [
-            h('td', { text: row.name }),
-            h('td', { class: IEEE754_BITS_CLASS, text: `S=${sign} E=${exponent} M=${fraction}` }),
-            h('td', { text: valueDisplayText(v) }),
-        ]);
+        const tr = create_element({ tag: 'tr' }, { title: IEEE754_SPECIAL_ROW_TITLE },
+            create_element({ tag: 'td' }, {}, row.name),
+            create_element({ tag: 'td' }, { class: IEEE754_BITS_CLASS },
+                `S=${sign} E=${exponent} M=${fraction}`),
+            create_element({ tag: 'td' }, {}, valueDisplayText(v)),
+        );
         tr.addEventListener('click', () => onPick(v));
         return tr;
     }));
 
-    container.appendChild(h('table', { class: IEEE754_SPECIAL_TABLE_CLASS }, [
-        h('thead', {}, [headTr]),
+    container.appendChild(create_element({ tag: 'table' }, { class: IEEE754_SPECIAL_TABLE_CLASS },
+        create_element({ tag: 'thead' }, {}, headTr),
         body,
-    ]));
+    ));
 }
 
 /**
@@ -530,11 +532,10 @@ export function mountIEEE754(host: HTMLElement): void {
 
     /** 渲染某一比特位为可点击方块. */
     const makeBit = (bitVal: string, globalIndex: number, css: string): HTMLElement => {
-        const el = h('span', {
+        const el = create_element({ tag: 'span' }, {
             class: `${IEEE754_BIT_CLASS} ${css}${bitVal === '1' ? ` ${IEEE754_ON_CLASS}` : ''}`,
-            text: bitVal,
-            attrs: { title: `bit ${globalIndex}` },
-        });
+            title: `bit ${globalIndex}`,
+        }, bitVal);
         el.addEventListener('click', () => toggleBit(globalIndex));
         return el;
     };
@@ -547,11 +548,15 @@ export function mountIEEE754(host: HTMLElement): void {
             const children: HTMLElement[] = [];
             for (let i = start; i < end; i++) {
                 if (i !== start && (i - start) % IEEE754_BIT_GROUP_SIZE === 0) {
-                    children.push(h('span', { class: IEEE754_GAP_CLASS }));
+                    children.push(create_element({ tag: 'span' }, { class: IEEE754_GAP_CLASS }));
                 }
                 children.push(makeBit(v.bits[i], i, css));
             }
-            bitsEl.appendChild(h('div', { class: `${IEEE754_BIT_GROUP_CLASS} ${css}` }, children));
+            bitsEl.appendChild(create_element(
+                { tag: 'div' },
+                { class: `${IEEE754_BIT_GROUP_CLASS} ${css}` },
+                ...children,
+            ));
         };
 
         const expStart = IEEE754_EXPONENT_START;

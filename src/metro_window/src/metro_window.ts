@@ -44,6 +44,8 @@ setRunning/reset 全都作用于它,所以一个页面只应挂载一次(舞台�
 */
 import './metro_window.css';
 
+import { childNodes, create_element } from 'miko_ui';
+
 import init, {
     reset,
     resetLayerImage,
@@ -102,7 +104,6 @@ import {
     WINDOW_CLASS,
     type UploadLayerSpec,
 } from './config';
-import { h } from '@/common/dom';
 import { createSettingsPanel, createStyleRow, type SliderControl } from '@/metro_window/src/ui/settings';
 import { createStageContent } from '@/metro_window/src/ui/stage_content';
 import { createUploadPanel, decodeImageToRgba, type UploadControl } from '@/metro_window/src/ui/uploads';
@@ -225,7 +226,7 @@ function mustFindMount(id: string): HTMLElement {
 
 /** 省略面板宿主时自建的隐藏容器(见 config.ts 的 PANEL_SINK_CLASS) */
 function createPanelSink(stage: HTMLElement): HTMLElement {
-    const sink = h('div', { class: PANEL_SINK_CLASS });
+    const sink = create_element({ tag: 'div' }, { class: PANEL_SINK_CLASS });
     stage.append(sink);
     return sink;
 }
@@ -240,7 +241,10 @@ export function mountMetroWindow(points: MetroMountPoints): void {
     stage.classList.add(WINDOW_CLASS, BARE_MODIFIER_CLASS, STAGE_MODIFIER_CLASS);
 
     // 画布(以及可选的标题 / 副标题)由组件生成(宿主只提供空容器);顺序即显示顺序.
-    stage.append(...createStageContent());
+    // 组件交出的是库口径的子节点表(`Child[]`,假值表示"这一项不要"),
+    // 所以先经库的 `childNodes()` 落成真节点 -- "字符串 -> 文本节点 / 跳过假值"
+    // 这条规则库里有且只有一份,站点不再自己写一遍 spread.
+    stage.append(...childNodes(createStageContent()));
 
     // 宽高比从 CANVAS_WIDTH / CANVAS_HEIGHT 算出来写到舞台上(与后备缓冲同一个源):
     // CSS 的 aspect-ratio 取这个变量,tokens.css 里那份只是 JS 未挂载时的兜底.
@@ -323,7 +327,7 @@ export function mountMetroWindow(points: MetroMountPoints): void {
     function markStageUnavailable(): void {
         if (stage.dataset[STAGE_STATE_DATA_KEY] === STAGE_STATE_UNAVAILABLE) return;
         stage.dataset[STAGE_STATE_DATA_KEY] = STAGE_STATE_UNAVAILABLE;
-        stage.append(h('p', { class: STAGE_NOTE_CLASS, text: STAGE_NOTE_UNAVAILABLE }));
+        stage.append(create_element({ tag: 'p' }, { class: STAGE_NOTE_CLASS }, STAGE_NOTE_UNAVAILABLE));
     }
 
     // 容器不可见(被切走的标签页 / 滚出视口)时暂停;标签页是 display:none,

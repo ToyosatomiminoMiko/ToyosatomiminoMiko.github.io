@@ -12,7 +12,7 @@ LED 时钟的**标记组件**(声明式).
 */
 
 import { CLOCK_CANVAS_HEIGHT, CLOCK_CANVAS_ID, CLOCK_CANVAS_WIDTH } from '@/clock/config';
-import { h } from '@/common/dom';
+import { create_element } from 'miko_ui';
 
 /** 时钟的标记:目前只有一个画布;行为代码需要别的元素时在这里加并一起交回 */
 export interface ClockDisplay {
@@ -22,12 +22,13 @@ export interface ClockDisplay {
 
 /** 按 config.ts 的 DOM 契约生成画布 */
 export function createClockDisplay(): ClockDisplay {
-    const canvas = h('canvas', {
-        attrs: {
+    const canvas = create_element(
+        { tag: 'canvas' },
+        {
             id: CLOCK_CANVAS_ID,
-            width: CLOCK_CANVAS_WIDTH,
-            height: CLOCK_CANVAS_HEIGHT,
+            width: String(CLOCK_CANVAS_WIDTH),
+            height: String(CLOCK_CANVAS_HEIGHT),
         },
-    });
+    );
     return { canvas };
 }

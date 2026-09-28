@@ -25,7 +25,7 @@ shell.panes.rbt),整块面板按 config.ts 的声明在这里生成:
 (与 ui/settings.ts,clock/ui/clock_display.ts 的分工一致).
 */
 
-import { h } from '@/common/dom';
+import { create_element } from 'miko_ui';
 import {
     RBT_CANVAS_HEIGHT,
     RBT_CANVAS_WIDTH,
@@ -54,38 +54,48 @@ export interface RbtPanel {
 
 /** 按 config.ts 的声明式模型生成整块面板 */
 export function createRbtPanel(): RbtPanel {
-    const input = h('textarea', {
-        attrs: {
+    const input = create_element(
+        { tag: 'textarea' },
+        {
             id: RBT_DOM.inputId,
             spellcheck: RBT_INPUT_SPELLCHECK,
             placeholder: RBT_INPUT_PLACEHOLDER,
         },
-    });
+    );
 
     // 初始必须隐藏:旧标记即 `<div id="treeError" hidden></div>`
-    const error = h('div', { attrs: { id: RBT_DOM.errorId, hidden: 'hidden' } });
+    const error = create_element({ tag: 'div' }, { id: RBT_DOM.errorId, hidden: 'hidden' });
 
-    const canvas = h('canvas', {
-        attrs: {
+    const canvas = create_element(
+        { tag: 'canvas' },
+        {
             id: RBT_DOM.canvasId,
-            width: RBT_CANVAS_WIDTH,
-            height: RBT_CANVAS_HEIGHT,
+            width: String(RBT_CANVAS_WIDTH),
+            height: String(RBT_CANVAS_HEIGHT),
         },
-    });
+    );
 
     // 提示区:两行 span 各自以 <br> 结束(旧标记如此,逐字保留)
-    const hints = h('div', {}, [
-        h('span', { text: RBT_HINT_SHORTHAND }),
-        h('br'),
-        h('span', { text: RBT_HINT_COLOR_LEGEND }),
-        h('br'),
-    ]);
+    const hints = create_element(
+        { tag: 'div' },
+        {},
+        create_element({ tag: 'span' }, {}, RBT_HINT_SHORTHAND),
+        create_element({ tag: 'br' }),
+        create_element({ tag: 'span' }, {}, RBT_HINT_COLOR_LEGEND),
+        create_element({ tag: 'br' }),
+    );
 
-    const root = h('div', { class: RBT_PANEL_ROOT_CLASS }, [
-        h('div', { class: RBT_PANEL_HEADER_CLASS }, [h('h4', { text: RBT_PANEL_TITLE })]),
+    const root = create_element(
+        { tag: 'div' },
+        { class: RBT_PANEL_ROOT_CLASS },
+        create_element(
+            { tag: 'div' },
+            { class: RBT_PANEL_HEADER_CLASS },
+            create_element({ tag: 'h4' }, {}, RBT_PANEL_TITLE),
+        ),
         hints,
-        h('div', { class: RBT_PANEL_BODY_CLASS }, [input, error, canvas]),
-    ]);
+        create_element({ tag: 'div' }, { class: RBT_PANEL_BODY_CLASS }, input, error, canvas),
+    );
 
     return { root, input, error, canvas };
 }

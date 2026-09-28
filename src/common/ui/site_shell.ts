@@ -47,7 +47,7 @@ OLED / RBT / IEEE754 三个模块干脆把整个标签页窗格当宿主(窗格�
 由它自己的挂载函数补到每个宿主上),骨架不替组件记这些.
 */
 
-import { h } from '@/common/dom';
+import { create_element } from 'miko_ui';
 import {
     AVATAR_ALT,
     AVATAR_CLASS,
@@ -107,21 +107,24 @@ export interface SiteShell {
 /** 一个标签页触发器:声明式 bootstrap 属性 + 指向窗格的锚点 */
 function createNavLink(item: NavItemSpec): HTMLAnchorElement {
     const active = item.pane === DEFAULT_NAV_PANE;
-    return h('a', {
-        class: active ? `${NAV_LINK_CLASS} ${NAV_ACTIVE_CLASS}` : NAV_LINK_CLASS,
-        text: item.label,
-        attrs: { href: `#${item.pane}` },
-        dataset: { [TAB_TOGGLE_DATA_KEY]: TAB_TOGGLE_DATA_VALUE },
-    });
+    return create_element(
+        { tag: 'a' },
+        {
+            class: active ? `${NAV_LINK_CLASS} ${NAV_ACTIVE_CLASS}` : NAV_LINK_CLASS,
+            href: `#${item.pane}`,
+            [`data-${TAB_TOGGLE_DATA_KEY}`]: TAB_TOGGLE_DATA_VALUE,
+        },
+        item.label,
+    );
 }
 
 /** 一个标签页窗格:默认激活的那一个多带 .show active */
 function createTabPane(item: NavItemSpec): HTMLDivElement {
     const active = item.pane === DEFAULT_NAV_PANE;
-    return h('div', {
-        class: active ? `${TAB_PANE_CLASS} ${TAB_PANE_ACTIVE_CLASS}` : TAB_PANE_CLASS,
-        attrs: { id: item.pane },
-    });
+    return create_element(
+        { tag: 'div' },
+        { class: active ? `${TAB_PANE_CLASS} ${TAB_PANE_ACTIVE_CLASS}` : TAB_PANE_CLASS, id: item.pane },
+    );
 }
 
 /**
@@ -137,32 +140,42 @@ export function mountSiteShell(): SiteShell {
     }
 
     // --- 各模块的空宿主:先建好,生成完一起交回 ---
-    const clockHost = h('div', { attrs: { id: SITE_HOST_IDS.clock } });
-    const metroStage = h('div', { attrs: { id: SITE_HOST_IDS.metroStage } });
-    const metroStyles = h('div', { attrs: { id: SITE_HOST_IDS.metroStyles } });
-    const metroPanel = h('div', { attrs: { id: SITE_HOST_IDS.metroPanel } });
-    const metroUploads = h('div', { attrs: { id: SITE_HOST_IDS.metroUploads } });
+    const clockHost = create_element({ tag: 'div' }, { id: SITE_HOST_IDS.clock });
+    const metroStage = create_element({ tag: 'div' }, { id: SITE_HOST_IDS.metroStage });
+    const metroStyles = create_element({ tag: 'div' }, { id: SITE_HOST_IDS.metroStyles });
+    const metroPanel = create_element({ tag: 'div' }, { id: SITE_HOST_IDS.metroPanel });
+    const metroUploads = create_element({ tag: 'div' }, { id: SITE_HOST_IDS.metroUploads });
 
     // --- 导航条 ---
-    const header = h('header', { class: HEADER_CLASS }, [
-        h('span', { class: SITE_BRAND_CLASS, text: SITE_BRAND_TEXT }),
-        h('ul', { class: NAV_LIST_CLASS }, [
-            ...NAV_ITEMS.map((item) => h('li', { class: NAV_ITEM_CLASS }, [createNavLink(item)])),
-        ]),
+    const header = create_element(
+        { tag: 'header' },
+        { class: HEADER_CLASS },
+        create_element({ tag: 'span' }, { class: SITE_BRAND_CLASS }, SITE_BRAND_TEXT),
+        create_element(
+            { tag: 'ul' },
+            { class: NAV_LIST_CLASS },
+            ...NAV_ITEMS.map((item) =>
+                create_element({ tag: 'li' }, { class: NAV_ITEM_CLASS }, createNavLink(item)),
+            ),
+        ),
         // 头像:导航条最右,点了去 GitHub(不是标签页,所以不带 data-bs-toggle).
         // 位置在标签栏**外面**:标签栏是横向滚动容器,会把 hover 辉光裁成方块
         // (完整理由见文件头的结构说明).
-        h('a', { class: AVATAR_LINK_CLASS, attrs: { href: AVATAR_LINK } }, [
-            h('img', { class: AVATAR_CLASS, attrs: { src: AVATAR_SRC, alt: AVATAR_ALT } }),
-        ]),
-    ]);
+        create_element(
+            { tag: 'a' },
+            { class: AVATAR_LINK_CLASS, href: AVATAR_LINK },
+            create_element({ tag: 'img' }, { class: AVATAR_CLASS, src: AVATAR_SRC, alt: AVATAR_ALT }),
+        ),
+    );
 
     // --- 首屏 ---
-    const hero = h('section', { class: HERO_CLASS, attrs: { id: HERO_ID } }, [
-        h('div', { class: HERO_STAGE_CLASS }, [metroStage]),
-        h('div', { class: HERO_SCRIM_CLASS }),
-        h('div', { class: HERO_BOTTOM_CLASS }, [clockHost, metroStyles]),
-    ]);
+    const hero = create_element(
+        { tag: 'section' },
+        { class: HERO_CLASS, id: HERO_ID },
+        create_element({ tag: 'div' }, { class: HERO_STAGE_CLASS }, metroStage),
+        create_element({ tag: 'div' }, { class: HERO_SCRIM_CLASS }),
+        create_element({ tag: 'div' }, { class: HERO_BOTTOM_CLASS }, clockHost, metroStyles),
+    );
 
     // --- 五个标签页窗格 ---
     const panes = {} as Record<NavPaneId, HTMLElement>;
@@ -173,21 +186,35 @@ export function mountSiteShell(): SiteShell {
     // 背景缩略图 + 车窗控制台宿主 + 上传面板宿主(标题"设置"在 .card-header).
     panes.home.append(hero);
     panes.setting.append(
-        h('div', { class: SETTING_CARD_CLASS }, [
-            h('div', { class: SETTING_CARD_HEADER_CLASS }, [
-                h('h4', { text: SETTING_CARD_TITLE }),
-            ]),
-            h('div', { class: SETTING_CARD_BODY_CLASS }, [
+        create_element(
+            { tag: 'div' },
+            { class: SETTING_CARD_CLASS },
+            create_element(
+                { tag: 'div' },
+                { class: SETTING_CARD_HEADER_CLASS },
+                create_element({ tag: 'h4' }, {}, SETTING_CARD_TITLE),
+            ),
+            create_element(
+                { tag: 'div' },
+                { class: SETTING_CARD_BODY_CLASS },
                 createBackgroundSection(),
                 metroPanel,
                 metroUploads,
-            ]),
-        ]),
+            ),
+        ),
     );
 
     root.replaceChildren(
         header,
-        h('main', {}, [h('div', { class: TAB_CONTENT_CLASS }, NAV_ITEMS.map((item) => panes[item.pane]))]),
+        create_element(
+            { tag: 'main' },
+            {},
+            create_element(
+                { tag: 'div' },
+                { class: TAB_CONTENT_CLASS },
+                ...NAV_ITEMS.map((item) => panes[item.pane]),
+            ),
+        ),
     );
 
     return {

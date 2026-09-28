@@ -129,9 +129,11 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
 
 几条硬约束:
 
-- **`h()` 是唯一的 DOM 构造原语**(`src/common/dom.ts`).模块里不要再写
-  `document.createElement` -- 例外只有"必须拿原生 API"的场合(离屏 canvas 做像素
-  操作,KaTeX 渲染结果),这类都会在代码里注明.
+- **标记一律用库的 `create_element`**(`miko_ui`):站点不再养自己的 DOM 原语,
+  模块里也不要写 `document.createElement` / `setAttribute` / `append` -- 例外只有
+  "必须拿原生 API"的场合(离屏 canvas 做像素操作,KaTeX 渲染结果),这类都会在
+  代码里注明.属性值必须是 string(数字要 `String(...)`),`null` / `undefined` /
+  `false` 子节点会被跳过.
 - **宿主只提供空位**:每个模块的宿主都是空容器,标记全部由组件生成.
   宿主页不出现任何面板标记,所以"改了 HTML 但忘了改组件"这种失配不存在.
   挂载函数对**自己独占**的宿主用 `replaceChildren` 整体接管(重复挂载不会插两份,
@@ -175,8 +177,8 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
   `index.html` 只有一个空位 `#site-root`,骨架由 `src/common/ui/site_shell.ts` 按
   `src/common/site.config.ts` 的模型生成;每个模块的挂载函数签名统一是
   `mount<模块>(host: HTMLElement)` -- 往宿主里长标记,再拿组件交回的**元素引用**
-  绑行为,**不按 id 回头查 DOM**.`h()`(`src/common/dom.ts`)是全站唯一的 DOM 构造原语.
-  详见[「UI 在哪里」](#ui-在哪里).
+  绑行为,**不按 id 回头查 DOM**.标记只由库的 `create_element`(`miko_ui`)构造,
+  站点没有自己的 DOM 原语.详见[「UI 在哪里」](#ui-在哪里).
 - **跨目录导入一律用源码根别名 `@/`**:`@/common/utils`,`@/clock/config`,
   `@/4xx_page/shared/icon`;只有同目录的兄弟模块才写 `./x`.
   别名一处定义,两处生效:`vite.config.ts` 的 `resolve.alias` 与
@@ -201,12 +203,12 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
 | --- | --- | --- |
 | 主站样式 | `public/css/tokens.css` | 站点设计令牌(`:root`):字体栈,调色板,尺寸,圆角,间距,`z-index`,过渡;首屏(`--hero-*`)与固定导航条(`--chrome-*`) |
 | 主站脚本 | `src/clock/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,OLED 画板尺寸/通道/文案,红黑树布局与配色,IEEE 754 精度格式与掩码,站点级声明式模型(导航项 / 首屏结构 / SETTING 整页卡片的类名与标题 / 背景缩略图清单 / 各模块宿主 id / `is-over-hero` 类名 / `--nav-height` 令牌名) |
-| 首页骨架 | `src/common/ui/site_shell.ts`,`src/common/ui/background_section.ts`,`src/common/dom.ts` | 骨架(含 SETTING 那张 bootstrap 卡片)与背景缩略图两块声明式组件,以及全站唯一的 DOM 构造原语 `h()` |
+| 首页骨架 | `src/common/ui/site_shell.ts`,`src/common/ui/background_section.ts` | 骨架(含 SETTING 那张 bootstrap 卡片)与背景缩略图两块声明式组件(标记用库的 `create_element`) |
 | 主站行为 | `src/main.ts`,`src/common/header_state.ts`,`src/common/background.ts` | 挂载顺序(骨架 -> 各模块 -> 行为),导航条"隐形 / 实底"状态(首屏还压在它下面时,以及任何标签页停在页面顶端时),背景切换令牌写入 |
 | 4xx 页面样式 | `src/4xx_page/418/418_tokens.css`,`src/4xx_page/451/451_tokens.css`;`404/404.css` 与 `shared/icon.css` 顶部的 `:root` 块 | 各彩蛋页的设计令牌(颜色 / 几何 / 阴影 / 时长 / 字体) |
 | 4xx 页面脚本 | `src/4xx_page/418/teapot/config.ts`,`src/4xx_page/451/boot.config.ts`,`src/4xx_page/451/ember/*.config.ts` | 茶壶交互,启动开关,GPU 计时 / 统计 / 资源 / 能力 / 性能面板参数 |
-| 地铁车窗前端 | `src/metro_window/src/config.ts`,`src/metro_window/src/stage_size.ts`,`src/metro_window/src/ui/`,`src/metro_window/src/tokens.css` | DOM id / class / `data-*` 键名,`setParam` 参数名映射,车窗标记 / 设置面板 / 上传图层的声明式模型(画布分辨率 / 滑块分组 / 风格 / 按钮 / 可上传贴图清单 / 文案),后备缓冲尺寸与防抖 / dpr 上限;声明式 DOM 组件(`h()` + 舞台标记 + 风格按钮行 + 设置面板 + 上传面板 + PNG 解码);组件设计令牌.**单个滑块(名称 + 滑杆 + 数值框 + 重置按钮)不在这里**:它是 UI 库 `miko_ui` 的 `createSlider`,本站只把声明翻译成它的选项(见下一行) |
-| UI 库 | npm 包 `miko_ui`(声明在 `package.json`);配色与宽度在 `src/metro_window/src/metro_window.css` | 通用控件(滑块 / 按钮 / 开关 / 分段 / 数值框 / **折叠菜单** ...)与它们的样式.站内**所有按钮**都由库的 `createButton` 生成(基线类 `.ui-button`),本站不再写按钮外观;IEEE754 的精度选择是库的 `createMenu`(触发按钮 + `.menu-popover` 浮层,本站只给数据与一个 `.menu-anchor` 锚点);OLED 数据区那两个输入框也整颗是库的 `createCodeEditor`(`.code-editor`:行号槽 + 真 textarea + 高亮层),本站只注入 id / 槽宽下限 / 高亮函数;库的默认主题由 `src/main.ts` 引 `miko_ui/styles/tokens.css` 接进来.本地联调与依赖契约见 [`scripts/dev_ui_link.py`](scripts/dev_ui_link.py) 顶部 |
+| 地铁车窗前端 | `src/metro_window/src/config.ts`,`src/metro_window/src/stage_size.ts`,`src/metro_window/src/ui/`,`src/metro_window/src/tokens.css` | DOM id / class / `data-*` 键名,`setParam` 参数名映射,车窗标记 / 设置面板 / 上传图层的声明式模型(画布分辨率 / 滑块分组 / 风格 / 按钮 / 可上传贴图清单 / 文案),后备缓冲尺寸与防抖 / dpr 上限;声明式 DOM 组件(库的 `create_element` + 舞台标记 + 风格按钮行 + 设置面板 + 上传面板 + PNG 解码);组件设计令牌.**单个滑块(名称 + 滑杆 + 数值框 + 重置按钮)不在这里**:它是 UI 库 `miko_ui` 的 `createSlider`,本站只把声明翻译成它的选项(见下一行) |
+| UI 库 | npm 包 `miko_ui`(声明在 `package.json`);配色与宽度在 `src/metro_window/src/metro_window.css` | 通用控件(滑块 / 按钮 / 开关 / 分段 / 数值框 / **折叠菜单** ...)与它们的样式.**全站标记的唯一原语**也是库的 `create_element`(站点没有自己的 DOM 原语);站内**所有按钮**都由库的 `createButton` 生成(基线类 `.ui-button`),本站不再写按钮外观;IEEE754 的精度选择是库的 `createMenu`(触发按钮 + `.menu-popover` 浮层,本站只给数据与一个 `.menu-anchor` 锚点);OLED 数据区那两个输入框也整颗是库的 `createCodeEditor`(`.code-editor`:行号槽 + 真 textarea + 高亮层),本站只注入 id / 槽宽下限 / 高亮函数;库的默认主题由 `src/main.ts` 引 `miko_ui/styles/tokens.css` 接进来.本地联调与依赖契约见 [`scripts/dev_ui_link.py`](scripts/dev_ui_link.py) 顶部 |
 | 地铁车窗渲染 | `src/metro_window/rust/src/droplet_params.rs`,`app_params.rs`,`render_params.rs`,`random_params.rs`,`texture_params.rs` | 水滴生成 / 物理 / 折射 / 高光,主循环与资源路径 / 可上传材质槽位白名单,管线与绑定槽位 / 上传纹理尺寸上限,白噪声哈希,程序化贴图生成参数 |
 | 构建 | `vite.config.ts` | 多页入口,4xx 产物路径回移前缀,`miko_ui` 的运行期依赖(`katex` / `@preact/signals-core`)去重(`resolve.dedupe`) |
 | 依赖来源 | `package.json`(`"miko_ui": "^0.1.6"`),`scripts/dev_ui_link.py` | 前端第三方 UI 库从 npm registry 装;改库时本地联调用 `bash scripts/dev_ui_link.sh` 把 `node_modules/miko_ui` 换成指向工作副本的符号链接(只动 `node_modules/`) |
@@ -333,11 +335,12 @@ lint:rs -> clean -> build:wasm -> test(vitest) -> test:rs(cargo) -> build:app
 
 **`npm run smoke:home` 不在流水线里**:它要 `dist/` 与一个 `chromium-browser`,
 做法是起静态服务器 + headless Chromium,只验那些**进程内 DOM 做不到**的事
-(16 项:canvas 真的点出像素 / 树真的画出红节点 / 点标签页真的切窗格 / 时钟真的每秒
-重绘 / `getComputedStyle` 下的布局 / 骨架交回的宿主真的被地铁车窗组件接上).
+(canvas 真的点出像素 / 树真的画出红节点 / 点标签页真的切窗格 / 时钟真的每秒
+重绘 / 精度菜单真的能开合 / `getComputedStyle` 下的布局 / 骨架交回的宿主真的
+被地铁车窗组件接上).
 类名,id,`data-*`,文案这些**结构契约**已经搬进 `npm test` 的 happy-dom 单测,
-所以这条命令只需在动到渲染,交互,样式时跑.第一次跑它就抓到过 `h()` 写
-`data-bs-toggle` 的方式不合规范,导致整个骨架挂不上这类问题.用法与边界见脚本头部注释.
+所以这条命令只需在动到渲染,交互,样式时跑.第一次跑它就抓到过 `data-*` 属性
+写法不合规范,导致整个骨架挂不上这类问题.用法与边界见脚本头部注释.
 `scripts/smoke_home.mjs` 与 `scripts/perf/451.mjs` 是脚本目录里仅有的两个 Node
 脚本:它们靠 Node 自带的全局 `WebSocket` 直连 CDP,换语言得自己维护一个 WebSocket
 客户端,不划算;其余脚本(build / link / wasm / 标点修正)都是 Python.

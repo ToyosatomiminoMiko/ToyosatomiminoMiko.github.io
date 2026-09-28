@@ -17,7 +17,7 @@ TRANSPORT_BUTTONS 等模型,本模块只负责"把模型变成元素"并交回�
     本站不再给按钮写外观(原先那份 `.metro-window button` 规则已撤掉).
 */
 
-import { createButton, createSlider, type SliderHandle } from 'miko_ui';
+import { createButton, create_element, createSlider, type SliderHandle } from 'miko_ui';
 
 import {
     DEFAULT_STYLE_INDEX,
@@ -37,7 +37,6 @@ import {
     type SliderSpec,
     type TransportAction,
 } from '@/metro_window/src/config';
-import { h } from '@/common/dom';
 
 /**
  * 一个滑块组件:库交回的句柄 + 它的声明式配置(行为代码按 spec 写参数).
@@ -137,10 +136,12 @@ function createSliderControl(spec: SliderSpec): SliderControl {
 /** 一个可折叠分组:summary + 若干滑块 */
 function createSliderGroup(group: SliderGroupSpec): { element: HTMLDetailsElement; controls: SliderControl[] } {
     const controls = group.sliders.map(createSliderControl);
-    const details = h('details', { class: 'slider-group' }, [
-        h('summary', { text: group.title }),
-        h('div', { class: 'slider-grid' }, controls.map((control) => control.root)),
-    ]);
+    const details = create_element(
+        { tag: 'details' },
+        { class: 'slider-group' },
+        create_element({ tag: 'summary' }, {}, group.title),
+        create_element({ tag: 'div' }, { class: 'slider-grid' }, ...controls.map((control) => control.root)),
+    );
     details.open = group.open;
     return { element: details, controls };
 }
@@ -158,7 +159,7 @@ export function createStyleRow(): StyleRow {
         button.dataset[STYLE_DATA_KEY] = String(preset.index);
         return button;
     });
-    return { root: h('div', { class: 'style-row' }, buttons), buttons };
+    return { root: create_element({ tag: 'div' }, { class: 'style-row' }, ...buttons), buttons };
 }
 
 /** 播放 / 暂停 / 重置;初始禁用状态由配置决定 */
@@ -196,34 +197,40 @@ export function createSettingsPanel(styleRow: StyleRow | null): SettingsPanel {
 
     // .spacer 是 flex:1 的空 span:把后面的播放/暂停/重置推到右边.
     // 三颗播放按钮的顺序在这里显式写出,和 TRANSPORT_BUTTONS 的声明顺序保持一致.
-    const controls = h('div', { class: 'controls' }, [
+    const controls = create_element(
+        { tag: 'div' },
+        { class: 'controls' },
         ...(styleRow ? [styleRow.root] : []),
-        h('span', { class: 'spacer' }),
+        create_element({ tag: 'span' }, { class: 'spacer' }),
         transport.start,
         transport.pause,
         transport.reset,
-    ]);
+    );
 
     // 状态 span 先带上 id 与初始文案;启动失败时由 metro_window.ts 改写 innerHTML
     // 追加启用 WebGPU 的帮助步骤(所以这里只给 textContent,不预先塞 HTML).
-    const status = h('span', { attrs: { id: STATUS_ID }, text: STATUS_INITIAL });
+    const status = create_element({ tag: 'span' }, { id: STATUS_ID }, STATUS_INITIAL);
     // 状态区 = 粗体标签 + 一个空格文本节点 + 状态 span + 图层说明;
     // 中间那个 ' ' 不能省:它是 <strong> 与 <span> 之间的可见间隔.
-    const gpuInfo = h('div', { class: 'gpu_info' }, [
-        h('strong', { text: STATUS_LABEL }),
+    const gpuInfo = create_element(
+        { tag: 'div' },
+        { class: 'gpu_info' },
+        create_element({ tag: 'strong' }, {}, STATUS_LABEL),
         ' ',
         status,
-        h('div', { class: 'layers', text: LAYERS_NOTE }),
-    ]);
+        create_element({ tag: 'div' }, { class: 'layers' }, LAYERS_NOTE),
+    );
 
     // 整块 fieldset:legend -> 控制条 -> 各分组 -> 状态区.
     // 外层类名 .sliders 是 CSS 的作用域锚点,id 只用于调试/自动化定位.
-    const root = h('fieldset', { class: 'sliders', attrs: { id: PANEL_ID } }, [
-        h('legend', { text: PANEL_LEGEND }),
+    const root = create_element(
+        { tag: 'fieldset' },
+        { class: 'sliders', id: PANEL_ID },
+        create_element({ tag: 'legend' }, {}, PANEL_LEGEND),
         controls,
         ...groups.map((group) => group.element),
         gpuInfo,
-    ]);
+    );
     // 加载完成前整块禁用(浏览器会自动置灰并拦下所有输入),boot() 成功后置回 false.
     root.disabled = true;
 

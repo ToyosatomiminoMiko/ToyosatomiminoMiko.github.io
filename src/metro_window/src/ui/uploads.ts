@@ -28,7 +28,7 @@ setLayerImage -- 那些纹理是 wgpu 的 GPU 资源,只有 wasm 内部能改.�
 `.upload-reset` 只是本站的定位钩子;按钮外观一律归库,本站不再写.
 */
 
-import { createButton } from 'miko_ui';
+import { createButton, create_element, type Child } from 'miko_ui';
 
 import {
     UPLOAD_ACCEPT,
@@ -42,7 +42,6 @@ import {
     UPLOADS_PANEL_ID,
     type UploadLayerSpec,
 } from '@/metro_window/src/config';
-import { h, type DomChild } from '@/common/dom';
 
 /** 一行上传控件:根元素 + 输入框 / 状态行 / 恢复按钮 + 它的声明式配置 */
 export interface UploadControl {
@@ -71,24 +70,28 @@ function createUploadRow(spec: UploadLayerSpec): UploadControl {
     const noteParts: string[] = [];
     if (spec.hint !== undefined) noteParts.push(spec.hint);
     noteParts.push(`${UPLOAD_FILE_HINT_PREFIX}${spec.file}`);
-    const labelChildren: DomChild[] = [spec.label, h('small', { text: noteParts.join(' · ') })];
-    const label = h('label', { class: 'upload-label', attrs: { for: inputId } }, labelChildren);
+    const labelChildren: Child[] = [spec.label, create_element({ tag: 'small' }, {}, noteParts.join(' · '))];
+    const label = create_element({ tag: 'label' }, { class: 'upload-label', for: inputId }, ...labelChildren);
 
-    const status = h('span', { class: 'upload-status', text: UPLOAD_STATUS_DEFAULT });
+    const status = create_element({ tag: 'span' }, { class: 'upload-status' }, UPLOAD_STATUS_DEFAULT);
 
     // 选文件框:accept 只是文件选择框的过滤器,真正的类型判断在调用方按 MIME 再做一次.
-    const input = h('input', {
+    const input = create_element({ tag: 'input' }, {
         class: 'upload-file',
-        attrs: { id: inputId, type: 'file', accept: UPLOAD_ACCEPT },
+        id: inputId,
+        type: 'file',
+        accept: UPLOAD_ACCEPT,
     });
     // 恢复默认按钮由 UI 库(`miko_ui` 的 `createButton`)生成:type="button" 与
     // 按钮外观都在库里;`upload-reset` 只是本站的定位钩子(见 metro_window.css).
     const reset = createButton({ text: UPLOAD_RESET_LABEL, class: 'upload-reset' }).element;
 
-    const root = h('div', { class: 'upload' }, [
-        h('div', { class: 'upload-meta' }, [label, status]),
-        h('div', { class: 'upload-actions' }, [input, reset]),
-    ]);
+    const root = create_element(
+        { tag: 'div' },
+        { class: 'upload' },
+        create_element({ tag: 'div' }, { class: 'upload-meta' }, label, status),
+        create_element({ tag: 'div' }, { class: 'upload-actions' }, input, reset),
+    );
     return { spec, root, input, status, reset };
 }
 
@@ -107,14 +110,12 @@ function createUploadRow(spec: UploadLayerSpec): UploadControl {
  */
 export function createUploadPanel(): UploadPanel {
     const controls = UPLOAD_LAYERS.map(createUploadRow);
-    const root = h(
-        'fieldset',
-        { class: 'uploads', attrs: { id: UPLOADS_PANEL_ID } },
-        [
-            h('legend', { text: UPLOAD_LEGEND }),
-            h('p', { class: 'upload-note', text: UPLOAD_NOTE }),
-            ...controls.map((control) => control.root),
-        ],
+    const root = create_element(
+        { tag: 'fieldset' },
+        { class: 'uploads', id: UPLOADS_PANEL_ID },
+        create_element({ tag: 'legend' }, {}, UPLOAD_LEGEND),
+        create_element({ tag: 'p' }, { class: 'upload-note' }, UPLOAD_NOTE),
+        ...controls.map((control) => control.root),
     );
     root.disabled = true;
     return { root, controls };
