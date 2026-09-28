@@ -14,24 +14,24 @@ import {
     BACKGROUND_ITEM_CLASS,
     BACKGROUND_LIST_CLASS,
     BACKGROUND_PRESETS,
-    BACKGROUND_SECTION_TITLE,
 } from '@/common/site.config';
 import { createBackgroundSection } from '@/common/ui/background_section';
 
-/** 把整块背景区插进 body,返回容器(组件只造节点,不负责挂载) */
+/** 把背景区节点插进 body,返回容器(组件只造节点,不负责挂载) */
 function render(): HTMLElement {
     document.body.innerHTML = '';
     const container = document.createElement('div');
-    container.append(...createBackgroundSection());
+    container.append(createBackgroundSection());
     document.body.append(container);
     return container;
 }
 
 describe('SETTING:背景切换区', () => {
-    it('是"标题 + 列表"两块,标题文案来自 config', () => {
+    it('只交出一个 ul(SETTING 的标题属于整页卡片的 .card-header,不在这里)', () => {
         const container = render();
-        expect([...container.children].map((child) => child.tagName)).toEqual(['H4', 'UL']);
-        expect(container.querySelector('h4')?.textContent).toBe(BACKGROUND_SECTION_TITLE);
+        expect([...container.children].map((child) => child.tagName)).toEqual(['UL']);
+        expect(container.querySelector('.card-header')).toBeNull();
+        expect(container.querySelector('h4')).toBeNull();
     });
 
     it('列表与列表项用 CSS 约定的类名', () => {

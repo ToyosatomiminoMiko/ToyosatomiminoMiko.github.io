@@ -32,6 +32,10 @@ import {
     NAV_ITEMS,
     NAV_LINK_CLASS,
     NAV_LIST_CLASS,
+    SETTING_CARD_BODY_CLASS,
+    SETTING_CARD_CLASS,
+    SETTING_CARD_HEADER_CLASS,
+    SETTING_CARD_TITLE,
     SITE_BRAND_CLASS,
     SITE_BRAND_TEXT,
     SITE_HOST_IDS,
@@ -239,13 +243,32 @@ describe('首页骨架:五个标签页窗格', () => {
         }
     });
 
-    it('SETTING 窗格里是"背景区 + 控制台宿主 + 上传面板宿主"', () => {
+    it('SETTING 窗格是"整页一张 bootstrap 卡片",标题在 .card-header', () => {
         const shell = setupShell();
         const setting = shell.panes.setting;
-        // 背景区自带两个子节点(标题 h4 + 缩略图 ul),后两个是车窗的宿主
-        const children = [...setting.children];
-        expect(children[children.length - 2]).toBe(shell.metroPanel);
-        expect(children[children.length - 1]).toBe(shell.metroUploads);
+        // 窗格只有卡片这一个子节点;卡片结构是 bootstrap 的 .card > .card-header + .card-body,
+        // 四个 bootstrap 卡片变量由 public/css/index.css 的 `body .card` 接回 miko_ui 令牌.
+        expect([...setting.children]).toHaveLength(1);
+        const card = setting.firstElementChild;
+        expect(classes(card)).toEqual([SETTING_CARD_CLASS]);
+        const header = card?.querySelector(`:scope > .${SETTING_CARD_HEADER_CLASS}`);
+        const body = card?.querySelector(`:scope > .${SETTING_CARD_BODY_CLASS}`);
+        expect(header).not.toBeNull();
+        expect(body).not.toBeNull();
+        // 标题("设置")只在卡片头里出现一次,窗格里没有第二份
+        expect(header?.querySelector('h4')?.textContent).toBe(SETTING_CARD_TITLE);
+        expect(setting.querySelectorAll('h4')).toHaveLength(1);
+    });
+
+    it('SETTING 卡片体里依次是"背景缩略图 + 控制台宿主 + 上传面板宿主"', () => {
+        const shell = setupShell();
+        const setting = shell.panes.setting;
+        const body = setting.querySelector(`.${SETTING_CARD_BODY_CLASS}`);
+        // 背景区只交出一个 ul,后两个是车窗的宿主(宿主仍在卡片体里,组件照旧长进去)
+        expect([...(body?.children ?? [])].map((child) => child.tagName))
+            .toEqual(['UL', 'DIV', 'DIV']);
+        expect(body?.lastElementChild).toBe(shell.metroUploads);
+        expect(body?.children[1]).toBe(shell.metroPanel);
         expect(setting.querySelector(`#${SITE_HOST_IDS.metroPanel}`)).toBe(shell.metroPanel);
         expect(setting.querySelector(`#${SITE_HOST_IDS.metroUploads}`)).toBe(shell.metroUploads);
     });

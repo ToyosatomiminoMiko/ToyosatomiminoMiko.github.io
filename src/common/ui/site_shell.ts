@@ -26,9 +26,12 @@
       ├── div.tab-pane#rbt          空宿主:红黑树面板由 rbt/ 长在里面
       ├── div.tab-pane#ieee754      空宿主:IEEE754 面板由 ieee754/ 长在里面
       └── div.tab-pane#setting
-            ├── (背景切换区:标题 + 缩略图列表,由 ui/background_section.ts 生成)
-            ├── div#metro-params    地铁车窗控制台(空宿主)
-            └── div#metro-uploads   图层贴图上传面板(空宿主)
+            └── div.card                  整页一张 bootstrap 卡片(与其余三个窗格同一套结构)
+                  ├── div.card-header > h4  '设置'
+                  └── div.card-body
+                        ├── ul.bgul            背景缩略图(ui/background_section.ts 生成)
+                        ├── div#metro-params   地铁车窗控制台(空宿主)
+                        └── div#metro-uploads  图层贴图上传面板(空宿主)
 
 **宿主只提供空位**:每个 `div#...` 都是空的,标记由对应模块的挂载函数生成.
 OLED / RBT / IEEE754 三个模块干脆把整个标签页窗格当宿主(窗格本身就是容器),
@@ -63,6 +66,10 @@ import {
     NAV_ITEMS,
     NAV_LINK_CLASS,
     NAV_LIST_CLASS,
+    SETTING_CARD_BODY_CLASS,
+    SETTING_CARD_CLASS,
+    SETTING_CARD_HEADER_CLASS,
+    SETTING_CARD_TITLE,
     SITE_BRAND_CLASS,
     SITE_BRAND_TEXT,
     SITE_HOST_IDS,
@@ -162,9 +169,21 @@ export function mountSiteShell(): SiteShell {
     for (const item of NAV_ITEMS) {
         panes[item.pane] = createTabPane(item);
     }
-    // 首屏在 HOME 窗格里;SETTING 窗格 = 背景区 + 车窗控制台 + 上传面板.
+    // 首屏在 HOME 窗格里;SETTING 窗格 = 一张 bootstrap 卡片,卡片体里依次是
+    // 背景缩略图 + 车窗控制台宿主 + 上传面板宿主(标题"设置"在 .card-header).
     panes.home.append(hero);
-    panes.setting.append(...createBackgroundSection(), metroPanel, metroUploads);
+    panes.setting.append(
+        h('div', { class: SETTING_CARD_CLASS }, [
+            h('div', { class: SETTING_CARD_HEADER_CLASS }, [
+                h('h4', { text: SETTING_CARD_TITLE }),
+            ]),
+            h('div', { class: SETTING_CARD_BODY_CLASS }, [
+                createBackgroundSection(),
+                metroPanel,
+                metroUploads,
+            ]),
+        ]),
+    );
 
     root.replaceChildren(
         header,

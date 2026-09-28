@@ -124,10 +124,26 @@ export const TAB_PANE_CLASS = 'tab-pane fade';
 /** 激活窗格的类名(bootstrap:active 参与选择器,show 负责透明度) */
 export const TAB_PANE_ACTIVE_CLASS = 'show active';
 
-// ---------- SETTING:背景切换 ----------
+// ---------- SETTING:整页卡片 ----------
 
-/** 背景区的标题文案 */
-export const BACKGROUND_SECTION_TITLE = '设置';
+/*
+ SETTING 标签页与 OLED / RBT / IEEE754 用**同一套 bootstrap 卡片结构**:
+ 整页内容装在一张 `.card` 里,标题(设置)在 `.card-header`,其余在 `.card-body`.
+ 卡片底 / 描边 / 圆角 / 标题栏四个 bootstrap 变量在 public/css/index.css 的
+ `body .card` 里接回 miko_ui 令牌,所以这里只写 bootstrap 自己的类名,本站不给
+ 卡片写外观;`.card` 的宽度由 tokens.css 的 `--card-width`(100%)撑满窗格.
+*/
+
+/** 卡片外框类名(结构:`div.card > div.card-header + div.card-body`) */
+export const SETTING_CARD_CLASS = 'card';
+/** 卡片标题栏类名:SETTING 的页内标题就放在这里 */
+export const SETTING_CARD_HEADER_CLASS = 'card-header';
+/** 卡片主体类名:背景缩略图 + 车窗控制台宿主 + 上传面板宿主都长在这里 */
+export const SETTING_CARD_BODY_CLASS = 'card-body';
+/** 卡片标题文案(标签栏那一项是 SETTING,页内标题沿用中文"设置") */
+export const SETTING_CARD_TITLE = '设置';
+
+// ---------- SETTING:背景切换 ----------
 
 /** 背景缩略图清单(列表容器 / 列表项 / 缩略图本身的类名见下) */
 export interface BackgroundPresetSpec {

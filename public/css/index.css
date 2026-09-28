@@ -44,7 +44,9 @@ body {
 /* ================================================================
  * bootstrap 卡片的底色:换成 miko_ui 的暗色面板令牌
  *
- * OLED(oled-card)与 IEEE754 用 bootstrap 的 `.card`,它默认从
+ * OLED(oled-card)与 IEEE754 用 bootstrap 的 `.card`,SETTING 标签页整页也是
+ * 同一种卡片(结构在 site_shell.ts,类名与标题在 site.config.ts 的 SETTING_CARD_*):
+ * 它默认从
  * `--bs-card-bg: var(--bs-body-bg)` 取白底;库的按钮是暗色主题(1px 描边
  * `--color-border-strong` + 次要文字色),落在白底上等于看不见.站点是深色
  * 画面,卡片本来就该是暗的,所以这里把卡片这几个 bootstrap 变量接回库的

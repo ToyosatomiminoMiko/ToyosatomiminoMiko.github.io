@@ -235,6 +235,17 @@ const report = await cdp.eval(`(() => {
         const btnMargin = getComputedStyle(q('#refill-btn')).marginTop;
         ok('OLED 面板的按钮真的吃到了外边距令牌(--oled-button-margin)',
             btnMargin !== '0px' && btnMargin !== '', btnMargin);
+        /*
+          SETTING 整页卡片:与 OLED 卡片是同一个 bootstrap card 类,所以两边必须拿到
+          同一个底色 -- body .card 那组暗色令牌只要漏了一条或特异性掉了,这里就会
+          出现"一张白底卡片"(进程内 DOM 没有级联与布局,只能在这里验).
+        */
+        const settingCard = q('#setting > .card');
+        const settingHeader = settingCard?.querySelector(':scope > .card-header');
+        ok('SETTING 页是一张 bootstrap 卡片(.card-header 里是"设置",底色与 OLED 卡片一致)',
+            settingCard !== null && settingHeader?.textContent === '设置' &&
+            getComputedStyle(settingCard).backgroundColor === getComputedStyle(q('#oled .card')).backgroundColor,
+            settingCard ? getComputedStyle(settingCard).backgroundColor : '没有卡片');
 
         return out;
     } catch (e) {
