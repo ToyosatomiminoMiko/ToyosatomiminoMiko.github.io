@@ -1,9 +1,8 @@
 /**
- * 粒子缓冲 CPU 侧播种(random seed)的常量.
- * 从 resources.ts 抽出: 暖色端点 / 各字段随机范围 / 重铺偏移.
+ * 粒子缓冲 CPU 侧播种(random seed)的常量: 暖色端点 / 各字段随机范围 / 重铺偏移.
  * 单位为逻辑像素(px)或秒(s), 见每条注释.
  */
-import { PARTICLE_STRIDE } from './config';
+import { OPAQUE_BLACK, PARTICLE_STRIDE } from './config';
 
 /** PARTICLE_STRIDE 里有几个 f32(4 字节一个) */
 export const FLOATS_PER_PARTICLE = PARTICLE_STRIDE / 4;
@@ -59,5 +58,5 @@ export const PARTICLE_BUFFER_LABEL = '451-particles';
 /** 历史纹理调试标签前缀(后面接 0/1) */
 export const HISTORY_TEXTURE_LABEL_PREFIX = '451-history-';
 
-/** 离屏纹理首帧清屏色: 不透明黑, 避免采样到垃圾数据 */
-export const HISTORY_CLEAR_VALUE = { r: 0, g: 0, b: 0, a: 1 } as const;
+/** 离屏纹理首帧清屏色: 不透明黑, 避免采样到垃圾数据; 与 COMPOSITE_CLEAR_VALUE 共用 OPAQUE_BLACK */
+export const HISTORY_CLEAR_VALUE = OPAQUE_BLACK;

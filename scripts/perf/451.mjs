@@ -9,7 +9,7 @@
  *
  * 为什么不用 Page.getMetrics 的 ScriptDuration 下结论:
  * 451 的粒子和合成都跑在 GPU 上, 主线程本来就该是空的; 页面发烫时它依然只有百分之几.
- * 真正要盯的是 B 和 C -- 这个脚本存在的理由就是当初那个误导性的 18ms.
+ * 真正要盯的是 B 和 C -- 主线程指标小不等于不烫, 别被它误导.
  *
  * 用法:
  *   npm run build          # 必须先有 dist/
@@ -239,8 +239,16 @@ function reportTracing(events, windowMs) {
 }
 
 // ------------------------------------------------------------------- 主流程
-const wanted = process.argv.slice(2).filter((a) => SCENARIOS[a]);
-const scenarios = wanted.length ? wanted : Object.keys(SCENARIOS);
+const KNOWN_SCENARIOS = Object.keys(SCENARIOS);
+const requested = process.argv.slice(2);
+const unknown = requested.filter((name) => !SCENARIOS[name]);
+if (unknown.length) {
+  // 不敢猜: 名字打错时若静默退回"跑全部", 得到的是看着正常却答非所问的结果.
+  console.error(`未知场景: ${unknown.join(', ')}`);
+  console.error(`可用场景: ${KNOWN_SCENARIOS.join(', ')}`);
+  process.exit(2);
+}
+const scenarios = requested.length ? requested : KNOWN_SCENARIOS;
 
 if (!existsSync(join(DIST, '4xx_page', '451.html'))) {
   console.error('dist/4xx_page/451.html 不存在, 先跑 npm run build');

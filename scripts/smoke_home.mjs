@@ -3,7 +3,7 @@
  *
  * 分工(两边不重叠):
  *
- *   - **标记长什么样 / 行为怎么迁移** -> `src/**\/*.test.ts`(vitest + happy-dom,进程内,
+ *   - **标记长什么样 / 行为怎么迁移** -> `src/**` 下的 `*.test.ts`(vitest + happy-dom,进程内,
  *     `npm test` 里跑):标签名 / 类名 / id / 属性 / 文案 / 结构与 CSS 选择器是否对得上,
  *     以及标签页点击与方向键之后 active / show / ARIA 落在哪个元素上.
  *   - **在真浏览器里能不能用** -> 本脚本:canvas 真的画出来了吗,标签页切完真的只有一个
@@ -204,7 +204,7 @@ const report = await cdp.eval(`(() => {
             if (panel) panel.disabled = wasDisabled;
             return { before, after, back };
         })();
-        ok('播放控制只剩"播放-暂停开关 + 重置"两颗(旧三颗已合并)',
+        ok('播放控制只剩"播放-暂停开关 + 重置"两颗',
             transportButtons.length === 2 && transportButtons[0].id === 'playPauseBtn' &&
             transportButtons[1].id === 'resetBtn' && q('#startBtn') === null && q('#pauseBtn') === null,
             transportButtons.map((b) => b.id).join(' / '));
@@ -309,8 +309,7 @@ const report = await cdp.eval(`(() => {
             Math.round(q('#hero').getBoundingClientRect().height) + 'px');
         // 令牌 --oled-button-margin 若写错名字,var() 会退化成 gap:normal(不报错),
         // 所以这里验真值.它是工具区那一排(七颗按钮 + 分段选择器)唯一的间距来源:
-        // 数据区合并成一颗编辑器之后,复制 / 导入两颗按钮也搬进了 .tools,
-        // 原先给它们补 margin 的 .oled-card .area-data button 规则已撤.
+        // 复制 / 导入 / 折叠三颗按钮也住在 .tools 里.
         const toolsGap = getComputedStyle(q('#oled .tools')).columnGap;
         ok('OLED 工具区的间距真的吃到了令牌(--oled-button-margin)',
             toolsGap !== '0px' && toolsGap !== '' && toolsGap !== 'normal', toolsGap);
@@ -340,11 +339,11 @@ const report = await cdp.eval(`(() => {
             codeEl !== null && codeColor === itemColor, codeColor);
 
         /*
-          ---- 第 4 组:原先由 bootstrap 的 reboot 提供的**文档基线** ----
-          这几条全是元素级规则,特异性高过站点的 '*' 重置,所以 bootstrap 移除之后
-          必须由站点的"文档基线"一节接手.它们**不会**以任何形式报错,只会静默地
-          让版式变样(五个窗格堆叠 / 导航栏竖排 / 盒模型反转 / 整页露白底),
-          所以只能靠真浏览器里的 computed style 与几何把它们钉住.
+          ---- 第 4 组:index.css 的**文档基线** ----
+          这几条全是元素级规则,特异性高过站点的 '*' 重置,所以只有它们能盖住重置.
+          它们**不会**以任何形式报错,只会静默地让版式变样(五个窗格堆叠 /
+          导航栏竖排 / 盒模型反转 / 整页露白底),所以只能靠真浏览器里的
+          computed style 与几何把它们钉住.
         */
         // 盒模型:全站 border-box(少了它,所有"定宽 + 内边距"的盒子一起溢出)
         ok('全站盒模型是 border-box(文档基线生效)',
@@ -355,7 +354,7 @@ const report = await cdp.eval(`(() => {
         ok('配色方案是 dark(滚动条与表单控件按深色渲染)',
             getComputedStyle(document.documentElement).colorScheme === 'dark',
             getComputedStyle(document.documentElement).colorScheme);
-        // 页面底色:不再是 bootstrap 的 --bs-body-bg,而是本站令牌 --bg-page
+        // 页面底色来自本站令牌 --bg-page(不是浏览器默认的白)
         const bodyBg = getComputedStyle(document.body).backgroundColor;
         ok('页面底色来自本站令牌 --bg-page(不是浏览器默认的白)',
             bodyBg === 'rgb(33, 37, 41)', bodyBg);
@@ -377,8 +376,8 @@ const report = await cdp.eval(`(() => {
             getComputedStyle(q('a.nav-link')).paddingTop);
         /*
           窗格显隐:**最容易被静默改坏的一条**.'.tab-content > .tab-pane' 的
-          display:none 与 '> .active' 的 display:block 原先完全由 bootstrap 提供,
-          少了它们五个窗格会同时纵向堆叠在首屏下面(页面还是"能打开"的).
+          display:none 与 '> .active' 的 display:block 是五个窗格"一次只显示一个"
+          的全部依据,少了它们五个会同时纵向堆叠在首屏下面(页面还是"能打开"的).
           这里逐个数一遍:除当前项外,其余四个窗口的 display 必须是 none.
           注:这段代码本身坐在一个模板字符串里,注释里不能出现反引号.
         */
@@ -558,6 +557,10 @@ for (const item of report) {
     if (!item.pass) failed++;
     console.log(`${item.pass ? '  ok  ' : ' FAIL '} ${item.name}${item.extra ? `  [${item.extra}]` : ''}`);
 }
+// 下面这几条断言跟着交互结果就地算, 不属于页面内的 report; 单独计数, 让最后的
+// 总数是数出来的, 而不是把条数写死.
+let adHocTotal = 0;
+const adHoc = (pass) => { adHocTotal++; if (!pass) failed++; };
 // 切过去的窗格必须真的"上屏且不透明",切走的必须真的 display: none --
 // 只对类名就会漏掉"类名对了但 CSS 掉了,五个窗格一起堆叠"这种最坏的静默失效.
 const shownOk = (pane) => pane?.active === true && pane?.show === true &&
@@ -568,9 +571,9 @@ const tabOk = shownOk(tabSwitch?.afterOled?.oled) && tabSwitch?.afterOled?.link 
     shownOk(tabSwitch?.afterHome?.home) && hiddenOk(tabSwitch?.afterHome?.oled);
 console.log(`${tabOk ? '  ok  ' : ' FAIL '} 点标签页能切窗格(站点自己的控制器认下这排触发器,` +
     `切过去的 window 真的 display: block + opacity: 1,切走的 display: none)`);
-if (!tabOk) failed++;
-// 合并后的 OLED 数据区:一颗编辑器 + 真 textarea;折叠态 = 150px(也是最小高度),
-// 点一下"展开编辑器"变 1366px(70 行,算式见 tokens.css),再点一下回到 150px;
+adHoc(tabOk);
+// OLED 数据区:一颗编辑器 + 真 textarea;折叠态 = 150px(也是最小高度),
+// 点一下"展开编辑器"变 1366px(70 行,算式见 public/css/tokens.css),再点一下回到 150px;
 // 复制 / 导入 / 折叠三颗按钮都在 .tools 里
 const oledData = tabSwitch?.afterOled?.data;
 const oledDataOk = oledData?.editors === 1 && oledData?.textareas === 1 &&
@@ -584,12 +587,12 @@ const oledDataOk = oledData?.editors === 1 && oledData?.textareas === 1 &&
 console.log(`${oledDataOk ? '  ok  ' : ' FAIL '} OLED 数据区只有一颗编辑器,可折叠 / 展开` +
     `(折叠 150px(含 min-height)= 展开 1366px / 70 行,按钮文案与 aria-expanded 跟着切;` +
     `实得 ${JSON.stringify(oledData)})`);
-if (!oledDataOk) failed++;
+adHoc(oledDataOk);
 const headerOk = headerState?.settingTop === true && headerState?.settingScrolled === false &&
     headerState?.homeTop === true;
 console.log(`${headerOk ? '  ok  ' : ' FAIL '} 导航条隐形/实底正确` +
     `(非 HOME 顶端隐形,滚动后实底,HOME 顶端隐形;实得 ${JSON.stringify(headerState)})`);
-if (!headerOk) failed++;
+adHoc(headerOk);
 const formatMenuOk = formatMenu?.before?.bits === 64 && formatMenu?.before?.expanded === 'false' &&
     formatMenu?.before?.active === 1 && formatMenu?.before?.hints?.join('/') === '单精度/双精度' &&
     formatMenu?.before?.text === formatMenu?.before?.labels?.[1] &&
@@ -600,11 +603,11 @@ const formatMenuOk = formatMenu?.before?.bits === 64 && formatMenu?.before?.expa
     formatMenu?.outsideClosed === true && formatMenu?.resetBits === 64;
 console.log(`${formatMenuOk ? '  ok  ' : ' FAIL '} IEEE754 精度菜单可开合,可切换(64->32 位),行右小字是汉语名词,点外部关闭` +
     `(实得 ${JSON.stringify(formatMenu)})`);
-if (!formatMenuOk) failed++;
+adHoc(formatMenuOk);
 console.log(`${clockTick?.changed ? '  ok  ' : ' FAIL '} 时钟每秒重绘`);
-if (!clockTick?.changed) failed++;
+adHoc(clockTick?.changed);
 
-console.log(`\n共 ${report.length + 5} 项,失败 ${failed} 项`);
+console.log(`\n共 ${report.length + adHocTotal} 项,失败 ${failed} 项`);
 console.log('(结构/类名/文案契约由 `npm test` 的 happy-dom 单测覆盖,这里不重复)');
 console.log(`\n页面 console(${cdp.logs.length} 条):`);
 for (const log of cdp.logs.slice(0, 12)) console.log('  ' + log);

@@ -14,10 +14,8 @@ use crate::render_params::RGBA_BYTES_PER_PIXEL;
 
 /// 渲染帧率上限 60fps 对应的最小帧间隔(毫秒).
 ///
-/// 含义:主循环累计的真实流逝时间达到该值才真正渲染一帧,防止在无垂直同步 /
-/// 高刷新率环境下无意义地跑满 CPU 与 GPU.
 /// 单位:毫秒(ms).公式:`1000.0 / 60.0`(每秒 1000ms 除以目标帧率 60).
-/// 调参影响:调小 => 帧率上限提高(更顺滑但更耗电);调大 => 省电但动画变卡.
+/// 在无垂直同步 / 高刷新率环境下,不限帧会让主循环无意义地跑满 CPU 与 GPU.
 pub(crate) const FRAME_INTERVAL_MS: f64 = 1000.0 / 60.0;
 
 /// 毫秒 -> 秒的换算系数.
@@ -27,13 +25,11 @@ pub(crate) const MS_PER_SECOND: f32 = 1000.0;
 
 /// 单帧最大时间步长(秒).
 ///
-/// 含义:标签页切回 / 断点暂停后两帧间隔会非常大,这里截断,避免动画时钟一次跳很远.
 /// 取值:0.1(相当于 10fps 的时间步).
+/// 标签页切回 / 断点暂停后两帧间隔会非常大,截断它避免动画时钟一次跳很远.
 pub(crate) const MAX_FRAME_DELTA_SECONDS: f32 = 0.1;
 
-/// 启动时写入 Uniforms 的时间(秒).
-///
-/// 含义:动画时钟起点;改大相当于跳过开头一段动画.
+/// 启动时写入 Uniforms 的时间(秒);取非 0 相当于跳过开头一段动画.
 pub(crate) const INITIAL_TIME_SECONDS: f32 = 0.0;
 
 // ---------- 滑块参数:名字 -> GlassParams 字段 ----------
@@ -141,38 +137,11 @@ pub(crate) fn upload_target(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::boot_config::{LayerConfig, ParamRange, SHADER_CITY_LAYER_COUNT};
+    use crate::boot_config::SHADER_CITY_LAYER_COUNT;
 
     /// 测试用配置:数值与前端 config.ts 对齐,但这里只当测试数据.
     fn boot() -> BootConfig {
-        let names = ["level_3", "level_2", "level_1", "level_0"];
-        let layers = names
-            .iter()
-            .enumerate()
-            .map(|(index, name)| LayerConfig {
-                slot: index as u32,
-                name: (*name).to_string(),
-                file: format!("{name}.png"),
-                opaque: index == 0,
-            })
-            .collect();
-        let params = ["vehicle_speed", "dirt_opacity"]
-            .iter()
-            .map(|name| ParamRange {
-                name: (*name).to_string(),
-                min: 0.0,
-                max: 1.0,
-            })
-            .collect();
-        BootConfig::new(
-            0,
-            3,
-            "/metro_window/resource".to_string(),
-            8192,
-            layers,
-            params,
-        )
-        .expect("测试配置必须合法")
+        crate::test_fixtures::config(0, 3).expect("测试配置必须合法")
     }
 
     #[test]

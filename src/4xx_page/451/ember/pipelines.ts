@@ -1,6 +1,7 @@
 /**
  * 管线构建: 着色器模块 + bind group layout + 三条管线 + 采样器.
- * 全部是 (device, format) 的纯函数,不持有任何运行时状态.
+ * 输入只有 (device, format), 不持有运行时状态; 构建时确实会创建 GPU 对象,
+ * 着色器编译失败会抛错(由 init() 统一兜住).
  *
  * 绑定槽位 / 入口点名 / 标签 / 混合与采样器状态集中在
  * `pipelines.config.ts`,这里只做接线,不再出现裸字面量.
@@ -89,7 +90,7 @@ export async function buildPipelines(device: GPUDevice, format: GPUTextureFormat
         compute: { module: computeModule, entryPoint: COMPUTE_ENTRY_POINT },
     });
 
-    // ---- render: 画粒子 (顶点取粒子数据, 片元用 dt 做拖尾衰减) ----
+    // ---- render: 画粒子 (顶点取粒子数据, 片元按 dt 折算底噪的衰减) ----
     const renderLayout = device.createBindGroupLayout({
         label: LAYOUT_LABELS.render,
         entries: [

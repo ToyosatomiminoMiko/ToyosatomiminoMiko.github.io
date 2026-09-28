@@ -18,7 +18,7 @@ export const COMPUTE_BINDING_UNIFORMS = 1;
 /** render pass:粒子 read-only storage buffer(顶点着色器读取) */
 export const RENDER_BINDING_PARTICLES = 0;
 
-/** render pass:仿真参数 uniform buffer(片元着色器用 dt 做拖尾衰减) */
+/** render pass:仿真参数 uniform buffer(顶点着色器读时间/尺寸/dpr, 片元着色器读 dt) */
 export const RENDER_BINDING_UNIFORMS = 1;
 
 /** composite pass:离屏画面纹理 */
@@ -38,10 +38,7 @@ export const FRAGMENT_ENTRY_POINT = 'fs_main';
 /** 计算着色器入口(粒子物理更新) */
 export const COMPUTE_ENTRY_POINT = 'update';
 
-/**
- * 着色器编译检查报错文案里用的短名(`WGSL(<name>) 编译错误: ...`).
- * 与 [`SHADER_MODULE_LABELS`] 的长标签不同:这里只求简短可读,文案逐字保持不变.
- */
+/** 着色器编译检查报错文案里用的短名, 出现在 `WGSL(<name>) 编译错误: ...` 里 */
 export const SHADER_DEBUG_NAMES = {
     compute: 'compute',
     render: 'render',
@@ -79,19 +76,19 @@ export const SAMPLER_LABEL = '451-history-sampler';
 
 // ---------- 固定渲染状态 ----------
 
-/** 粒子渲染的原始拓扑(两点/粒子按 triangle-list 展开) */
+/** 粒子渲染的原始拓扑: triangle-list; 每颗粒子一个实例, 6 个顶点拼成 2 个三角形 */
 export const PARTICLE_TOPOLOGY = 'triangle-list' as const;
 
 /**
- * 粒子渲染的加法混合:颜色按 src-alpha 叠加,alpha 累加,
- * 让重叠的火星自然变亮(拖尾靠片元里的 dt 衰减).
+ * 粒子渲染的加法混合: RGB 按 src-alpha 预乘后相加, alpha 累加,
+ * 让重叠的火星自然变亮. 目标每帧已被 clear, 相加的只有本帧的火星与底噪.
  */
 export const PARTICLE_BLEND_STATE = {
     color: { srcFactor: 'src-alpha', dstFactor: 'one', operation: 'add' },
     alpha: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
 } as const;
 
-/** 历史/离屏纹理采样器:线性过滤 + 边缘钳制(避免越界采样出接缝) */
+/** 两张离屏纹理共用的采样器:线性过滤 + 边缘钳制(避免越界采样出接缝) */
 export const SAMPLER_CONFIG = {
     magFilter: 'linear',
     minFilter: 'linear',

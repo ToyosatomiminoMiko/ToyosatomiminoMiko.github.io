@@ -18,7 +18,7 @@ import {
     MAX_DEVICE_PIXEL_RATIO,
     MIN_DEVICE_PIXEL_RATIO,
 } from './config';
-import { computeBackingSize } from './stage_size';
+import { computeBackingSize, clampDevicePixelRatio } from './stage_size';
 
 /** 画布标注比例(宽 / 高),也就是后备缓冲必须保持的比例 */
 const RATIO = CANVAS_WIDTH / CANVAS_HEIGHT;
@@ -66,8 +66,8 @@ describe('首屏后备缓冲尺寸', () => {
                 expect(size, label).not.toBeNull();
                 // 比例:四舍五入后允许半个像素的误差
                 expect(Math.abs(size!.width / size!.height - RATIO), label).toBeLessThan(0.01);
-                // 覆盖:不小于宿主(按物理像素算)
-                const effectiveDpr = Math.min(Math.max(dpr, MIN_DEVICE_PIXEL_RATIO), MAX_DEVICE_PIXEL_RATIO);
+                // 覆盖:不小于宿主(按物理像素算);dpr 的夹取口径直接用被测模块导出的那份
+                const effectiveDpr = clampDevicePixelRatio(dpr);
                 expect(size!.width, label).toBeGreaterThanOrEqual(width * effectiveDpr - 1);
                 expect(size!.height, label).toBeGreaterThanOrEqual(height * effectiveDpr - 1);
             }

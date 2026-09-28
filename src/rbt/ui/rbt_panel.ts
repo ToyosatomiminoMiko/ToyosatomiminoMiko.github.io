@@ -1,11 +1,8 @@
 /*
 红黑树工具的**标记组件**(声明式).
 
-红黑树原先的标记写在 index.html 的 `#rbt` 窗格里
-(`#treeInput` / `#treeError` / `#rbCanvas`),再由 rbt.ts 按 id 取回来 --
-两处各写一份契约,改一处就静默失配.现在改成和地铁车窗控制台,LED 时钟
-同一条约定:骨架只提供空的标签页窗格(src/common/ui/site_shell.ts 的
-shell.panes.rbt),整块面板按 config.ts 的声明在这里生成:
+骨架(src/common/ui/site_shell.ts)只提供空的标签页窗格 `shell.panes.rbt`,
+整块面板按 config.ts 的声明在这里生成:
 
     <section class="ui-panel">                        面板框体(库的 createPanel)
       <header class="ui-panel-header"><span class="ui-panel-title">Red-Black Tree</span></header>
@@ -20,8 +17,8 @@ shell.panes.rbt),整块面板按 config.ts 的声明在这里生成:
       </div>
     </section>
 
-提示区原先夹在标题栏与正文之间,现在移进正文容器(框体归库之后正文只有一个入口),
-这是本模块唯一一处结构变化.
+正文顺序(提示区 -> 输入框 -> 错误提示 -> 画布)由下面 createPanel 的 body 实参
+决定,不能调换:public/css/index.css 与 rbt_panel.test.ts 都按这个顺序定位.
 
 本模块是纯函数:不读页面,不改全局,不绑事件,只把"描述"变成元素并把行为
 代码要用的引用一起交回;插进宿主与绑事件都是 rbt.ts 的事
@@ -63,7 +60,7 @@ export function createRbtPanel(): RbtPanel {
         },
     );
 
-    // 初始必须隐藏:旧标记即 `<div id="treeError" hidden></div>`
+    // 初始必须隐藏:错误提示只在该出声时由 rbt.ts 显隐
     const error = create_element({ tag: 'div' }, { id: RBT_DOM.errorId, hidden: 'hidden' });
 
     const canvas = create_element(
@@ -75,7 +72,7 @@ export function createRbtPanel(): RbtPanel {
         },
     );
 
-    // 提示区:两行 span 各自以 <br> 结束(旧标记如此,逐字保留)
+    // 提示区:两行 span 各自以 <br> 结束
     const hints = create_element(
         { tag: 'div' },
         {},

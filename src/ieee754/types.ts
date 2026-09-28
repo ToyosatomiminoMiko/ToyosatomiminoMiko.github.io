@@ -15,7 +15,7 @@ export interface IEEE754Format {
     readonly exponentBits: number;
     /** 尾数(小数)位数 */
     readonly fractionBits: number;
-    /** 指数偏置 bias */
+    /** 指数偏置(单精度 127 / 双精度 1023) */
     readonly bias: number;
 }
 
@@ -26,7 +26,7 @@ export interface IEEE754Value {
     readonly sign: number;
     /** 指数域原始值(未减 bias) */
     readonly exponentField: number;
-    /** 尾数域原始值(不含隐含位) */
+    /** 尾数域原始值(不含隐含前导 1) */
     readonly fraction: number;
     readonly classification: IEEE754Class;
     /** 数值结果(可能为 ±0 / ±Infinity / NaN,与位图严格一致) */

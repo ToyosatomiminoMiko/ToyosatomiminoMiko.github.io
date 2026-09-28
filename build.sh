@@ -2,10 +2,11 @@
 # 生产构建入口的壳. 真正的逻辑在 scripts/build.py(见那里的模块说明):
 # 安装锁定依赖 -> 决定这次用哪份 miko_ui -> 调用 package.json 的 build:all.
 #
-# 为什么保留这个壳: `bash ./build.sh ...` 这个入口被 README 与
-# .github/workflows/deploy.yml 依赖, 不能改; 参数与环境变量语义与旧版逐字兼容
-# (--ui local|npm, --ui-local, -h/--help, MIKO_UI_SOURCE / MIKO_UI_DIR /
-# MIKO_UI_SYNC / MIKO_UI_LATEST_VERSION / MIKO_UI_REQUIRE_LATEST).
+# 为什么保留这个壳: `bash ./build.sh` 这个入口被 README 与
+# .github/workflows/deploy.yml 依赖, 不能改名. 参数(--ui local|npm, -h/--help)与
+# 环境变量(MIKO_UI_SOURCE / MIKO_UI_DIR / MIKO_UI_SYNC /
+# MIKO_UI_REQUIRE_LATEST)都由 Python 入口解析; 其中 MIKO_UI_DIR 与
+# MIKO_UI_REQUIRE_LATEST 是从旧的 fetch_ui.sh 流程继承下来的.
 set -Eeuo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

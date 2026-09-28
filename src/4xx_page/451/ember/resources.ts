@@ -45,7 +45,10 @@ export function createParticleStore(
     const seedData = new Float32Array(particleCount * FLOATS_PER_PARTICLE);
     for (let i = 0; i < particleCount; i++) {
         const o = i * FLOATS_PER_PARTICLE;
-        const rise = SEED_RISE_MIN + Math.random() * SEED_RISE_SPAN;   // 与 RISE_MIN/MAX 同量级
+        // 首帧播种的上升速度 = SEED_RISE_MIN..+SEED_RISE_SPAN, 即 46~96 px/s,
+        // 与 WGSL respawn 的 RISE_MIN/MAX(60~140 px/s)并不相等:
+        // CPU 播种只求首帧不空, 之后的巡航速度由着色器重新给出
+        const rise = SEED_RISE_MIN + Math.random() * SEED_RISE_SPAN;
         const warm = Math.random();
 
         seedData[o + F.posX] = Math.random() * cssWidth;

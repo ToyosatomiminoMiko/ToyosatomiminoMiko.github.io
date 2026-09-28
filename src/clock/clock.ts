@@ -1,11 +1,10 @@
 /*
 2025.12.10.23:20:00
-APP: #app_led_clock
-LED Clock
+LED 时钟:把点阵画到骨架交回的画布上,并按秒重绘.
 
-挂载形态与地铁车窗控制台一致:宿主是**空容器**(由 src/common/ui/site_shell.ts
-按 src/common/site.config.ts 建好并交回引用),标记由 ui/clock_display.ts 生成,
-本文件只做行为 -- 拿组件交回的画布引用画点阵,不再按 id 去 DOM 里找元素.
+宿主是骨架建好的空容器(见 config.ts 的 CLOCK_HOST_ID),标记由
+ui/clock_display.ts 生成.本文件只做行为:接收 createClockDisplay() 交回的
+画布引用直接绘制,不按 id 去 DOM 里找元素.
 */
 import { fmt_time } from '@/common/utils';
 import { createClockDisplay } from '@/clock/ui/clock_display';
@@ -28,9 +27,9 @@ import {
     ROW_BIT_BASE,
 } from './config';
 
-// 绘制LED数字
+/** 把 digit 的 3×5 点阵画到 x 处:逐列读表,列内位 4-0 自高到低对应第 0-4 行 */
 function drawDigit(ctx: CanvasRenderingContext2D, digit: number, x: number): void {
-    const base = digit * DIGIT_COLUMNS; // 每个数字占 DIGIT_COLUMNS 个字节
+    const base = digit * DIGIT_COLUMNS;
     for (let col = 0; col < DIGIT_COLUMNS; col++) {
         const columnData = DIGIT_SEGMENTS[base + col];
         for (let row = 0; row < DIGIT_ROWS; row++) {
@@ -43,22 +42,10 @@ function drawDigit(ctx: CanvasRenderingContext2D, digit: number, x: number): voi
     }
 }
 
-// 绘制冒号
-function drawColon(ctx: CanvasRenderingContext2D, x: number): void {
+/** 把逐行掩码 segments 的一列点画到 x 处(点号与冒号共用同一套画法) */
+function drawColumn(ctx: CanvasRenderingContext2D, segments: Uint8Array, x: number): void {
     for (let row = 0; row < DIGIT_ROWS; row++) {
-        const pixel = COLON_SEGMENTS[row];
-        if (pixel) {
-            ctx.fillStyle = PIXEL_COLOR;
-            ctx.fillRect(x, row + GLYPH_TOP_OFFSET, PIXEL_SIZE, PIXEL_SIZE);
-        }
-    }
-}
-
-// 绘制点号
-function drawDot(ctx: CanvasRenderingContext2D, x: number): void {
-    for (let row = 0; row < DIGIT_ROWS; row++) {
-        const pixel = DOT_SEGMENTS[row];
-        if (pixel) {
+        if (segments[row]) {
             ctx.fillStyle = PIXEL_COLOR;
             ctx.fillRect(x, row + GLYPH_TOP_OFFSET, PIXEL_SIZE, PIXEL_SIZE);
         }
@@ -68,40 +55,31 @@ function drawDot(ctx: CanvasRenderingContext2D, x: number): void {
 /**
  * 把 LED 时钟挂到宿主里.
  *
- * @param host 时钟的宿主(骨架里的 `#app_led_clock`):只提供空位,
- *             画布由 createClockDisplay() 生成后插进去.
+ * @param host 时钟宿主(#app_led_clock):只提供空位;画布由 createClockDisplay()
+ *             生成后插入,宿主原有内容会被清掉.
  */
 export function mountClock(host: HTMLElement): void {
     const { canvas } = createClockDisplay();
-    // 宿主由本模块独占(骨架建的空 div),用 replaceChildren 整体接管:
-    // 重复挂载不会留下两份同 id 的标记.全站三个"宿主独占"的模块都这么做,
-    // 地铁车窗例外 -- 它的宿主可以同时接收设置面板与上传面板,所以那边是 append.
+    // 宿主由本模块独占,所以用 replaceChildren 整体接管而不是 append:
+    // 重复挂载不会留下两份同 id 的标记.
     host.replaceChildren(canvas);
 
     const ctx = canvas.getContext('2d');
-    if (!ctx) return; // 安全处理
+    if (!ctx) return; // 环境不支持 2D 上下文时无法绘制
 
     const drawDisplay = (): void => {
-        // 清除画布
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        // 设置背景
         ctx.fillStyle = BACKGROUND_COLOR;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // 获取当前时间
         const formattedTime = fmt_time(new Date());
 
-        // 绘制
         let x = 0;
         for (const ch of formattedTime) {
-            if (ch === DOT_CHAR) {
-                drawDot(ctx, x);
-                x += PUNCT_ADVANCE;
-            } else if (ch === COLON_CHAR) {
-                drawColon(ctx, x);
+            if (ch === DOT_CHAR || ch === COLON_CHAR) {
+                drawColumn(ctx, ch === DOT_CHAR ? DOT_SEGMENTS : COLON_SEGMENTS, x);
                 x += PUNCT_ADVANCE;
             } else {
-                // 数字
                 const digit = parseInt(ch, DIGIT_RADIX);
                 if (!isNaN(digit)) {
                     drawDigit(ctx, digit, x);
@@ -111,8 +89,6 @@ export function mountClock(host: HTMLElement): void {
         }
     };
 
-    // 立即绘制一次,避免空白
-    drawDisplay();
-    // 每秒更新一次
+    drawDisplay(); // 先画一次,避免等到第一个 tick 才出现内容
     window.setInterval(drawDisplay, REFRESH_INTERVAL_MS);
 }

@@ -62,11 +62,11 @@ jobs:
       # `"miko_ui": "^0.1.6"`),`npm ci` 从 registry 直接装好:不需要 checkout
       # submodule,也不需要 npm 之外的任何凭据.
       #
-      # `--ui npm` 必须显式带上:不带参数时本机默认用本地工作副本,而 CI 上既没有
-      # 那份副本(显式要 local 会被 build.py 直接拒绝),部署出去的也必须是 npm 上能
-      # 说清哪一版的产物.带上它之后,build.py 还会把 miko_ui 对齐到 npm 的
-      # `latest`(MIKO_UI_SYNC=auto),所以**每次 Pages 部署拿到的都是库的最新发布
-      # 版**;CI=true 让"查不到 latest"直接失败,不会静默部署旧版本.
+      # `--ui npm` 在这里是**显式写出发布形态**, 不是必需: CI=true 时不带参数
+      # build.py 也会默认走 npm(见它的 resolve_ui_source). 写上它之后, build.py
+      # 还会把 miko_ui 对齐到 npm 的 `latest`(MIKO_UI_SYNC=auto), 所以**每次
+      # Pages 部署拿到的都是库的最新发布版**; CI=true 让"查不到 latest"直接失败,
+      # 不会静默部署旧版本.
       - name: Install, test and build
         run: bash ./build.sh --ui npm
 

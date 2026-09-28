@@ -1,10 +1,9 @@
 /**
  * LED 时钟画布的标记契约(进程内,跑在 happy-dom 里).
  *
- * 画布原先写在 index.html 的 `<div id="app_led_clock"><canvas id="time_canvas">`,
- * 现在宿主由骨架建,画布由组件按 config 生成.这里断言的就是 **CSS 用的那两个选择器**
- * (`#app_led_clock` 的面板底色 / `#time_canvas` 的 `image-rendering: pixelated`)
- * 与画布分辨率真的对得上.
+ * 断言的是 CSS 真正依赖的两处:宿主选择器 `#app_led_clock`(面板底色)与画布
+ * 选择器 `#time_canvas`(image-rendering: pixelated,显示高度),以及画布分辨率
+ * 与 config 的声明一致.
  *
  * @vitest-environment happy-dom
  */
@@ -23,7 +22,7 @@ describe('LED 时钟:画布标记', () => {
         const { canvas } = createClockDisplay();
         expect(canvas.tagName).toBe('CANVAS');
         expect(canvas.id).toBe(CLOCK_CANVAS_ID);
-        // 逻辑分辨率是宽高**属性**(CSS 只控制显示高度),两个都要在
+        // 逻辑分辨率是宽高**属性**(CSS 只控制显示高度),两个都要对
         expect(canvas.getAttribute('width')).toBe(String(CLOCK_CANVAS_WIDTH));
         expect(canvas.getAttribute('height')).toBe(String(CLOCK_CANVAS_HEIGHT));
     });

@@ -75,8 +75,9 @@ function fourXXPage(): Plugin {
  * 所有按原 URL 直接访问,不参与打包的文件都放这里,dev 直接挂载,build 原样拷贝:
  *   - 主站图片 `public/images/`,图标 `public/favicon.ico`,样式表 `public/css/`;
  *   - 地铁车窗的运行时贴图 `public/metro_window/resource/*.png` -- Rust 按
- *     `/metro_window/resource/...` 自己 fetch(见 `src/metro_window/rust/src/app_params.rs`
- *     的 RESOURCE_BASE),所以目录层级必须与 URL 一致,这里不做任何重写.
+ *     `/metro_window/resource/...` 自己 fetch(该前缀的唯一声明处是
+ *     `src/metro_window/src/config.ts` 的 `RESOURCE_BASE`,随 RUNTIME_CONFIG 传给
+ *     wasm),所以目录层级必须与 URL 一致,这里不做任何重写.
  *
  * 不变量:public 里的路径 == 线上 URL.Vite 只有一个 publicDir,所以不要再给
  * 子项目另建 public/(那需要额外插件在 dev 重写,在 build 里手动 emit),
@@ -87,7 +88,8 @@ export default defineConfig({
     resolve: {
         alias: [{ find: /^@\//, replacement: `${SRC_ALIAS}/` }],
         /**
-         * `miko_ui` 从 npm 装(`"miko_ui": "^0.1.6"`,与 miko_graphcalc 同一口径),
+         * `miko_ui` 从 npm 装(`package.json` 里声明为 `^0.1.6`,与该库的其它消费者
+         * 同一口径;caret 范围,实际锁定的版本见 package-lock.json),
          * 它自己的运行时依赖只有 `@preact/signals-core`,可选 peer 是 `katex`.
          * 根 `package.json` 也**显式**声明了这两个:本站自己要直接用它们,而且声明在
          * 那里才能保证解析到根目录的那一份实例.
@@ -136,7 +138,8 @@ export default defineConfig({
     //     真浏览器那一层只剩 canvas 像素 / 真实 CSS 级联 / 布局,见 scripts/smoke_home.mjs.
     // 排除 target/ 是必须的而不是洁癖:cargo 的 workspace 缓存就在仓库根
     // (构建后体积以 GB 计,文件数十万),让 vitest 去 glob 一遍会白白卡住整条流水线.
-    // 地铁车窗的前端单测在新位置 src/metro_window/src 下,要照常收集.
+    // 下面这条 include 覆盖 src/ 下所有单测,地铁车窗的前端单测(src/metro_window/src)
+    // 照常被收集.
     // include 只认 `src/**`,所以 node_modules 里库自己的测试(库的产物里本来也
     // 没有测试)天然收不进来;库的测试由库自己的仓库与 CI 负责,不在这里重复跑.
     test: {

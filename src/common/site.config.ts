@@ -1,20 +1,15 @@
-// ================================================================
-// 站点级(main.ts / common)的**声明式配置**
-//
-// 首页的整套骨架都在这里声明,由 src/common/ui/site_shell.ts 生成:
-// 导航条(站名 + 标签 + 头像),首屏(舞台 / 压暗层 / 底部一排),
-// 五个标签页,以及每个模块自己的**空宿主**;各模块的挂载函数只往宿主里长标记.
-// 这条约定是从 SETTING 里的地铁车窗控制台抄来的:
-//
-//   - 宿主页(index.html)不出现任何标记,只留一个空位 `#site-root`;
-//   - "结构 / 文案 / 类名 / id" 只在这里定义一次,组件与 CSS 都引用它;
-//   - 行为模块(tabs.ts / header_state.ts / background.ts)不读页面:骨架生成后由
-//     site_shell 把**元素引用**交回来,不再按 id 去 DOM 里找.
-//
-// 这里只放纯数据,不放模块级可变状态.凡是"改了必须同步改另一处"的字面量
-// (标签页的类名,面板的站点类名,CSS 里的 id 选择器,
-// 模块的宿主 id)都写成具名常量,写错不会报错,只会静默失效的东西尤其不能散在各文件里.
-// ================================================================
+/**
+ * 站点级(main.ts / common)的声明式配置.
+ *
+ * 首页整套骨架都在这里声明,由 src/common/ui/site_shell.ts 生成:导航条(站名 +
+ * 标签 + 头像),首屏(舞台 / 压暗层 / 底部一排),五个标签页,以及每个模块自己的
+ * 空宿主;各模块的挂载函数只往宿主里长标记.宿主页 index.html 里没有任何标记,
+ * 只留一个空位 `#site-root`.
+ *
+ * 只放纯数据,不放模块级可变状态.凡是"改了必须同步改另一处"的字面量(标签页类名,
+ * 宿主 id,CSS 里的选择器)都写成具名常量:这类字面量写错不会报错,只会静默失效,
+ * 所以不能散在各文件里.
+ */
 
 import { CLOCK_HOST_ID } from '@/clock/config';
 import { MOUNT_IDS } from '@/metro_window/src/config';
@@ -43,11 +38,9 @@ export const SITE_BRAND_TEXT = 'ToyosatomiminoMiko';
 export const SITE_BRAND_CLASS = 'site-brand';
 
 /**
- * 标签栏的容器类名与两项的类名.
- * `nav` / `nav-tabs` / `nav-item` / `nav-link` 这套名字是当年照抄 bootstrap 的,
- * 现在由本站样式(index.css 的标签栏一节)与 src/common/tabs.ts 独家使用 --
- * bootstrap 已经不在仓库里,它们只是名字还留着.改名要同时动 CSS 与两个测试,
- * 所以先按现状留着.
+ * 标签栏及其列表项的类名,由 public/css/index.css 的标签栏一节与
+ * src/common/tabs.ts 独家使用.名字是当年照抄 bootstrap 的,但现在只有本站在用;
+ * 改名要同时动 CSS 与测试,所以按现状保留.
  */
 export const NAV_LIST_CLASS = 'nav nav-tabs';
 export const NAV_ITEM_CLASS = 'nav-item';
@@ -59,11 +52,7 @@ export const NAV_ACTIVE_CLASS = 'active';
 /** 头像:导航条最右侧,点了去 GitHub */
 export const AVATAR_LINK = 'https://github.com/ToyosatomiminoMiko';
 export const AVATAR_SRC = '/images/head.png';
-/**
- * 头像的类名:尺寸与圆形都在 public/css/index.css 的 `.head` 里.
- * 圆形原先借 bootstrap 的 `.rounded-circle` 工具类,现已收回站点样式
- * (`.head { border-radius: 50% }`),不再依赖 `--bs-border-radius-pill`.
- */
+/** 头像的类名:尺寸与圆形都在 public/css/index.css 的 `.head` 里 */
 export const AVATAR_CLASS = 'head';
 /**
  * 头像链接的类名(样式见 public/css/index.css 的 .head-link).
@@ -104,9 +93,8 @@ export const DEFAULT_NAV_PANE: NavPaneId = NAV_ITEMS[0].pane;
 // ---------- 首屏 ----------
 
 /**
- * 首屏容器.它的 id 有两个消费者:`public/css/index.css` 的 `#home { padding-top: 0 }`
- * 是**标签页**的规则(不是首屏),首屏自己只被 .hero 类命中;这里的 id 主要用于
- * 调试与自动化定位,以及"首屏只有一个"这条约束的可读性.
+ * 首屏容器的 id 与类名.样式只按 `.hero` 命中(见 public/css/index.css);
+ * id 留给调试与自动化定位,以及"首屏只有一个"这条约束的可读性.
  */
 export const HERO_ID = 'hero';
 export const HERO_CLASS = 'hero';
@@ -146,8 +134,8 @@ export const SETTING_PANEL_TITLE = '设置';
 
 // ---------- SETTING:背景切换 ----------
 
-/** 背景缩略图清单(列表容器 / 列表项 / 缩略图按钮 / 缩略图本身的类名见下) */
-export interface BackgroundPresetSpec {
+/** 背景缩略图清单的一项 */
+interface BackgroundPresetSpec {
     /** 图片地址(站点 public 下的路径) */
     readonly src: string;
     /** 缩略图下方的名字(同时是那颗按钮的可访问名) */
@@ -189,8 +177,7 @@ export const BACKGROUND_IMAGE_VARIABLE = '--bg-image-active';
 /**
  * 导航条"隐形"时加在它身上的类名(样式见 public/css/index.css 的 `.is-over-hero`).
  * 两种情形都会加:首屏还压在导航条下面(HOME),或页面停在顶端(所有标签页,
- * 此时窗格顶上只有全站背景图).名字沿用最初只有首屏时的那个,没跟着改 --
- * 两处消费方(site.config.ts 与 index.css)是同一份契约,改它没有任何行为收益.
+ * 此时窗格顶上只有全站背景图).
  */
 export const HEADER_OVER_HERO_CLASS = 'is-over-hero';
 

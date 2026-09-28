@@ -5,8 +5,6 @@
 - 采样器约定回顾:u = Repeat / v = ClampToEdge,程序化贴图会被"放大 + 漂移"地采样,
   所以噪声必须双向可平铺 -- `*_PERIOD` 是第 0 层晶格周期,必须与对应频率相同,
   逐 octave 周期翻倍(见 src/textures.rs 的 value_noise / fbm).
-- 数值与原字面量逐位一致,纯等价替换,不改变任何贴图输出;
-  各字段的含义,单位与调参影响见注释,公式直接写在参数旁边.
 - 通道语义:雾 / 车厢 RGB = 颜色,A = 浓度;污渍 RGB = 乘性颜色(接近 1 的暖灰),
   A = 浓度(见 src/textures.rs 文件头).
 */
@@ -121,16 +119,16 @@ pub(crate) mod dirt {
     pub(crate) const SCRATCH_WEIGHT: f32 = 0.25;
 
     // ===== 灰尘 dust =====
-    /// 灰尘噪声频率.
-    ///
-    /// 阈值 0.78 在 90×90 晶格上约 0.8 颗/格,贴图约 10% 像素是灰尘点
-    /// (2048 宽画布上约上万颗).嫌脏就抬 [`DUST_THRESHOLD`] 或调小 [`DUST_WEIGHT`].
+    /// 灰尘噪声频率(每 uv 单位的晶格数;阈值见 [`DUST_THRESHOLD`]).
     pub(crate) const DUST_NOISE_FREQ: f32 = 90.0;
     /// 灰尘噪声 seed.
     pub(crate) const DUST_NOISE_SEED: u32 = 23;
     /// 灰尘噪声第 0 层晶格周期(必须等于 [`DUST_NOISE_FREQ`] 才能双向平铺).
     pub(crate) const DUST_NOISE_PERIOD: u32 = 90;
     /// 灰尘阈值:高于它才算灰尘点.
+    ///
+    /// 阈值 0.78 在 90×90 晶格上约 0.8 颗/格,贴图约 10% 像素是灰尘点
+    /// (2048 宽画布上约上万颗).嫌脏就抬 [`DUST_THRESHOLD`] 或调小 [`DUST_WEIGHT`].
     pub(crate) const DUST_THRESHOLD: f32 = 0.78;
     /// 灰尘阈值以上的增益.
     pub(crate) const DUST_GAIN: f32 = 3.0;

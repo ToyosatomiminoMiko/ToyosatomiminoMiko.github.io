@@ -46,28 +46,15 @@
     --bg-image-active: var(--bg-image-default);
 
     /* ---------- 基础色 ---------- */
-    /* 纯白 / 纯黑两个通用色已随按钮与卡片改走 miko_ui 令牌而不再被引用,
-       这里删掉;要纯色直接用库的 --color-text-strong / --color-bg-sunken. */
-    /* 时钟面板底色:原实现写作 #000(保持字面量形态) */
     --clock-panel-bg: #000;
 
-    /* ---------- 文档基线(原先由 bootstrap 的 reboot 提供) ---------- */
+    /* ---------- 文档基线取值(index.css 的文档基线一节消费) ---------- */
     /*
-     * 站点自己的 `*` 重置只写"清空"(margin / padding / border / background /
-     * 字体),而 reboot 是**带值**的元素级规则(html / body / a / p / ul / code /
-     * pre / ...),元素选择器的特异性(0,0,1)高过 `*`(0,0,0),所以这一层一直在
-     * 站点样式之上生效.bootstrap 移除后必须由本站接手,否则是**静默**变化:
-     * box-sizing 回到 content-box,body 露出白底,行距掉回 normal,链接回到
-     * 浏览器默认的蓝字加下划线.
-     */
-    /*
-     * 页面底色 / 正文色:reboot 深色主题下的取值(--bs-body-bg #212529 /
-     * --bs-body-color #dee2e6).本站原先靠 <html data-bs-theme="dark"> 拿它,
-     * 现在由本站持有 -- 要换站点主题色只改这两条.
+     * 页面底色 / 正文色.要换站点主题色只改这两条.
      */
     --bg-page: #212529;
     --text-page: #dee2e6;
-    /* 全站基准行距(reboot 的 --bs-body-line-height) */
+    /* 全站基准行距 */
     --line-height-base: 1.5;
 
     /* ---------- 通用尺寸 / 圆角 / 过渡 ---------- */
@@ -81,13 +68,11 @@
      * (main.ts 引了库的 tokens.css,库默认全站直角 0px).本站只是**引用**,
      * 要改圆角就改库主题,不在下游另存一份尺寸.
      */
-    /* 像素指示器移动过渡 */
     --transition-indicator: 10ms linear;
-    /* 标签页切换时的淡入时长(原先由 bootstrap 的 .fade 给 150ms) */
+    /* 标签页切换时的淡入时长(src/common/tabs.ts 的显示切换读它) */
     --transition-tab-fade: 150ms linear;
 
     /* ---------- 层级(z-index) ---------- */
-    /* 像素指示器浮在页面最上层 */
     --z-pixel-indicator: 9999;
 
     /* ---------- 导航条上的头像 ---------- */
@@ -177,15 +162,12 @@
     --oled-coords-bg: var(--color-bg-sunken);
     /* 坐标显示条的内边距 */
     --oled-coords-padding: 8px 15px;
-    /* 坐标显示条与上方元素的间距 */
     --oled-coords-margin-top: 10px;
     /* 鼠标像素指示器的背景(红色半透明) */
     --oled-indicator-bg: rgba(255, 0, 0, 0.6);
-    /* 数据编辑器**折叠态**的高度(结构与配色归 miko_ui 的 `.code-editor`;
-       导出与导入共用这一颗):固定值,导出数据再长也由内部 textarea 自己滚,
-       不把卡片撑高.它同时也是外框的 min-height(手动拖动拖不到更矮),
-       原先那三条 `--oled-textarea-*` 已随 `textarea.textarea-data` 一起撤掉
-       (底色 / 边框走库的主题令牌,最小高度由本条取代) */
+    /* 数据编辑器**折叠态**的高度:固定值,导出数据再长也由内部 textarea 自己滚,
+       不把卡片撑高.它同时也是外框的 min-height(手动拖动拖不到更矮);
+       底色 / 边框走 miko_ui 的主题令牌. */
     --oled-editor-height: 150px;
     /* 数据编辑器**展开态**的高度 = 70 行.
        算式(库的 --code-font-size 16px × --code-line-height 1.2 = 每行 19.2px,
@@ -197,7 +179,6 @@
        库改了字号 / 行高的话这个数要重算:scripts/smoke_home.mjs 里有一条真机断言
        会量"展开后正好放得下 70 行",漂了就会失败. */
     --oled-editor-expanded-height: 1366px;
-    /* 数据区(唯一一行,只放那颗编辑器)的上下外边距 */
     --oled-area-margin: 10px;
 
     /* ---------- SETTING 标签页 ---------- */

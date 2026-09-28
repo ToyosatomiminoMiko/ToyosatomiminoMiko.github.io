@@ -1,23 +1,24 @@
 /*
 地铁车窗前端的集中配置(纯声明式数据,不含业务逻辑).
 
-页面提供**两个**空宿主:舞台(画布)与控制台(设置面板);舞台标记(画布,以及
-可选的标题 / 副标题)由 src/ui/stage_content.ts 生成,设置面板(风格按钮 /
-播放控制 / 滑块 / 状态区)由 src/ui/settings.ts 按本文件的模型生成;两边靠
-下面这些字符串对齐,一旦散落在代码里,改一处漏一处就是"静默失效",
-所以统一收到这里:
+站点给组件留了**四个**空宿主(舞台 / 风格按钮行 / 控制台 / 上传面板);舞台标记
+(只有画布)由 src/ui/stage_content.ts 生成,设置面板(风格按钮 / 播放控制 /
+滑块 / 状态区)由 src/ui/settings.ts 按本文件的模型生成,上传面板由
+src/ui/uploads.ts 按同一份模型生成;两边靠下面这些字符串对齐,一旦散落在代码里,
+改一处漏一处就是"静默失效",所以统一收到这里:
 
   - 宿主提供的挂载点 id,组件生成 / 查找的元素 id,类名 / data-* 键名;
-  - 车窗标记的文案与画布渲染分辨率;
-  - setParam / setStyle 的参数名        -- 必须与 src/metro_window/rust/src/lib.rs 一致;
+  - 画布渲染分辨率与宽高比属性名;
+  - setParam / setStyle 的参数名        -- 必须能对应 Rust 侧 `GlassParams` 的字段
+    (由 rust/src/app_params.rs 的 param_field 分发,rust/src/boot_config.rs 启动时校验);
   - 设置面板的完整结构模型(分组 / 顺序 / 文案 / 范围);
   - WebGPU 适配器识别规则与请求参数;
   - 全部状态 / 报错 / 帮助文案.
 
 约定:
-  - 每个值都是重构前字面量的逐字拷贝,只做"起名",不改数值与行为;
   - 对象与数组用 `as const satisfies` 收窄成字面量类型并校验结构;
-  - 禁止在这里改动任何 id / class / 参数名,否则运行时静默失效.
+  - 这里每个值都是行为的来源(改数值就是改行为),禁止改动任何 id / class /
+    参数名 / 文案,否则运行时静默失效.
 */
 
 // ---------- DOM 契约 ----------
@@ -43,14 +44,14 @@ export const STAGE_MODIFIER_CLASS = 'metro-window--stage';
 /**
  * 面板宿主被省略时,组件自建承载容器的类名.
  * 这个容器是隐藏的:设置面板,状态区与事件绑定都还在(状态区仍要被 Rust 写到),
- * 只是不显示 -- 留给"只想挂舞台"的宿主与拆分过程中的中间态.
+ * 只是不显示 -- 留给只想挂舞台的宿主.
  */
 export const PANEL_SINK_CLASS = 'metro-panel-sink';
 
 /**
- * 宿主必须提供的空容器 id(组件按 id 找,找不到就报错).
+ * 站点给组件留的四个空宿主 id(所有权在这里,站点骨架按同一份清单建宿主).
  *
- * 组件拆成"舞台"与"控制台"两块以后,站点给了四个宿主:
+ * 四个宿主各放一块:
  *   - stage:WebGPU 画布,放在首屏(要铺满整屏);
  *   - styles:三颗风格按钮,放在首屏底部(与 LED 时钟同排) -- 切风格是"看"的一部分,
  *     不该跟滑块一起埋在 SETTING 里;
@@ -78,9 +79,6 @@ export const ID_SELECTOR_PREFIX = '#';
 /** 找不到元素时抛错的文案前缀,后面直接拼 id */
 export const MISSING_ELEMENT_MESSAGE_PREFIX = '找不到页面元素 #';
 
-/** 找不到挂载点时的报错文案前缀,后面直接拼 id */
-export const MISSING_MOUNT_MESSAGE_PREFIX = '找不到挂载点 #';
-
 /**
  * 组件内部按 id 互相查找的元素.由 ui/stage_content.ts 生成,metro_window.ts
  * 取回,两边都引用这里的值,所以它不是"宿主必须提供的 id".
@@ -92,20 +90,6 @@ export const ELEMENT_IDS = {
 } as const;
 
 // ---------- 车窗自身的页面级标记 ----------
-
-/*
- * 画布由 ui/stage_content.ts 生成,不再是页面 HTML.
- *
- * 原因:宿主只提供空容器,画布尺寸集中在这里定义一次 -- 宿主页不重复任何标记.
- *
- * 注意与上面的区别:上面是"宿主必须提供的 id",这里是"组件自己生成的内容".
- *
- * 这里曾经还有一套"组件生成标题 / 副标题"的开关(STAGE_COPY_ENABLED=false)
- * 连同 WINDOW_TITLE / WINDOW_SUBTITLE / SUBTITLE_CLASS 与 metro_window.css 的
- * `h1`/`.subtitle` 规则,以及只为 h1 服务的 `--metro-font-size-title`.开关一直
- * 是关的,四处都没有消费者,已整体删除.若将来要把文案交回组件,再重新引入,
- * 不要只恢复其中一半(只留常量没规则,或只留规则没生成代码,都是死重量).
- */
 
 /**
  * 画布的渲染分辨率(宽度,像素).Rust 侧直接读 canvas.width/height 建 surface,
@@ -186,8 +170,8 @@ export const STAGE_NOTE_UNAVAILABLE =
 
 /**
  * 风格按钮"选中"态的类名,由 JS 切换.
- * 基础样式走 `.metro-window button`(见 metro_window.css),所以没有基础类名;
- * 这里只有"选中"这一个可切换状态.
+ * 按钮本体走 UI 库 `createButton` 的基线类 `.ui-button`(见 metro_window.css),
+ * 所以这里没有本站的基础类名,只有"选中"这一个可切换状态.
  */
 export const STYLE_BUTTON_ACTIVE_CLASS = 'active';
 
@@ -199,8 +183,8 @@ export const STYLE_DATA_KEY = 'style';
  * 1 = 赛博朋克(见 STYLE_PRESETS).
  *
  * 这是默认风格的**唯一来源**:挂载时它被初始点亮的那颗按钮使用,同时作为
- * `startApp(canvas, status, style)` 的第三个参数传进 wasm(越界会被 wasm 夹到
- * `MAX_STYLE_INDEX`).wasm 侧不再另存一份默认值,所以改这里就够了.
+ * `startApp(canvas, status, style)` 的第三个参数传进 wasm(越界会被 wasm 按
+ * `RUNTIME_CONFIG.styleCount` 夹到上限).wasm 侧不再另存一份默认值,所以改这里就够了.
  */
 export const DEFAULT_STYLE_INDEX = 1;
 
@@ -221,39 +205,25 @@ export const LAYERS_NOTE =
     'Layer 2 冷凝雾气 / Layer 3 车厢灯光与倒影';
 
 /**
- * 单个滑块声明里 `width` 覆盖用的 CSS 自定义属性名.
- *
- * 滑块本身(名称 + 滑杆 + 数值框 + 重置按钮)由 UI 库的 `createSlider` 生成,
- * 结构与配色都归库的样式表(`miko_ui/styles/widgets.css`);但**"一块滑块在一排里
- * 占多宽"是本站的口径**,定义在 `metro_window.css` 的
- * `.metro-window .slider-field`(`flex: 0 1 var(--metro-slider-field-width, 320px)`).
- * 库**没有**这个令牌 -- 它只给数值框留了 `--slider-field-value-width`(兜底 76px),
- * 所以这里按本站的 `--metro-` 前缀命名,不与库 / 站点的变量撞名.
- * 只有声明里确实写了 `width` 时,组件才把这条属性设在该滑块根节点上,覆盖那里的
- * 默认值(自定义属性会继承,而根节点上这一份对自己那几条声明优先).
- */
-export const SLIDER_WIDTH_PROPERTY = '--metro-slider-field-width';
-
-/**
  * 单个实时滑块的声明式描述:既是标记(范围 / 初始值),
  * 也是行为(param 名 / clamp 区间)的唯一来源.
  *
- * 只有 `param` 是逐字跨语言的契约(Rust 的 SLIDERS 用同一批名字);
- * 区间与初始值都以前端这份为准,Rust 侧的 `GlassParams::DEFAULT` 只是
- * "JS 推入之前的占位值"(详见下面 `value` 一条).
+ * `param` 是逐字跨语言的契约:它必须对应 `GlassParams` 的一个字段,由
+ * rust/src/app_params.rs 的 `param_field` 分发,rust/src/boot_config.rs 在启动时
+ * 校验(名字写错会直接拒绝启动);区间与初始值都以前端这份为准,Rust 侧的
+ * `GlassParams::DEFAULT` 只是"JS 推入之前的占位值"(详见下面 `value` 一条).
  *
  * id       -- 本声明的稳定标识,单测用它断言"没有重复的滑块";
  *             DOM 里 `<input type="range">` 的 id 由库生成(库的滑块不暴露 id,
  *             `<label for>` 的关联在库内部接好),它不再进标记;
- * param    -- setParam 参数名,必须与 src/metro_window/rust/src/app_params.rs 的 SLIDERS 一致;
+ * param    -- setParam 参数名,对应 `GlassParams` 的字段(boot_config.rs 校验);
  * label    -- 名称(数值框左侧,同时是重置按钮可访问名的来源);
  * hint     -- 名称后的小字注释(可选),为空不渲染;
  * min/max  -- 前端可调区间(与 Rust 侧 clamp 区间各自独立,前端先夹一次);
  * step     -- 步长(数值框的箭头粒度与滑杆的吸附粒度);
  * value    -- 初始值:同时是滑杆的起始位置,重置按钮的目标值与**启动时推给
  *             wasm 的渲染参数**(挂载函数在 startApp 之后补推一次,见
- *             metro_window.ts 的 pushSliderValues;改这里不需要再动 Rust);
- * width    -- 单个滑块的宽度(CSS 长度,可选),留空用库的默认宽度.
+ *             metro_window.ts 的 pushSliderValues;改这里不需要再动 Rust).
  */
 export interface SliderSpec {
     readonly id: string;
@@ -264,16 +234,6 @@ export interface SliderSpec {
     readonly max: number;
     readonly step: number;
     readonly value: number;
-    /**
-     * 单个滑块的宽度(CSS 长度,如 '320px' / '24rem' / '50%').
-     * 留空 => 本站的默认宽度.库的样式表没有给 `.slider-field` 本身留宽度令牌
-     * (它只给数值框留了 `--slider-field-value-width`,兜底 76px);滑块在一排里的
-     * 默认伸缩口径由 `metro_window.css` 的 `.metro-window .slider-field` 给
-     * (`flex: 0 1 var(--metro-slider-field-width, 320px)`),所以留空就落到那里的
-     * 320px.因为默认所有滑块都不写 width,它们的宽度天然统一;只有确实需要特殊
-     * 宽度(比如名字特别长)才在声明里单独覆盖一条.
-     */
-    readonly width?: string;
 }
 
 /** 一个滑块分组(不可折叠的 `<div class="slider-group">` + 一行静态标题) */
@@ -285,8 +245,8 @@ export interface SliderGroupSpec {
 
 /**
  * 全部实时滑块,按分组与显示顺序声明.
- * param 必须与 src/metro_window/rust/src/app_params.rs 的 SLIDERS 逐字一致(前端按名字调用,
- * 名字写错不会报错,只会静默不生效).
+ * param 必须能对应 `GlassParams` 的字段:boot_config.rs 启动时逐个校验,
+ * 名字写错不会静默失效,而是拒绝启动.
  */
 export const SLIDER_GROUPS = [
     {
@@ -315,9 +275,19 @@ export const SLIDER_GROUPS = [
     },
 ] as const satisfies readonly SliderGroupSpec[];
 
+/**
+ * `SLIDER_GROUPS` 摊平后的全部滑块声明(顺序即界面顺序).
+ *
+ * 分组各自是元组类型,这里按统一的 `SliderSpec` 收口一次:`RUNTIME_CONFIG.params`
+ * 与单测都从这一份取,不再各写一遍 flatMap(那样两边的顺序/收口方式各漂各的).
+ */
+export const SLIDER_SPECS: readonly SliderSpec[] = SLIDER_GROUPS.flatMap(
+    (group: SliderGroupSpec) => group.sliders,
+);
+
 /** 一种可切换的渲染风格(生成一颗 data-style 按钮) */
-export interface StylePresetSpec {
-    /** 传给 setStyle 的风格编号,必须与 Rust 的 MAX_STYLE_INDEX 区间一致 */
+interface StylePresetSpec {
+    /** 传给 setStyle 的风格编号,取值 0 .. STYLE_PRESETS.length - 1;越界由 wasm 按 styleCount 夹取 */
     readonly index: number;
     readonly label: string;
 }
@@ -341,19 +311,26 @@ export const STYLE_PRESETS = [
 export type TransportAction = 'toggle' | 'reset';
 
 /** 一颗播放控制按钮 */
-export interface TransportButtonSpec {
+interface TransportButtonSpec {
     readonly action: TransportAction;
     /** 生成元素的 id(便于调试/自动化定位) */
     readonly id: string;
     readonly label: string;
-    /** 初始是否禁用(加载完成前不可用) */
-    readonly disabled?: boolean;
 }
+
+/**
+ * 初始"想不想跑":true = 挂载后就让画面跑起来.
+ *
+ * 这是初始播放状态的**唯一来源**:既决定那颗开关的初始文案(TRANSPORT_BUTTONS
+ * 里的 toggle 项),也决定 metro_window.ts 的 `wantRunning` 初值 -- 两处取同一个
+ * 常量,才不会出现"按钮写着暂停,画面其实没跑".
+ */
+export const INITIAL_RUNNING = true;
 
 /**
  * 播放-暂停开关的两种文案(全站可见文本不用 emoji,用字说明动作).
  * 按钮上的字说的是**点下去会发生什么**:画面正在跑时显示"暂停",已暂停时显示
- * "播放".初值取 running,与 metro_window.ts 的 `wantRunning = true` 一致.
+ * "播放".初始是哪一种由 `INITIAL_RUNNING` 决定.
  */
 export const TRANSPORT_TOGGLE_LABEL = {
     /** 正在跑:点它 = 暂停 */
@@ -362,16 +339,18 @@ export const TRANSPORT_TOGGLE_LABEL = {
     paused: '播放',
 } as const;
 
-/** 播放-暂停开关 + 重置,顺序即界面顺序(紧跟在风格按钮行之后,不再有 .spacer 分隔) */
+/** 播放-暂停开关 + 重置,顺序即界面顺序(紧跟在风格按钮行之后) */
 export const TRANSPORT_BUTTONS = [
-    { action: 'toggle', id: 'playPauseBtn', label: TRANSPORT_TOGGLE_LABEL.running, disabled: false },
-    { action: 'reset', id: 'resetBtn', label: '重置', disabled: false },
+    {
+        action: 'toggle',
+        id: 'playPauseBtn',
+        // 文案跟着初始状态走(说的是点下去会发生的事),与 metro_window.ts 的 wantRunning 同源.
+        label: INITIAL_RUNNING ? TRANSPORT_TOGGLE_LABEL.running : TRANSPORT_TOGGLE_LABEL.paused,
+    },
+    { action: 'reset', id: 'resetBtn', label: '重置' },
 ] as const satisfies readonly TransportButtonSpec[];
 
-/** 状态 <span> 的 id(便于调试/自动化定位) */
-export const STATUS_ID = 'status';
-
-/** 设置面板 <fieldset> 的 id(便于调试/自动化定位) */
+/** 设置面板 <fieldset> 的 id(单测按它取面板;也是调试时的定位锚点) */
 export const PANEL_ID = 'paramPanel';
 
 // ---------- 图层贴图上传 ----------
@@ -458,23 +437,22 @@ export const UPLOAD_NOTE =
     '请用带透明通道的 PNG:alpha 决定下层是否透出.';
 
 /**
- * 只收 PNG:四张原素材都是 PNG,画师也按层分开交付.
+ * 允许的 MIME 类型:只收 PNG.四张原素材都是 PNG,画师也按层分开交付;
  * 顺带挡掉没有 alpha 通道的格式(JPEG 换上去会把下面几层全盖住).
- * 注意 accept 只是文件选择框的过滤器,真正的判断还是按 MIME 再查一次.
  */
-export const UPLOAD_ACCEPT = 'image/png';
-
-/** 允许的 MIME 类型(与 UPLOAD_ACCEPT 对应) */
 export const UPLOAD_MIME_TYPE = 'image/png';
+
+/**
+ * 文件选择框 accept 属性的值,与上面的 MIME 判断同一个来源.
+ * accept 只是选择框的过滤器,真正的判断还是按 MIME 再查一次(见 metro_window.ts).
+ */
+export const UPLOAD_ACCEPT = UPLOAD_MIME_TYPE;
 
 /** 顶层素材文件名前的目录提示(拼在小字里,告诉用户换的是哪个文件) */
 export const UPLOAD_FILE_HINT_PREFIX = '默认 ';
 
 /** 上传输入框 id 前缀:`<label for>` 与 `<input id>` 都靠它拼(前缀 + 槽位名) */
 export const UPLOAD_INPUT_ID_PREFIX = 'upload-';
-
-/** 上传面板 <fieldset> 的 id(便于调试/自动化定位) */
-export const UPLOADS_PANEL_ID = 'uploadPanel';
 
 /** "恢复默认"按钮文案 */
 export const UPLOAD_RESET_LABEL = '恢复默认';
@@ -573,7 +551,7 @@ export const LOG_ADAPTER_PREFIX = 'WebGPU 适配器:';
 
 /**
  * 软件渲染适配器的报错文案(带适配器名插值).
- * 文案是"对外可见字符串",这里与拆分前保持逐字一致,只是把插值参数显式化.
+ * 前缀直接取 `ERROR_LABEL`,不在文案里再写一遍"错误: ".
  */
 export const buildSoftwareAdapterMessage = (adapterLabel: string): string =>
     `${ERROR_LABEL}当前 WebGPU 适配器为 CPU 软件渲染(${adapterLabel}),说明这个浏览器实例访问不到独立显卡.若你用的是 Fedora/Chromium 且系统浏览器仍报此错,已知是 Chromium 沙箱挡住了 NVIDIA Vulkan 驱动,可改用 Firefox,或用 \`chromium-browser --no-sandbox --enable-unsafe-webgpu\` 启动(仅限本机可信页面).注意:chrome://flags/#enable-vulkan 可能导致 Chromium 黑屏,不建议启用`;
@@ -604,7 +582,7 @@ export const WEBGPU_HELP_STEPS =
  */
 
 /** 传给 wasm 的图层声明(字段名与 Rust 的 `LayerConfig` 一一对应) */
-export interface RuntimeLayerSpec {
+interface RuntimeLayerSpec {
     readonly slot: number;
     readonly name: string;
     readonly file: string;
@@ -612,14 +590,14 @@ export interface RuntimeLayerSpec {
 }
 
 /** 传给 wasm 的滑块声明(字段名与 Rust 的 `ParamRange` 一一对应) */
-export interface RuntimeParamSpec {
+interface RuntimeParamSpec {
     readonly name: string;
     readonly min: number;
     readonly max: number;
 }
 
 /** 启动配置整体形状(Rust 按这些键名读取,改名要两边同时改) */
-export interface RuntimeConfig {
+interface RuntimeConfig {
     /** 初始风格编号 */
     readonly styleIndex: number;
     /** 可选风格数量(上限由它推导) */
@@ -647,8 +625,8 @@ export const RUNTIME_CONFIG: RuntimeConfig = {
         file: layer.file,
         opaque: layer.opaque,
     })),
-    // 分组是各自的元组类型,这里按统一的 SliderGroupSpec 收口后再投影.
-    params: SLIDER_GROUPS.flatMap((group: SliderGroupSpec) => group.sliders).map((slider) => ({
+    // 滑块清单取摊平后的 SLIDER_SPECS,投影成 wasm 只认的 name/min/max 三个字段.
+    params: SLIDER_SPECS.map((slider) => ({
         name: slider.param,
         min: slider.min,
         max: slider.max,

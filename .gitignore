@@ -4,10 +4,9 @@ dist/
 /prompt
 __pycache__/
 
-# miko_ui 是 npm 上发布的包("miko_ui": "^0.1.6"),由 npm ci / npm install 装进
-# node_modules/,没有需要入库的本地副本,也没有要 gitignore 的缓存目录.
-# 本地联调(改库的时候)由 scripts/dev_ui_link.sh 把 node_modules/miko_ui 换成
-# 指向工作副本的符号链接 -- 那也只在 node_modules/ 里,一个字节都不入库.
+# miko_ui 从 npm 装进 node_modules/(package.json 的 "miko_ui": "^0.1.6"),
+# 仓库里没有它的本地副本.本地联调(改库的时候)由 scripts/dev_ui_link.sh 把
+# node_modules/miko_ui 换成指向工作副本的符号链接,也只落在 node_modules/ 里.
 
 # metro_window 子项目(src/metro_window/)的生成物,生成过程见 package.json 的 build:wasm
 # cargo 的构建缓存:workspace 根在仓库根(见根 Cargo.toml),所有成员共用这个 target/

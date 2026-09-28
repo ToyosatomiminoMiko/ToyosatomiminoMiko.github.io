@@ -1,7 +1,6 @@
 /*
 车窗玻璃参数模块
 - 车速 / 背景层距离 / 污渍 / 雾气 / 车厢灯光 这些"车窗本身"的可调参数集中于此.
-  (水珠那套参数已经整体拆到仓库根目录的 water_droplet_demo/,这里不再有它们.)
 - Rust 结构体与 WGSL 的 struct GlassParams 由同一份字段清单生成:
   `GlassParams::WGSL_DECL` 会在管线编译时注入 src/shaders.wgsl,
   因此两边不会出现各自手写,逐步漂移的问题.
@@ -28,6 +27,7 @@ macro_rules! define_glass_params {
             /// 用途:单测据此检查"每个字段都有对应的 setParam 分发" -- 加了字段却
             /// 忘了 `app_params::param_field` 的 match 时立刻失败.以 `_` 开头的
             /// 字段是内部字段(如对齐填充),不参与前端分发.
+            #[cfg(test)]
             pub const FIELD_NAMES: &'static [&'static str] = &[$(stringify!($field)),*];
 
             /// WGSL 端声明,由 Rust 字段清单生成,保证两边字段名与顺序完全一致.
@@ -36,12 +36,6 @@ macro_rules! define_glass_params {
                 $("    ", stringify!($field), ": f32,\n",)*
                 "};\n",
             );
-        }
-
-        impl Default for GlassParams {
-            fn default() -> Self {
-                Self::DEFAULT
-            }
         }
     };
 }

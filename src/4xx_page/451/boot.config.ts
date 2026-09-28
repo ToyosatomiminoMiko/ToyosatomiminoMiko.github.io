@@ -1,6 +1,6 @@
 /**
- * 451 启动流程(boot.ts)的常量.
- * 从 boot.ts 抽出: 超时 / 开关参数 / 状态上报键名与取值.
+ * 451 启动流程(boot.ts)的常量: 初始化超时 / 关闭与调试开关参数 /
+ * 上报到 <html data-ember*> 与 ember:status 事件的键名与取值.
  */
 
 /** 个别驱动上 requestAdapter/requestDevice 会长时间不返回, 超时就按失败处理(ms) */

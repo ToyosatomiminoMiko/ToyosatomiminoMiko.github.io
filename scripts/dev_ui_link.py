@@ -34,10 +34,11 @@ MIKO_UI_DIR 覆盖:
 [链接之后怎么用]
   * 库的 styles/ 是原样发布的(库的 exports 直接映射到 styles/*.css), 改完
     **零构建立即生效**;
-  * 库的 src/ 要先编译进 dist/, 两条路:
-        bash ./build.sh                   # 默认: 重建副本 dist/ + 跑完整流水线
-        或 在库里常驻 npx tsc -p tsconfig.build.json --watch
-    (两种别同时用: build:dist 开头会 clean, 和常驻的 watch 会打架);
+  * 库的 src/ 要先编译进 dist/, 首选库自己的脚本 `npm run build:dist`(先 clean
+    再编译): `bash ./build.sh` 会替你在副本里跑一遍, 只想重建库时
+    `cd <副本> && npm run build:dist`. 库内常驻开发可以用
+    `npx tsc -p tsconfig.build.json --watch`, 但它与 build:dist 别同时用
+    (build:dist 开头的 clean 会拆掉 watch 的输出);
   * Vite 会把 root 外已加载的模块加进自己的 watcher, 所以保存后会自动刷新,
     不需要配 server.fs.allow(见本仓库 vite.config.ts 的 dedupe 说明).
 
@@ -62,29 +63,20 @@ from pathlib import Path
 import buildlib as kit
 
 LOG = kit.Logger("UI-LINK", with_timestamp=False)
-LINK_PATH = kit.PROJECT_ROOT / "node_modules" / kit.UI_PKG_NAME
+LINK_PATH = kit.PROJECT_ROOT / kit.UI_NODE_MODULE_PATH
 VITE_CACHE = kit.PROJECT_ROOT / "node_modules" / ".vite"
 
 
 def require_ui_checkout(ui_dir):
-    """链接前的三道校验: 有 package.json / 确实是 miko_ui / dist 已编译."""
+    """链接前的两道校验: 确实是 miko_ui 副本 / dist 已编译."""
+    kit.require_ui_checkout(ui_dir, "set MIKO_UI_DIR to point at it")
     ui_dir = Path(ui_dir)
-    if not (ui_dir / "package.json").is_file():
-        raise kit.BuildError(
-            f"no library checkout at {ui_dir} (set MIKO_UI_DIR to point at it)"
-        )
-    name = kit.ui_package_name(ui_dir)
-    if name != kit.UI_PKG_NAME:
-        display = name or "?"
-        raise kit.BuildError(
-            f"{ui_dir} is not the {kit.UI_PKG_NAME} checkout (package.json name='{display}')"
-        )
     # 应用运行时 import 的是库的 dist/, 没有它连 dev server 都起不来. 与其链上去
     # 再报一个难懂的解析错误, 不如在这里直接说清要先编译.
     if not (ui_dir / "dist" / "index.js").is_file():
         raise kit.BuildError(
             f"{ui_dir}/dist/index.js is missing; build the library first:",
-            f"    cd {ui_dir} && npx tsc -p tsconfig.build.json --watch",
+            f"    cd {ui_dir} && npm run build:dist",
         )
 
 
@@ -106,8 +98,8 @@ def link(ui_dir):
     if not (kit.PROJECT_ROOT / "node_modules").is_dir():
         raise kit.BuildError("node_modules is missing; run 'npm ci' first")
 
-    # package.json / package-lock.json 的指纹: 用来证明这整套操作没有改到跟踪
-    # 文件. 失败时不是"修复", 而是把问题喊出来让人看 git diff.
+    # 这一套操作不许改到被跟踪的 package.json / package-lock.json: 判据与后果见
+    # buildlib.metadata_fingerprint.
     before = kit.metadata_fingerprint(kit.PROJECT_ROOT)
     target = Path(ui_dir).resolve()
 
@@ -144,7 +136,7 @@ def link(ui_dir):
     )
     LOG.log("the app now resolves the local copy: run 'npx vite' for the local server")
     LOG.log("after editing the library's src/, rebuild its dist/ with:")
-    LOG.log(f"    bash ./build.sh   (or: cd {target} && npx tsc -p tsconfig.build.json --watch)")
+    LOG.log(f"    bash ./build.sh   (or: cd {target} && npm run build:dist)")
     LOG.log("restore the published package with: bash scripts/dev_ui_link.sh unlink (or npm ci)")
 
 
@@ -203,6 +195,9 @@ def status():
 
 def main(argv):
     action = argv[0] if argv else "link"
+    if len(argv) > 1:
+        LOG.err(f"unexpected argument(s): {' '.join(argv[1:])} (usage: link|unlink|status)")
+        return kit.EXIT_USAGE
 
     def body():
         if action == "link":

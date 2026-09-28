@@ -4,7 +4,6 @@
   适配器偏好等 GPU 管线相关常量集中于此.
 - 其中绑定槽位与管线入口点同时出现在 src/shaders.wgsl 中,
   统一从这里取值,并由本模块的单测校验两边文本一致,避免只改一边导致漂移.
-- 数值为等价替换,不改变任何渲染结果.
 */
 /// 全屏四边形的顶点数据.
 ///
@@ -51,7 +50,10 @@ pub(crate) const FRAGMENT_ENTRY_POINT: &str = "fs_main";
 /// 索引缓冲格式,必须与 [`FULLSCREEN_QUAD_INDICES`] 的 u16 元素类型一致.
 pub const QUAD_INDEX_FORMAT: wgpu::IndexFormat = wgpu::IndexFormat::Uint16;
 
-/// 普通贴图(城市 PNG / 程序化贴图)的纹素格式:RGBA8 无归一化.
+/// 离屏渲染目标与上传 / 程序化贴图共用的纹素格式:RGBA8 无归一化.
+///
+/// 表面(swapchain)格式不取自这里:它由 `surface.get_capabilities()` 的
+/// `caps.formats[0]` 决定(见 app.rs),这里只用于不受表面约束的纹理.
 pub const RENDER_TARGET_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 
 /// RGBA8 每像素字节数,用于 `write_texture` 的字节行距与缓冲区尺寸计算.

@@ -1,6 +1,5 @@
 /**
- * 屏幕性能 HUD(perf_overlay.ts)的常量.
- * 从 perf_overlay.ts 抽出: DOM id / role / 内联样式各项.
+ * 屏幕性能 HUD(perf_overlay.ts)的常量: DOM id / role / 内联样式各项.
  * 颜色与字号刻意与 451 页面的火焰色系一致, 但这是引擎自主创建的 DOM,
  * 拿不到页面 CSS 的自定义属性, 所以在这里以 TS 常量维护.
  */

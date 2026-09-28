@@ -6,9 +6,6 @@ WGSL 着色器(地铁车窗)
 struct GlassParams 由 Rust 侧 src/glass_params.rs 生成并注入,
 不要在本文件重复声明,以免与 Rust 字段清单漂移.
 
-> 水珠(物理 / 折射 / 高光 / 背景景深)已经整体拆到仓库根目录的
-> `water_droplet_demo/`,本文件不再有任何水珠相关的绑定或分支.
-
 贴图通道语义(与 src/textures.rs 的生成代码是一份契约,改一边要改另一边):
 - textureBG / Far / Mid / Near:城市美术素材,RGB = 颜色,A = 该层不透明度;
   Far / Mid / Near 的 RGB 是**预乘 alpha** 的(合成写成 c*(1-a) + rgb,见 fs_main);

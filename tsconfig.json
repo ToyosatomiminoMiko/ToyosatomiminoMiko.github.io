@@ -32,6 +32,9 @@
     "exclude": [
         "node_modules",
         "dist",
+        // 这里只挡住 tsc 对目录的直接 glob: src 里的文件 import 了
+        // src/metro_window/wasm 的产物, 那些 import 仍会被解析(skipLibCheck 打开
+        // 时也不检查其声明). 删掉这一条不会放宽对源码的检查.
         "src/metro_window/wasm"
     ]
 }

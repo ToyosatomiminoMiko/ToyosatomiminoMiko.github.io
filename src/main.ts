@@ -21,9 +21,9 @@ UI 库的主题与控件样式.
 只写结构,颜色 / 圆角 / 间距一律 `var(--...)`,那一层的默认值就在 `tokens.css`.
 库的主题是暗色,与本站深色画面同一路.
 
-撞名处理:`tokens.css` 会把 `--radius-sm` / `--radius-md` 写成它自己的默认值
-(0px),而本站原来也用这两个名字给坐标条与时钟面板定圆角.本站那两条已按用途
-改名(`--coords-radius` / `--clock-panel-radius`,见 `public/css/tokens.css`),
+撞名处理:库的主题在 `:root` 上给出 `--radius-sm` / `--radius-md`,本站只在
+**需要非零圆角**的地方引用它们(时钟面板为此另存了一个语义名
+`--clock-panel-radius`,见 public/css/tokens.css),不自己重定义这两个名字,
 所以库主题进来不会顺手把非按钮的圆角改掉.
 */
 import 'miko_ui/styles/tokens.css';
@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     mountRBT(shell.panes.rbt);
     mountIEEE754(shell.panes.ieee754);
 
-    // 标签页:点击 / 方向键 / 显隐(整个仓库唯一的"标签页"实现,不再是 bootstrap)
+    // 标签页:点击 / 方向键 / 显隐(整个仓库唯一的"标签页"实现)
     mountTabs({ list: shell.navList, links: shell.navLinks, panes: shell.panes });
 
     // 背景切换:把 SETTING 标签页缩略图的 URL 写进 --bg-image-active 令牌

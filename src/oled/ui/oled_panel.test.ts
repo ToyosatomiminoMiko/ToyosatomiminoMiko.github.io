@@ -1,20 +1,17 @@
 /**
  * OLED 画板的标记契约(进程内,跑在 happy-dom 里).
  *
- * 面板原先写在 index.html 的 `#oled` 窗格里,再由 oled.ts 按 id 一个个取回;
- * 现在标记由 `ui/oled_panel.ts` 生成并把引用交回.这里断言两件事:
+ * 标记由 `ui/oled_panel.ts` 生成并把引用交回,这里断言两件事:
  *
  *   1) `public/css/index.css` 用到的选择器全部命中
  *      (`canvas#pixelCanvas` / `.oled-card` / `.coords-display` / `.pixel-indicator` /
  *      `.tools` / `.oled-card .code-editor` / `.area-data` / `#change-color`);
  *   2) 交回的引用就是文档里那一个(否则行为会绑到不在页面上的元素).
  *
- * 按钮本身现在归 UI 库(`miko_ui` 的 `createButton`):带库的基线类 `.ui-button`,
- * 不再带本站原来的 bootstrap 类 `btn btn-primary`;三个绘图工具归库的
- * `createSegmented`(`div.segmented` + 组内按钮),不再有 `input[name="tools"]`;
- * 数据区归库的 `createCodeEditor`(`div.code-editor`:行号槽 + 真 textarea +
- * 高亮层),不再有 `textarea.textarea-data`;数据区只有**一颗**编辑框(导出写它,
- * 导入读它),复制 / 导入两颗按钮随之上移到 `.tools`.
+ * 按钮由 UI 库(`miko_ui` 的 `createButton`)生成,带库的基线类 `.ui-button`;三个
+ * 绘图工具由库的 `createSegmented` 生成(`div.segmented` + 组内按钮);数据区由库的
+ * `createCodeEditor` 生成(`div.code-editor`:行号槽 + 真 textarea + 高亮层).
+ * 数据区只有**一颗**编辑框(导出写它,导入读它),它的按钮都在 `.tools`.
  *
  * @vitest-environment happy-dom
  */
@@ -46,19 +43,12 @@ import {
     OLED_PANEL_TOOL_GROUP_LABEL,
     OLED_PANEL_TOOL_OPTIONS,
 } from '@/oled/config';
-import { createOledPanel, type OledPanel } from '@/oled/ui/oled_panel';
-
-/** 生成面板并挂到文档里(引用一致性要在文档里查) */
-function render(): OledPanel {
-    document.body.innerHTML = '';
-    const panel = createOledPanel();
-    document.body.append(panel.root);
-    return panel;
-}
+import { createOledPanel } from '@/oled/ui/oled_panel';
+import { expectNoDuplicateIds, renderPanel } from '@/test_support/panel_test_helpers';
 
 describe('OLED:面板外壳', () => {
     it('是 section.ui-panel.oled-card,标题文案来自 config(.oled-card 定宽)', () => {
-        const panel = render();
+        const panel = renderPanel(createOledPanel);
         expect(panel.root.tagName).toBe('SECTION');
         expect(panel.root.className).toBe(`ui-panel ${OLED_PANEL_EXTRA_CLASS}`);
         expect(panel.root.classList.contains('oled-card')).toBe(true);
@@ -69,22 +59,21 @@ describe('OLED:面板外壳', () => {
     });
 
     it('文档里没有重复 id', () => {
-        render();
-        const ids = [...document.querySelectorAll('[id]')].map((element) => element.id);
-        expect(new Set(ids).size).toBe(ids.length);
+        renderPanel(createOledPanel);
+        expectNoDuplicateIds();
     });
 });
 
 describe('OLED:状态区与画布', () => {
     it('坐标行文案与类名逐字不变', () => {
-        const panel = render();
+        const panel = renderPanel(createOledPanel);
         expect(panel.coordsDisplay.textContent).toBe(OLED_PANEL_COORDS_TEXT);
         expect(panel.coordsDisplay.id).toBe(OLED_DOM.coordsDisplayId);
         expect(panel.coordsDisplay.className).toBe(OLED_PANEL_COORDS_CLASS);
     });
 
     it('画布用 canvas#pixelCanvas 这个 CSS 契约,物理分辨率由行为代码写', () => {
-        const panel = render();
+        const panel = renderPanel(createOledPanel);
         expect(document.querySelector(`canvas#${OLED_DEFAULT_CONFIG.canvasId}`)).toBe(panel.canvas);
         // 标记里不带 width/height:构造 OLEDCanvas 时才写 config 的 128×64
         expect(panel.canvas.hasAttribute('width')).toBe(false);
@@ -94,7 +83,7 @@ describe('OLED:状态区与画布', () => {
     });
 
     it('鼠标指示器类名不变(CSS 靠 .pixel-indicator 定位并默认隐藏)', () => {
-        const panel = render();
+        const panel = renderPanel(createOledPanel);
         expect(panel.indicator.className).toBe(OLED_PANEL_INDICATOR_CLASS);
         expect(panel.indicator.id).toBe(OLED_DOM.indicatorId);
     });
@@ -102,7 +91,7 @@ describe('OLED:状态区与画布', () => {
 
 describe('OLED:工具控制区', () => {
     it('八个按钮的 id / 文案 / 库基线类与原来一致', () => {
-        const panel = render();
+        const panel = renderPanel(createOledPanel);
         const expected = [
             [panel.refillButton, OLED_DOM.refillBtnId, OLED_PANEL_REFILL_BUTTON_TEXT],
             [panel.colorButton, OLED_DOM.colorBtnId, OLED_COLOR_MODES[OLED_DEFAULT_COLOR_MODE].buttonText],
@@ -116,7 +105,7 @@ describe('OLED:工具控制区', () => {
         for (const [button, id, text] of expected) {
             expect(button.id, id).toBe(id);
             expect(button.textContent, id).toBe(text);
-            // 库(`miko_ui`)给每颗按钮挂的基线类;站点原来的 `btn btn-primary` 已不用
+            // 库(`miko_ui`)给每颗按钮挂的基线类;`btn` 不是库的类名,不该出现
             expect(button.classList.contains('ui-button'), id).toBe(true);
             expect(button.classList.contains('btn'), id).toBe(false);
             expect(button.getAttribute('type'), id).toBe('button');
@@ -127,7 +116,7 @@ describe('OLED:工具控制区', () => {
     });
 
     it('三个绘图工具由库的分段选择器承载,默认项已选中(顺序即清单顺序)', () => {
-        const panel = render();
+        const panel = renderPanel(createOledPanel);
         const group = panel.toolSelect.element;
         // `segmented` 是库(`miko_ui` 的 `createSegmented`)的类名,不是站点类
         expect(group.className).toBe('segmented');
@@ -153,28 +142,27 @@ describe('OLED:工具控制区', () => {
     });
 
     it('工具区与唯一一行数据区的类名不变', () => {
-        const panel = render();
+        const panel = renderPanel(createOledPanel);
         const tools = panel.root.querySelector(`.${OLED_PANEL_TOOLS_CLASS}`);
         expect(tools).not.toBeNull();
-        // .tools 的直接子节点是 8 颗按钮(原 refill / color / export / png / byte-order
-        // 加合并后上移过来的 copy / import / editor-toggle)再加 1 组分段选择器
-        // (组内另有 3 颗按钮);radio 已全部去掉
+        // .tools 的直接子节点是 8 颗按钮(颜色重置 / 画笔颜色 / 导出数据 / 复制 /
+        // 导入 / 展开-折叠 / 下载PNG / 字节序)再加 1 组分段选择器(组内另有 3 颗按钮)
         const directButtons = [...(tools?.children ?? [])].filter((child) => child.tagName === 'BUTTON');
         expect(directButtons).toHaveLength(8);
         expect(tools?.querySelector('.segmented')).toBe(panel.toolSelect.element);
         expect(tools?.querySelectorAll('input')).toHaveLength(0);
         expect(panel.root.querySelectorAll(`.${OLED_PANEL_ROW_CLASS}`)).toHaveLength(1);
         // 数据区是库 `createCodeEditor` 的**一套** `.code-editor` 外框:
-        // 本站的 `textarea.textarea-data` 已撤,库自己那颗真 textarea 在里面
+        // 里面只有库自己那颗真 textarea,没有额外的站点 textarea
         expect(panel.root.querySelectorAll('.code-editor')).toHaveLength(1);
         expect(panel.root.querySelectorAll('textarea.textarea-data')).toHaveLength(0);
         expect(panel.root.querySelectorAll('.code-editor-textarea')).toHaveLength(1);
     });
 
     it('画笔颜色按钮紧跟在颜色重置按钮后面(工具区不再有"画笔:"说明文字)', () => {
-        const panel = render();
+        const panel = renderPanel(createOledPanel);
         expect(panel.colorButton.previousSibling).toBe(panel.refillButton);
-        // 说明文字已删:工具区里除按钮与分段选择器的文字外没有别的节点
+        // 工具区里除按钮与分段选择器的文字外没有别的节点
         const tools = panel.root.querySelector(`.${OLED_PANEL_TOOLS_CLASS}`);
         expect(tools?.textContent).not.toContain('画笔');
     });
@@ -182,7 +170,7 @@ describe('OLED:工具控制区', () => {
 
 describe('OLED:数据区', () => {
     it('只有一颗库编辑器(.code-editor)承载导出与导入,三颗接口按钮同在 .tools', () =>  {
-        const panel = render();
+        const panel = renderPanel(createOledPanel);
         const editor = panel.dataEditor;
         const id = OLED_DOM.dataEditorId;
         // id 挂在外框上:库的选项里没有 id,句柄拿到元素后由本站补(与按钮同一条口径)
@@ -216,7 +204,7 @@ describe('OLED:数据区', () => {
     });
 
     it('折叠 / 展开按钮:初值折叠态,带 aria-expanded / aria-controls', () => {
-        const panel = render();
+        const panel = renderPanel(createOledPanel);
         const button = panel.editorToggleButton;
         // 初值就是折叠态(面板只给文案,展开态类由 oled.ts 的 toggleEditorExpanded 切)
         expect(button.textContent).toBe(OLED_PANEL_EDITOR_EXPAND_TEXT);
@@ -228,7 +216,7 @@ describe('OLED:数据区', () => {
     });
 
     it('程序化写值后 refresh():行号与高亮层跟上,源码里的尖括号只当文本', () => {
-        const panel = render();
+        const panel = renderPanel(createOledPanel);
         panel.dataEditor.textarea.value = '<a>\n<b>';
         panel.dataEditor.refresh();
         // 行号栏按 \n 计数(库的 EditorLineNumbers):两行 -> 1 / 2
@@ -239,7 +227,7 @@ describe('OLED:数据区', () => {
     });
 
     it('行数进位也改不动行号槽宽度(库重量后仍是我们钉的常量)', () => {
-        const panel = render();
+        const panel = renderPanel(createOledPanel);
         // 三位行号:库会重量一次并写内联值,但压不过我们带 !important 的那一份
         panel.dataEditor.textarea.value = Array.from({ length: 120 }, (_, i) => `line ${i}`).join('\n');
         panel.dataEditor.refresh();

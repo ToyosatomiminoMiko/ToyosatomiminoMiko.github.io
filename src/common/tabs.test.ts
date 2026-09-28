@@ -2,8 +2,8 @@
  * 标签页行为的**状态迁移**回归网(进程内,跑在 happy-dom 里).
  *
  * 这一层与 `ui/site_shell.test.ts` 的分工:那边管"骨架长什么样"(类名 / id /
- * 结构),这边管"点下去之后类名怎么迁移" -- 两者原先都是 bootstrap 的标签页插件
- * 在负责,现在收进了 `src/common/tabs.ts`,所以要有一套自己的断言.
+ * 结构),这边管"点下去之后类名怎么迁移" -- 切换行为整个在 `src/common/tabs.ts`,
+ * 所以这套断言就落在它身上.
  *
  * 进程内跑不到的东西(真实 CSS 级联下的 display / opacity,淡入的过渡本身)留给
  * `scripts/smoke_home.mjs`:happy-dom 不解析样式表,这里只能验"类名与 ARIA 有没有

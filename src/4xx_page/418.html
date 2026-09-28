@@ -5,17 +5,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <title>error 418</title>
-    <!-- 字体由 @fontsource 自托管 (见 418.css 顶部的 @import), 不再请求 Google Fonts -->
     <link rel="stylesheet" href="/src/4xx_page/418/418.css">
 </head>
 
 <body>
     <!--
         图标 sprite: 这里只定义 <symbol>, 页面里用 <use href="#i-xxx"> 引用.
-        取代原来的 Font Awesome webfont (少一个 ~100KB 的 CSS + 一整套字体文件).
         图标取自 Font Awesome Free 7.3.1 -- Icons: CC BY 4.0, https://fontawesome.com/license/free
-        注: 原来的 fa-mug-tea 在 Font Awesome 6.0.0-beta3 里并不存在(一直渲染为空白),
-        这里统一用 mug-saucer.
     -->
     <svg xmlns="http://www.w3.org/2000/svg" class="icon-sprite"
         aria-hidden="true" focusable="false">
@@ -74,7 +70,7 @@
         <!-- 茶壶主角 -->
         <div class="teapot-container">
             <div class="teapot" id="teapotMain">
-                <!-- 蒸汽 (默认可见,幽默) -->
+                <!-- 蒸汽: 三根 <span>, 由 .steam span 的动画淡入淡出 -->
                 <div class="steam">
                     <span></span><span></span><span></span>
                 </div>
@@ -154,10 +150,10 @@
                 <use href="#i-message"></use>
             </svg> 等待您的指令...
         </div>
-        <div class="counter-panel" id="counterPanel">
+        <div class="counter-panel">
             <svg class="icon" aria-hidden="true" focusable="false">
                 <use href="#i-circle-xmark"></use>
-            </svg> 今日拒绝咖啡请求: <span id="rejectCount">42</span> 次
+            </svg> 今日拒绝咖啡请求: <span id="rejectCount">42</span> 次<!-- 42 是无 JS 时的兜底值, JS 初始化后会覆盖 -->
         </div>
     </div>
 

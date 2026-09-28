@@ -3,8 +3,6 @@
 - 渲染管线:全屏四边形绘制地铁车窗玻璃效果
 - 绑定组布局必须与 src/shaders.wgsl 中的声明保持一致
 - struct GlassParams 由 Rust 侧生成并注入,保证 WGSL 与 Rust 字段完全同步
-
-> 水珠(物理 / 折射计算管线)已经拆到 water_droplet_demo/,这里只剩一条渲染管线.
 */
 use crate::glass_params::GlassParams;
 use crate::render_params::{
@@ -39,7 +37,7 @@ pub struct MetroTextures<'a> {
     /// 背景/材质纹理采样器
     pub sampler: &'a wgpu::Sampler,
     /// Layer 0..N 的背景纹理视图(bg/far/mid/near/dirt/fog/interior)
-    pub texture_views: [&'a wgpu::TextureView; 7],
+    pub texture_views: [&'a wgpu::TextureView; TEXTURE_LAYER_COUNT as usize],
 }
 
 pub fn create_metro_pipelines(

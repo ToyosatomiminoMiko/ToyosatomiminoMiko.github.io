@@ -2,17 +2,16 @@
 // 红黑树工具(rbt/rbt.ts)常量配置
 //
 // 集中 rbt/rbt.ts 里所有"设计参数":布局几何,节点/连线配色,字体,
-// 阴影与线宽,默认示例与 DOM 契约.数值与拆分前的字面量逐位一致,
-// 不改变绘制结果与解析行为.
+// 阴影与线宽,默认示例与 DOM 契约.
 // ================================================================
 
-// ---------- DOM 契约(id,与旧 index.html 的 #rbt 窗格完全一致) ----------
+// ---------- DOM 契约(id,public/css/index.css 按它命中) ----------
 
 /**
  * 红黑树控件用到的 DOM 元素 id.
- * 标记现在由 src/rbt/ui/rbt_panel.ts 按本文件的声明生成(id 写入元素再由组件
- * 交回引用),不再是"HTML 与 TS 各写一份"的约定;保留这些常量给样式
- * (public/css/index.css 的 `#treeInput` / `#treeError` / `#rbCanvas`)与组件共用.
+ * 标记由 src/rbt/ui/rbt_panel.ts 按本文件的声明生成(id 写入元素再由组件
+ * 交回引用);这些常量同时给样式(public/css/index.css 的 `#treeInput` /
+ * `#treeError` / `#rbCanvas`)与组件共用.
  */
 export const RBT_DOM = {
     /** 表达式输入 textarea 的 id */
@@ -23,11 +22,11 @@ export const RBT_DOM = {
     canvasId: 'rbCanvas',
 } as const;
 
-// ---------- 面板标记契约(声明式模型,逐字照搬旧 #rbt 窗格) ----------
+// ---------- 面板标记契约(声明式模型,ui/rbt_panel.ts 用) ----------
 //
-// 结构 / 文案 / id 与原标记逐字一致.框体(section.ui-panel + 标题栏 + 正文容器)
-// 现在由 miko_ui 的 `createPanel` 建,类名归库;原先夹在标题栏与正文之间的提示区
-// 移进了正文容器(见 ui/rbt_panel.ts),这是唯一一处结构变化.
+// 结构 / 文案 / id 与 public/css/index.css 及测试的定位契约一致.框体
+// (section.ui-panel + 标题栏 + 正文容器)由 miko_ui 的 `createPanel` 建,
+// 类名归库;提示区排在正文容器最前(见 ui/rbt_panel.ts).
 
 /** 面板标题(可见文本,全站不用 emoji) */
 export const RBT_PANEL_TITLE = 'Red-Black Tree';
@@ -43,15 +42,15 @@ export const RBT_HINT_SHORTHAND = '支持简写叶子节点 (例如 "5R" 等价�
  */
 export const RBT_HINT_COLOR_LEGEND = 'R 红色 \u00a0|\u00a0 B 黒色';
 
-/** 表达式输入框的占位文案(可见文本,保持原样) */
+/** 表达式输入框的占位文案(可见文本) */
 export const RBT_INPUT_PLACEHOLDER =
     '例: 10B(5R(1B,8R),15R(12B,20B))  或深度4满树示例自动加载';
 
-/** 表达式输入框的拼写检查属性值(旧标记 spellcheck="false") */
+/** 表达式输入框的拼写检查属性值('false' = 不当自然语言检查) */
 export const RBT_INPUT_SPELLCHECK = 'false';
 
 /**
- * 树绘制 canvas 的逻辑分辨率(旧标记 width="1200" height="640").
+ * 树绘制 canvas 的逻辑分辨率.
  * 行为代码按 canvas.width / canvas.height 自适应,故改这两个值即可整体缩放.
  */
 export const RBT_CANVAS_WIDTH = 1200;
@@ -141,8 +140,8 @@ export const RBT_BLACK_NODE_LINE_WIDTH = 1.6;
 /** 黑色节点文字颜色(浅灰) */
 export const RBT_BLACK_NODE_TEXT = '#f1f5f9';
 
-/** 空树提示文字颜色(浅灰蓝,与连线同色) */
-export const RBT_EMPTY_HINT_COLOR = '#94a3b8';
+/** 空树提示文字颜色(与连线同色) */
+export const RBT_EMPTY_HINT_COLOR = RBT_EDGE_COLOR;
 
 /** 解析错误提示文字颜色(玫红) */
 export const RBT_ERROR_HINT_COLOR = '#e11d48';
@@ -166,8 +165,7 @@ export const RBT_ERROR_PREFIX = '解析错误: ';
 export const RBT_ERROR_UI_PREFIX = '错误: ';
 
 /**
- * 错误文案截断上限(字符数).
- * 原实现即 88,保留为具名常量以便日后调整.
+ * 错误文案截断上限(字符数),防止长表达式把画布上的提示撑出界.
  */
 export const RBT_ERROR_TEXT_MAX = 88;
 
@@ -176,7 +174,7 @@ export const RBT_EMPTY_TEXT = '';
 
 // ---------- 默认示例 ----------
 
-/** 打开页面时自动加载的深度为 4 的满二叉树示例 */
+/** 打开页面时自动加载的深度为 4 的满二叉树示例(挂载函数写进输入框) */
 export const RBT_TREE_EXAMPLE =
     "15B(7R(3B(1R(0B,2B),5R(4B,6B)),11B(9R(8B,10B),13R(12B,14B))),23R(19B(17R(16B,18B),21R(20B,22B)),27B(25R(24B,26B),29R(28B,30B))))";
 
@@ -206,7 +204,7 @@ export const RBT_LEAF_SUFFIX = '(nil,nil)';
 /** 节点简写的最小长度(至少 1 位值 + 1 位颜色) */
 export const RBT_MIN_SHORTHAND_LENGTH = 2;
 
-// ---------- 可见文案(解析错误信息,保持原样) ----------
+// ---------- 可见文案(解析错误信息,与界面一字不差) ----------
 
 /** 简写节点过短时的错误文案前缀 */
 export const RBT_ERR_SHORTHAND_TOO_SHORT = '无效节点简写: "';

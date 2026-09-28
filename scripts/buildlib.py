@@ -2,15 +2,14 @@
 """
 构建脚本共享底层
 
-build.py(生产入口),dev_ui_link.py(本地联调),build_wasm.py / check_wasm.py
+build.py(生产入口), dev_ui_link.py(本地联调), build_wasm.py / check_wasm.py
 (wasm 产物那两步)都从这里取. 抽出来的都是"判断 / 字符串 / JSON / 文件系统"
 这类 shell 不擅长的部分:
 
-  * PROJECT_ROOT / UI_PKG_NAME / 本地副本默认位置: 以前在 build.sh 与应用侧各处
-    各写一遍, 注释里还写着"改一处必须同步另一处";
-  * package.json 的读取: 以前是 `node -p "require(...)"`, 为了读一个版本号
-    还得依赖 node;
-  * 版本同步策略 decide_ui_sync(): 策略矩阵是纯函数, 可以单独验证, 不必跑构建.
+  * PROJECT_ROOT / UI_PKG_NAME / 本地副本默认位置: 单一出处, 不必在各个入口
+    各写一遍;
+  * package.json 的读取: 用 json 直接读, 为了读一个版本号不必再依赖 node;
+  * 版本同步策略 decide_ui_sync(): 策略矩阵是纯函数, 输入输出都摆在参数上.
 
 编排(按顺序调用 npm / cargo)留在各自的入口脚本; 构建步骤本身的顺序依旧由
 package.json 的 build:all 定义, 这里不重复.
@@ -33,11 +32,13 @@ from pathlib import Path
 # scripts/buildlib.py -> scripts -> 仓库根
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-# 库在 npm 上是**不带 scope** 的包名 `miko_ui`(与 miko_graphcalc 的下游口径一致):
-# 这里既是 node_modules 下的目录名, 也是源码里的 import 说明符.
+# 库在 npm 上是**不带 scope** 的包名 `miko_ui`: 这里既是 node_modules 下的目录名,
+# 也是源码里的 import 说明符.
 UI_PKG_NAME = "miko_ui"
 # 本地工作副本默认位置: 仓库根的上层目录 ../__projects_web/miko_ui
 DEFAULT_UI_RELATIVE = Path("..") / "__projects_web" / UI_PKG_NAME
+# node_modules 下这份依赖的路径(相对仓库根): 安装与链接工具都认它.
+UI_NODE_MODULE_PATH = Path("node_modules") / UI_PKG_NAME
 
 EXIT_OK = 0
 EXIT_FAIL = 1
@@ -55,12 +56,12 @@ class BuildError(Exception):
 
 
 class Logger:
-    """分阶段日志前缀, 输出格式与旧 bash / mjs 脚本逐字一致.
+    """分阶段日志前缀. 各入口的格式:
 
-    build.py:    [BUILD][2025.09.25.14:00:00] msg   / [BUILD][ERROR][...] msg
-    dev_ui_link: [UI-LINK] msg                       / [UI-LINK][ERROR] msg
-    build_wasm:  [WASM][...] msg                     / [WASM][ERROR][...] msg
-    check_wasm:  [CHECK][...] msg                    / [CHECK][ERROR][...] msg
+    build.py:    [BUILD][<时间>] msg        / [BUILD][ERROR][<时间>] msg
+    dev_ui_link: [UI-LINK] msg              / [UI-LINK][ERROR] msg
+    build_wasm:  [WASM][<时间>] msg         / [WASM][ERROR][<时间>] msg
+    check_wasm:  [CHECK][<时间>] msg        / [CHECK][ERROR][<时间>] msg
     """
 
     def __init__(self, tag, with_timestamp=True):
@@ -83,7 +84,7 @@ class Logger:
 
 
 def require_command(name):
-    """缺工具时快速失败(旧 build.sh 的 require_command)."""
+    """缺工具时快速失败: shutil.which 找不到就抛 BuildError(exit 127)."""
     if shutil.which(name) is None:
         raise BuildError(
             f"missing required command: {name}",
@@ -94,8 +95,7 @@ def require_command(name):
 def run(command, cwd=None):
     """执行子进程并继承 stdio; 非零退出抛 CalledProcessError.
 
-    这是旧脚本 `set -e` 的等价物: 调用方不必逐个检查返回值, 顶层 run_cli()
-    会把子进程的退出码原样带出去.
+    调用方不必逐个检查返回值; 顶层 run_cli() 会把子进程的退出码原样带出去.
     """
     return subprocess.run([str(part) for part in command], cwd=cwd, check=True)
 
@@ -124,7 +124,7 @@ def run_cli(logger, body):
 
     BuildError         -> 逐条打 [ERROR] 日志, 用它自己的 exit_code;
     FileNotFoundError  -> 缺工具, 退出码 127(require_command 没覆盖到的那些);
-    CalledProcessError -> 带出子进程的退出码(旧脚本也是这个行为);
+    CalledProcessError -> 带出子进程的退出码;
     Ctrl-C             -> 130.
     """
     try:
@@ -166,10 +166,27 @@ def ui_version(ui_dir):
     return _package_field(Path(ui_dir) / "package.json", "version")
 
 
+def require_ui_checkout(ui_dir, *missing_hint):
+    """确认 ui_dir 是 miko_ui 的工作副本: 有 package.json, 且 name 对得上.
+
+    构建入口与链接工具在 npm ci / 建链之前都要过这一关: 早点失败, 不必先等一遍
+    完整安装. missing_hint 是"去哪找副本"这类补充提示, 由调用方给 -- 两边接下来
+    的动作不同(一个去装依赖, 一个去建链接).
+    """
+    ui_dir = Path(ui_dir)
+    if not (ui_dir / "package.json").is_file():
+        raise BuildError(f"no {UI_PKG_NAME} checkout at {ui_dir}", *missing_hint)
+    name = ui_package_name(ui_dir)
+    if name != UI_PKG_NAME:
+        raise BuildError(
+            f"{ui_dir} is not the {UI_PKG_NAME} checkout (package.json name='{name or '?'}')"
+        )
+
+
 def resolve_ui_dir(environ=None):
     """本地 miko_ui 工作副本位置: MIKO_UI_DIR 优先, 否则 ../__projects_web/miko_ui.
 
-    相对路径按仓库根解析(旧脚本靠开头的 `cd "$PROJECT_ROOT"` 达到同样效果).
+    相对路径按仓库根解析, 与调用方的 cwd 无关.
     """
     environ = os.environ if environ is None else environ
     override = environ.get("MIKO_UI_DIR")

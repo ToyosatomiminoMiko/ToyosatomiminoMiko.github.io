@@ -1,6 +1,5 @@
 /*
-纹理工具与程序化生成
-材质
+纹理工具与程序化生成材质
 - fetch_bytes / decode_png / create_texture:加载并上传纹理
 - generate_dirt / generate_fog / generate_interior:程序化生成玻璃材质
 - value_noise / fbm:基于 random::hash01 的噪声工具(含 PPM 可视化测试)
@@ -17,15 +16,15 @@
 2) 贴图通道语义要对齐着色器:
    - 雾 textureFog / 车厢 textureInterior:RGB = 颜色,A = 浓度;
    - 污渍 textureDirt:RGB = "乘性颜色"(接近 1 的暖灰),A = 浓度,
-     着色器做 c * dirt.rgb.曾经把三种污渍的遮罩直接写进 RGB 当颜色用,
-     结果 smudge 处 G/B 被乘成 0,整块玻璃被染成红棕 + 蓝点 + 绿线.
+     着色器做 c * dirt.rgb.把三种污渍的遮罩直接写进 RGB 当颜色用的话,
+     smudge 处 G/B 会被乘成 0,整块玻璃会被染成红棕 + 蓝点 + 绿线.
 3) 已知取舍 / 可调参数(不是 bug,但想调就动这几个数):
    - 灰尘很密:贴图约 10% 像素是灰尘点,2048 宽画布上约上万颗.嫌多就抬
-     generate_dirt 里的 dust 阈值 0.78 或降低权重 0.6;
-   - 划痕走样:line = (1-|...|)^18 在 256px 贴图里是亚像素细线,取整后
-     变成规则的斜向点阵(渲染里测不到明显周期峰,但贴图本身不干净);
-   - 次正规数陷阱:权重可以小到 4e-45,直接拿它做除数会把颜色算成乱值
-     (出现过 RGB=(170,255,255)),所以 generate_dirt 里有 MIN_WEIGHT 下限.
+     [`dirt::DUST_THRESHOLD`] 或调小 [`dirt::DUST_WEIGHT`];
+   - 划痕走样:scratch_mask 的线宽不到一个纹素(指数为
+     [`dirt::SCRATCH_LINE_EXPONENT`]),取整后变成规则的斜向点阵
+     (渲染里测不到明显周期峰,但贴图本身不干净);
+   - 三种污渍的权重都可能小到次正规数,颜色除法因此有 [`dirt::MIN_WEIGHT`] 下限.
 */
 use crate::random::hash01;
 use crate::render_params::{RENDER_TARGET_FORMAT, RGBA_BYTES_PER_PIXEL};
@@ -33,9 +32,7 @@ use crate::texture_params::{dirt, fog, interior, noise, CHANNEL_MAX};
 use wasm_bindgen::JsCast;
 use web_sys::window;
 
-/*
-读取内容返回为 byte数组
-*/
+/// 从 URL 取回原始字节;fetch 失败或非 2xx 都返回可读错误.
 pub(crate) async fn fetch_bytes(url: &str) -> Result<Vec<u8>, String> {
     let win: web_sys::Window = window().ok_or("没有 window")?;
     let promise: js_sys::Promise = win.fetch_with_str(url);
@@ -59,10 +56,10 @@ pub(crate) async fn fetch_bytes(url: &str) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
-/*
-decode PNG image
-return width,height,(32bit)RGBA
-*/
+/// 解码 PNG 为 RGBA8 像素,返回 `(宽, 高, 像素)`.
+///
+/// 覆盖 8 / 16 位深与 Rgba / Rgb / Grayscale / GrayscaleAlpha 四种颜色类型,
+/// 统一输出 4 通道(16 位只取每个通道的高字节).
 pub fn decode_png(data: &[u8]) -> Result<(u32, u32, Vec<u8>), String> {
     let decoder: png::Decoder<std::io::Cursor<&[u8]>> =
         png::Decoder::new(std::io::Cursor::new(data));
@@ -206,9 +203,7 @@ pub(crate) async fn create_png_texture(
     url: &str,
     premultiply: bool,
 ) -> Result<wgpu::Texture, String> {
-    // get PNG
     let bytes: Vec<u8> = fetch_bytes(url).await?;
-    // PNG decode
     let (w, h, rgba) = decode_png(&bytes)?;
     Ok(create_texture(
         device,
@@ -241,11 +236,10 @@ period:晶格周期(0 = 不平铺),x 和 y 一起取模.
 这样无论采样器是 Repeat 还是着色器里 fract 折回,接缝处都不会出现突变.
 */
 fn value_noise(x: f32, y: f32, seed: u32, period: u32) -> f32 {
-    // 定位网格(晶格):找到当前点所在的单位方格
-    // floor:返回小于或等于自身的最大整数
+    // 定位当前点所在的晶格方格
     let xi: i32 = x.floor() as i32;
     let yi: i32 = y.floor() as i32;
-    // 计算局部坐标
+    // 方格内的局部坐标,过一遍 smooth 让格点处导数为 0(块与块之间不出现折角)
     let tx: f32 = smooth(x - x.floor());
     let ty: f32 = smooth(y - y.floor());
     // 周期性:把晶格编号折回 [0, period),让首尾共用同一条晶格
@@ -291,21 +285,16 @@ fn fbm(x: f32, y: f32, seed: u32, octaves: u32, base_period: u32) -> f32 {
     sum / norm
 }
 
-/*
-将一个值限制在区间[0,1]内,除非它是 NaN
-if v>max return max
-if v>min return min
-else return v
-*/
+/// 把值夹到 [0, 1];NaN 原样返回(clamp 的两次比较都不成立).
 fn clamp01(v: f32) -> f32 {
     v.clamp(0.0, 1.0)
 }
 
 /*
-划痕 scratch:一族平行斜线(每贴图宽 71 条,每贴图高 44 条).
+划痕 scratch:一族平行斜线,斜率由两个整数系数决定
+(见 texture_params::dirt 的 SCRATCH_LINES_X / SCRATCH_LINES_Y).
 系数必须都是整数:fx / fy 各加 1(平铺折回)时 diag 只会增加整数,
-%1.0 之后图案才完全重合.44/71 ≈ 0.62,与原来的倾斜角一致.
-已知走样:powf(18) 让线宽不到 1 个纹素,取整后更像规则点阵(见文件头说明).
+%1.0 之后图案才完全重合.线宽与走样取舍见文件头说明.
 */
 fn scratch_mask(fx: f32, fy: f32, grain: f32) -> f32 {
     let diag: f32 = fx * dirt::SCRATCH_LINES_X + fy * dirt::SCRATCH_LINES_Y;
@@ -318,8 +307,7 @@ fn scratch_mask(fx: f32, fy: f32, grain: f32) -> f32 {
 - RGB:污渍的"乘性颜色"(1.0 = 不改变画面,越小越暗),着色器里做 c * dirt.rgb
 - A  :污渍浓度,着色器里做 mix(c, c*dirt.rgb, dirt.a * dirt_opacity)
 
-注意 RGB 必须是颜色而不是遮罩:三种污渍(污渍/划痕/灰尘)的遮罩只决定"哪里有多脏",
-颜色统一混成接近中性的暖灰,否则某个通道会被乘成 0,整块玻璃就会偏色.
+RGB 必须是颜色而不是遮罩,理由见文件头第 2 条.
 */
 pub fn generate_dirt(w: u32, h: u32) -> (u32, u32, Vec<u8>) {
     // 三种污渍各自的乘性颜色与阈值 / 频率 / seed 全部集中在
@@ -373,9 +361,8 @@ pub fn generate_dirt(w: u32, h: u32) -> (u32, u32, Vec<u8>) {
             let w_scratch: f32 = scratch * dirt::SCRATCH_WEIGHT;
             let w_dust: f32 = dust_a * dirt::DUST_WEIGHT;
             let a: f32 = (w_smudge.max(w_scratch).max(w_dust)).min(1.0);
-            // 颜色按各自权重混合:纯污渍处偏暖,纯灰尘处偏冷,划痕最浅
-            // weight 极小的像素 alpha 取整后本来就是 0,直接保持中性色:
-            // 既省掉一次除法,也避免次正规数(denormal)参与除法把颜色算花.
+            // 颜色按各自权重混合:纯污渍处偏暖,纯灰尘处偏冷,划痕最浅.
+            // 权重过小时保持中性色,避免次正规数参与颜色除法(下限见 [`dirt::MIN_WEIGHT`]).
             let weight: f32 = w_smudge + w_scratch + w_dust;
             let mut rgb: [f32; 3] = dirt::NEUTRAL_TINT;
             if weight > dirt::MIN_WEIGHT {
@@ -527,13 +514,12 @@ pub(crate) fn write_ppm(name: &str, w: u32, h: u32, pixels: &[u8]) {
 #[cfg(test)]
 mod tests {
     use super::{fbm, generate_dirt, scratch_mask, value_noise, write_ppm};
+    use crate::render_params::RGBA_BYTES_PER_PIXEL;
+    use crate::test_fixtures::PPM_CHANNELS;
+    use crate::texture_params::CHANNEL_MAX;
 
-    // 像素的 RGBA 分量数:与生成缓冲区的步长一致.
-    const RGBA_COMPONENTS: usize = 4;
-    // 灰度 PPM 每像素通道数(只写 R=G=B,无 alpha).
-    const PPM_CHANNELS: u32 = 3;
-    // 灰度量化上限:浮点 [0,1] 乘它取整得到 u8.
-    const CHANNEL_SCALE: f32 = 255.0;
+    // 像素的 RGBA 分量数:与生成缓冲区 / 上传格式的步长同源.
+    const RGBA_COMPONENTS: usize = RGBA_BYTES_PER_PIXEL as usize;
 
     /*
     预乘 alpha:颜色乘自己的 alpha,alpha 通道不动.
@@ -648,7 +634,8 @@ mod tests {
     }
 
     /*
-    生成一整64x64的灰度图片
+    把 value_noise 在 seed=TEST_SEED,period=0 下的输出导出成灰度 PPM
+    (test_output/value_noise_64x64.ppm).
     */
     #[test]
     fn dump_value_noise_ppm() {
@@ -661,10 +648,10 @@ mod tests {
             Vec::with_capacity((TEST_SIZE * TEST_SIZE * PPM_CHANNELS) as usize);
         for y in 0..TEST_SIZE {
             for x in 0..TEST_SIZE {
-                // seed=0 时,异或 yi ^ 0 = yi
-                // value_noise(x, y, 0) == hash01(x, y)
+                // 采样点是整数晶格顶点(tx = ty = 0),插值不生效;seed 异或进 y,
+                // 所以这里看到的是打散过的白噪声,而不是插值后的值噪声.
                 let v: u8 =
-                    (value_noise(x as f32, y as f32, TEST_SEED, 0) * CHANNEL_SCALE).round() as u8;
+                    (value_noise(x as f32, y as f32, TEST_SEED, 0) * CHANNEL_MAX).round() as u8;
                 pixels.extend_from_slice(&[v, v, v]);
             }
         }
@@ -673,7 +660,8 @@ mod tests {
     }
 
     /*
-    更多过渡
+    seed=0 且采样点都落在整数晶格顶点上(tx = ty = 0),插值在这里不生效:
+    512x512 输出就是 hash01(x, y) 本身,只是把同一张噪声看得更清楚.
     */
     #[test]
     fn dump_value_noise_smooth_ppm() {
@@ -685,21 +673,19 @@ mod tests {
             Vec::with_capacity((TEST_SIZE * TEST_SIZE * PPM_CHANNELS) as usize);
         for y in 0..TEST_SIZE {
             for x in 0..TEST_SIZE {
-                // 关键改动:把 0..512 映射到 0..8 的浮点数范围
-                // 这样会让采样点落在网格内部,触发插值
                 let fx: f32 = x as f32;
                 let fy: f32 = y as f32;
-                let v: u8 = (value_noise(fx, fy, 0, 0) * CHANNEL_SCALE).round() as u8;
+                let v: u8 = (value_noise(fx, fy, 0, 0) * CHANNEL_MAX).round() as u8;
                 pixels.extend_from_slice(&[v, v, v]);
             }
         }
-        // 文件名按真实分辨率命名:以前这里和上面那个测试都写 value_noise_64x64.ppm,
-        // 两个测试并行跑会互相覆盖,谁最后写完谁说了算.
+        // 文件名带真实分辨率:并行跑的测试各写各的文件,不会互相覆盖.
         write_ppm(TEST_PPM_NAME, TEST_SIZE, TEST_SIZE, &pixels);
     }
 
     /*
-    更多过渡:采样点落在网格内部,触发插值
+    把 fbm 在放大采样下的图案导出成灰度 PPM(test_output/fbm_512x512.ppm):
+    采样点落在晶格内部,能看到层与层之间的过渡.
     */
     #[test]
     fn dump_fbm_smooth_ppm() {
@@ -719,7 +705,7 @@ mod tests {
                 // 这样会让采样点落在网格内部,触发插值
                 let fx: f32 = x as f32 / SAMPLE_SCALE; // 范围 0.0 ~ 7.98
                 let fy: f32 = y as f32 / SAMPLE_SCALE; // 范围 0.0 ~ 7.98
-                let v: u8 = (fbm(fx, fy, 0, FBM_OCTAVES, 0) * CHANNEL_SCALE).round() as u8;
+                let v: u8 = (fbm(fx, fy, 0, FBM_OCTAVES, 0) * CHANNEL_MAX).round() as u8;
                 pixels.extend_from_slice(&[v, v, v]);
             }
         }

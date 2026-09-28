@@ -35,7 +35,7 @@ export interface ViewportLimits {
     maxPixels: number;
 }
 
-export const DEFAULT_VIEWPORT_LIMITS: ViewportLimits = { maxDpr: MAX_DPR, maxPixels: MAX_PIXELS };
+const DEFAULT_VIEWPORT_LIMITS: ViewportLimits = { maxDpr: MAX_DPR, maxPixels: MAX_PIXELS };
 
 /**
  * @param element  量取逻辑尺寸的元素(通常是 canvas)

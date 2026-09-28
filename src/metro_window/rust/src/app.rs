@@ -75,6 +75,11 @@ pub(crate) fn set_status(status: &HtmlElement, message: &str) {
     console::log_1(&message.into());
 }
 
+/// 把画布 / 后备缓冲的边长抬到 wgpu 允许的最小值(0 尺寸资源非法).
+fn clamp_dimension(value: u32) -> u32 {
+    value.max(MIN_TEXTURE_DIMENSION)
+}
+
 impl App {
     /// 建好整个渲染器.
     ///
@@ -132,8 +137,8 @@ impl App {
         let upload_max_dimension =
             boot.effective_upload_max(device.limits().max_texture_dimension_2d);
 
-        let width = canvas.width().max(MIN_TEXTURE_DIMENSION);
-        let height = canvas.height().max(MIN_TEXTURE_DIMENSION);
+        let width = clamp_dimension(canvas.width());
+        let height = clamp_dimension(canvas.height());
         let caps = surface.get_capabilities(&adapter);
         let format = caps.formats[0];
         let surface_config = wgpu::SurfaceConfiguration {
@@ -315,8 +320,8 @@ impl App {
     /// 画布属性由站点先改,再调这里:两件事必须在同一个任务里做完,
     /// 否则中间那一帧 `get_current_texture` 的尺寸会和配置对不上.
     pub(crate) fn resize(&mut self, width: u32, height: u32) {
-        let width = width.max(MIN_TEXTURE_DIMENSION);
-        let height = height.max(MIN_TEXTURE_DIMENSION);
+        let width = clamp_dimension(width);
+        let height = clamp_dimension(height);
         if (width, height) == (self.surface_config.width, self.surface_config.height) {
             return;
         }
@@ -433,7 +438,7 @@ impl App {
             return;
         }
 
-        // 限帧:累计真实流逝时间,达到 1/60 秒才真正渲染一帧
+        // 限帧:累计真实流逝时间达到 FRAME_INTERVAL_MS 才真正渲染一帧
         self.frame_accumulator += elapsed_ms;
         if self.frame_accumulator < FRAME_INTERVAL_MS {
             return;

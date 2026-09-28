@@ -1,10 +1,9 @@
 /*
 统一缓冲区(Uniform Buffer)
 - 每帧向 GPU 传递 时间 / 风格编号
-- 内存布局必须与 src/shaders.wgsl 的 struct Uniforms 完全一致
-- 曾经还带着 modelMatrix(单位阵)与 resolution,以及给水珠用的 deltaTime / aspect,
-  但它们都已经没有消费者(前两个是独立项目时期的模板残留,后两个随水珠一起拆到了
-  water_droplet_demo/),所以这里只保留真正参与计算的字段.
+- 内存布局必须与 src/shaders.wgsl 的 struct Uniforms 完全一致:
+  两个标量之后补两个填充字段凑满 16 字节(WGSL uniform 结构体要求 16 字节对齐),
+  字段顺序与填充位置都不能改.
 */
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]

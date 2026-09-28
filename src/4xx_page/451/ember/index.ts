@@ -1,15 +1,10 @@
 // ============================================================
 // EmberWebGPU -- 451 余烬粒子的对外门面
 //
-// 设计目标: 把原来每帧 180 次 arc() + createRadialGradient() + 两次全屏
-// fillRect 的 CPU 绘制全部搬到 GPU:
+// 每帧在 GPU 上做三件事:
 //   · 粒子仿真: compute shader, 状态常驻显存, CPU 每帧只写 32 字节 uniform
 //   · 粒子绘制: 单次 instanced draw (1 粒子 = 1 实例 = 6 顶点)
-//   · 拖尾/烟雾: 片元着色器里的指数衰减, 取代 CPU 逐帧全屏 fillRect
 //   · 最终合成: 一次全屏三角形采样, 把离屏图拷到画布
-//
-// 失败策略: WebGPU 不可用(不支持 / 没有适配器 / 设备申请失败 / 设备丢失)
-// 一律返回 false 并移除画布, 页面直接不画粒子, 不做任何降级绘制.
 //
 // 本文件只负责"串起来"(生命周期 + 每帧录制命令);具体职责已拆到同目录:
 //   capabilities(拿设备/选格式) / pipelines(建管线) / resources(建缓冲纹理)
@@ -19,7 +14,6 @@
 import {
     COMPOSITE_CLEAR_VALUE,
     COMPOSITE_VERTEX_COUNT,
-    DEFAULT_DEVICE_PIXEL_RATIO,
     FIXED_DT,
     FLOAT_BYTES,
     FRAME_JITTER_MS,
@@ -40,6 +34,14 @@ import {
     STATS_REPORT_MIN_FRAMES,
 } from './stats.config';
 import { CANVAS_ALPHA_MODE, FALLBACK_TEXTURE_FORMAT } from './capabilities.config';
+import {
+    COMPOSITE_BINDING_SAMPLER,
+    COMPOSITE_BINDING_SCENE,
+    COMPUTE_BINDING_PARTICLES,
+    COMPUTE_BINDING_UNIFORMS,
+    RENDER_BINDING_PARTICLES,
+    RENDER_BINDING_UNIFORMS,
+} from './pipelines.config';
 import { log } from './log';
 import { acquireGpuContext, pickTextureFormat } from './capabilities';
 import { buildPipelines, type EmberPipelines } from './pipelines';
@@ -82,9 +84,9 @@ export class EmberWebGPU {
     disposed = false;
     /** 离屏纹理格式,初始化成功后才有意义 */
     textureFormat: GPUTextureFormat = FALLBACK_TEXTURE_FORMAT;
-    /** 适配器信息,便于在控制台排查实际跑在哪块 GPU 上 */
+    /** 适配器信息; 仓库内没有读取方, 保留给控制台通过 window.__ember 查看 */
     adapterInfo: GPUAdapterInfo | null = null;
-    /** 最近一次解析出的物理像素尺寸,便于调试 */
+    /** 最近一次解析出的物理像素尺寸(与 canvas.width/height 一致); 仓库内没有读取方, 供控制台调试 */
     physWidth = 0;
     physHeight = 0;
 
@@ -97,7 +99,10 @@ export class EmberWebGPU {
     statsIntervalFrames = STATS_REPORT_FRAMES;
     /** 距上次上报超过这么久也强制上报一次(低帧率下 HUD 才不会僵住) */
     statsIntervalMs = STATS_REPORT_INTERVAL_MS;
-    /** 帧率上限; 设为 0 表示不限制 */
+    /**
+     * 帧率上限(0 = 不限帧). 但 start() 在系统开启"减少动态效果"时会把 0 也压到
+     * REDUCED_MOTION_FPS, 所以 0 只在未开启减少动态效果时才等于"不限".
+     */
     maxFps = MAX_FPS;
     /** 上报回调(屏幕 HUD / 控制台用), 默认不挂 */
     onStats: ((snapshot: FrameStatsSnapshot) => void) | null = null;
@@ -224,7 +229,7 @@ export class EmberWebGPU {
         return computeViewport(
             this.canvas,
             { width: window.innerWidth, height: window.innerHeight },
-            window.devicePixelRatio || DEFAULT_DEVICE_PIXEL_RATIO
+            window.devicePixelRatio
         );
     }
 
@@ -253,9 +258,8 @@ export class EmberWebGPU {
         this.historyViews = this.historyTextures.map((texture) => texture.createView());
         this.buildBindGroups();
 
-        // 首次只是把离屏纹理建起来, 粒子保留 createParticleStore() 那份"铺满整屏"
-        // 的预置状态. 原来这里无条件 reseed, 一上来就把所有粒子丢到屏幕下方,
-        // 于是刚打开页面时画面是空的, 要等好几秒才慢慢升满.
+        // 首次只建离屏纹理: 粒子保留 createParticleStore() 那份"铺满整屏"的预置状态,
+        // 这样刚打开页面时画面上就有余烬, 不必等它们从底部升满.
         if (!first) {
             // 画面尺寸变了: 让所有余烬重新从底部升起(按新宽度均匀铺开)
             reseedParticleStore(device, store, this.particleCount, viewport.cssWidth, viewport.cssHeight);
@@ -274,16 +278,16 @@ export class EmberWebGPU {
             label: '451-compute-bindgroup',
             layout: pipelines.computeLayout,
             entries: [
-                { binding: 0, resource: { buffer: store.buffer } },
-                { binding: 1, resource: { buffer: simBuffer } },
+                { binding: COMPUTE_BINDING_PARTICLES, resource: { buffer: store.buffer } },
+                { binding: COMPUTE_BINDING_UNIFORMS, resource: { buffer: simBuffer } },
             ],
         });
         this.renderBindGroup = device.createBindGroup({
             label: '451-render-bindgroup',
             layout: pipelines.renderLayout,
             entries: [
-                { binding: 0, resource: { buffer: store.buffer } },
-                { binding: 1, resource: { buffer: simBuffer } },
+                { binding: RENDER_BINDING_PARTICLES, resource: { buffer: store.buffer } },
+                { binding: RENDER_BINDING_UNIFORMS, resource: { buffer: simBuffer } },
             ],
         });
         this.compositeBindGroups = [0, 1].map((i) =>
@@ -291,9 +295,9 @@ export class EmberWebGPU {
                 label: `451-composite-bindgroup-${i}`,
                 layout: pipelines.compositeLayout,
                 entries: [
-                    // 合成时读的是"另一张"历史纹理, 由此形成逐帧反馈拖尾
-                    { binding: 0, resource: this.historyViews[i === 0 ? 1 : 0] },
-                    { binding: 1, resource: pipelines.sampler },
+                    // 合成采样的是"另一张"离屏纹理(即上一帧写入的那张), 轮换见 encode() 的 pingPong
+                    { binding: COMPOSITE_BINDING_SCENE, resource: this.historyViews[i === 0 ? 1 : 0] },
+                    { binding: COMPOSITE_BINDING_SAMPLER, resource: pipelines.sampler },
                 ],
             })
         );
@@ -304,11 +308,7 @@ export class EmberWebGPU {
     // ---------------------------------------------------------
     private bindInput(): void {
         this.onPointerMove = (event: PointerEvent): void => {
-            // pointer* 事件本身不带 touches, 这里保留旧实现的触摸回退,
-            // 便于以后直接复用同一处理器接 touch* 事件
-            const touch = (event as PointerEvent & { touches?: TouchList }).touches?.[0];
-            const point = touch ?? event;
-            this.wind.moveTo(point.clientX, point.clientY);
+            this.wind.moveTo(event.clientX, event.clientY);
         };
         this.onPointerLeave = (): void => this.wind.release();
         this.onResize = (): void => this.resize();
@@ -371,7 +371,7 @@ export class EmberWebGPU {
         const steps = this.clock.advance(now);
         let cpu = 0;
         if (steps === 0) {
-            // 帧间隔不足一个仿真步: 只合成一次, 反馈纹理继续衰减, 不必空转
+            // 帧间隔不足一个仿真步: 不推进仿真, 但仍录制并提交一帧(dt = 0), 免得空转
             cpu += this.renderFrame(0);
         } else {
             for (let i = 0; i < steps; i++) cpu += this.renderFrame(FIXED_DT);
@@ -456,23 +456,14 @@ export class EmberWebGPU {
         const device = this.device;
         const context = this.context;
         const pipelines = this.pipelines;
-        const simBuffer = this.simBuffer;
         const computeBindGroup = this.computeBindGroup;
         const renderBindGroup = this.renderBindGroup;
-        if (
-            !device ||
-            !context ||
-            !pipelines ||
-            !simBuffer ||
-            !computeBindGroup ||
-            !renderBindGroup
-        ) {
+        if (!device || !context || !pipelines || !computeBindGroup || !renderBindGroup) {
             return;
         }
 
         const encoder = device.createCommandEncoder({ label: '451-frame' });
         const writeIndex = this.pingPong;
-        const readIndex = 1 - writeIndex;
 
         // GPU 打点: 三条 pass 各切一段,不支持 timestamp-query 时整段为空操作
         const timer = this.gpuTimer;
@@ -488,9 +479,8 @@ export class EmberWebGPU {
 
         if (timer) timer.mark(encoder, slot + 1);
 
-        // ---- 2) 粒子(含历史衰减)写入离屏纹理 ----
-        // loadOp:clear + 透明黑 = 上一帧历史清零, 由着色器按 fade 重新加回,
-        // 以此实现 CPU 版那条 rgba(5,2,1,0.2) 拖尾, 但不需要 CPU 逐帧填充
+        // ---- 2) 把本帧粒子写入离屏纹理 ----
+        // loadOp:clear + 透明黑: 每帧都先清空目标纹理, 上面只留本帧画下的内容
         const particlePass = encoder.beginRenderPass({
             label: '451-particle-pass',
             colorAttachments: [
@@ -509,7 +499,7 @@ export class EmberWebGPU {
 
         if (timer) timer.mark(encoder, slot + 2);
 
-        // ---- 3) 反馈合成 -> 画布 (拖尾 + 烟雾) ----
+        // ---- 3) 合成 -> 画布 (采样上一帧写入的那张离屏纹理) ----
         const compositePass = encoder.beginRenderPass({
             label: '451-composite-pass',
             colorAttachments: [
@@ -532,7 +522,7 @@ export class EmberWebGPU {
         }
 
         this.pendingEncoder = encoder;
-        this.pingPong = readIndex;
+        this.pingPong = 1 - writeIndex;
     }
 
     private submit(): void {
@@ -585,7 +575,7 @@ export class EmberWebGPU {
         this.renderBindGroup = null;
         this.compositeBindGroups = [];
 
-        // 初始化失败/设备丢失 -> 直接移除画布, 不做任何降级绘制
+        // keepCanvas: true 时保留画布(scripts/perf/451.mjs 会复用同一实例)
         if (!keepCanvas) this.canvas.remove();
     }
 }

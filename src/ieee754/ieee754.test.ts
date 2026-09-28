@@ -54,7 +54,7 @@ describe('IEEE754 computeIEEE754', () => {
     });
 
     it('float64 最小次正规数与最小规格化的边界', () => {
-        // Number.MIN_VALUE ≈ 2^-1074:最小的次正规数(尾数域=1)
+        // Number.MIN_VALUE = 2^-1074:最小的次正规数(指数域=0, 尾数域=1)
         const minSub = computeIEEE754(Number.MIN_VALUE, FLOAT64);
         expect(minSub.classification).toBe('subnormal');
         expect(minSub.fraction).toBe(1);
@@ -192,7 +192,7 @@ describe('IEEE754 exactValueLatex (真实值, 以位域为准)', () => {
         expect(latex).toContain('\\right)_{2}');
         // 第 2 行: 公式(十进制) -- 尾数换算成十进制
         expect(latex).toContain('= 2^{1019-1023} \\times 1.6');
-        // 第 3 行: 计算后的精确十进制值, 按 32 字符分包续排
+        // 第 3 行: 由位域算出的完整精确十进制值(整串连续, 容器横向滚动而不换行)
         expect(latex).toContain('0.100000000000000005551115123125');
         expect(latex).toContain('7827021181583404541015625');
         expect(latex).toContain('\\begin{aligned}');

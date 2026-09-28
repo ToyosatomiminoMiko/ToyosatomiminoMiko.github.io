@@ -7,28 +7,34 @@
 用户拿到的会是 Vite 或 tsc 的 "Failed to resolve import ..." --
 说得没错, 但没告诉他该跑什么.
 
-日志口径与重构前那个 mjs 版相同(缺产物时两行提示), 只是前缀并入了
-buildlib 的分阶段格式: `[CHECK][ERROR][<时间>] ...`.
+缺产物时按 buildlib 的分阶段格式打印两行: `[CHECK][ERROR][<时间>] ...`.
 """
 
 from __future__ import annotations
 
 import sys
 
+import build_wasm
 import buildlib as kit
 
 LOG = kit.Logger("CHECK")
 
 # 相对仓库根, 不依赖调用方的 cwd(npm run 本来就在仓库根, 这里写死更稳).
-ARTIFACT = "src/metro_window/wasm/metro_window.js"
+# JS 胶水与 .wasm 二进制同名同源, 基名从 build_wasm 取, 避免两处各写一份.
+WASM_RELATIVE = build_wasm.WASM_DIR.relative_to(build_wasm.ROOT)
+ARTIFACTS = (
+    WASM_RELATIVE / f"{build_wasm.WASM_OUT_NAME}.js",
+    WASM_RELATIVE / f"{build_wasm.WASM_OUT_NAME}_bg.wasm",
+)
 
 
 def run_check():
-    if not (kit.PROJECT_ROOT / ARTIFACT).exists():
-        raise kit.BuildError(
-            f"缺少 {ARTIFACT}",
-            "生成它: npm run build:wasm(需要 cargo / rustc / wasm32-unknown-unknown)",
-        )
+    for artifact in ARTIFACTS:
+        if not (kit.PROJECT_ROOT / artifact).exists():
+            raise kit.BuildError(
+                f"缺少 {artifact}",
+                "生成它: npm run build:wasm(需要 cargo / rustc / wasm32-unknown-unknown)",
+            )
     return kit.EXIT_OK
 
 

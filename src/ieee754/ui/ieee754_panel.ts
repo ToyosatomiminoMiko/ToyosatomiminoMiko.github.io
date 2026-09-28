@@ -1,10 +1,8 @@
 /*
-IEEE 754 面板的**标记组件**(声明式).
+IEEE 754 面板的标记组件(声明式).
 
-面板原先写死在 index.html 的 `#ieee754` 窗格里,再由 ieee754.ts 按 id 一个个取回
-(`getElementById` / `querySelector`),两处各写一份 id,改一处就静默失配.现在改成
-和地铁车窗控制台同一条约定:宿主只提供空窗格(骨架里的 `.tab-pane#ieee754`),
-标记按 config.ts 的声明生成,并把行为代码要用的**元素引用**一起交回:
+宿主只提供空窗格(骨架里的 `.tab-pane#ieee754`),本模块按 config.ts 的声明生成整块
+标记,并把行为代码要用的**元素引用**一起交回 -- 行为代码不查 DOM,只认交回的引用:
 
     <section class="ui-panel">                       面板框体(库的 createPanel)
       <header class="ui-panel-header"><span class="ui-panel-title">IEEE 754 浮点可视化</span></header>
@@ -21,34 +19,18 @@ IEEE 754 面板的**标记组件**(声明式).
           <div class="ieee-controls__input">十进制 label + div.ieee-input-group(input#ieee-input + button#ieee-convert)</div>
         </div>
         <div id="ieee-error" class="ieee-error" hidden></div>
-        <div class="ieee-section">
-          <div class="ieee-legend">S / E / M 三项(位数提示是 <b data-role="...">)</div>
-          <div id="ieee-bits" class="ieee-bits"></div>
-          <div id="ieee-bitstring" class="ieee-bitstring"></div>
-        </div>
+        <div class="ieee-section">div.ieee-legend(位数提示是 <b data-role="...">) + #ieee-bits + #ieee-bitstring</div>
         <div id="ieee-breakdown" class="ieee-breakdown"></div>
-        <div class="ieee-section">
-          <div class="ieee-formula-title">公式 (KaTeX)</div>
-          <div id="ieee-formula" class="ieee-formula"></div>
-        </div>
-        <div class="ieee-section">
-          <div class="ieee-formula-title">特殊值参考 (点击载入)</div>
-          <div id="ieee-special" class="ieee-special"></div>
-        </div>
+        <div class="ieee-section">div.ieee-formula-title(公式 (KaTeX)) + #ieee-formula</div>
+        <div class="ieee-section">div.ieee-formula-title(特殊值参考 (点击载入)) + #ieee-special</div>
       </div>
     </section>
 
-本模块是纯函数:不读页面,不改全局,不绑事件(`addEventListener` / 初始渲染都是
-ieee754.ts 的事),只把"描述"变成元素并交回引用 -- 与 ui/settings.ts 的分工一致.
-标记的形状与类名逐个照搬重构前的 index.html,`public/css/ieee754.css` 按这些
-id / class 命中,不得合并或省略;例外有两处 -- 面板框体现在由 miko_ui 的
-`createPanel` 建(类名归库,本站不再声明),顶部那一行从 bootstrap 的栅格 /
-表单件换成站点自研的 `.ieee-controls*` / `.ieee-input*`(见 ieee754.css).
-
-**两处归 UI 库(`miko_ui`)**:转换按钮是 `createButton`(基线类 `.ui-button`),
-精度那一列则由 `createMenu` 生成的**折叠菜单**替换了原来的 `<select>`
-(触发按钮同样是库的按钮,菜单面板 / 分组 / 当前项 / 开合都归库,本站只给数据
-与一个挂载锚点);站点不再给两者写外观,也没有 bootstrap 的 `.form-select` 了.
+这些 id / class 是 `public/css/ieee754.css` 的命中条件,不得合并或省略.三处部件归
+UI 库(`miko_ui`):面板框体是 `createPanel`,转换按钮是 `createButton`,精度那一列是
+`createMenu` 的折叠菜单(触发按钮 / 面板 / 分组 / 当前项 / 开合都归库,本站只给数据
+与挂载锚点).本模块是纯函数:不读页面,不改全局,不绑事件(`addEventListener` /
+初始渲染都是 ieee754.ts 的事).
 */
 
 import { createButton, createMenu, createPanel, create_element, type Child, type MenuHandle } from 'miko_ui';
@@ -61,6 +43,7 @@ import {
     IEEE754_CONTROLS_INPUT_CLASS,
     IEEE754_CONTROLS_ROW_CLASS,
     IEEE754_CONVERT_LABEL,
+    IEEE754_DEFAULT_FORMAT_CHOICE,
     IEEE754_DOM,
     IEEE754_ERROR_CLASS,
     IEEE754_EXP_BITS_ROLE,
@@ -121,9 +104,8 @@ export interface Ieee754Panel {
 /**
  * 触发按钮上的文案:当前精度的标签(与菜单项文案同一份).
  *
- * 当前精度显示在按钮上(原来的 `<select>` 自带这个能力,菜单没有),所以行为代码
- * 换精度时要按同一条规则改写按钮文案 -- 规则只写在这里,组件与行为共用一份.
- * 取值不在声明里时原样显示(声明与状态不同步时看得见,而不是静默显示空白).
+ * 菜单件不把当前精度显示在触发按钮上,所以组件初始化与行为代码换精度时都得调这里,
+ * 规则只此一份.取值不在声明里时原样显示 -- 声明与状态不同步时看得见,而不是显示空白.
  */
 export function formatTriggerText(value: string): string {
     const choice = IEEE754_FORMAT_CHOICES.find((spec) => spec.value === value);
@@ -144,8 +126,8 @@ function createLegendPart(part: IEEE754LegendPart, sink: Record<string, HTMLElem
  * 生成整块面板并交回元素引用.
  *
  * 位数提示两个 <b> 的引用:组件在这里把它们按 data-role 收进 sink,再按 config 里
- * 声明的角色取回,所以不需要 querySelector.角色是同一份模型里的字面量,
- * 声明里少一项就等于模型自身不完整 -- 这是构造上的保证,不再有运行期缺失分支.
+ * 声明的角色取回,不需要 querySelector.角色是同一份模型里的字面量,声明里缺一项
+ * 就等于模型自身不完整 -- 构造上即保证不缺,没有运行期缺失分支.
  */
 export function createIeee754Panel(): Ieee754Panel {
     const bitsLabels: Record<string, HTMLElement> = {};
@@ -163,8 +145,7 @@ export function createIeee754Panel(): Ieee754Panel {
     // 菜单项 / 当前项)与一个锚点.按钮文案由 `formatTriggerText` 从当前项算出来;
     // 面板自身由库建(`.menu-panel.menu-popover`,role="menu"),插在锚点里等它定位.
     // 菜单项的小字(`hint`)是汉语名词,由库排在行右端(弱的 `.menu-item-hint`).
-    const initialFormat = IEEE754_FORMAT_CHOICES.find((choice) => choice.active)
-        ?? IEEE754_FORMAT_CHOICES[0];
+    const initialFormat = IEEE754_DEFAULT_FORMAT_CHOICE;
     const formatTrigger = createButton({ text: formatTriggerText(initialFormat.value) }).element;
     formatTrigger.id = IEEE754_DOM.formatId;
     const formatMenu = createMenu<string>({
@@ -233,9 +214,8 @@ export function createIeee754Panel(): Ieee754Panel {
         { class: IEEE754_SPECIAL_CLASS, id: IEEE754_DOM.specialId },
     );
 
-    // 精度 / 输入那一行:两列按站点自研的 `.ieee-controls` 布局摆放(替代原 bootstrap
-    // 栅格),宽度语义不变 -- 左列随内容,右列半宽.
-    // 精度那一列的 label 仍指向 #ieee-format,只是它现在是菜单的触发按钮
+    // 精度 / 输入那一行:两列按 `.ieee-controls` 布局摆放 -- 左列随内容,右列半宽.
+    // 精度那一列的 label 指向 #ieee-format,即菜单的触发按钮
     // (`<label for>` 认所有可标注元素,按钮是其中之一).
     const controlsRow = create_element({ tag: 'div' }, { class: IEEE754_CONTROLS_ROW_CLASS },
         create_element({ tag: 'div' }, { class: IEEE754_CONTROLS_FORMAT_CLASS },

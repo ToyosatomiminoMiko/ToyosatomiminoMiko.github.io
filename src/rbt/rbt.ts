@@ -59,7 +59,7 @@ import {
 import { createRbtPanel } from './ui/rbt_panel';
 
 // ============================================================
-// 红黑树节点定义 (支持任意数值/字符串)
+// 红黑树节点定义(值统一按字符串处理)
 // ============================================================
 type Color = 'R' | 'B';
 
@@ -83,12 +83,8 @@ class RBNode {
 // ============================================================
 // 解析核心: 支持 "13B(8R(1B,11R),17R(15B,25B))" 以及简写叶子 "5R" -> 自动补全 "(nil,nil)"
 // ============================================================
-function trim(s: string): string {
-    return s.trim();
-}
-
 function parseNode(str: string): RBNode | null {
-    let s = trim(str);
+    let s = str.trim();
     // nil / 空 直接返回 null
     if (s === '' || s === RBT_NIL || s === 'Nil' || s === 'NIL') {
         return null;
@@ -118,7 +114,6 @@ function parseNode(str: string): RBNode | null {
         throw new Error(`${RBT_ERR_COLOR_MARK}${valueColorPart}`);
     }
     const valueStr = valueColorPart.substring(0, valueColorPart.length - 1);
-    const nodeValue = valueStr;
 
     // 匹配括号内左右子树
     let balance = 1;
@@ -132,7 +127,6 @@ function parseNode(str: string): RBNode | null {
         throw new Error(`${RBT_ERR_UNBALANCED}${s}`);
     }
     const inside = s.substring(leftParenIdx + 1, rightParenIdx - 1);
-    let leftStr = '', rightStr = '';
     let commaIdx = -1;
     let depth = 0;
     for (let i = 0; i < inside.length; i++) {
@@ -147,12 +141,12 @@ function parseNode(str: string): RBNode | null {
     if (commaIdx === -1) {
         throw new Error(`${RBT_ERR_NO_COMMA}${inside}`);
     }
-    leftStr = inside.substring(0, commaIdx);
-    rightStr = inside.substring(commaIdx + 1);
+    const leftStr = inside.substring(0, commaIdx);
+    const rightStr = inside.substring(commaIdx + 1);
 
     const leftChild = parseNode(leftStr);
     const rightChild = parseNode(rightStr);
-    return new RBNode(nodeValue, colorChar as Color, leftChild, rightChild);
+    return new RBNode(valueStr, colorChar as Color, leftChild, rightChild);
 }
 
 function buildTreeFromExpression(expr: string): RBNode | null {
@@ -168,7 +162,8 @@ function buildTreeFromExpression(expr: string): RBNode | null {
 }
 
 // ============================================================
-// 画布绘制器 -- 采用[区间递归分配法]彻底避免节点重叠/交叉
+// 画布绘制器 -- 区间递归分配法:每个节点占据一段水平区间并居中,左右子树
+// 各分得父节点两侧的子区间;区间不够时先压到最小间距,再由位置钳制兜底
 // ============================================================
 class TreeDrawer {
     ctx: CanvasRenderingContext2D;
@@ -233,11 +228,9 @@ class TreeDrawer {
             if (rightLeftBound >= rightBound) rightLeftBound = rightBound - this.minHorizontalGap * RBT_MIN_CHILD_WIDTH_FACTOR;
             this.placeNodeRecursive(node.right!, rightLeftBound, rightBound, y + this.yStep);
         }
-        // 无孩子:叶子节点不需递归
     }
 
     layoutTree(root: RBNode): void {
-        if (!root) return;
         const leftBoundary = this.sideMargin;
         const rightBoundary = this.canvasWidth - this.sideMargin;
         if (leftBoundary >= rightBoundary) return;
@@ -247,7 +240,6 @@ class TreeDrawer {
     }
 
     private clampNodePositions(node: RBNode): void {
-        if (!node) return;
         const minX = this.sideMargin - RBT_CLAMP_TOLERANCE;
         const maxX = this.canvasWidth - this.sideMargin + RBT_CLAMP_TOLERANCE;
         if (node.x !== undefined && node.x < minX) node.x = minX;
@@ -313,7 +305,7 @@ class TreeDrawer {
         ctx.font = `bold ${Math.max(RBT_NODE_FONT_MIN_SIZE, Math.floor(r * RBT_NODE_FONT_RADIUS_FACTOR))}px ${RBT_NODE_FONT_FAMILY}`;
         ctx.textAlign = RBT_TEXT_ALIGN;
         ctx.textBaseline = RBT_TEXT_BASELINE;
-        ctx.fillText(`${node.value}`, x, y);
+        ctx.fillText(node.value, x, y);
     }
 
     drawAllNodes(node: RBNode | null): void {
@@ -350,8 +342,8 @@ class TreeDrawer {
 // ============================================================
 /**
  * 把红黑树面板挂到宿主(骨架交回的 `shell.panes.rbt` 空窗格)上.
- * 标记由 rbt_panel.ts 生成并把元素引用交回,所以这里不再查 DOM,也没有
- * "找不到元素"的失败路径;绘制与解析逻辑与拆分前完全一致.
+ * 标记由 rbt_panel.ts 生成并把元素引用交回,所以这里只按引用操作元素,
+ * 不查 DOM,也没有"找不到元素"的失败路径;绘制与解析逻辑都在本文件里.
  */
 export function mountRBT(host: HTMLElement): void {
     const panel = createRbtPanel();

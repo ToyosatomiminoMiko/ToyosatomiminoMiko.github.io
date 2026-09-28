@@ -3,8 +3,8 @@
 //
 // 挂载形态与地铁车窗控制台 / 时钟一致:宿主是**空标签页窗格**(由
 // src/common/ui/site_shell.ts 建好并交回引用),标记由 ui/oled_panel.ts 生成,
-// 本文件只做行为 -- 画板需要的每个元素都由 OledPanel 一次交回,
-// 不再有 `document.getElementById` / `querySelectorAll` 之类的"回头查 DOM".
+// 本文件只做行为 -- 画板需要的每个元素都由 OledPanel 一次交回,行为代码只按
+// 引用操作,不按 id 回头查 DOM.
 // ================================================================
 
 import { create_element, type CodeEditorHandle, type SegmentedHandle } from 'miko_ui';
@@ -15,6 +15,7 @@ import type {
     ByteOrderMode,
     PixelColorMode,
     OLEDConfig,
+    OledRgb,
     ImportResult,
     BresenhamCallback,
 } from './types';
@@ -59,7 +60,6 @@ import {
     OLED_PANEL_EDITOR_EXPAND_TEXT,
     OLED_PANEL_EDITOR_EXPANDED_CLASS,
     OLED_PNG_FILENAME,
-    OLED_PREVIEW_COMPOSITE_OPERATION,
     OLED_PREVIEW_HALF_PIXEL,
     OLED_PREVIEW_STROKE_WIDTH,
     OLED_RESIZE_DEBOUNCE_MS,
@@ -67,8 +67,7 @@ import {
 } from './config';
 
 // ---------- 默认配置 ----------
-/** 默认配置(集中定义于 oled/config.ts,保证画布尺寸/预览色只有一处定义) */
-const DEFAULT_CONFIG: OLEDConfig = OLED_DEFAULT_CONFIG;
+// OLED_DEFAULT_CONFIG 集中定义于 oled/config.ts,保证画布尺寸/预览色只有一处定义.
 
 export class OLEDCanvas {
     // ---- DOM 引用(全部由面板交回,构造函数里一次接好) ----
@@ -112,8 +111,10 @@ export class OLEDCanvas {
     // 初始化画布(未绘制处 = 屏幕未亮起的中性灰,见 OLED_COLOR_UNLIT)
     private imageData: ImageData;
 
-    // 坐标转换系统
-    private canvasRect: DOMRect;
+    // 坐标转换系统:画布在视口中的边界矩形.由构造函数末尾的 updateCanvasRect()
+    // 首次写入,之后鼠标进入 / 滚动 / 窗口 resize 时重测(见 updateCanvasRect);
+    // 字段用 definite assignment 断言,是因为写入发生在方法里.
+    private canvasRect!: DOMRect;
 
     // 窗口事件监听
     private resizeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -121,11 +122,11 @@ export class OLEDCanvas {
     private readonly config: OLEDConfig;
 
     constructor(panel: OledPanel, config: Partial<OLEDConfig> = {}) {
-        this.config = { ...DEFAULT_CONFIG, ...config };
+        this.config = { ...OLED_DEFAULT_CONFIG, ...config };
 
         // DOM 引用全部来自面板(ui/oled_panel.ts 生成标记时一并交回):
-        // 这里既不查 id,也不做"找不到元素"的容错分支 -- 标记与行为同源之后,
-        // 元素必然存在,原先的 OLED_CANVAS_MISSING_MESSAGE 也随之失去意义.
+        // 这里既不查 id,也不做"找不到元素"的容错分支 -- 标记与行为同源,
+        // 交回来的元素必然存在.
         this.canvas = panel.canvas;
         this.indicator = panel.indicator;
         this.coordsDisplay = panel.coordsDisplay;
@@ -145,8 +146,8 @@ export class OLEDCanvas {
         this.ctx = ctx;
 
         // 设置物理像素尺寸(实际分辨率)
-        this.canvas.width = this.config.width;   // Embedded 的典型宽度
-        this.canvas.height = this.config.height; // Embedded 的典型高度
+        this.canvas.width = this.config.width;
+        this.canvas.height = this.config.height;
 
         // 初始化画布:未绘制处铺成"屏幕未亮起"的中性灰
         this.imageData = this.ctx.createImageData(this.canvas.width, this.canvas.height);
@@ -158,25 +159,19 @@ export class OLEDCanvas {
         }
         this.ctx.putImageData(this.imageData, 0, 0);
 
-        // 获取初始边界矩形
-        this.canvasRect = this.canvas.getBoundingClientRect();
-
-        // 颜色按钮一开始就显示当前模式(默认 dark)的文案与底色,不必等第一次点击
+        // 颜色按钮一开始就显示当前模式(默认 light)的文案,不必等第一次点击
         this.applyColorMode();
 
-        // 绑定事件
+        // 绑定事件,并量一次画布在视口中的位置(后续滚动 / resize / 鼠标进入时重测)
         this.bindEvents();
         this.updateCanvasRect();
     }
 
-    /*
-    操作逻辑
-    */
     // ======================
     // 事件绑定
     // ======================
     private bindEvents(): void {
-        // --- 按钮事件(元素引用来自面板,不再按 id 查找) ---
+        // --- 按钮事件(元素引用来自面板,不按 id 查找) ---
         this.refillBtn.addEventListener('click', () => this.refill());
         this.colorBtn.addEventListener('click', () => this.toggleColor());
         this.pngBtn.addEventListener('click', () => this.downloadPNG());
@@ -210,7 +205,7 @@ export class OLEDCanvas {
         // ======================
         // 键盘事件监听
         // ======================
-        // 按下`ESC`终止直线绘制
+        // 按下 ESC 终止正在进行的直线 / 矩形绘制预览
         document.addEventListener('keydown', this.onKeyDown);
 
         // ======================
@@ -225,10 +220,7 @@ export class OLEDCanvas {
     // ======================
     /** 清除画板(整块铺成当前画笔颜色:暗 = 全部未亮,亮 = 全部点亮) */
     refill(): void {
-        const color = OLED_COLOR_MODES[this.pixelColorMode].pixelColor;
-        for (let i = 0; i < this.imageData.data.length; i += OLED_BYTES_PER_PIXEL) {
-            fillRgb(this.imageData.data, i, color);
-        }
+        this.fillImageData(OLED_COLOR_MODES[this.pixelColorMode].pixelColor);
         this.ctx.putImageData(this.imageData, 0, 0);
     }
 
@@ -267,13 +259,12 @@ export class OLEDCanvas {
      * 还没导入的字节);导出的源码本身就是导入正则认的 `0x??` 形式,覆盖之后
      * 立刻点"导入数据"读回来的仍是同一幅图.
      */
-    exportData(): string {
+    exportData(): void {
         const cSource = this.generateEmbeddedData();
         this.dataEditor.textarea.value = cSource;
         // 程序化写 `.value` 不派发 `input`:行号栏与高亮层要显式刷新一次
         // (库的 `CodeEditor.refresh`,它转给两个装饰件;见 ui/oled_panel.ts).
         this.dataEditor.refresh();
-        return cSource;
     }
 
     /** 下载PNG */
@@ -327,18 +318,18 @@ export class OLEDCanvas {
     }
 
     /**
-     * 折叠 / 展开数据编辑器,返回切换后的状态(true = 展开).
+     * 折叠 / 展开数据编辑器.
      *
      * 两种高度都是设计参数,留在样式表里(见 public/css/index.css 与 tokens.css):
-     * 折叠态 = `--oled-editor-height`(同时也是最小高度,折叠态就是原来那个默认
-     * 高度),展开态 = 70 行的 `--oled-editor-expanded-height`.这里只切一个类名,
-     * 并把按钮文案与 `aria-expanded` 同步过去.
+     * 折叠态 = `--oled-editor-height`(同时也是最小高度),展开态 = 70 行的
+     * `--oled-editor-expanded-height`.这里只切一个类名,并把按钮文案与
+     * `aria-expanded` 同步过去.
      *
      * 为什么还要清一次内联 height:库的外框是 `overflow: hidden`,本站又给了
      * `resize: vertical`,用户手动拖过之后浏览器会在外框上留下内联 height --
      * 内联样式压得过样式表里的两种高度,不清掉的话"点了没反应".
      */
-    toggleEditorExpanded(): boolean {
+    toggleEditorExpanded(): void {
         const editor = this.dataEditor.element;
         const expanded = editor.classList.toggle(OLED_PANEL_EDITOR_EXPANDED_CLASS);
         editor.style.height = '';
@@ -346,12 +337,18 @@ export class OLEDCanvas {
             ? OLED_PANEL_EDITOR_COLLAPSE_TEXT
             : OLED_PANEL_EDITOR_EXPAND_TEXT;
         this.editorToggleBtn.setAttribute('aria-expanded', String(expanded));
-        return expanded;
     }
 
     // ======================
     // 绘图核心逻辑
     // ======================
+    /** 把整块 imageData 铺成单一颜色(R/G/B 三通道,Alpha 不动) */
+    private fillImageData(color: OledRgb): void {
+        for (let i = 0; i < this.imageData.data.length; i += OLED_BYTES_PER_PIXEL) {
+            fillRgb(this.imageData.data, i, color);
+        }
+    }
+
     /**
      * 设置单个像素颜色
      * @param x - X坐标
@@ -364,8 +361,8 @@ export class OLEDCanvas {
         fillRgb(this.imageData.data, index, color);
     }
 
-    // Bresenham 直线通用迭代器 (核心抽离)
     /**
+     * Bresenham 直线通用迭代器
      * 遍历直线上的所有像素坐标,每到一个点就调用回调函数
      * @param x1 - 起点X
      * @param y1 - 起点Y
@@ -407,34 +404,41 @@ export class OLEDCanvas {
     }
 
     /**
+     * 在离屏画布上画一层预览,再整层叠回主画布.
+     * 离屏画布初始全透明,回调画下的记号盖到主画布上,透明处不覆盖 -- 所以主画布
+     * 必须先恢复成"鼠标刚按下"时的干净快照(由调用方 putImageData).
+     * 离屏 canvas 只作临时缓冲,不进文档也不是站点元素,故直接用
+     * document.createElement,不走 miko_ui 的 create_element.
+     */
+    private drawPreviewLayer(draw: (ctx: CanvasRenderingContext2D) => void): void {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = this.canvas.width;
+        tempCanvas.height = this.canvas.height;
+        const tempCtx = tempCanvas.getContext('2d')!;
+        tempCtx.imageSmoothingEnabled = false;
+        draw(tempCtx);
+        this.ctx.drawImage(tempCanvas, 0, 0);
+    }
+
+    /**
      * 实时预览直线(不修改实际图像数据)
      * @param endX - 终点X坐标
      * @param endY - 终点Y坐标
      */
     private previewLine(endX: number, endY: number): void {
         if (!this.previewImageData || !this.startPos) return;
-        // 1. 恢复预览前状态
+        const start = this.startPos;
+        // 1. 恢复预览前状态,擦掉上一帧预览
         this.ctx.putImageData(this.previewImageData, 0, 0);
 
-        // 2. 创建临时canvas实现预览效果
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = this.canvas.width;
-        tempCanvas.height = this.canvas.height;
-        const tempCtx = tempCanvas.getContext('2d')!;
-        tempCtx.imageSmoothingEnabled = false;
-
-        // 使用混合模式保持二值化核心
-        tempCtx.globalCompositeOperation = OLED_PREVIEW_COMPOSITE_OPERATION;
-        tempCtx.fillStyle = this.config.previewColor; // 直线必须fillStyle
-        tempCtx.globalAlpha = this.config.previewOpacity;
-
-        // 3. 调用迭代器,在临时画布上画红色半透明点
-        this.walkBresenham(this.startPos.x, this.startPos.y, endX, endY, (x, y) => {
-            tempCtx.fillRect(x, y, 1, 1);
+        // 2. 在离屏画布上逐点画预览(直线用 fillRect,颜色只能走 fillStyle)
+        this.drawPreviewLayer((tempCtx) => {
+            tempCtx.fillStyle = this.config.previewColor;
+            tempCtx.globalAlpha = this.config.previewOpacity;
+            this.walkBresenham(start.x, start.y, endX, endY, (x, y) => {
+                tempCtx.fillRect(x, y, 1, 1);
+            });
         });
-
-        // 4. 叠加到主画布
-        this.ctx.drawImage(tempCanvas, 0, 0);
     }
 
     /** 矩形绘制逻辑 */
@@ -456,72 +460,61 @@ export class OLEDCanvas {
         }
     }
 
-    /** 预览矩形 */
+    /**
+     * 预览矩形(不修改实际图像数据)
+     * @param endX - 终点X坐标
+     * @param endY - 终点Y坐标
+     */
     private previewRectangle(endX: number, endY: number): void {
         if (!this.previewImageData || !this.startPos) return;
-        // ===========================================
-        // 1. 把主画布恢复到"鼠标刚按下时"的状态
-        // previewImageData 是从 mousedown 时捕获的干净快照
-        // 这一步会擦除上一帧的预览矩形
-        // ===========================================
+        const start = this.startPos;
+        // 1. 恢复预览前状态,擦掉上一帧预览
         this.ctx.putImageData(this.previewImageData, 0, 0);
 
-        // ===========================================
-        // 2. 创建一个完全独立的离屏 canvas
-        // 它和主画布没有任何关系
-        // ===========================================
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = this.canvas.width;   // 128
-        tempCanvas.height = this.canvas.height; // 64
-        const tempCtx = tempCanvas.getContext('2d')!;
-        tempCtx.imageSmoothingEnabled = false;
+        // 2. 在离屏画布上描出预览矩形(离屏画布初始透明,只有描边会叠到主画布)
+        this.drawPreviewLayer((tempCtx) => {
+            tempCtx.strokeStyle = this.config.previewColor;
+            tempCtx.globalAlpha = this.config.previewOpacity;
+            tempCtx.lineWidth = OLED_PREVIEW_STROKE_WIDTH;
 
-        // ===========================================
-        // 3. 在离屏 canvas 上绘制红色预览矩形
-        // 离屏 canvas 初始是透明的(所有像素 RGBA = 0,0,0,0)
-        // 所以只会有红色矩形,其余区域透明
-        // ===========================================
-        tempCtx.strokeStyle = this.config.previewColor;
-        tempCtx.globalAlpha = this.config.previewOpacity;
-        tempCtx.lineWidth = OLED_PREVIEW_STROKE_WIDTH;
-
-        const x = Math.min(this.startPos.x, endX) + OLED_PREVIEW_HALF_PIXEL;
-        const y = Math.min(this.startPos.y, endY) + OLED_PREVIEW_HALF_PIXEL;
-        const w = Math.abs(endX - this.startPos.x);
-        const h = Math.abs(endY - this.startPos.y);
-        tempCtx.strokeRect(x, y, w, h);
-
-        // ===========================================
-        // 4. 将离屏 canvas 叠加到主画布上
-        // 透明区域不会影响主画布
-        // 红色半透明矩形会叠加显示
-        // 注意:这不会修改 imageData 对象
-        // ===========================================
-        this.ctx.drawImage(tempCanvas, 0, 0);
+            // 加半像素偏移,让 1px 描边落在像素上而不是跨在像素缝里(见 OLED_PREVIEW_HALF_PIXEL)
+            const x = Math.min(start.x, endX) + OLED_PREVIEW_HALF_PIXEL;
+            const y = Math.min(start.y, endY) + OLED_PREVIEW_HALF_PIXEL;
+            const w = Math.abs(endX - start.x);
+            const h = Math.abs(endY - start.y);
+            tempCtx.strokeRect(x, y, w, h);
+        });
     }
 
     // ======================
     // 数据生成模块
     // ======================
+    /**
+     * 页内第 bit 位对应的画布行号.
+     * LSB 模式的页顶是 bit0,MSB 模式的页顶是 bit7(见 OLED_MSB_TOP_BIT)--
+     * "页顶"落在哪一位上两种约定相反,导入 / 导出共用这一个换算.
+     */
+    private pageRowY(page: number, bit: number): number {
+        return this.byteOrderMode === 'lsb'
+            ? page * OLED_PAGE_ROWS + bit
+            : page * OLED_PAGE_ROWS + (OLED_MSB_TOP_BIT - bit);
+    }
+
     private generateEmbeddedData(): string {
-        const buffer = new Uint8Array(this.canvas.width * (this.canvas.height / OLED_PAGE_ROWS)); // 128列 x 8页
-        // 遍历每个页(8页,每页8行)
-        for (let page = 0; page < this.canvas.height / OLED_PAGE_ROWS; page++) {
-            // 遍历每列(128列)
+        const pageCount = this.canvas.height / OLED_PAGE_ROWS;
+        const buffer = new Uint8Array(this.canvas.width * pageCount);
+        // 逐页逐列把一竖排像素按位序压成一个字节
+        for (let page = 0; page < pageCount; page++) {
             for (let x = 0; x < this.canvas.width; x++) {
                 let byte = 0;
-                // 组合8个垂直像素为一个字节
                 for (let bit = 0; bit < OLED_BITS_PER_BYTE; bit++) {
-                    const y = this.byteOrderMode === 'lsb'
-                        ? page * OLED_PAGE_ROWS + bit           // LSB
-                        : page * OLED_PAGE_ROWS + (OLED_MSB_TOP_BIT - bit);      // MSB
+                    const y = this.pageRowY(page, bit);
                     const idx = (y * this.canvas.width + x) * OLED_BYTES_PER_PIXEL;
-                    // 判断像素颜色(屏幕亮起的青为 1,未亮的中性灰为 0)
+                    // 屏幕亮起的青为 1,未亮的中性灰为 0
                     const isLit =
                         this.imageData.data[idx] === OLED_COLOR_LIT.r &&
                         this.imageData.data[idx + 1] === OLED_COLOR_LIT.g &&
                         this.imageData.data[idx + 2] === OLED_COLOR_LIT.b;
-                    // 要求最高位bit7对应页顶部的像素
                     byte |= (isLit ? 1 : 0) << bit;
                 }
                 buffer[page * this.canvas.width + x] = byte;
@@ -544,19 +537,16 @@ export class OLEDCanvas {
     // 缓冲数据转画布图像
     // ======================
     private updateCanvasFromBuffer(buffer: Uint8Array): void {
-        // 重置画布为未亮起的中性灰
-        for (let i = 0; i < this.imageData.data.length; i += OLED_BYTES_PER_PIXEL) {
-            fillRgb(this.imageData.data, i, OLED_COLOR_UNLIT);
-        }
-        // 解析缓冲数据
-        for (let page = 0; page < this.canvas.height / OLED_PAGE_ROWS; page++) {
+        // 先整块重置为未亮起的中性灰
+        this.fillImageData(OLED_COLOR_UNLIT);
+        // 逐页逐列把字节的每一位摊回像素(位序换算见 pageRowY)
+        const pageCount = this.canvas.height / OLED_PAGE_ROWS;
+        for (let page = 0; page < pageCount; page++) {
             for (let x = 0; x < this.canvas.width; x++) {
                 const byte = buffer[page * this.canvas.width + x];
                 for (let bit = 0; bit < OLED_BITS_PER_BYTE; bit++) {
-                    const y = this.byteOrderMode === 'lsb'
-                        ? page * OLED_PAGE_ROWS + bit           // LSB
-                        : page * OLED_PAGE_ROWS + (OLED_MSB_TOP_BIT - bit);      // MSB
-                    const isLit = (byte & (1 << bit)) !== 0; // 注意位顺序
+                    const y = this.pageRowY(page, bit);
+                    const isLit = (byte & (1 << bit)) !== 0;
                     const index = (y * this.canvas.width + x) * OLED_BYTES_PER_PIXEL;
                     fillRgb(this.imageData.data, index, isLit ? OLED_COLOR_LIT : OLED_COLOR_UNLIT);
                 }
@@ -570,7 +560,7 @@ export class OLEDCanvas {
     // 鼠标 / 键盘 / 窗口 事件处理
     // ======================
 
-    // 更新画布位置信息(窗口变化时调用)
+    // 重新测量画布在视口中的边界矩形(构造 / 鼠标进入 / 滚动 / 窗口 resize 时调用)
     private updateCanvasRect(): void {
         this.canvasRect = this.canvas.getBoundingClientRect();
     }
@@ -581,6 +571,8 @@ export class OLEDCanvas {
      * @returns 包含x,y的像素坐标对象
      */
     private getPixelPosition(event: MouseEvent): PixelPos {
+        // 夹到 [0, 尺寸 - 1]:指针压在画布外沿或边框上时也能得到合法像素,
+        // 下游(updateIndicator / 绘制)因此可以直接使用,不必再夹一次.
         return {
             x: Math.min(
                 this.canvas.width - 1,
@@ -603,18 +595,14 @@ export class OLEDCanvas {
         };
     }
 
-    // 更新指示器位置
+    // 更新指示器位置(pos 已由 getPixelPosition 夹进画布范围)
     private updateIndicator(pos: PixelPos): void {
         const pixelWidth = this.canvasRect.width / this.canvas.width;
         const pixelHeight = this.canvasRect.height / this.canvas.height;
 
-        // 添加边界检查
-        const clampedX = Math.max(0, Math.min(this.canvas.width - 1, pos.x));
-        const clampedY = Math.max(0, Math.min(this.canvas.height - 1, pos.y));
-
         // 精确对齐像素边界
-        this.indicator.style.left = `${this.canvasRect.left + clampedX * pixelWidth}px`;
-        this.indicator.style.top = `${this.canvasRect.top + clampedY * pixelHeight}px`;
+        this.indicator.style.left = `${this.canvasRect.left + pos.x * pixelWidth}px`;
+        this.indicator.style.top = `${this.canvasRect.top + pos.y * pixelHeight}px`;
 
         // 动态调整指示器尺寸
         this.indicator.style.width = `${Math.ceil(pixelWidth)}px`;
@@ -681,9 +669,6 @@ export class OLEDCanvas {
                     this.startPos = null;
                 }
                 break;
-            default:
-                // 其他工具不处理按下事件
-                break;
         }
     };
 
@@ -700,7 +685,7 @@ export class OLEDCanvas {
         // 自由绘制模式(仅在非直线工具时生效)
         else if (this.currentTool === 'free' && (e.buttons & OLED_MOUSE_BUTTON_MASK)) {
             if (this.lastPos) {
-                // 鼠标移动过快采样低画直线
+                // 两次采样之间可能跨过多个像素,用直线补齐这一段,快速移动时不会漏点
                 this.drawLine(this.lastPos.x, this.lastPos.y, pos.x, pos.y);
             } else {
                 this.setPixel(pos.x, pos.y);
@@ -716,7 +701,7 @@ export class OLEDCanvas {
     };
 
     private onKeyDown = (e: KeyboardEvent): void => {
-        // 按下`ESC`终止直线绘制
+        // 按下 `ESC` 终止正在进行的直线 / 矩形绘制预览
         if (
             e.key === 'Escape' &&
             (this.currentTool === 'line' || this.currentTool === 'rectangle') &&
@@ -752,8 +737,7 @@ export class OLEDCanvas {
  * "插进宿主 + 起行为".宿主由 common/ui/site_shell.ts 交回,所以不查 DOM.
  *
  * 用 replaceChildren 而不是 append:宿主就是本模块的面板容器(标签页窗格本身),
- * 重复挂载时整体替换,不会留下两份同 id 的标记(原先是 index.html 里的静态标记,
- * 不存在这个问题;换成模块生成后必须自己保证只留一份).
+ * 重复挂载时整体替换,不会留下两份同 id 的标记.
  */
 export function mountOLED(host: HTMLElement): void {
     const panel = createOledPanel();

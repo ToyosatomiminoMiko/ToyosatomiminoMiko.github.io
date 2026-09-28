@@ -30,7 +30,7 @@ export class FixedStepClock {
 
     /**
      * 推进到 nowMs,返回本帧应该执行的固定步数.
-     * 返回 0 表示帧间隔不足一步 -- 调用方仍应合成一帧,让拖尾继续衰减.
+     * 返回 0 表示帧间隔不足一步 -- 调用方仍应合成一帧(不推进仿真).
      */
     advance(nowMs: number): number {
         const delta = Math.min(Math.max(nowMs - this.lastFrameTime, 0) / MS_PER_SECOND, this.maxFrameDelta);

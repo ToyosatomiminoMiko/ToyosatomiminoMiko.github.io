@@ -14,10 +14,6 @@ Rust 侧不再各存一份:这里的 [`BootConfig`] 只是"接收 + 校验 + 夹
     TS 声明的数量与它不一致时,这里直接报错而不是静默降级.
   - **渲染内部调参**(帧率,时间步长,噪声频率,贴图尺寸等):见
     render_params.rs / texture_params.rs / random_params.rs.
-
-早先这些值在两侧各写一份,再靠"镜像单测"互相钉住(见 README 的迁移记录),
-那种做法每加一个值都要改两处,加两个测试,漏一处就是静默错配 -- 现在改成
-单向传参 + 启动时校验,错了就在启动那一刻报出来.
 */
 use js_sys::{Array, Reflect};
 use wasm_bindgen::JsValue;
@@ -37,7 +33,7 @@ pub(crate) const SHADER_STYLE_COUNT: u32 = 3;
 pub(crate) const SHADER_CITY_LAYER_COUNT: u32 = 4;
 
 /// 一层可上传的城市贴图(来自前端 `config.ts` 的 `UPLOAD_LAYERS`).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug)]
 pub(crate) struct LayerConfig {
     /// 材质槽位号(`material_views` 下标),必须等于它在清单里的位置.
     pub(crate) slot: u32,
@@ -53,7 +49,7 @@ pub(crate) struct LayerConfig {
 ///
 /// 区间是**前端说了算**:`setParam` 收到越界值时按这里的范围夹取.参数名 ->
 /// `GlassParams` 字段的映射仍在 Rust(`app_params::write_param`),那是实现.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub(crate) struct ParamRange {
     pub(crate) name: String,
     pub(crate) min: f32,
@@ -318,51 +314,7 @@ fn get_array(object: &JsValue, key: &str) -> Result<Array, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// 典型的合法配置(数值对齐前端 config.ts,但这里只当测试数据用).
-    fn layers() -> Vec<LayerConfig> {
-        vec![
-            layer(0, "level_3", "level_3.png", true),
-            layer(1, "level_2", "level_2.png", false),
-            layer(2, "level_1", "level_1.png", false),
-            layer(3, "level_0", "level_0.png", false),
-        ]
-    }
-
-    fn layer(slot: u32, name: &str, file: &str, opaque: bool) -> LayerConfig {
-        LayerConfig {
-            slot,
-            name: name.to_string(),
-            file: file.to_string(),
-            opaque,
-        }
-    }
-
-    fn params() -> Vec<ParamRange> {
-        vec![
-            range("vehicle_speed", 0.0, 3.0),
-            range("interior_opacity", 0.0, 1.0),
-        ]
-    }
-
-    fn range(name: &str, min: f32, max: f32) -> ParamRange {
-        ParamRange {
-            name: name.to_string(),
-            min,
-            max,
-        }
-    }
-
-    fn config(style_index: u32, style_count: u32) -> Result<BootConfig, String> {
-        BootConfig::new(
-            style_index,
-            style_count,
-            "/metro_window/resource/".to_string(),
-            8192,
-            layers(),
-            params(),
-        )
-    }
+    use crate::test_fixtures::{config, layer, layers, params, range};
 
     #[test]
     fn accepts_well_formed_config() {

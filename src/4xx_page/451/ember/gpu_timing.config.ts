@@ -1,6 +1,5 @@
 /**
- * GPU 侧打点(timestamp-query)的常量.
- * 从 gpu_timing.ts 抽出: 采样窗口 / 缓冲布局 / 放弃阈值.
+ * GPU 侧打点(timestamp-query)的常量: 采样窗口 / 缓冲布局 / 放弃阈值.
  */
 
 /** 一帧打 4 个时间戳 = 3 段 pass(计算 / 粒子 / 合成) */

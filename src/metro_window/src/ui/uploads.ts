@@ -20,12 +20,12 @@ setLayerImage -- 那些纹理是 wgpu 的 GPU 资源,只有 wasm 内部能改.�
       </div>
       <div class="upload-actions">
         <input class="upload-file" type="file" accept="image/png">
-        <button type="button" class="ui-button upload-reset">恢复默认</button>
+        <button type="button" class="ui-button">恢复默认</button>
       </div>
     </div>
 
 按钮由 UI 库(`miko_ui` 的 `createButton`)生成,`.ui-button` 是库的基线类,
-`.upload-reset` 只是本站的定位钩子;按钮外观一律归库,本站不再写.
+按钮外观一律归库,本站不写.
 */
 
 import { createButton, create_element, type Child } from 'miko_ui';
@@ -39,9 +39,9 @@ import {
     UPLOAD_NOTE,
     UPLOAD_RESET_LABEL,
     UPLOAD_STATUS_DEFAULT,
-    UPLOADS_PANEL_ID,
     type UploadLayerSpec,
 } from '@/metro_window/src/config';
+import { createPanelFieldSet } from '@/metro_window/src/ui/settings';
 
 /** 一行上传控件:根元素 + 输入框 / 状态行 / 恢复按钮 + 它的声明式配置 */
 export interface UploadControl {
@@ -57,7 +57,7 @@ export interface UploadControl {
 }
 
 /** 整块上传面板,以及行为代码要绑事件的元素引用 */
-export interface UploadPanel {
+interface UploadPanel {
     readonly root: HTMLFieldSetElement;
     readonly controls: readonly UploadControl[];
 }
@@ -82,9 +82,9 @@ function createUploadRow(spec: UploadLayerSpec): UploadControl {
         type: 'file',
         accept: UPLOAD_ACCEPT,
     });
-    // 恢复默认按钮由 UI 库(`miko_ui` 的 `createButton`)生成:type="button" 与
-    // 按钮外观都在库里;`upload-reset` 只是本站的定位钩子(见 metro_window.css).
-    const reset = createButton({ text: UPLOAD_RESET_LABEL, class: 'upload-reset' }).element;
+    // 恢复默认按钮由 UI 库(`miko_ui` 的 `createButton`)生成:`type="button"` 与
+    // 按钮外观都在库里,本站不给它加类(它没有额外的样式或查询钩子).
+    const reset = createButton({ text: UPLOAD_RESET_LABEL }).element;
 
     const root = create_element(
         { tag: 'div' },
@@ -98,7 +98,7 @@ function createUploadRow(spec: UploadLayerSpec): UploadControl {
 /**
  * 建出整块上传面板:
  *
- *     <fieldset class="uploads" id="uploadPanel">   <- root,初始 disabled
+ *     <fieldset class="uploads">   <- root,初始 disabled
  *       <legend>图层贴图</legend>
  *       <p class="upload-note">说明</p>
  *       <div class="upload"> ... 每层一行(来自 UPLOAD_LAYERS)...
@@ -106,23 +106,21 @@ function createUploadRow(spec: UploadLayerSpec): UploadControl {
  *
  * 与设置面板分开成两块 fieldset / 两个宿主:一个是"调参",一个是"换素材",
  * 合成一块会让"参数"和"文件"混在一起(见 config.ts 的 MOUNT_IDS 注释).
- * 初始 disabled:wasm 与 WebGPU 就绪前不可操作,挂载流程完成后打开.
+ * 骨架(legend -> 内容 -> 初始 disabled)与设置面板共用 createPanelFieldSet.
  */
 export function createUploadPanel(): UploadPanel {
     const controls = UPLOAD_LAYERS.map(createUploadRow);
-    const root = create_element(
-        { tag: 'fieldset' },
-        { class: 'uploads', id: UPLOADS_PANEL_ID },
-        create_element({ tag: 'legend' }, {}, UPLOAD_LEGEND),
+    const root = createPanelFieldSet(
+        { class: 'uploads' },
+        UPLOAD_LEGEND,
         create_element({ tag: 'p' }, { class: 'upload-note' }, UPLOAD_NOTE),
         ...controls.map((control) => control.root),
     );
-    root.disabled = true;
     return { root, controls };
 }
 
 /** 解码结果:RGBA8 像素与原始尺寸(尺寸要一并发给 wasm,由它算字节数) */
-export interface DecodedImage {
+interface DecodedImage {
     readonly width: number;
     readonly height: number;
     readonly rgba: Uint8Array;

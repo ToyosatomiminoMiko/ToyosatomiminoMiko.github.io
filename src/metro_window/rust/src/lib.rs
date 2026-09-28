@@ -1,7 +1,7 @@
 /*
 crate 入口(WASM 绑定层)
-- 导出 startApp / setStyle / setRunning / resize / setParam / reset /
-  setLayerImage / resetLayerImage 给前端 JavaScript 调用
+- 导出 startApp / validateConfig / setStyle / setRunning / resize / setParam /
+  reset / setLayerImage / resetLayerImage 给前端 JavaScript 调用
 - 持有全局 App 实例,通过 requestAnimationFrame 驱动渲染主循环
 */
 mod app;
@@ -16,6 +16,9 @@ mod texture_params;
 mod textures;
 mod uniforms;
 
+#[cfg(test)]
+mod test_fixtures;
+
 // 对外暴露的 API 全部服务于原生示例(examples/):
 //   - validate_wgsl 要 shader_source():与管线编译时**逐字一致**的完整 WGSL
 //     源码(含 Rust 生成的 GlassParams 声明);
@@ -24,9 +27,9 @@ pub use app_params::write_param;
 pub use glass_params::GlassParams;
 pub use pipelines::{create_metro_pipelines, shader_source, MetroTextures};
 pub use render_params::{
-    FULLSCREEN_QUAD_INDICES, FULLSCREEN_QUAD_VERTICES, MIN_TEXTURE_DIMENSION, QUAD_INDEX_FORMAT,
-    RENDER_TARGET_FORMAT, RGBA_BYTES_PER_PIXEL, SAMPLER_ADDRESS_MODE_CLAMP,
-    SAMPLER_ADDRESS_MODE_REPEAT, SAMPLER_FILTER_MODE,
+    FULLSCREEN_QUAD_INDICES, FULLSCREEN_QUAD_VERTICES, QUAD_INDEX_FORMAT, RENDER_TARGET_FORMAT,
+    RGBA_BYTES_PER_PIXEL, SAMPLER_ADDRESS_MODE_CLAMP, SAMPLER_ADDRESS_MODE_REPEAT,
+    SAMPLER_FILTER_MODE,
 };
 pub use texture_params::{DIRT_TEXTURE_SIZE, FOG_TEXTURE_SIZE, INTERIOR_TEXTURE_SIZE};
 pub use textures::{create_texture, decode_png, generate_dirt, generate_fog, generate_interior};
@@ -34,12 +37,11 @@ pub use uniforms::Uniforms;
 
 /// 生成物的落点:本 crate 根下的 `test_output/`,**绝对路径**.
 ///
-/// 这个目录只在这里定义一次,因为有两类产物都落在它下面,而它们原先各自按 cwd
-/// 找地方:`cargo test` 的可视化 PPM 基准图(见 `textures::write_ppm`)与
-/// `cargo run --example preview` 的 `preview.png`.`cargo test` 的 cwd 恰好是
-/// crate 根,但 `cargo run` 的 cwd 是**你敲命令的那个目录** -- 同一份产物会按调用
-/// 位置落到不同地方(以前 preview.png 就落在仓库根,还得为它单开一条 .gitignore).
-/// 按 `CARGO_MANIFEST_DIR` 算成绝对路径之后,从哪跑都落在同一个目录.
+/// 这个目录只在这里定义一次,因为有两类产物都落在它下面:`cargo test` 的
+/// 可视化 PPM 基准图(见 `textures::write_ppm`)与 `cargo run --example preview`
+/// 的 `preview.png`.若按 cwd 找地方,同一份产物会随调用位置落到不同目录 --
+/// `cargo test` 的 cwd 恰好是 crate 根,`cargo run` 的 cwd 是**你敲命令的那个
+/// 目录**.按 `CARGO_MANIFEST_DIR` 算成绝对路径之后,从哪跑都落在同一个目录.
 ///
 /// 该目录已在仓库根 .gitignore 里,不往仓库里丢生成物.
 pub fn test_output_dir() -> std::path::PathBuf {

@@ -24,9 +24,19 @@ import {
 } from '@/metro_window/src/config';
 
 /** 后备缓冲尺寸(物理像素) */
-export interface BackingSize {
+interface BackingSize {
     readonly width: number;
     readonly height: number;
+}
+
+/**
+ * 把设备像素比夹进 `[MIN_DEVICE_PIXEL_RATIO, MAX_DEVICE_PIXEL_RATIO]`.
+ *
+ * 单测要按同一个口径反推"覆盖"的期望值,所以夹取口径只写这一份:上下限各自
+ * 的来源见 config.ts(下限定 1 是为了不故意糊画面,上限是 GPU 负载).
+ */
+export function clampDevicePixelRatio(devicePixelRatio: number): number {
+    return Math.min(Math.max(devicePixelRatio, MIN_DEVICE_PIXEL_RATIO), MAX_DEVICE_PIXEL_RATIO);
 }
 
 /**
@@ -49,8 +59,7 @@ export function computeBackingSize(
     }
 
     const ratio = CANVAS_WIDTH / CANVAS_HEIGHT;
-    // dpr 下限取 1:有些环境(强制缩放)会报出小于 1 的值,按小于 1 算等于故意糊画面.
-    const dpr = Math.min(Math.max(devicePixelRatio, MIN_DEVICE_PIXEL_RATIO), MAX_DEVICE_PIXEL_RATIO);
+    const dpr = clampDevicePixelRatio(devicePixelRatio);
 
     // 覆盖:两边都要铺满,所以取需要更大的那一边,另一边按 16:9 顺出来.
     let width = Math.max(viewportWidth, viewportHeight * ratio) * dpr;

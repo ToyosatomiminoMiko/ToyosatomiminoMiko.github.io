@@ -3,7 +3,6 @@
 //
 // 集中 oled/oled.ts 里所有"设计参数":默认画布尺寸,预览色/透明度,画笔与
 // 擦除色,导出用常量,缩放与定时器参数,DOM 契约(元素 id 与类名).
-// 数值与拆分前的字面量逐位一致,不改变任何行为.
 // ================================================================
 
 import type { DrawTool, OledRgb } from './types';
@@ -15,9 +14,9 @@ import type { DrawTool, OledRgb } from './types';
  * 画布尺寸 / 预览色 / 透明度都只在这里定义一次,其余代码统一引用本对象,
  * 保证"同一个值只有一处定义".
  *
- * 注:`canvasId` 是**标记契约**(元素 id),与绘制参数放在一起只是为了
- * 沿用原来的导出形状;真正生成画布时由 ui/oled_panel.ts 读它写 id,
- * 行为代码不再按 id 查元素.
+ * 注:`canvasId` 是**标记契约**(元素 id),与绘制参数同居一处是因为它属于
+ * 同一份默认配置;真正生成画布时由 ui/oled_panel.ts 读它写 id,
+ * 行为代码只拿元素引用,不按 id 查元素.
  */
 export const OLED_DEFAULT_CONFIG = {
     /** canvas 元素的 id,默认 'pixelCanvas' */
@@ -52,9 +51,8 @@ export const OLED_ALPHA_OPAQUE = 0xff;
 /** 每个像素在 ImageData 中占 4 个字节(RGBA) */
 export const OLED_BYTES_PER_PIXEL = 4;
 
-// 通道偏移只在下面的 fillRgb 内部使用,属于模块私有实现细节
-/** R 通道在像素 4 字节中的偏移 */
-const OLED_CHANNEL_R_OFFSET = 0;
+// 通道在像素 4 字节中的偏移:R 直接落在 base 上(见 fillRgb);G / B 供
+// fillRgb 内部使用,A 单独导出给 oled.ts 铺不透明底色时用(见 OLED_ALPHA_OPAQUE).
 
 /** G 通道在像素 4 字节中的偏移 */
 const OLED_CHANNEL_G_OFFSET = 1;
@@ -67,7 +65,7 @@ export const OLED_CHANNEL_A_OFFSET = 3;
 
 /** 把一个 RGB 颜色写进 ImageData 的某个像素(R/G/B 三通道,Alpha 不动) */
 export const fillRgb = (data: Uint8ClampedArray, base: number, color: OledRgb): void => {
-    data[base + OLED_CHANNEL_R_OFFSET] = color.r;
+    data[base] = color.r;
     data[base + OLED_CHANNEL_G_OFFSET] = color.g;
     data[base + OLED_CHANNEL_B_OFFSET] = color.b;
 };
@@ -75,14 +73,18 @@ export const fillRgb = (data: Uint8ClampedArray, base: number, color: OledRgb): 
 /** 每个字节的位数(导出/导入时的页内位宽) */
 export const OLED_BITS_PER_BYTE = 8;
 
-/** 单页(页模式)覆盖的行数,等于 OLED_BITS_PER_BYTE */
-export const OLED_PAGE_ROWS = 8;
+/** 单页(页模式)覆盖的行数,等于每字节的位数 */
+export const OLED_PAGE_ROWS = OLED_BITS_PER_BYTE;
 
 /** MSB 模式下的最高位下标(页内第 0 行对应 bit7) */
-export const OLED_MSB_TOP_BIT = 7;
+export const OLED_MSB_TOP_BIT = OLED_BITS_PER_BYTE - 1;
 
-/** 导入数据的字节总数契约:128 列 × 64 行 ÷ 8 = 1024 个十六进制字节 */
-export const OLED_BUFFER_BYTES = 1024;
+/**
+ * 导入数据的字节总数契约 = 默认画布宽 × 高 ÷ 每页行数(128 × 64 ÷ 8 = 1024).
+ * 由默认配置算出而不是写死,画布尺寸改了这里不会两边对不上.
+ */
+export const OLED_BUFFER_BYTES =
+    (OLED_DEFAULT_CONFIG.width * OLED_DEFAULT_CONFIG.height) / OLED_PAGE_ROWS;
 
 /** 单个字节在导出源码里写成的十六进制位数(如 0x0f) */
 export const OLED_HEX_DIGITS_PER_BYTE = 2;
@@ -98,15 +100,12 @@ export const OLED_HEX_RADIX = 16;
 
 /**
  * 导入数据的错误提示文案(可见文本,全站不用 emoji).
- * 其中 1024 与 OLED_BUFFER_BYTES 同源,用模板保证两处只有一个数值来源.
+ * 需要的字节数与 OLED_BUFFER_BYTES 同源,用模板保证两处只有一个数值来源.
  */
 export const OLED_IMPORT_FORMAT_ERROR =
     `数据格式错误,需要包含${OLED_BUFFER_BYTES}个十六进制值`;
 
 // ---------- 覆盖层 / 离屏画布 ----------
-
-/** 预览叠加的混合模式(保持二值化核心,不改变主画布) */
-export const OLED_PREVIEW_COMPOSITE_OPERATION = 'source-over';
 
 /** 矩形预览描边宽度(像素) */
 export const OLED_PREVIEW_STROKE_WIDTH = 1;
@@ -124,7 +123,7 @@ export const OLED_COPY_FEEDBACK_MS = 4000;
 
 // ---------- 工具 / 颜色模式取值 ----------
 
-/** 默认画笔颜色模式亮 表示画笔把像素置为未亮(见 OLED_COLOR_UNLIT) */
+/** 默认画笔颜色模式:'light' = 画笔把像素点亮(见 OLED_COLOR_LIT) */
 export const OLED_DEFAULT_COLOR_MODE = 'light';
 
 /** 默认字节序模式:'lsb' 表示低位在前 */
@@ -160,14 +159,14 @@ export const OLED_COLOR_MODES = {
 
 /**
  * 字节序按钮的文案(低位 / 高位模式).
- * 原先用上下两个箭头当图示,现在全站不用 emoji,改为文字说明.
+ * 全站不用 emoji / 符号,直接用文字说明.
  */
 export const OLED_BYTE_ORDER_TEXT = {
     lsb: '低位模式(LSB)',
     msb: '高位模式(MSB)',
 } as const;
 
-// ---------- DOM 契约(id / class,与 index.html 完全一致) ----------
+// ---------- DOM 契约(id / class,public/css/index.css 按它命中) ----------
 
 /** OLED 控件用到的 DOM 元素 id(主画布 id 见 OLED_DEFAULT_CONFIG.canvasId) */
 export const OLED_DOM = {
@@ -179,7 +178,7 @@ export const OLED_DOM = {
      * 数据编辑器(`.code-editor` 外框)的 id.
      * 导出写入与导入读取的是**同一颗框**:导出的源码本身就是 `0x??` 形式
      * (见 OLED_HEX_BYTE_PATTERN),一个缓冲足够跑完"导出 -> 改 / 粘 -> 导入",
-     * 不再分导出框 / 导入框两个 id.
+     * 不另设导出框 / 导入框两个 id.
      */
     dataEditorId: 'oledData',
     /** 复制按钮的 id */
@@ -200,14 +199,10 @@ export const OLED_DOM = {
     editorToggleBtnId: 'editor-toggle-btn',
 } as const;
 
-// ---------- 可见文案(保持原样,集中一处便于校对) ----------
+// ---------- 可见文案(与界面一字不差,集中一处便于校对) ----------
 
 /** Canvas 2D 上下文不可用时的异常文案 */
 export const OLED_CONTEXT_UNAVAILABLE = '[OLEDCanvas] Canvas 2D 上下文不可用';
-
-/** 找不到 canvas 时的异常文案(与原先的模板拼接结果完全一致) */
-export const OLED_CANVAS_MISSING_MESSAGE =
-    `[OLEDCanvas] 找不到 canvas 元素: #${OLED_DEFAULT_CONFIG.canvasId}`;
 
 /** 下载 PNG 时使用的文件名 */
 export const OLED_PNG_FILENAME = 'canvas.png';
@@ -253,11 +248,10 @@ export const OLED_MOUSE_BUTTON_MASK = 3;
 
 // ---------- 面板标记的声明式模型(ui/oled_panel.ts 用) ----------
 //
-// 原先这些字面量写在 index.html 的 `#oled` 窗格里(标签 / 类名 / 文案 / id),
-// 现在集中到此处,由 ui/oled_panel.ts 的纯函数生成标记.字符串与拆分前的
-// index.html **逐字一致**(类名与 id 直接决定 public/css/index.css 的命中),
-// 所以这里只做"搬家",不做任何改名.唯一的例外是框体:它现在由 miko_ui 的
-// `createPanel` 建(`section.ui-panel`),类名归库,本站只留定宽的作用域类.
+// 标签 / 类名 / 文案 / id 集中到这里,由 ui/oled_panel.ts 的纯函数生成标记.
+// 类名与 id 直接决定 public/css/index.css 的命中,所以字符串一字不改.
+// 唯一的例外是框体:它由 miko_ui 的 `createPanel` 建(`section.ui-panel`),
+// 类名归库,本站只留定宽的作用域类.
 
 /** 面板标题文案 */
 export const OLED_PANEL_TITLE_TEXT = 'OLED Canvas';

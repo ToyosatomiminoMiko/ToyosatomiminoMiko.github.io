@@ -1,6 +1,6 @@
 /**
  * WebGPU 能力获取: 申请适配器/设备,以及挑一个能用的离屏纹理格式.
- * 这里只负责"拿不到就返回 null",是否放弃绘制由调用方决定.
+ * 每一步拿不到就返回 null.
  */
 import { log } from './log';
 import {
@@ -12,7 +12,7 @@ import {
 
 export interface GpuContext {
     device: GPUDevice;
-    /** 适配器信息,便于在控制台确认实际跑在哪块 GPU 上 */
+    /** 适配器信息; 仓库内没有读取方, 保留给控制台通过 window.__ember 查看 */
     adapterInfo: GPUAdapterInfo | null;
 }
 
@@ -48,12 +48,12 @@ export async function acquireGpuContext(): Promise<GpuContext | null> {
     return { device, adapterInfo: adapter.info ?? null };
 }
 
-/** 挑一个既能当渲染目标,又能被采样的离屏格式 (优先 16F, 加法叠加不易断层) */
+/** 挑一个当渲染目标时不报 not-renderable 的离屏格式; 查询接口缺失就直接用兜底 */
 export function pickTextureFormat(device: GPUDevice): GPUTextureFormat {
-    const candidates = PREFERRED_TEXTURE_FORMATS;
-    for (const format of candidates) {
-        const probe = (device as DeviceWithFormatCaps).getTextureFormatCapabilities;
-        if (typeof probe !== 'function') return FALLBACK_TEXTURE_FORMAT;
+    const probe = (device as DeviceWithFormatCaps).getTextureFormatCapabilities;
+    if (typeof probe !== 'function') return FALLBACK_TEXTURE_FORMAT;
+
+    for (const format of PREFERRED_TEXTURE_FORMATS) {
         try {
             if (probe.call(device, format)?.renderable !== false) return format;
         } catch {

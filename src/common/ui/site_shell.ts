@@ -1,50 +1,22 @@
 /*
-首页骨架的**声明式组件** -- index.html 里唯一一处标记的生成者.
+首页骨架的生成者,index.html 里唯一一处标记的来源.
 
-原先首页骨架写在 index.html 里(导航条 / 首屏 / 五个标签页 / 各模块的宿主),
-再由 TS 按 id 一个个取回来;现在反过来:HTML 只留一个空位 `#site-root`,
-骨架的全部结构由这里按 site.config.ts 的声明生成,并把**元素引用**交回调用方
-(src/main.ts 把它们分给各模块的挂载函数).与 SETTING 里的地铁车窗控制台
-完全同一条约定:宿主页不出现任何标记,也没有第二处 id 需要同步.
+index.html 只留一个空位 `#site-root`,骨架的全部结构由这里按 site.config.ts 的声明
+生成,并把元素引用交回调用方(src/main.ts 再把它们分给各模块的挂载函数).
+宿主页因此不出现任何标记,也没有第二处 id 需要同步.
 
-结构(顺序即显示顺序):
+宿主只提供空位:结构里的每个宿主 div 都是空的,标记由对应模块的挂载函数生成.
+OLED / RBT / IEEE754 三个模块直接把整个标签页窗格当宿主,所以骨架给它们建的就是
+窗格本身.组装出的完整结构(导航条 / 首屏 / 五个窗格 / SETTING 面板)见
+README.md 的"首屏与导航条"一节.
 
-    header.site-header
-      ├── span.site-brand                      站名(压在首屏画面上时的站点身份)
-      ├── ul.nav.nav-tabs                      标签栏(行为见 src/common/tabs.ts)
-      │     └── li.nav-item > a.nav-link[href=#<pane>]
-      └── a.head-link[href=GitHub] > img.head
-                                               头像(在标签栏**外面**,见下)
-    main > div.tab-content
-      ├── div.tab-pane#home         > section.hero#hero
-      │     ├── div.hero__stage     > div#metro-window      地铁车窗舞台(空宿主)
-      │     ├── div.hero__scrim     顶部渐变压暗
-      │     └── div.hero__bottom
-      │           ├── div#app_led_clock                      LED 时钟(空宿主)
-      │           └── div#metro-styles                       风格按钮(空宿主)
-      ├── div.tab-pane#oled         空宿主:OLED 面板由 oled/ 长在里面
-      ├── div.tab-pane#rbt          空宿主:红黑树面板由 rbt/ 长在里面
-      ├── div.tab-pane#ieee754      空宿主:IEEE754 面板由 ieee754/ 长在里面
-      └── div.tab-pane#setting
-            └── section.ui-panel          整页一张面板(库的 createPanel;与其余三个窗格同构)
-                  ├── header.ui-panel-header > span.ui-panel-title  '设置'
-                  └── div.ui-panel-body
-                        ├── ul.bgul            背景缩略图(ui/background_section.ts 生成)
-                        ├── div#metro-params   地铁车窗控制台(空宿主)
-                        └── div#metro-uploads  图层贴图上传面板(空宿主)
+头像与标签栏平级,排在 header 末尾,而不是当标签栏的最后一项:标签栏是横向滚动
+容器(窄窗口时标签横向滑动),滚动容器的 padding box 就是裁剪区,头像放进去 hover
+辉光会被裁成方块.`.head-link` 的负 margin 把 header 的 gap 抵掉,落点与"排在
+标签栏末尾"时一致.
 
-**宿主只提供空位**:每个 `div#...` 都是空的,标记由对应模块的挂载函数生成.
-OLED / RBT / IEEE754 三个模块干脆把整个标签页窗格当宿主(窗格本身就是容器),
-所以骨架里给它们建的宿主就是窗格自己.
-
-**头像挂在 header 上,不是标签栏的最后一项**:标签栏 `ul.nav-tabs` 是**横向
-滚动容器**(窄窗口时标签横向滑动,见 index.css),滚动容器的 padding box
-就是裁剪区 -- 头像放进去,hover 辉光的模糊半径会被裁成方块.所以头像与标签栏
-平级,排在 header 末尾;`.head-link` 的负 margin 把 header 的 gap 抵掉,
-头像的落点与当初"排在标签栏末尾"时逐像素一致(见 index.css 的 .head-link).
-
-组件的**修饰类不在这里加**:那是每个组件自己的约定(地铁车窗的 `.metro-window`
-由它自己的挂载函数补到每个宿主上),骨架不替组件记这些.
+组件自己的修饰类不在这里加:地铁车窗的 `.metro-window` 由它自己的挂载函数补到
+每个宿主上,骨架不替组件记这些约定.
 */
 
 import { create_element, createPanel } from 'miko_ui';

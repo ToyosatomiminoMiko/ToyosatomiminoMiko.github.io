@@ -13,9 +13,9 @@ Rust -> wasm32-unknown-unknown, 再用 wasm-bindgen 生成 src/metro_window/wasm
     版本得从 Cargo.lock 解析; 版本不符时装到本子项目的 .cargo-tools/,
     不污染全局, 也不需要手工维护版本常量.
 
-为什么是 Python 而不是 shell(与 miko_graphcalc 同一条口径): 这里的代码几乎都在
-"读命令输出 -> 判断 -> 决定下一步"上, 而这些正是 shell 最容易写错的部分;
-日志前缀与退出码语义由 buildlib 统一, 与 build.py / dev_ui_link.py 一致.
+为什么是 Python 而不是 shell: 这里的代码几乎都在"读命令输出 -> 判断 -> 决定下一步"
+上, 而这些正是 shell 最容易写错的部分; 日志前缀与退出码语义由 buildlib 统一, 与
+build.py / dev_ui_link.py 一致.
 
 cargo 侧: workspace 根在仓库根(根 Cargo.toml 的 [workspace] 收录
 src/metro_window/rust), 所以 Cargo.lock 与 target/ 都在仓库根,
@@ -32,6 +32,11 @@ src/metro_window/rust), 所以 Cargo.lock 与 target/ 都在仓库根,
   python3 scripts/build_wasm.py
 等价于在仓库根跑:
   npm run build:wasm
+
+环境变量:
+  WASM_BINDGEN_BIN=<path>  指定要用的 wasm-bindgen CLI, 排在内置候选顺序
+                           (PATH 里的 -> 项目本地 .cargo-tools/)之前; 版本仍
+                           必须与 Cargo.lock 解析出来的一致, 否则报错.
 """
 
 from __future__ import annotations
@@ -40,7 +45,6 @@ import os
 import re
 import shutil
 import sys
-from pathlib import Path
 
 import buildlib as kit
 
@@ -53,6 +57,10 @@ TARGET_DIR = ROOT / "target"
 TOOLS_DIR = METRO_ROOT / ".cargo-tools"
 
 TARGET = "wasm32-unknown-unknown"
+# --out-name: wasm-bindgen 生成 metro_window.js / metro_window_bg.wasm 用的基名;
+# 产物路径同时被 check_wasm.py 引用, 所以这里只写一次.
+WASM_OUT_NAME = "metro_window"
+WASM_BINARY = TARGET_DIR / TARGET / "release" / f"{WASM_OUT_NAME}.wasm"
 # Cargo.lock 里解析出来的版本必须是三段数字: 解析不到就别往下走,
 # 否则下面会把一个空版本拼进 `cargo install --version =`, 报错更难懂.
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+")
@@ -146,8 +154,8 @@ def run_build():
         [
             binary, "--target", "web",
             "--out-dir", str(WASM_DIR),
-            "--out-name", "metro_window",
-            str(TARGET_DIR / TARGET / "release" / "metro_window.wasm"),
+            "--out-name", WASM_OUT_NAME,
+            str(WASM_BINARY),
         ],
         cwd=ROOT,
     )
@@ -158,7 +166,7 @@ def run_build():
 
 def main(argv):
     if argv:
-        # 这个脚本没有参数; 有参数多半是把旧 shell 入口的写法带过来了.
+        # 这个脚本不接受参数.
         LOG.err(f"unexpected argument(s): {' '.join(argv)} (this script takes none)")
         return kit.EXIT_USAGE
     return kit.run_cli(LOG, run_build)

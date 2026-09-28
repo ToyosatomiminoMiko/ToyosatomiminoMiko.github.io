@@ -4,14 +4,13 @@
 # ----------------------------------------------------------------------------
 # 两种用法:
 #
-#   .githooks/pre-commit(git 钩子)把它当**库**导入, 调 fix_file() 处理本次
-#   暂存的每个文本文件(原地改写). 钩子自己负责 git 那一侧(diff --cached / add).
-#   本仓库的钩子是 bash, 走下面的命令行"文件模式"; 改成 Python 钩子后直接
-#   import 本模块即可(fix_file() 的返回值就是"有没有被改写").
+#   命令行文件模式(本仓库的 .githooks/pre-commit 走的就是这条): 钩子对本次暂存的
+#   每个文本文件执行 `python3 scripts/autorun.py <file>...`, 就地改写; git 那一侧
+#   (diff --cached / git add)由钩子负责. 本文件只提供 fix_file(), 返回"有没有被
+#   改写", 所以也可以被 Python 钩子直接 import.
 #
-#   命令行单独用:
-#       python3 scripts/autorun.py <file> [<file>...]   # 文件模式, 原地改写
-#       python3 scripts/autorun.py < in > out           # 管道模式(stdin -> stdout)
+#   管道模式(stdin -> stdout):
+#       python3 scripts/autorun.py < in > out
 #
 # [为什么 hook 放在版本库里]
 # .git/hooks 不进版本库,换机器或重新 clone 后自动运行会静默失效.改用
@@ -34,14 +33,15 @@
 #     写法,否则字典会被自己改写(比如键 \uff09 若写成字面量,会连同引号一起
 #     被替换成半角).
 #   - 本文件的注释统一使用半角标点,转换因此幂等,不会每次提交都产生无意义 diff.
-#   - 钩子那边没有"正在运行的脚本被改写"的问题: CPython 在执行前就把整个源文件
-#     读入并编译完, 之后再改写磁盘上的 `pre-commit` 或本文件都已无影响(原始的
-#     bash 钩子做不到这一点, 所以它当时必须把钩子文件单独排到最后处理).
+#   - 本文件是 Python: CPython 在执行前就把整个源文件读入并编译完, 之后再改写
+#     磁盘上的本文件已无影响. 调用它的 .githooks/pre-commit 是 bash, 边读边执行,
+#     所以那里必须把钩子文件单独排到最后处理(见 .githooks/pre-commit).
 #
 # [注意事项]
 #   * 二进制文件读取时抛 UnicodeDecodeError,调用方跳过,不影响提交.
-#   * 钩子本身是 Python: 没装 python3 的机器上 git 会直接报 "bad interpreter",
-#     比"钩子静默不生效"更容易发现; 真要停用就 `git config --unset core.hooksPath`.
+#   * .githooks/pre-commit 开头有 `command -v python3` 检查: 没装 python3 的机器
+#     上它会打印一行提示并 exit 0(提交继续,只是不做标点修正); 真要停用就
+#     `git config --unset core.hooksPath`.
 #   * 文件模式会真的改写工作区文件(钩子随后把改过的 `git add` 回暂存区),所以
 #     git status 未必看得到差异,但磁盘内容已经变了.
 #   * 读写都用 newline='': 原样保留 CRLF/LF, 不会因为"顺手规范化换行"而把整个
@@ -50,7 +50,10 @@
 import re
 import sys
 
-# 全角标点 -> ASCII 映射表;键一律写成 \uXXXX 转义(见上"为什么可以对自己生效").
+# 全角标点 -> ASCII 映射表. 除 CJK 全角标点外, 也顺带折叠几个排印字符:
+# \u2014(EM DASH), \u2018 / \u2019(弯单引号), \u201c / \u201d(弯双引号),
+# \u2026(省略号), \u2192(箭头). 键一律写成 \uXXXX 转义(见上"为什么可以对自己生效").
+# 符号自指导致意义不在场,每一个符号的注释不可删除
 CHAR_MAP = {
     "\uff09": ")",  # 全角右圆括号 -> 半角右圆括号
     "\uff08": "(",  # 全角左圆括号 -> 半角左圆括号
@@ -77,7 +80,7 @@ CHAR_MAP = {
     "\uff5e": "~",  # 全角波浪号 -> 半角波浪号
 }
 
-# 键都是单字符,交替匹配不存在前缀冲突,无需按长度排序;re.escape 保证字面量安全.
+# 键都是单字符, 交替匹配, 不存在前缀冲突, 故无需按长度排序.
 pattern = re.compile("|".join(re.escape(k) for k in CHAR_MAP.keys()))
 
 
@@ -108,13 +111,13 @@ def fix_file(filepath):
 
 def main(argv):
     if argv:
-        # 文件模式:直接修改,支持一次传多个文件
+        # 文件模式: 直接修改, 支持一次传多个文件
         failed = False
         for filepath in argv:
             try:
                 changed = fix_file(filepath)
             except UnicodeDecodeError:
-                continue  # 二进制文件不处理
+                continue
             except OSError as err:
                 print(f"[fix_punctuation] error: {filepath}: {err}", file=sys.stderr)
                 failed = True

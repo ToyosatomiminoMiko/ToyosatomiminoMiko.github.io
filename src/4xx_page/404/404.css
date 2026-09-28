@@ -1,27 +1,21 @@
 /* 404 页设计令牌: 常量很少, 直接放在文件顶部, 不单独建 *_tokens.css */
 :root {
-    /* 三段线条的青色外发光: 偏移/模糊固定, 颜色单独抽出 */
+    /* 青色外发光的颜色; 偏移与模糊固定写在下面的 drop-shadow 里 */
     --err404-glow-color: rgba(0, 255, 255, 0.222);
     --err404-glow-shadow: drop-shadow(5px 5px 5px var(--err404-glow-color));
     /* 页面兜底底色 */
     --err404-bg-color: rgb(80, 90, 100);
 }
 
-/*
-404 页(纯 SVG)的样式.
+/* 404 页(纯 SVG)的样式, 由 404.html 用 <link rel="stylesheet"> 引入(与 418 / 451 一致). */
 
-原来是写在 404.html 里的 <style>, 现在外置成这个文件, 由页面用
-<link rel="stylesheet" href="/src/4xx_page/404/404.css"> 引入(与 418 / 451 一致).
-*/
-
-/* SVG 居中 */
 body {
     display: flex;
     justify-content: center;
     align-items: center;
 }
 
-/* 三段线条的青色外发光 */
+/* 给 SVG 里的形状统一加一层外发光 */
 path,
 line,
 circle {

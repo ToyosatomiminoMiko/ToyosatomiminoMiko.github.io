@@ -12,20 +12,20 @@
   bash ./build.sh              CI: 不带参数也是 npm, 不该依赖谁记得加参数;
                                显式要 local 会被拒绝, 绝不构建工作副本
 
-为什么要保留 bash 外壳而不是内联到 CI:
-  * 提供本地入口(bash ./build.sh 与 CI 走同一条; 想严格按 lock 构建就设
-    MIKO_UI_SYNC=off);
-  * 覆盖 npm run 无法提供的缺工具快速失败(require_command)与分阶段日志前缀.
+为什么要保留 bash 外壳: `bash ./build.sh` 这个入口被 README 与
+.github/workflows/deploy.yml 依赖, 不能改名. 它自己只做一件事: 检查 python3
+在不在, 缺了就 exit 127; 参数解析 / 缺工具快速失败 / 分阶段日志前缀都在 Python
+侧(build.py 与 buildlib 的 require_command / Logger).
 
 为什么外壳里面是 Python: 这个脚本的代码量几乎都在"判断 / 字符串 / JSON /
 文件系统"上(shell 最不擅长的部分), 真正的编排只有下面 run_build() 里那十来行
 kit.run(). 版本同步的策略矩阵单独抽成 buildlib.decide_ui_sync() 这个纯函数,
 不必通读分支就能看清每种组合的结论.
 
-本仓库与 miko_graphcalc 是同一套口径: 库从 npm 装(`miko_ui`), 本地联调时由
-dev_ui_link.py 把 node_modules/miko_ui 换成指向工作副本的符号链接 -- 链接只
-存在于 node_modules/(gitignore), package.json 与 package-lock.json 一个字节
-都不动, 所以 GitHub Pages 与 CI 的行为不被本地习惯影响.
+库的取用方式(库从 npm 装, 本地联调时由 dev_ui_link.py 把 node_modules/miko_ui
+换成指向工作副本的符号链接)与 miko_graphcalc 同一套, 见 README 的「构建」一节.
+链接只存在于 node_modules/(gitignore), package.json 与 package-lock.json 一个
+字节都不动, 所以 GitHub Pages 与 CI 的行为不被本地习惯影响.
 """
 
 from __future__ import annotations
@@ -59,10 +59,11 @@ DESCRIPTION = """\
 
 EPILOG = """\
 环境变量:
-  MIKO_UI_SOURCE=local|npm     等价于 --ui(命令行优先)
-  MIKO_UI_DIR=<path>           本地副本位置, 默认 ../__projects_web/miko_ui
-  MIKO_UI_SYNC=auto|check|off  只对 npm 那一份有效(见 README 的版本同步注释)
-  CI=<非空>                    视为 CI: 不带 --ui 时默认 npm, 且拒绝 local"""
+  MIKO_UI_SOURCE=local|npm       等价于 --ui(命令行优先)
+  MIKO_UI_DIR=<path>             本地副本位置, 默认 ../__projects_web/miko_ui
+  MIKO_UI_SYNC=auto|check|off    只对 npm 那一份有效(见 README 的版本同步注释)
+  MIKO_UI_REQUIRE_LATEST=1       即使不在 CI 也要求必须查到 npm latest
+  CI=<非空>                      视为 CI: 不带 --ui 时默认 npm, 且拒绝 local"""
 
 
 def parse_args(argv):
@@ -80,21 +81,13 @@ def parse_args(argv):
         default=None,
         help="用哪一份 miko_ui 构建; 命令行优先于 MIKO_UI_SOURCE; 不带时本机默认 local, CI 默认 npm",
     )
-    parser.add_argument(
-        "--ui-local",
-        dest="ui",
-        action="store_const",
-        const="local",
-        help="等价于 --ui local(兼容旧写法)",
-    )
     return parser.parse_args(argv)
 
 
-# resolve_ui_source 的第二个返回值 -> 日志里那句"为什么选它".
+# resolve_ui_source 的第二个返回值 -> 日志里那句"为什么选它"(只在 npm 分支读).
 UI_ORIGIN_NOTE = {
     "explicit": "selected by --ui / MIKO_UI_SOURCE",
     "ci-default": "CI defaults to npm",
-    "local-default": "local default",
 }
 
 
@@ -119,21 +112,15 @@ def resolve_ui_source(cli_value, environ):
 
 
 def require_local_ui(ui_dir):
-    """副本必须是个 miko_ui 工作树, 并且要在 npm ci 之前就确认.
+    """副本必须是 miko_ui 工作树, 而且要在 npm ci 之前就确认.
 
-    检查放在安装之前: 早点失败, 不必先等一遍完整安装.
+    检查放在安装之前: 早点失败, 不必先等一遍完整安装. ui_dir 默认就是本地副本
+    位置(见 buildlib.resolve_ui_dir), 这里再补一句能照做的提示.
     """
-    if not (ui_dir / "package.json").is_file():
-        raise kit.BuildError(
-            f"no {kit.UI_PKG_NAME} checkout at {ui_dir} (that is the default UI source); either",
-            "point MIKO_UI_DIR at the checkout, or build from npm: bash ./build.sh --ui npm",
-        )
-    name = kit.ui_package_name(ui_dir)
-    if name != kit.UI_PKG_NAME:
-        display = name or "?"
-        raise kit.BuildError(
-            f"{ui_dir} is not the {kit.UI_PKG_NAME} checkout (package.json name='{display}')"
-        )
+    kit.require_ui_checkout(
+        ui_dir,
+        "point MIKO_UI_DIR at the checkout, or build from npm: bash ./build.sh --ui npm",
+    )
 
 
 def npm_latest():
@@ -164,7 +151,6 @@ def sync_miko_ui(environ):
 
     查不到 latest(断网 / npm 不可用)时: 本机警告并沿用 lock; CI(CI=true, 或显式
     MIKO_UI_REQUIRE_LATEST=1)明确失败 -- 部署出去的必须是能说清哪一版的产物.
-    想跳过网络查询(测试这一步)可以预设 MIKO_UI_LATEST_VERSION.
 
     off 与非法值在取版本号之前就返回, 所以 MIKO_UI_SYNC=off 不会去碰网络.
     """
@@ -175,8 +161,8 @@ def sync_miko_ui(environ):
     if mode not in ("auto", "check"):
         raise kit.BuildError(f"invalid MIKO_UI_SYNC='{mode}' (expected auto|check|off)")
 
-    locked = kit.ui_version(ROOT / "node_modules" / kit.UI_PKG_NAME)
-    latest = environ.get("MIKO_UI_LATEST_VERSION") or npm_latest()
+    locked = kit.ui_version(ROOT / kit.UI_NODE_MODULE_PATH)
+    latest = npm_latest()
     must_resolve = (
         bool(environ.get("CI")) or environ.get("MIKO_UI_REQUIRE_LATEST") == "1"
     )
@@ -203,13 +189,15 @@ def sync_miko_ui(environ):
             f"run 'npm install {kit.UI_PKG_NAME}@latest'"
         )
 
+    # 能落到这里只可能是 OUTDATED_UPDATE: 其余四种 SyncAction 都被上面的分支
+    # 返回掉了, 这里不需要再判一次.
     LOG.log(f"updating {kit.UI_PKG_NAME}: {locked_display} -> {latest}")
     kit.run(
         ["npm", "install", f"{kit.UI_PKG_NAME}@{latest}", "--no-audit", "--no-fund"],
         cwd=ROOT,
     )
     LOG.log(
-        f"miko_ui is now {kit.ui_version(ROOT / 'node_modules' / kit.UI_PKG_NAME)} "
+        f"miko_ui is now {kit.ui_version(ROOT / kit.UI_NODE_MODULE_PATH)} "
         "(package.json / package-lock.json changed; commit them when building locally)"
     )
 
@@ -240,7 +228,7 @@ def build_and_link_local_ui(ui_dir):
 
 
 def run_build(argv):
-    """整条流水线. 步骤顺序与 package.json 的 build:all 一一对应, 见各处注释."""
+    """整条流水线: 查工具 -> 选 UI 源 -> npm ci -> 同步或链接 UI -> 调 build:all."""
     args = parse_args(argv)
     environ = os.environ
     ui_source, origin = resolve_ui_source(args.ui, environ)
@@ -266,11 +254,9 @@ def run_build(argv):
     # (https://github.com/ToyosatomiminoMiko/miko_ui)发布到 npm 的包, 这里没有任何
     # 本地文件依赖, 所以 npm ci 不需要预先准备什么, 也不吃 GitHub 的凭据.
     #
-    # 再往下 build:all 的顺序是
-    #   lint:rs -> clean -> build:wasm -> test(vitest) -> test:rs(cargo) -> build:app;
-    # 其中 clean 只删根 dist/ 与 src/metro_window/wasm/, 不碰 node_modules.
-    # 生产构建里唯一一份 miko_ui / @preact/signals-core 的实例约束见
-    # vite.config.ts 的 resolve.dedupe.
+    # 往下跑什么由 package.json 的 build:all 决定(步骤序列的唯一出处); 其中 clean
+    # 只删根 dist/ 与 src/metro_window/wasm/, 不碰 node_modules. 生产构建里唯一一份
+    # miko_ui / @preact/signals-core 的实例约束见 vite.config.ts 的 resolve.dedupe.
     kit.run(["npm", "ci", "--no-audit", "--no-fund"], cwd=ROOT)
 
     if ui_source == "local":
@@ -282,8 +268,7 @@ def run_build(argv):
         LOG.log(f"UI source: npm published package ({UI_ORIGIN_NOTE[origin]})")
         sync_miko_ui(environ)
 
-    # 流水线 = lint:rs -> clean -> build:wasm -> test -> test:rs -> build:app
-    # (build:app 内含 check:wasm + typecheck + vite build)
+    # build:all 的内容见 package.json, 这里只负责调用.
     LOG.log("running full build pipeline (lint -> clean -> wasm -> test -> app)")
     kit.run(["npm", "run", "build:all"], cwd=ROOT)
 

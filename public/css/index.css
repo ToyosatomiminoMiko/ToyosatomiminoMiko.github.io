@@ -1,8 +1,8 @@
 /*全局设置*/
 
 /*
-  Dark Reader 的占位令牌:原先就定义在 index.css,按人类要求原样保留在这里,
-  不搬进 tokens.css(它属于浏览器扩展的注入约定,不是本站设计令牌).
+  Dark Reader 的占位令牌:属于浏览器扩展的注入约定,不是本站设计令牌,
+  所以留在这里而不搬进 tokens.css.
   :root 的自定义属性在任何样式表里都参与层叠,链接顺序不影响 var() 解析.
 */
 :root {
@@ -10,10 +10,7 @@
 }
 
 * {
-    /*字体名称必须设置为Unicode形式才能生效 */
-    /*font-family: "\5FAE\8F6F\96C5\9ED1";*/
     font-family: var(--font-base);
-    /* consolas */
     margin: 0px;
     padding: 0px;
     border: 0px;
@@ -25,20 +22,18 @@
 /* ================================================================
  * 文档基线(document baseline)
  *
- * `*` 重置只写"清空",**不带值**;而一个页面还需要一层带值的基线(盒模型 /
- * 页面底色 / 正文色 / 行距 / 链接默认外观 / 元素默认外边距).这一层原先整层
- * 由 bootstrap 的 reboot 提供 -- 它是元素级规则,特异性(0,0,1)高过 `*`(0,0,0),
- * 所以像 `p { margin-bottom: 1rem }` / `ul { padding-left: 2rem }` 这种
- * "作者以为被 `*` 清掉了,其实一直在生效"的规则有一批.
+ * 上面那条 `*` 重置只写"清空",不带值;这一层补上带值的基线:盒模型 / 页面底色 /
+ * 正文色 / 行距 / 链接外观 / 替换元素对齐 / 上下标.
  *
- * bootstrap 移除后这一层归本站.下面每条都只写**确实还在被依赖**的部分:
- * 多写一条就等于凭空造一个"改了没人知道为什么"的默认值.
+ * 元素选择器的特异性(0,0,1)高过 `*`(0,0,0),所以这些规则稳稳盖在重置之上.
+ * 每条都只写确实还在被依赖的部分 -- 多写一条就等于凭空造一个"改了没人知道
+ * 为什么"的默认值.
  * ================================================================ */
 
 /*
- * 盒模型:全站 border-box(原先由 reboot 的 `*,::before,::after` 提供).
- * 必须留 -- 站点样式里到处是"定宽 + 内边距"的盒子(面板 / 缩略图 / 编辑器 /
- * 导航条),少了它就是全线溢出,而且**不报错**.
+ * 盒模型:全站 border-box.
+ * 站点样式里到处是"定宽 + 内边距"的盒子(面板 / 缩略图 / 编辑器 / 导航条),
+ * 少了它就是全线溢出,而且不报错.
  */
 *,
 ::before,
@@ -49,8 +44,6 @@
 /*
  * 深色配色方案:让 UA 按深色渲染滚动条 / 表单控件 / 画布底色,并让 `html` 在
  * 没有作者色时的默认文字色是白而不是黑.
- * 原先由 bootstrap 的 `[data-bs-theme=dark] { color-scheme: dark }` 提供 --
- * index.html 上那个 data-bs-theme 就是为它写的.
  */
 html {
     color-scheme: dark;
@@ -60,46 +53,36 @@ body {
     /*
      * 背景图取值链:--bg-image-active(SETTING 标签页点缩略图后由
      * src/common/background.ts 改写)-> --bg-image-default(tokens.css 的默认图).
-     * 这里刻意不写 !important:
-     *   - 站点内部唯一的竞争者是 * 的 background: none,它权重更低,天然被压过;
-     *   - 对外不再和浏览器扩展抢 body 的内联样式,层叠战争交给用户自己的选择
-     *     (开启 Dark Reader 时由扩展决定深色呈现).
+     * 刻意不写 !important:
+     *   - 站点内唯一的竞争者是 * 的 background: none,权重更低,天然被压过;
+     *   - 不与浏览器扩展争抢 body 的内联样式,深色呈现交给用户自己的选择
+     *     (开启 Dark Reader 时由扩展决定).
      */
     background-image: var(--bg-image-active);
     background-attachment: fixed;
-    /*
-     * 页面底色与正文色:原先由 reboot 的 `body { background-color:
-     * var(--bs-body-bg); color: var(--bs-body-color) }` 提供,而站点那个
-     * `* { background: none }` 权重更低压不过它 -- 所以整页底色一直是
-     * bootstrap 的深色值(换成浅色主题就会露出白底).现在归本站令牌.
-     */
+    /* 页面底色与正文色(取值见 tokens.css 的 --bg-page / --text-page) */
     background-color: var(--bg-page);
     color: var(--text-page);
-    /* 全站基准行距:原先由 reboot 的 --bs-body-line-height 提供 */
     line-height: var(--line-height-base);
     /*
-     * 正文基准字号:这里必须落一个**绝对长度**.
+     * 正文基准字号必须落一个绝对长度.
      * `*` 那条 `font-size: 100%` 是一根"相对父元素"的链,而 Chrome 对通用等宽族
      * (generic `monospace`)会在这根链上取自己的等宽默认字号 13px 而不是 16px --
      * 站内的 `--font-mono` 正好就是 generic monospace,少了这一条,.coords-display
      * 的坐标读数会从 16px 静默变成 13px(连带行高 24px -> 19.5px).
-     * 原先由 reboot 的 `body { font-size: var(--bs-body-font-size) }`(1rem)提供.
      */
     font-size: 1rem;
     /*
      * 首屏(.hero)用 margin-left/right: calc(50% - 50vw) 从 90% 宽的 main 里
-     * 满宽逃逸到 100vw;而 100vw **含纵向滚动条宽度**,所以一定会横向溢出一点,
+     * 满宽逃逸到 100vw;而 100vw 含纵向滚动条宽度,所以一定会横向溢出一点,
      * 这里必须裁掉,否则会多出一条横向滚动条.
      */
     overflow-x: hidden;
 }
 
 /*
- * 链接:去掉浏览器默认的蓝色与下划线.
- * 原先 reboot 的 `a { color: var(--bs-link-color); text-decoration: underline }`
- * 给全站链接上了浅蓝 + 下划线,导航项靠自己的规则压掉,头像链接(只有一张图)
- * 则一直带着它.归本站之后统一"继承所在元素的颜色,不要下划线",
- * 需要强调的链接自己写 color.
+ * 链接:继承所在元素的颜色,不要下划线 -- 导航项与头像链接都是自定义观感的元素,
+ * 浏览器默认的蓝字加下划线只会碍事.需要强调的链接自己写 color.
  */
 a {
     color: inherit;
@@ -107,9 +90,8 @@ a {
 }
 
 /*
- * 替换元素的对齐:去掉行内基线的下沉(原先由 reboot 的 `img,svg` 提供).
- * 少了它,只放一张图的块(如头像链接)会平白多出几像素的 descender 高度,
- * 头像整体下移,导航条跟着被撑高.
+ * 替换元素去掉行内基线的下沉.少了它,只放一张图的块(如头像链接)会平白多出
+ * 几像素的 descender 高度,头像整体下移,导航条跟着被撑高.
  */
 img,
 svg {
@@ -117,8 +99,8 @@ svg {
 }
 
 /*
- * 上下标:取值照抄 reboot(KaTeX 公式里会用到),少了它公式里的
- * sub/sup 会掉回 UA 的 `vertical-align: sub/super` + 更大字号,公式观感会变.
+ * 上下标:KaTeX 公式里会用到.少了它,公式里的 sub/sup 会掉回 UA 的
+ * `vertical-align: sub/super` + 更大字号,公式观感会变.
  */
 sub,
 sup {
@@ -137,15 +119,15 @@ sup {
 }
 
 /*
- * fieldset 的 UA 默认是 `min-width: min-content`,作为 flex / grid 子项时
- * 不肯收缩到内容以下;reboot 把它归零(地铁车窗控制台的两个 fieldset 依赖它).
+ * fieldset 的 UA 默认是 `min-width: min-content`,作为 flex / grid 子项时不肯收缩
+ * 到内容以下;归零它,地铁车窗控制台的两个 fieldset 才能跟着面板收窄.
  */
 fieldset {
     min-width: 0;
 }
 
 /*
- * legend 的 UA 默认让它按"嵌在边框上"的特殊规则排版;reboot 把它当普通块排
+ * legend 的 UA 默认按"嵌在边框上"的特殊规则排版,这里把它当普通块排
  * (宽度撑满 + 左浮动).字号不在这里 -- 地铁车窗的主题用 `--metro-font-size-legend`
  * 自己给.
  */
@@ -166,15 +148,11 @@ legend {
  * ================================================================ */
 
 /*
- * 行内代码:字体用库的代码字体栈(与编辑器 / 位图同一套字形),颜色继承所在
- * 元素,字号略小于正文.
+ * 行内代码:字体用库的代码字体栈(与编辑器 / 位图同一套字形),颜色继承所在元素,
+ * 字号略小于正文 -- 类型名比正文略小正是想要的分工.
  *
- * 这条原先写作 `body code`,是为了盖过 bootstrap 注入在后的 `code`
- * (`color: var(--bs-code-color)` -- 深色主题下是粉色,与 `.875em` 字号);
- * IEEE754 精度菜单项的主文案就是本站自己放的一个 `<code>`,粉色不跟着菜单项的
- * 悬停 / 当前项状态走,一行里会出现两种强调色.
- * bootstrap 移除后不再需要 `body` 前缀:`code` 是元素选择器,自然赢过 `*` 的
- * `--font-base`.字号沿用 reboot 的 `.875em` -- 类型名比正文略小正是想要的分工.
+ * 选择器就用元素名 `code`:`code`(0,0,1)自然赢过 `*`(0,0,0)的 `--font-base`,
+ * 不需要再加前缀提权.
  */
 code {
     color: inherit;
@@ -284,11 +262,10 @@ code {
 }
 
 /*
- * 标签栏:把标签页的外观(白底,四边框,下边线)全部去掉,只留文字.
- * 布局上也由本站完全负责(不再有第三方样式兜底),下面那条 `display: flex` 与
- * `list-style: none` 是**必需**的 -- 少了它们,导航栏会塌成"竖排 + 项目符号"
- * 的普通列表,而且不报任何错.
- * 选择器带 `.site-header` 是**作用域**,不是权重手段:标签栏只有导航条里有,
+ * 标签栏:去掉标签页的外观(白底,四边框,下边线),只留文字.
+ * 布局全部由这里负责,所以下面那条 `display: flex` 与 `list-style: none` 是必需的 --
+ * 少了它们,导航栏会塌成"竖排 + 项目符号"的普通列表,而且不报任何错.
+ * 选择器带 `.site-header` 是作用域,不是提权手段:标签栏只有导航条里有,
  * 带上它以后这些规则不会误伤别处的列表.
  */
 .site-header .nav-tabs {
@@ -355,8 +332,9 @@ code {
 
 main {
     /*
-     * 导航条已改为固定定位,不再占位,所以顶部间距从这里挪到各个标签页
-     * (见下面的 .tab-pane):首屏要压到导航条下面,别的标签页则要让开它.
+     * 导航条是固定定位,不占位的,所以文档流顶部不留间距:让开导航条这件事交给
+     * 每个标签页自己(见下面的 .tab-pane) -- 首屏要压到导航条下面,别的标签页则
+     * 要让开它.
      */
     margin-top: 0;
     margin-left: auto;
@@ -370,10 +348,8 @@ main {
 /* ================================================================
  * 标签页窗格
  *
- * 一次只显示一个.这两条显隐规则原先**完全**由 bootstrap 提供
- * (`.tab-content > .tab-pane { display: none }` / `> .active { display: block }`),
- * 站点自己的 `.tab-pane` 规则只写内边距 -- 少了它们,五个窗格会全部纵向
- * 堆叠在首屏下面,而且**不报任何错**.
+ * 一次只显示一个,靠下面这两条显隐规则.少了它们,五个窗格会全部纵向堆叠在
+ * 首屏下面,而且不报任何错.
  * ================================================================ */
 .tab-content > .tab-pane {
     display: none;
@@ -384,8 +360,7 @@ main {
 }
 
 /*
- * 切换时的淡入(原先由 bootstrap 的 `.fade` 提供):
- * `.active` 立刻上屏(display: block),`.show` 由切换逻辑下一帧补上,
+ * 切换时的淡入:`.active` 立刻上屏(display: block),`.show` 由切换逻辑在下一帧补上,
  * 透明度从 0 过渡到 1.少了 `opacity: 0` 那条,新窗格会直接跳出来.
  */
 .tab-pane.fade {
@@ -396,7 +371,7 @@ main {
     opacity: 0;
 }
 
-/* 尊重系统的"减少动态效果"偏好(原先在 reboot 的 media query 里) */
+/* 尊重系统的"减少动态效果"偏好 */
 @media (prefers-reduced-motion: reduce) {
     .tab-pane.fade {
         transition: none;
@@ -413,11 +388,11 @@ main {
     padding-top: 0;
 }
 
-/* 图标 */
+/* 头像图标:.head 由 site_shell 生成,尺寸与圆形都在这里 */
 .head {
     width: var(--head-size);
     margin: var(--head-margin);
-    /* 圆形:head.png 是方形位图,靠这里裁成圆(原先借 bootstrap 的 .rounded-circle) */
+    /* head.png 是方形位图,靠这里裁成圆 */
     border-radius: 50%;
 }
 
@@ -434,8 +409,8 @@ main {
 
 /*
  * 头像链接:header 的最后一个子节点,与标签栏平级(不在滚动容器里,见上).
- * header 是 flex + gap,直接排会被 gap 推远 24px;负 margin 把它抵掉,
- * 头像的落点就与当初"排在标签栏末尾"时逐像素一致.
+ * header 是 flex + gap,直接排会被 gap 推远;负 margin 把它抵掉,
+ * 头像的落点就跟贴着标签栏末尾时一样.
  */
 .head-link {
     display: block;
@@ -464,11 +439,10 @@ canvas#pixelCanvas {
 /*
  * 工具区布局:一排可换行的控件 -- 八颗按钮(颜色重置 / 画笔颜色 / 导出数据 /
  * 复制到剪贴板 / 导入数据 / 展开-折叠编辑器 / 下载PNG / 字节序)加库的分段选择器.
- * 按钮间距统一由这里的 `gap` 给(`--oled-button-margin`);数据区现在只剩一颗
- * 编辑器,原先给行内的复制 / 导入两颗按钮补 margin 的 `.oled-card .area-data
- * button` 规则已随之上移并撤掉.按钮本身的观感(描边 / 底色 / 文字 / 悬停 /
- * 焦点 / 禁用)归 UI 库(`miko_ui` 的 `.ui-button` 基线,见 main.ts 引的
- * widgets.css);分段选择器组内按钮的间距由库的 `.segmented` gap 管.
+ * 按钮间距统一由这里的 `gap` 给(`--oled-button-margin`).
+ * 按钮本身的观感(描边 / 底色 / 文字 / 悬停 / 焦点 / 禁用)归 UI 库(`miko_ui`
+ * 的 `.ui-button` 基线,见 main.ts 引的 widgets.css);分段选择器组内按钮的间距
+ * 由库的 `.segmented` gap 管.
  */
 .tools {
     display: flex;
@@ -476,7 +450,7 @@ canvas#pixelCanvas {
     align-items: center;
     gap: var(--oled-button-margin);
     margin-top: var(--oled-tools-margin-top);
-    /* 文字色归库:与卡片正文同一色(原先写死白色,是给浅色底准备的) */
+    /* 文字色归库(与卡片正文同一色) */
     color: var(--color-text);
 }
 
@@ -507,8 +481,8 @@ canvas#pixelCanvas {
  * 数据区那颗编辑器:`miko_ui` 的 `createCodeEditor`(外框类 `.code-editor`,
  * 见 src/oled/ui/oled_panel.ts;导出与导入共用这一颗).外框 / 行号槽 /
  * "透明 textarea + 背后高亮层"的严格重叠,以及等宽字体 / 配色,全部归库的
- * `styles/editor.css`(由 src/main.ts 引入);本站原来那条 `.textarea-data` 里只有
- * 两件事与编辑器有关,现在原样落到库的外框上:高度,与纵向可拖动.
+ * `styles/editor.css`(由 src/main.ts 引入);本站只在外框上补两件事:
+ * 高度,与纵向可拖动.
  *
  * 为什么要 `.oled-card` 前缀:库的样式表由 main.ts 引入(排在 public/css/*.css
  * 之后),`.code-editor` 在库里已经写了 `height: 100%` / `min-height: 0`,平局时
@@ -556,11 +530,9 @@ canvas#pixelCanvas {
 .bgul {
     list-style: none;
     /*
-     * 让 ul 自己包住浮动子项(建立 BFC).
-     * 原来这里的浮动是溢出的:ul 高度算成 0,后面的兄弟块 -- SETTING 标签页里
-     * 紧接着它的地铁车窗控制台 #metro-params -- 会从 ul 的**顶边**开始排,
-     * 于是边框盒与缩略图重叠:缩略图浮在面板底色上,面板内容被挤到右侧.
-     * 以前 ul 后面什么都没有,这个泄漏一直没露出来;控制台搬到它下面才显形.
+     * 让 ul 自己包住浮动子项(建立 BFC).少了它,ul 高度算成 0,后面的兄弟块 --
+     * SETTING 标签页里紧接着它的地铁车窗控制台 #metro-params -- 会从 ul 的顶边
+     * 开始排,于是边框盒与缩略图重叠:缩略图浮在面板底色上,面板内容被挤到右侧.
      */
     display: flow-root;
 }
@@ -592,9 +564,8 @@ canvas#pixelCanvas {
     display: block;
     width: var(--setting-thumb-width);
     height: var(--setting-thumb-height);
-    /* 圆角归 miko_ui 主题(库默认 0px):不再用 bootstrap 的 `.rounded`
-       工具类,那会把圆角绑死在 --bs-border-radius* 上.
-       指针样式不在这里:cursor:pointer 由按钮基线给(整块 tile 都可点) */
+    /* 圆角用 miko_ui 主题的小圆角(库默认 0px);指针样式不在这里:
+       cursor: pointer 由按钮基线给(整块 tile 都可点) */
     border-radius: var(--radius-sm);
 }
 

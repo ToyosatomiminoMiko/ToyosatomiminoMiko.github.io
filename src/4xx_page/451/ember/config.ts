@@ -3,7 +3,7 @@
  * 性能吃紧时优先动 MAX_DPR / MAX_PIXELS(填充率),其次才是 PARTICLE_COUNT.
  */
 
-/** 粒子数量. 原来的 180 实际只有 135 在跑(见 PARTICLE_STRIDE), 现在补齐并加大 */
+/** 粒子数量; 粒子缓冲按它 x PARTICLE_STRIDE 分配 */
 export const PARTICLE_COUNT = 560;
 
 /** compute pass 的工作组大小,与 compute.wgsl 里的 @workgroup_size 必须一致 */
@@ -12,13 +12,10 @@ export const WORKGROUP_SIZE = 64;
 /**
  * Particle 结构: 16 x f32 = 64 字节.
  *
- * 这里曾经写的是 48(12 x f32), 但 WGSL 里 color 是 vec3<f32>, 对齐要求 16,
- * 于是真实布局是
+ * 布局(WGSL 对齐规则下的实际结果):
  *     pos(0,8) vel(8,8) size(16) age(20) life(24) flick(28) seed(32)
  *     [36..48 填充] color(48,12) rise(60)
- * 一共 64 字节. 后果很隐蔽: 缓冲只开了 180x48=8640 字节, GPU 按 64 字节读,
- * arrayLength 只有 135 -- 真正在跑的粒子比声明的少 1/4, 而且 CPU 播种的数据
- * 整片错位(第 i 颗写在 48i, 读的是 64i).
+ * color 是 vec3<f32>, 对齐要求 16, 所以 [36..48] 是 12 字节的对齐填充.
  * 字段下标见 PARTICLE_FIELD, 布局有单测兜底(见 resources.test.ts).
  */
 export const PARTICLE_STRIDE = 64;
@@ -50,7 +47,11 @@ export const PARTICLE_FIELD = {
 export const SEED_LIFE_MIN = 9;
 export const SEED_LIFE_MAX = 20;
 
-/** SimUniforms 结构: 12 x f32(实际只写前 8 个) */
+/**
+ * SimUniforms uniform buffer 的字节长度: 48 字节 = 12 x f32.
+ * 但 WGSL 里的 SimUniforms 只有 8 个 f32(32 字节), 每帧也只写前 8 个
+ * (见 UNIFORM_FLOAT_COUNT), 因此尾部 16 字节是多余的分配, 从未被读写.
+ */
 export const UNIFORM_STRIDE = 48;
 
 /** 固定仿真步长: dt 恒定,120Hz 屏与 60Hz 屏看到的余烬速度一致 */
@@ -81,9 +82,8 @@ export const REDUCED_MOTION_FPS = 30;
 export const FRAME_JITTER_MS = 1.5;
 
 /**
- * 跨模块共用的单位 / 布局 / 交互常量.
- * 下面这些分散在 index / viewport / frame_clock / pointer_wind / log 里,
- * 集中在此以免同一数值各写一份.
+ * 以下常量被多个模块共用(单位换算 / 缓冲布局 / 视口与指针交互阈值),
+ * 各处的字面量统一引用这里的名字, 避免同一数值各写一份.
  */
 
 /** 毫秒 / 秒换算(ms per s) */
@@ -110,11 +110,20 @@ export const PARTICLE_VERTEX_COUNT = 6;
 /** 最终合成的全屏三角形顶点数 */
 export const COMPOSITE_VERTEX_COUNT = 3;
 
-/** 粒子 pass 的 loadOp:clear 颜色(全透明黑 = 上一帧历史清零) */
+/**
+ * 不透明黑. 两处 loadOp:clear 都要"黑且不透明", 但用途不同, 所以各留一个具名常量:
+ *   - HISTORY_CLEAR_VALUE(resources.config.ts): 离屏历史纹理首帧清屏,
+ *     免得合成 pass 采样到未初始化内容
+ *   - COMPOSITE_CLEAR_VALUE: 合成 pass 的画布底色
+ * 两者字面量必须一致, 因此共用这一个来源.
+ */
+export const OPAQUE_BLACK = { r: 0, g: 0, b: 0, a: 1 } as const;
+
+/** 粒子 pass 的 loadOp:clear 颜色(全透明黑, 每帧都把目标纹理清空) */
 export const PARTICLE_CLEAR_VALUE = { r: 0, g: 0, b: 0, a: 0 } as const;
 
-/** 合成 pass 的 loadOp:clear 颜色(不透明黑 = 画布底色) */
-export const COMPOSITE_CLEAR_VALUE = { r: 0, g: 0, b: 0, a: 1 } as const;
+/** 合成 pass 的 loadOp:clear 颜色(不透明黑 = 画布底色, 字面量见 OPAQUE_BLACK) */
+export const COMPOSITE_CLEAR_VALUE = OPAQUE_BLACK;
 
 /** 指针风场: 停手多久后开始衰减(ms) */
 export const POINTER_IDLE_AFTER_MS = 140;

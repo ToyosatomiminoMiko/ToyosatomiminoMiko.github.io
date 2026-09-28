@@ -23,29 +23,21 @@ import {
     MAX_UPLOAD_DIMENSION,
     RESOURCE_BASE,
     RUNTIME_CONFIG,
-    SLIDER_GROUPS,
+    SLIDER_SPECS,
     STYLE_PRESETS,
     UPLOAD_ACCEPT,
     UPLOAD_LAYERS,
     UPLOAD_MIME_TYPE,
-    type SliderGroupSpec,
-    type SliderSpec,
 } from './config';
-
-// SLIDER_GROUPS 用 `as const` 收窄过,每个分组的 sliders 是各自的元组类型;
-// 这里按统一的 SliderSpec 摊平,顺便断言"每个条目都能当 SliderSpec 用".
-const sliders: readonly SliderSpec[] = SLIDER_GROUPS.flatMap(
-    (group: SliderGroupSpec) => group.sliders,
-);
 
 describe('地铁车窗滑块配置', () => {
     it('滑块的 id 与参数名唯一', () => {
-        expect(new Set(sliders.map((slider) => slider.id)).size).toBe(sliders.length);
-        expect(new Set(sliders.map((slider) => slider.param)).size).toBe(sliders.length);
+        expect(new Set(SLIDER_SPECS.map((slider) => slider.id)).size).toBe(SLIDER_SPECS.length);
+        expect(new Set(SLIDER_SPECS.map((slider) => slider.param)).size).toBe(SLIDER_SPECS.length);
     });
 
     it('每个滑块的范围与初始值合法', () => {
-        for (const slider of sliders) {
+        for (const slider of SLIDER_SPECS) {
             expect(slider.min, slider.id).toBeLessThan(slider.max);
             expect(slider.step, slider.id).toBeGreaterThan(0);
             expect(slider.value, slider.id).toBeGreaterThanOrEqual(slider.min);
@@ -129,7 +121,7 @@ describe('地铁车窗启动配置(RUNTIME_CONFIG)', () => {
 
     it('滑块清单逐字段来自 SLIDER_GROUPS', () => {
         expect(RUNTIME_CONFIG.params).toEqual(
-            sliders.map((slider) => ({
+            SLIDER_SPECS.map((slider) => ({
                 name: slider.param,
                 min: slider.min,
                 max: slider.max,

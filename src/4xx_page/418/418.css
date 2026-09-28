@@ -1,9 +1,9 @@
 @import './418_tokens.css';
 
 /* ------------------------------------------------------------------
-   字体: 由 @fontsource 自托管, 不再请求 Google Fonts CDN.
-   字重与原来 <link> 里请求的完全一致: Comic Neue 400/700, Quicksand 400/600/700.
-   只取 latin 子集 -- 这四款字体都没有 CJK 字形, 页面里的中文本来就落回系统字体.
+   字体走 @fontsource 自托管, 只取 latin 子集: 下面这几款都没有 CJK 字形,
+   页面里的中文落回系统字体.
+   字重: Comic Neue 400/700, Quicksand 400/600/700.
    ------------------------------------------------------------------ */
 @import '@fontsource/comic-neue/latin-400.css';
 @import '@fontsource/comic-neue/latin-700.css';
@@ -51,7 +51,6 @@ body {
     transform: translateY(var(--teapot-card-hover-lift));
 }
 
-/* 418 大标题 */
 .status-code {
     font-size: var(--teapot-status-font-size);
     font-weight: var(--teapot-weight-bold);
@@ -78,7 +77,7 @@ body {
     border: var(--teapot-badge-border);
 }
 
-/* ----- 幽默茶壶主角 (纯CSS绘制 + 表情) ----- */
+/* ----- 幽默茶壶主角 (纯 CSS 绘制 + 表情) ----- */
 .teapot-container {
     position: relative;
     width: var(--teapot-container-w);
@@ -89,7 +88,6 @@ body {
     align-items: center;
 }
 
-/* 茶壶身体 */
 .teapot {
     position: relative;
     width: var(--teapot-body-w);
@@ -127,7 +125,6 @@ body {
     }
 }
 
-/* 壶盖 */
 .lid {
     position: absolute;
     top: var(--teapot-lid-top);
@@ -155,7 +152,6 @@ body {
     border: var(--teapot-knob-border);
 }
 
-/* 壶嘴 (傲娇的嘴) */
 .spout {
     position: absolute;
     right: var(--teapot-spout-right);
@@ -171,7 +167,6 @@ body {
     z-index: var(--teapot-z-spout);
 }
 
-/* 把手 */
 .handle {
     position: absolute;
     left: var(--teapot-handle-left);
@@ -188,7 +183,6 @@ body {
     z-index: var(--teapot-z-handle);
 }
 
-/* 茶壶的幽默表情 -- 傲娇+厌世 */
 .face {
     position: absolute;
     top: var(--teapot-face-top);
@@ -221,7 +215,6 @@ body {
     box-shadow: var(--teapot-pupil-shadow);
 }
 
-/* 傲娇眉毛 */
 .eyebrow {
     position: absolute;
     top: var(--teapot-brow-top);
@@ -242,7 +235,6 @@ body {
     transform: rotate(var(--teapot-brow-right-angle));
 }
 
-/* 嘴巴 (不屑) */
 .mouth {
     position: absolute;
     bottom: var(--teapot-mouth-bottom);
@@ -255,7 +247,6 @@ body {
     z-index: var(--teapot-z-mouth);
 }
 
-/* 腮红 (害羞但倔强) */
 .blush {
     position: absolute;
     bottom: var(--teapot-blush-bottom);
@@ -276,7 +267,6 @@ body {
     right: var(--teapot-blush-inset);
 }
 
-/* 蒸汽 (幽默动态) */
 .steam {
     position: absolute;
     top: var(--teapot-steam-top);
@@ -329,7 +319,6 @@ body {
     }
 }
 
-/* 咖啡禁令标志 (幽默点缀) */
 .coffee-ban {
     margin: var(--teapot-ban-margin);
     display: flex;
@@ -347,8 +336,7 @@ body {
     filter: var(--teapot-ban-icon-shadow);
 }
 
-/* 禁令标志那颗单独用红色.
-   以前是 style="color: #b34e4e", 现在靠 .icon-ban 这个类; 同特异度下写在后面覆盖上面 */
+/* .icon-ban 只改颜色; 与 .coffee-ban .icon 特异度相同, 所以这条必须写在它后面才能覆盖 */
 .coffee-ban .icon-ban {
     color: var(--teapot-ban-icon-alert-color);
 }
@@ -363,7 +351,6 @@ body {
     color: var(--teapot-ban-text-color);
 }
 
-/* 幽默文案 */
 .message {
     font-size: var(--teapot-message-font-size);
     font-weight: var(--teapot-weight-semibold);
@@ -396,14 +383,13 @@ body {
     margin-right: auto;
 }
 
-/* 图标与紧跟的文字之间的间距.
-   以前是各写一份 style="margin-right: 8px", 现在收进这里 */
+/* 静态标记里图标与相邻文字的间距; 动态生成的 toast 图标不走这里,
+   它们由 teapot/config.ts 的 ICON_STYLE.marginRight 写行内 6px */
 .teapot-badge .icon,
 .rfc-quote .icon {
     margin-right: var(--teapot-icon-gap);
 }
 
-/* 按钮组 */
 .button-group {
     display: flex;
     flex-wrap: wrap;
@@ -456,7 +442,6 @@ body {
     background: var(--teapot-coffee-btn-hover-bg);
 }
 
-/* 日志/彩蛋计数器 */
 .counter-panel {
     margin-top: var(--teapot-counter-margin-top);
     font-size: var(--teapot-counter-font-size);
@@ -482,7 +467,6 @@ body {
     transition: opacity var(--teapot-duration-fast);
 }
 
-/* 响应式 */
 @media (max-width: 480px) {
     .card {
         padding: var(--teapot-card-padding-sm);

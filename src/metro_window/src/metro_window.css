@@ -6,20 +6,22 @@
 
 **所有选择器都以 `.metro-window` 作用域开头**,这是硬性约束:
   站点首页的 `public/css/index.css` 里有一条
-  `* { margin:0; padding:0; border:0; background:none; font-family:consolas }`
+  `* { margin:0; padding:0; border:0; background:none; font-family: var(--font-base) }`
   的通配重置.那边是通配(0,0,0)选择器,只要本文件的选择器带上类名就能压住它;
-  反过来,原来那份"独立页面"写法里的 `body` / `canvas` / `button` 裸元素选择器
-  一旦进站,会连 OLED 的 `#pixelCanvas` 和 RBT 的 `#rbCanvas` 一起改样.
-- 所有可调数值(颜色/间距/圆角/字体/动效)集中在 tokens.css,本文件只引用
+  反过来,不带作用域的裸元素选择器(`body` / `canvas` / `button`)一旦进站,
+  会连 OLED 的 `#pixelCanvas` 和 RBT 的 `#rbCanvas` 一起改样,所以一律不写.
+- 所有可调数值(颜色 / 间距 / 圆角 / 字体)集中在 tokens.css,本文件只引用
   `var(--metro-*)`,不再出现字面色值或尺寸;结构性字面量(`0`/`100%`/`none`/
-  `display:block`/`1` 份数等)保持内联.
+  `display:block`/`1` 份数等)保持内联.唯一的例外是
+  `.upload-file::file-selector-button`(见文末那条):伪元素拿不到库的
+  `.ui-button` 类,那份"按钮基线"只能照抄库的数值,它的来源写在那条规则上面.
 - 自定义属性统一加 `--metro-` 前缀,避免和 UI 库 / 站点变量撞名.
 - 注意 `font-family` 必须写成 `.metro-window, .metro-window *`:站点的通配重置
   给**每个元素**都设了字体,靠继承是传不下去的.
 
-宿主只需要带 `.metro-window` 类名的容器元素:组件拆成"舞台"(画布)与
-"控制台"(设置面板)两块,两个宿主都会由挂载函数补上这个类名(样式作用域),
-所以面板换到别的标签页也照样有样式.
+宿主只需要带 `.metro-window` 类名的容器元素:组件的舞台(画布)/ 风格按钮行 /
+控制台(设置面板)/ 上传面板各挂一个宿主,挂载函数往**每个**宿主上都补这个类名
+(样式作用域),所以面板换到别的标签页也照样有样式.
 */
 .metro-window {
     padding: var(--metro-space-20);
@@ -68,7 +70,7 @@
 }
 
 /* 面板宿主被省略时组件自建的隐藏容器:面板与状态区仍在 DOM 里,事件照常绑,
-   只是不显示(只想挂舞台的宿主 / 拆分过程中的中间态). */
+   只是不显示(只想挂舞台的宿主). */
 .metro-window .metro-panel-sink {
     display: none;
 }
@@ -107,7 +109,7 @@
 
 .metro-window canvas {
     display: block;
-    /* 铺满宿主(独立页的 body / 站点首页卡片体),但不超过令牌里的上限;
+    /* 铺满宿主(站点首页的卡片体),但不超过令牌里的上限;
        Rust 侧按画布的 width/height 属性建 surface,这里只缩显示尺寸. */
     width: 100%;
     max-width: var(--metro-size-canvas-max-width);
@@ -148,16 +150,15 @@
     border: none;
 }
 
-/* 分组标题:静态说明文字.分组**不可折叠**,所以这里没有 summary 那套
-   cursor / user-select 与悬停态 -- 它只回答"这一排滑块调的是什么". */
+/* 分组标题:静态说明文字.分组整组常驻显示,没有可折叠状态 --
+   标题只回答"这一排滑块调的是什么". */
 .metro-window .slider-group-title {
     color: var(--metro-color-muted);
     font-size: var(--metro-font-size-base);
     padding: var(--metro-space-4) 0;
 }
 
-/* 一排滑块:换行 + 间距.
-   单个滑块(名称 / 滑杆 / 数值框 / 重置按钮)的**结构,布局与配色都归 UI 库**
+/* 单个滑块(名称 / 滑杆 / 数值框 / 重置按钮)的**结构,布局与配色都归 UI 库**
    (`miko_ui` 的 `.slider-field`,见 styles/widgets.css),本站不再维护
    `.slider / .slider-meta / .slider-label / .slider-range / .slider-value`
    那一套,只保留这一层"怎么排列若干滑块"的规则与下面几条按本站主题改的口径. */
@@ -171,19 +172,15 @@
 /* 宽度:单个滑块在一排里的伸缩口径.
    库的 `.slider-field` 只负责"内部怎么排"(它给的尺寸出口是数值框的
    --slider-field-value-width),**"一块滑块占多宽"是本站的口径**,就在这里用
-   --metro-slider-field-width 定义.补 `flex: 0 1 <同一口径>` -- 只收缩不伸张,
-   所以一排里的滑块不会因为分摊剩余空间而宽窄不一,只有窄到放不下时才允许收缩.
-   声明里单独写了 `width` 的滑块由组件把 --metro-slider-field-width 设在它自己的
-   根节点上,后者覆盖这里的继承值,于是"声明级覆盖"照常生效. */
+   --metro-slider-field-width 定义(这是它唯一出现的地方;config.ts 的声明里
+   没有宽度这一项).补 `flex: 0 1 <同一口径>` -- 只收缩不伸张,所以一排里的
+   滑块不会因为分摊剩余空间而宽窄不一,只有窄到放不下时才允许收缩. */
 .metro-window .slider-field {
     flex: 0 1 var(--metro-slider-field-width, 320px);
     max-width: 100%;
-}
-
-/* 配色:库的滑块读的是库主题 token(--color-*),本站控制台用自己那套
-   --metro-color-*;在车窗作用域内把两者接上,免得滑块与周围面板两套观感.
-   值与 tokens.css 里各自对应的 --metro-* 同一个来源,不新造颜色. */
-.metro-window .slider-field {
+    /* 配色:库的滑块读的是库主题 token(--color-*),本站控制台用自己那套
+       --metro-color-*;在车窗作用域内把两者接上,免得滑块与周围面板两套观感.
+       值与 tokens.css 里各自对应的 --metro-* 同一个来源,不新造颜色. */
     color: var(--metro-color-text);
     background: var(--metro-color-panel);
     border-radius: var(--metro-radius-sm);
@@ -233,10 +230,10 @@
 }
 
 /* .controls 只是播放控制那一行的定位钩子(单测 / 冒烟脚本按它选按钮),
-   本身不再声明布局:两颗按钮(暂停-开关 / 重置)按文档流排在风格按钮行之后. */
+   本身不声明布局:两颗按钮(暂停-开关 / 重置)按文档流排在风格按钮行之后. */
 .metro-window .controls button + button {
-    /* 生成的 DOM 里元素之间没有空白文本节点,而控制条也不再是 flex 容器
-       (`gap` 没了),两颗按钮会贴着共边 -- 间距在这里补一次. */
+    /* 生成的 DOM 里元素之间没有空白文本节点,控制条也不是 flex 容器(没有 `gap`),
+       两颗按钮会贴着共边 -- 间距在这里补一次. */
     margin-left: var(--metro-space-8);
 }
 
@@ -249,10 +246,9 @@
 }
 
 /*
- * 按钮的**外观不再由本站写**:风格按钮 / 播放控制 / 上传的"恢复默认"全由
+ * 按钮的**外观不在这里写**:风格按钮 / 播放控制 / 上传的"恢复默认"全由
  * `miko_ui` 的 `createButton` 生成,描边 / 底色 / 文字 / 悬停 / 焦点 / 禁用
- * 都在库的 `.ui-button` 基线里(见 main.ts 引的库样式).原先这里那份
- * `.metro-window button` 规则与库的基线是同一个东西的两份写法,已撤掉.
+ * 都在库的 `.ui-button` 基线里(见 main.ts 引的库样式).
  *
  * 只留"当前项"这一条,而且**描边只引库的令牌**(`--color-accent-border` 等,
  * 与库自己的 `.dock-btn.is-active` / `.menu-item.is-active` 同一组设置)--
@@ -345,8 +341,9 @@
 /* 原生"选择文件"按钮:它是 `<input type="file">` 的伪元素,**不是** `<button>`,
    拿不到库的 `.ui-button` 类(伪元素不在类的选择器范围内).这里的数值**逐条
    对齐库的按钮基线**(1px 描边 + 透明底 + 方角 + 次要文字色 + 悬停/焦点),
+   所以字形/字号/行高这几项是照抄的库数值而不是本文件的 `--metro-*` 令牌;
    描边引的是库的令牌(`--color-border-strong` / `--color-accent-border`),
-   不再用面板自己那套 `--metro-color-*`;要改按钮长相仍以库为准. */
+   要改按钮长相仍以库为准. */
 .metro-window .upload-file::file-selector-button {
     margin-right: var(--metro-space-8);
     padding: 3px 7px;

@@ -1,29 +1,18 @@
 /*
 OLED 像素画板的**标记组件**(声明式).
 
-画板原先的标记写在 index.html 的 `#oled` 窗格里,再由 oled.ts 按 id 逐个取回
-(`document.getElementById` / `querySelectorAll('input[name="tools"]')`) --
-同一个 id 在 HTML 与 TS 里各写一份,改一处就静默失配.现在改成和地铁车窗
-控制台,时钟同一条约定:宿主只提供空的标签页窗格,标记按 config.ts 的声明生成.
-
-生成的结构与原 index.html **逐字对应**(标签名 / 类名 / id / 文本 / 属性都不变),
-因为 public/css/index.css 直接命中这些类与 id(如
-`canvas#pixelCanvas`,`#change-color`,`.oled-card`,`.tools`).**面板框体归库**:
-标题栏与正文容器由 `miko_ui` 的 `createPanel` 建(`section.ui-panel.oled-card >
-header.ui-panel-header > span.ui-panel-title` + `div.ui-panel-body`),本站只给
-标题文案与作用域类 `.oled-card`.
-**另有三个结构件也归库**:面板里的八颗按钮改由 `miko_ui` 的 `createButton` 生成
-(基线类 `.ui-button`);三个绘图工具由库的 `createSegmented` 生成
-(`div.segmented` + 三颗组内按钮),不再是 `input[name="tools"]` 那组 radio;
-数据区原先的两块 `textarea.textarea-data` 换成库的 `createCodeEditor`
+面板框体归库:`miko_ui` 的 `createPanel` 建
+`section.ui-panel.oled-card > header.ui-panel-header > span.ui-panel-title + div.ui-panel-body`,
+本站只给标题文案与作用域类 `.oled-card`.面板里的八颗按钮由库的 `createButton`
+生成(基线类 `.ui-button`);三个绘图工具由库的 `createSegmented` 生成
+(`div.segmented` + 三颗组内按钮);数据区由库的 `createCodeEditor` 生成
 (`div.code-editor`:行号槽 + 真 textarea + 高亮层,装配见下面的 `createDataEditor`).
-**数据区只有一颗框**:导出写进去的 C 源码本身就是 `0x??` 形式,导入正则
+
+数据区只有一颗框:导出写进去的 C 源码本身就是 `0x??` 形式,导入正则
 (`OLED_HEX_BYTE_PATTERN`)原样能解析回来,所以"导出 -> 改 / 粘 -> 导入"共用一个
-缓冲即可;原先分给导出框 / 导入框的两颗按钮(复制 / 导入)随之上移到 `.tools`,
-与"导出数据"相邻成组,旁边再挂一颗"展开 / 折叠编辑器"(切 `is-expanded` 类,
-两种高度见 config.ts 与 index.css).编辑器 id 仍按下面的契约写上,`#change-color`
-那条配色规则已从 index.css 撤掉,`.textarea-data` 那条也已撤(本站样式表现在只给
-编辑器补两种高度,以及最小高度与可纵向拖动).
+缓冲即可;复制 / 导入两颗按钮与"展开 / 折叠编辑器"一起挂在 `.tools`(后者切
+`is-expanded` 类,两种高度见 config.ts 与 index.css).编辑器 id 按下面的契约写上;
+本站样式表只给编辑器补两种高度,以及最小高度与可纵向拖动.
 
     section.ui-panel.oled-card                    面板框体(库的 createPanel)
       header.ui-panel-header > span.ui-panel-title   'OLED Canvas'
@@ -37,6 +26,9 @@ header.ui-panel-header > span.ui-panel-title` + `div.ui-panel-body`),本站只�
         br
         div
           div.area-data > div.code-editor#oledData(库的编辑器;.is-expanded = 展开态)
+
+public/css/index.css 直接命中这些类与 id(如 `canvas#pixelCanvas`,`#change-color`,
+`.oled-card`,`.tools`),所以改类名 / id 必须同步改样式表.
 
 本模块是纯函数:不读页面,不改全局,不绑事件,不查 DOM,只把"描述"变成元素并把
 行为代码需要的引用一次交回(与 ui/settings.ts,clock/ui/clock_display.ts 的分工一致).
@@ -122,8 +114,7 @@ export interface OledPanel {
  * 一颗面板按钮:整颗由 UI 库(`miko_ui` 的 `createButton`)生成.
  *
  * 库给的是**按钮本身**:`<button type="button" class="ui-button">` + 文案,外观
- * 归库的 `styles/widgets.css`,本站不再写按钮外观(原先那份是 bootstrap 的
- * `.btn.btn-primary`).这里只补本站的两件事:
+ * 归库的 `styles/widgets.css`,本站不写按钮外观.这里只补本站的两件事:
  *   - **id**:CSS 与测试的定位契约(库的选项里没有 id,句柄拿到元素后补上);
  *   - 元素引用:行为代码按引用绑事件,不查 DOM.
  */
@@ -139,7 +130,7 @@ function createPanelButton(id: string, text: string): HTMLButtonElement {
  * 库给的是 `<div class="segmented" role="group">` + 每项一颗
  * `<button type="button">`(选中项带 `.active` 与 `aria-pressed="true"`),
  * 布局 / 高亮 / 键盘与读屏语义都归库;本站只把 config.ts 的清单原样喂进去,
- * 并把**句柄**交回(行为代码用 `onChange` 接选中,不再按 name 查 radio).
+ * 并把**句柄**交回(行为代码用 `onChange` 接选中).
  * 列数取清单长度:三项排一行.
  */
 function createToolSelect(): SegmentedHandle<DrawTool> {
@@ -170,7 +161,7 @@ const HIGHLIGHT_ESCAPES: Readonly<Record<string, string>> = {
  * 与行为代码一行都不用动.
  */
 function highlightSource(source: string): string {
-    return source.replace(/[&<>]/g, (char) => HIGHLIGHT_ESCAPES[char] ?? char);
+    return source.replace(/[&<>]/g, (char) => HIGHLIGHT_ESCAPES[char]);
 }
 
 /**
@@ -184,8 +175,7 @@ function highlightSource(source: string): string {
  *   - **滚动条**:唯一会滚的 textarea 挂上库的 `.ui-scrollbar`.
  * 句柄整颗交回:行为代码用 `textarea` 读写值,程序化写值后调 `refresh()`
  * 让行号栏与高亮层跟上(直接写 `.value` 不派发 `input`,见 oled.ts 的 exportData).
- * 面板里只有这一套编辑器,所以"两颗框的槽宽要对齐"这条顾虑已随之消失,常量仍
- * 留着是为了行数进位时槽宽不跳.
+ * 槽宽钉成常量是为了行数进位时槽宽不跳(取值理由见 config.ts 的同名常量).
  */
 function createDataEditor(id: string): CodeEditorHandle {
     const editor = createCodeEditor({
@@ -212,56 +202,39 @@ function createDataEditor(id: string): CodeEditorHandle {
 export function createOledPanel(): OledPanel {
     // --- 工具控制区:八颗按钮 + 分段选择器,屏幕上的先后由下面 `tools` 的实参顺序定 ---
     // 从左到右:颜色重置 -> 画笔颜色 -> 三个绘图工具 -> 导出数据 -> 复制到剪贴板 -> 导入数据 -> 展开/折叠编辑器 -> 下载PNG -> 字节序
-    // (复制 / 导入 / 折叠原在数据区附近,合并成一颗数据框之后搬到这一排,见文件头)
-    /** 重置按钮:清空画布,文案 = OLED_PANEL_REFILL_BUTTON_TEXT,id 'refill-btn' */
     const refillButton = createPanelButton(OLED_DOM.refillBtnId, OLED_PANEL_REFILL_BUTTON_TEXT);
-    /** 画笔颜色按钮:文案 = 当前模式的 buttonText(由 oled.ts 切换),id 'change-color' */
     const colorButton = createPanelButton(
         OLED_DOM.colorBtnId,
         OLED_COLOR_MODES[OLED_DEFAULT_COLOR_MODE].buttonText,
     );
-    /** 导出按钮:生成 C 源码,文案 = OLED_PANEL_EXPORT_BUTTON_TEXT,id 'export-btn' */
     const exportButton = createPanelButton(OLED_DOM.exportBtnId, OLED_PANEL_EXPORT_BUTTON_TEXT);
-    /** PNG 按钮:下载画布,文案 = OLED_PANEL_PNG_BUTTON_TEXT,id 'output-png-btn' */
     const pngButton = createPanelButton(OLED_DOM.pngBtnId, OLED_PANEL_PNG_BUTTON_TEXT);
-    /** 字节序按钮:LSB / MSB 切换,文案 = OLED_BYTE_ORDER_TEXT,id 'byte-order-btn' */
     const byteOrderButton = createPanelButton(
         OLED_DOM.byteOrderBtnId,
         OLED_BYTE_ORDER_TEXT[OLED_DEFAULT_BYTE_ORDER],
     );
 
     // 工具选择器整组由库生成,句柄直接交回 oled.ts(不建第二份)
-    /** 绘图工具分段选择器(绘制 / 直线 / 矩形,清单见 OLED_PANEL_TOOL_OPTIONS;默认 'free' 已选中) */
     const toolSelect = createToolSelect();
 
     // --- 状态指示区 / 主画布 ---
-    /** 坐标文本:'coordinate:(X:-,Y:-)' 起,鼠标移动时由 oled.ts 改写,id 'coordsDisplay' */
     const coordsDisplay = create_element(
         { tag: 'div' },
         { class: OLED_PANEL_COORDS_CLASS, id: OLED_DOM.coordsDisplayId },
         OLED_PANEL_COORDS_TEXT,
     );
-    /** 主画布:128x64 物理像素(width/height 由 oled.ts 写上),id 'pixelCanvas' */
     const canvas = create_element({ tag: 'canvas' }, { id: OLED_DEFAULT_CONFIG.canvasId });
-    /** 鼠标位置指示器(跟随光标的红框,不属于画布像素),id 'pixelIndicator' */
     const indicator = create_element(
         { tag: 'div' },
         { class: OLED_PANEL_INDICATOR_CLASS, id: OLED_DOM.indicatorId },
     );
 
     // --- 数据区 ---
-    /** 数据编辑器:导出往里写 C 源码,导入从里面抠字节(同一颗,id 'oledData') */
     const dataEditor = createDataEditor(OLED_DOM.dataEditorId);
-    /** 复制按钮:把数据框里的文本送进剪贴板,文案 = OLED_COPY_BUTTON_TEXT,id 'output-button' */
     const copyButton = createPanelButton(OLED_DOM.copyBtnId, OLED_COPY_BUTTON_TEXT);
-    /** 导入按钮:解析数据框里的十六进制字节,文案 = OLED_PANEL_IMPORT_BUTTON_TEXT,id 'import-btn' */
     const importButton = createPanelButton(OLED_DOM.importBtnId, OLED_PANEL_IMPORT_BUTTON_TEXT);
-    /**
-     * 折叠 / 展开按钮:切数据编辑器的 `is-expanded` 类(oled.ts 的
-     * toggleEditorExpanded 是唯一写它的地方).初值即折叠态文案.
-     * `aria-expanded` / `aria-controls` 是本站在拿到元素后补的可访问性属性:
-     * 库的按钮选项里只有文案与 aria-label,没有可切换语义.
-     */
+    // 折叠 / 展开按钮:初值即折叠态文案;`aria-expanded` / `aria-controls` 是拿到
+    // 元素后补的可访问性属性 -- 库的按钮选项里只有文案与 aria-label,没有可切换语义.
     const editorToggleButton = createPanelButton(
         OLED_DOM.editorToggleBtnId,
         OLED_PANEL_EDITOR_EXPAND_TEXT,
@@ -277,7 +250,7 @@ export function createOledPanel(): OledPanel {
     );
 
     /**
-     * 工具控制区:按屏幕上的从左到右顺序排(上面的按钮声明顺序即此顺序).
+     * 工具控制区:按屏幕上的从左到右顺序排.
      * 数据区的四颗按钮相邻成组 -- 导出 / 复制 / 导入 / 展开-折叠 都作用于同一颗
      * 数据框(见上),中间不夹画布按钮;下载 PNG 与字节序跟在后面.
      */

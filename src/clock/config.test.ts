@@ -1,14 +1,10 @@
 /*
-LED 时钟配置的回归网.
+LED 时钟配置的自洽性回归网.
 
-原有的一处隐患是"画布尺寸写在 index.html 的 width/height 上,而字形推进量写在
-clock/config.ts 里" -- 两边对不上时表现为**最后一个数字被裁掉**,不报错.
-现在尺寸也归 config.ts 了,这里就把这条不变量钉死:
-
-    fmt_time() 的输出排完后占多少像素,画布就必须正好那么大.
-
-数值来自同一个 config(推进量 / 字形宽度 / 顶偏移),所以它测的不是"某个数字是几",
-而是"这几个声明互相自洽".
+守住的不变量:fmt_time() 的输出按字形推进量排完后占的像素宽,必须正好等于画布
+宽 -- 两边对不上时的症状是**最后一个数字被裁掉**且不报错.
+断言里的数值全部来自同一个 config(推进量 / 字形宽度 / 顶偏移),所以测的不是
+"某个数字是几",而是"这几条声明互相自洽".
 */
 import { describe, expect, it } from 'vitest';
 
@@ -31,7 +27,7 @@ function advanceOf(char: string): number {
     return char === DOT_CHAR || char === COLON_CHAR ? PUNCT_ADVANCE : DIGIT_ADVANCE;
 }
 
-/** 一个字符实际占用的像素宽度 */
+/** 一个字符实际点亮的宽度:推进量里含 1 列间距,这里只取点亮的像素 */
 function glyphWidthOf(char: string): number {
     return char === DOT_CHAR || char === COLON_CHAR ? PIXEL_SIZE : DIGIT_COLUMNS;
 }

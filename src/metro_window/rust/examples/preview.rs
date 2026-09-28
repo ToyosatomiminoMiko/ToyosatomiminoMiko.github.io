@@ -9,7 +9,6 @@
   参数名与线上 setParam 走**同一份字段分发**(`app_params::write_param`),所以
   示例里能调的线上也能调;区别是线上由前端 config.ts 声明区间并夹取,示例里
   直接按写的数值用(离线调试要的就是"所见即所填").
-- 水珠的离线预览在仓库根目录的 water_droplet_demo/rust/examples/preview.rs.
 */
 use metro_window::{
     create_metro_pipelines, create_texture, decode_png, generate_dirt, generate_fog,
@@ -63,7 +62,7 @@ const PREVIEW_RESOURCE_DIR: &str = concat!(
     // crate 根 = <repo>/src/metro_window/rust,向下三级就是仓库根
     "/../../../public/metro_window/resource"
 );
-/// 按文件名拼出城市贴图的绝对路径(与运行时的 `city_png()` 一一对应).
+/// 按文件名拼出城市贴图的绝对路径.
 fn preview_city_png(file: &str) -> String {
     format!("{PREVIEW_RESOURCE_DIR}/{file}")
 }
@@ -143,7 +142,8 @@ fn main() {
 
         // 贴图在站点 public/metro_window/resource/ 下(PREVIEW_RESOURCE_DIR 已拼成
         // 绝对路径,不受 cwd 影响).站点运行时 fetch 的是同一批文件的公开地址
-        // /metro_window/resource/...,见 src/app_params.rs 的 RESOURCE_BASE.
+        // /metro_window/resource/...,由前端 config.ts 的 RESOURCE_BASE 声明,
+        // 经 startApp 传给 wasm(见 app.rs 里按 boot.texture_url 拼 URL 的那一段).
         // 顺序与运行时一致:背景(level_3)在最下,近景(level_0)在最上.
         let bg = load_png(&device, &queue, &preview_city_png(PREVIEW_LEVEL_3), false);
         let far = load_png(&device, &queue, &preview_city_png(PREVIEW_LEVEL_2), true);

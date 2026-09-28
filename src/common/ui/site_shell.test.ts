@@ -121,9 +121,9 @@ describe('首页骨架:导航条', () => {
             expect(link, item.pane).not.toBeNull();
             expect(link?.textContent, item.pane).toBe(item.label);
             /*
-              触发器只靠 href 指向窗格:tabs.ts 绑的是**元素引用**,不再需要
-              bootstrap 那种"让文档级委托认出我"的 data-bs-toggle 属性.
-              这里顺手把"没有 data-* 残留"也钉住,免得旧的声明式属性又被加回来.
+              触发器只靠 href 指向窗格:tabs.ts 绑的是**元素引用**,不需要任何
+              "让文档级委托认出我"的 data-* 属性.
+              这里顺手把"没有 data-* 残留"也钉住,免得又加回一套声明式属性.
             */
             expect(link?.getAttributeNames().filter((name) => name.startsWith('data-')), item.pane)
                 .toEqual([]);

@@ -8,9 +8,10 @@
 
  1. **滑块初值要推入**.滑块参数有两处初值来源--前端 `config.ts` 的
     `SLIDER_GROUPS[].value`(滑杆起始位置)与 Rust `glass_params.rs` 的
-    `GlassParams::DEFAULT`(wasm 内部值).`bindSlider` 末尾那次同步跑在
-    `booted` 之前,里面的 `setParam` 会被 `if (booted)` 跳过,所以启动后必须
-    **补推一次**;少了它,改 `value` 只动界面,不动画面.
+    `GlassParams::DEFAULT`(wasm 内部值).库的 `SliderHandle.onInput` 订阅时
+    不回调,而本站的订阅挂在 `createSlider` 之后,所以装配期写进值源的那次初值
+    根本没有经过 `setParam`;启动后必须**补推一次**;少了它,改 `value` 只动界面,
+    不动画面.
  2. **启动配置要整体传进去**.`startApp(canvas, status, config)` 的第三个参数
     就是 `config.ts` 里的 `RUNTIME_CONFIG`:风格,图层清单,资源路径,上传上限,
     滑块区间全在里面,Rust 侧不再各存一份.漏传/字段名漂移会让 wasm 启动即报错
@@ -42,20 +43,12 @@ import {
     CANVAS_WIDTH,
     RUNTIME_CONFIG,
     SLIDER_GROUPS,
+    SLIDER_SPECS,
     TRANSPORT_BUTTONS,
     TRANSPORT_TOGGLE_LABEL,
-    type SliderGroupSpec,
     type SliderSpec,
 } from './config';
 import { mountMetroWindow } from './metro_window';
-
-/**
- * `SLIDER_GROUPS` 摊平后的全部滑块声明(与组件实际建的滑块一一对应).
- * 与 config.test.ts 同款写法:分组是各自的元组类型,这里按统一的 SliderSpec 收口.
- */
-const SLIDER_SPECS: readonly SliderSpec[] = SLIDER_GROUPS.flatMap(
-    (group: SliderGroupSpec) => group.sliders,
-);
 
 /** 装出四个空宿主并挂载车窗(挂载即开始异步 boot) */
 function mountAtEmptyHosts(): HTMLDivElement {
@@ -89,12 +82,7 @@ async function waitBooted(): Promise<void> {
     });
 }
 
-/**
- * 本次用例的挂载宿主(由 `beforeEach` 赋值).
- *
- * 滑块相关的断言都从它往下查,而不是 `document.querySelector`:每次挂载都往
- * `document.body` 追加一个新宿主,按文档查会命中上一个用例留下的那份旧标记.
- */
+/** 本次用例的挂载宿主(由 `beforeEach` 赋值;断言都从它往下查,见 sliderRow 的说明) */
 let mountedHost: HTMLDivElement;
 
 beforeEach(() => {
@@ -142,7 +130,7 @@ describe('地铁车窗启动参数', () => {
     it('把画布宽高比写给 CSS(与后备缓冲同一个来源)', async () => {
         // 比例只有 CANVAS_WIDTH / CANVAS_HEIGHT 一份:挂载时写到舞台上,
         // 免得 CSS 里再手写一份 16 / 9 与它并行.
-        const stage = document.querySelector<HTMLElement>('.metro-window');
+        const stage = mountedHost.querySelector<HTMLElement>('.metro-window--stage');
         expect(stage).not.toBeNull();
         expect(stage?.style.getPropertyValue(CANVAS_ASPECT_PROPERTY)).toBe(
             `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}`,

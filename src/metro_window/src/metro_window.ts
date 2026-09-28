@@ -1,10 +1,12 @@
 /*
 地铁车窗组件(可挂载)
 
-拆成三块,各挂各的宿主:
+四块各挂各的宿主:
 
 - **舞台**(挂载点的 `stage`):宿主只提供一个**空容器**,画布由 ui/stage_content.ts 生成;
-- **控制台**(挂载点的 `panel`):整套设置面板(风格按钮 / 播放控制 / 全部滑块 /
+- **风格按钮行**(挂载点的 `styles`):三颗 data-style 按钮,站点放在首屏底部;
+  省略这个宿主时按钮留在控制台里(行只建一份,不会两处各出现一份);
+- **控制台**(挂载点的 `panel`):整套设置面板(播放控制 / 全部滑块 /
   状态区)由 ui/settings.ts 按 config.ts 的声明式模型生成,插进面板宿主;
   省略面板宿主时退回一个隐藏容器,面板与状态区仍然存在,只是不显示;
 - **上传面板**(挂载点的 `uploads`):图层贴图替换(每层一个上传按钮 + 恢复默认)
@@ -23,18 +25,17 @@ GPU 资源,只有 wasm 内部能改.**没有后端**:文件不上传服务器,�
 所有字面量(id / 类名 / data-* 键名 / Rust 参数名 / 文案 / 阈值)都集中在
 @/metro_window/src/config.ts,标记与面板的结构集中在 @/metro_window/src/ui/,本文件只保留逻辑与生命周期.
 
-调用方式(两种等价写法,取一即可;导入统一用源码根别名 `@/`):
+调用方式(站点入口 src/main.ts 给的是**宿主引用**,来自站点骨架,不按 id 查 DOM;
+导入统一用源码根别名 `@/`):
 
-    // 1) 宿主自己已经拿到了容器(只挂舞台也行:面板退回隐藏容器)
     import { mountMetroWindow } from '@/metro_window/src/metro_window';
-    const stage = document.getElementById('metro-window');
-    const panel = document.getElementById('metro-params');
-    const uploads = document.getElementById('metro-uploads');
-    if (stage) mountMetroWindow({ stage, panel, uploads });
 
-    // 2) 按约定的四个挂载点 id 找容器(站点入口用这种,省得宿主自己写查找与报错)
-    import { mountMetroWindowAtMountIds } from '@/metro_window/src/metro_window';
-    mountMetroWindowAtMountIds();
+    mountMetroWindow({
+        stage: shell.metroStage,      // 必填:舞台宿主,承接画布
+        styles: shell.metroStyles,    // 省略 => 风格按钮留在控制台里
+        panel: shell.metroPanel,      // 省略 => 面板与状态区仍在,只是不显示
+        uploads: shell.metroUploads,  // 省略 => 上传面板落在控制台宿主内部
+    });
 
 宿主必须是**空容器**:标记全部由组件生成,已有的子节点不会被清掉,重复挂载
 只会把标记插两遍(wasm 侧的 App 是单例,本来也不允许挂载两次).
@@ -66,18 +67,16 @@ import {
     CANVAS_ASPECT_PROPERTY,
     CANVAS_HEIGHT,
     CANVAS_WIDTH,
-    DEFAULT_STYLE_INDEX,
     ELEMENT_IDS,
     ERROR_LABEL,
     EVENTS,
     GPU_ADAPTER_OPTIONS,
     ID_SELECTOR_PREFIX,
+    INITIAL_RUNNING,
     LAST_ENTRY_OFFSET,
     LOG_ADAPTER_PREFIX,
     MAX_UPLOAD_DIMENSION,
     MISSING_ELEMENT_MESSAGE_PREFIX,
-    MISSING_MOUNT_MESSAGE_PREFIX,
-    MOUNT_IDS,
     PANEL_SINK_CLASS,
     RESIZE_DEBOUNCE_MS,
     RUNTIME_CONFIG,
@@ -123,10 +122,11 @@ interface GpuAdapter {
 }
 
 interface GpuNavigator {
-    requestAdapter(options?: {
-        powerPreference?: 'low-power' | 'high-performance';
-        forceFallbackAdapter?: boolean;
-    }): Promise<GpuAdapter | null>;
+    /**
+     * 请求参数的类型直接取 config.ts 的 `GPU_ADAPTER_OPTIONS`:
+     * 浏览器 API 那边的形状由调用时传进去的那个常量定,不在这里重写一份.
+     */
+    requestAdapter(options?: typeof GPU_ADAPTER_OPTIONS): Promise<GpuAdapter | null>;
 }
 
 let booted = false;
@@ -136,7 +136,8 @@ let booted = false;
 // 这样做是因为:车窗是常驻的 rAF + 计算着色器负载,一旦它嵌进标签页,切走以后
 // 标签页只是 display:none,浏览器不会自动停 rAF,GPU 会一直空转.
 // 分开记的另一个好处是切回来能恢复用户原来的选择,而不是把"暂停"覆盖掉.
-let wantRunning = true;
+// 初值与那颗开关的初始文案同源(见 config.ts 的 INITIAL_RUNNING).
+let wantRunning: boolean = INITIAL_RUNNING;
 let documentVisible = !document.hidden;
 let rootOnScreen = true;
 
@@ -186,7 +187,7 @@ function watchDevicePixelRatio(onChange: () => void): void {
 }
 
 /** 四个挂载点的元素引用:舞台必需;风格按钮 / 控制台 / 上传面板省略时各退回默认位置 */
-export interface MetroMountPoints {
+interface MetroMountPoints {
     /** 舞台宿主:承接画布(必填) */
     readonly stage: HTMLElement;
     /** 风格按钮宿主(首屏底部);不给则风格按钮留在控制台里 */
@@ -197,39 +198,22 @@ export interface MetroMountPoints {
     readonly uploads?: HTMLElement;
 }
 
-/**
- * 按约定的四个挂载点 id 找空宿主,再挂载车窗.
- * 站点入口 src/main.ts 用这一条,省得宿主自己写一遍"找元素 + 报错".
- * 四个 id 定义在 config.ts 的 MOUNT_IDS:舞台与风格按钮在首屏,
- * 控制台与上传面板在 SETTING 标签页.
- */
-export function mountMetroWindowAtMountIds(): void {
-    mountMetroWindow({
-        stage: mustFindMount(MOUNT_IDS.stage),
-        styles: mustFindMount(MOUNT_IDS.styles),
-        panel: mustFindMount(MOUNT_IDS.panel),
-        uploads: mustFindMount(MOUNT_IDS.uploads),
-    });
-}
-
-/**
- * 按 id 找一个宿主,找不到直接抛错.
- * 这里和"省略 panel"是两回事:省略是宿主有意不显示面板(退回隐藏容器),
- * 配了 id 却在页面里找不到是**布局写错了**,静默不挂比报错难查得多.
- */
-function mustFindMount(id: string): HTMLElement {
-    const element = document.getElementById(id);
-    if (!element) {
-        throw new Error(`${MISSING_MOUNT_MESSAGE_PREFIX}${id}`);
-    }
-    return element;
-}
-
 /** 省略面板宿主时自建的隐藏容器(见 config.ts 的 PANEL_SINK_CLASS) */
 function createPanelSink(stage: HTMLElement): HTMLElement {
     const sink = create_element({ tag: 'div' }, { class: PANEL_SINK_CLASS });
     stage.append(sink);
     return sink;
+}
+
+/**
+ * 状态写出的唯一出口:状态区与上传行的状态各写各的节点,写法只有这一份.
+ *
+ * `logText` 只在需要留痕时给:启动状态区每条都同时 console.log;逐层上传的状态
+ * 不打印 -- 一次上传会写"解码中 / 已应用"好几条,逐条打印只会刷屏.
+ */
+function writeStatus(target: HTMLElement, message: string, logText?: string): void {
+    target.textContent = message;
+    if (logText !== undefined) console.log(logText);
 }
 
 export function mountMetroWindow(points: MetroMountPoints): void {
@@ -241,7 +225,7 @@ export function mountMetroWindow(points: MetroMountPoints): void {
     // --stage 再把它变成铺满父层的一层(画布用 object-fit: cover 覆盖).
     stage.classList.add(WINDOW_CLASS, BARE_MODIFIER_CLASS, STAGE_MODIFIER_CLASS);
 
-    // 画布(以及可选的标题 / 副标题)由组件生成(宿主只提供空容器);顺序即显示顺序.
+    // 画布由组件生成(宿主只提供空容器);顺序即显示顺序.
     // 组件交出的是库口径的子节点表(`Child[]`,假值表示"这一项不要"),
     // 所以先经库的 `childNodes()` 落成真节点 -- "字符串 -> 文本节点 / 跳过假值"
     // 这条规则库里有且只有一份,站点不再自己写一遍 spread.
@@ -282,10 +266,8 @@ export function mountMetroWindow(points: MetroMountPoints): void {
     uploadsHost.classList.add(WINDOW_CLASS);
     uploadsHost.append(uploads.root);
 
-    const setStatus = (message: string): void => {
-        settings.status.textContent = message;
-        console.log(message);
-    };
+    // setStatus 给状态区用,同时留一份 console.log(启动过程的每条状态都值得留痕).
+    const setStatus = (message: string): void => writeStatus(settings.status, message, message);
 
     // --- 后备缓冲尺寸:随首屏(宿主)尺寸变化 ---
     // 尺寸按"覆盖宿主所需的 16:9"算(见 stage_size.ts):画布比例恒为 16:9,
@@ -402,10 +384,10 @@ export function mountMetroWindow(points: MetroMountPoints): void {
             styleButtons.forEach((btn) => {
                 btn.disabled = false;
             });
-            // 播放-暂停开关与重置按钮都在 fieldset 里,由它统一解禁
-            // (旧标记里"暂停"单独置灰过一次,合成一颗开关之后不再需要)
+            // 播放-暂停开关与重置按钮都在这块 fieldset 里,由它统一解禁:
+            // 加载前的禁用态是 createSettingsPanel 的初始 disabled,解禁只在这里做一次.
             settings.root.disabled = false;
-            // 文案按当前状态刷一次:面板初值取的是 running,这里确认一遍
+            // 文案按当前状态刷一次(按钮初值来自 INITIAL_RUNNING,这里确认一遍)
             syncTransportLabel();
             // 上传同样要等 WebGPU 就绪:wasm 没初始化好时 setLayerImage 会直接报错.
             uploads.root.disabled = false;
@@ -437,12 +419,13 @@ export function mountMetroWindow(points: MetroMountPoints): void {
      * 把每个滑块的声明初值一次性推给 wasm.
      *
      * 为什么必须有这一步:滑块的初值由 UI 库的 `createSlider` 在装配期写进值源,
-     * 那时那次通知跑在 `booted` 之前,里面的 `setParam` 会被 `if (booted)` 主动
-     * 跳过(wasm 还没就绪),于是首帧用的是 Rust `glass_params.rs` 的
-     * `GlassParams::DEFAULT`,而不是 config.ts 里写的 `value` -- 只改
-     * `SLIDER_GROUPS` 会得到"滑杆显示新值,画面还是旧值"的错配.启动完成后补推
-     * 一次,`config.ts` 才真的是"参数名 / 区间 / 初始值"的唯一来源;Rust 那份
-     * DEFAULT 退化成"JS 推入之前的占位值"(单测与 `examples/preview.rs` 仍然直接用它).
+     * 而本站的 `onInput` 订阅是在那之后才挂上的(库的
+     * `SliderHandle.onInput` 明确"订阅时不回调"),所以那次初值写入不会经过这里;
+     * 少了这一步,首帧用的是 Rust `glass_params.rs` 的 `GlassParams::DEFAULT`,
+     * 而不是 config.ts 里写的 `value` -- 只改 `SLIDER_GROUPS` 会得到
+     * "滑杆显示新值,画面还是旧值"的错配.启动完成后补推一次,`config.ts` 才真的是
+     * "参数名 / 区间 / 初始值"的唯一来源;Rust 那份 DEFAULT 退化成"JS 推入之前的
+     * 占位值"(单测与 `examples/preview.rs` 仍然直接用它).
      *
      * 推的是声明值(`spec.value`)而不是从 DOM 读回来的数:值源就在库的句柄里,
      * 读 DOM 只会把"格式化后的文本"再解析一遍,声明才是那一份真值.
@@ -462,8 +445,9 @@ export function mountMetroWindow(points: MetroMountPoints): void {
      * 重置按钮的目标值是建控件时给它的 `resetValue`(= 声明值),因此点重置等价于
      * 把参数改回声明值,走的是同一个出口.
      *
-     * `if (booted)` 的守卫不能省:建控件时那次初值通知跑在 wasm 就绪之前,补推由
-     * [`pushSliderValues`] 在 `startApp` 之后统一做,否则初值会被推两遍.
+     * `if (booted)` 的守卫不能省:绑定发生在挂载期,而 `boot()` 要跨过
+     * "加载 wasm -> 请求适配器 -> startApp"三次 await;在这段窗口里任何一次改动
+     * (用户在启动完成前拖动滑杆)都必须挡住 -- wasm 还没就绪,`setParam` 到不了渲染内核.
      */
     function bindSlider({ spec, slider }: SliderControl): void {
         slider.onInput((value) => {
@@ -479,9 +463,8 @@ export function mountMetroWindow(points: MetroMountPoints): void {
      */
     function bindUpload(control: UploadControl): void {
         const { spec, input, status, reset } = control;
-        const setUploadStatus = (message: string): void => {
-            status.textContent = message;
-        };
+        // 每层一行状态,所以这里只写该行自己的节点(不打印:一次上传会写好几条).
+        const setUploadStatus = (message: string): void => writeStatus(status, message);
 
         input.addEventListener(EVENTS.change, () => {
             const file = input.files?.[0];
@@ -550,7 +533,8 @@ export function mountMetroWindow(points: MetroMountPoints): void {
             btn.disabled = true;
             btn.addEventListener(EVENTS.click, () => {
                 if (!booted) return;
-                setStyle(Number(btn.dataset[STYLE_DATA_KEY] ?? DEFAULT_STYLE_INDEX));
+                // createStyleRow 给每颗按钮都写了 data-style,所以这里直接读就是合法编号.
+                setStyle(Number(btn.dataset[STYLE_DATA_KEY]));
                 styleButtons.forEach((b) => b.classList.toggle(STYLE_BUTTON_ACTIVE_CLASS, b === btn));
             });
         });

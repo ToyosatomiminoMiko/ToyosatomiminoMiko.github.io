@@ -5,11 +5,12 @@
     --icon-size: 1em;
     /* 与文字基线的垂直对齐偏移 */
     --icon-baseline-shift: -0.125em;
-    /* 颜色跟随文字颜色 */
+    /* 兜底填充色; 418.html 的 <path> 已各自带 fill="currentColor",
+       这层只在新增不带 fill 的 symbol 时生效 */
     --icon-fill: currentColor;
 }
 
-/* 内联 SVG 图标 (取代 Font Awesome 字体图标): 尺寸跟随字号, 颜色跟随 currentColor.
+/* 内联 SVG 图标: 尺寸跟随字号, 颜色沿用文字颜色.
    只有 418 页面还在用 -- sprite 写在该页 HTML 里(<symbol> + <use href="#i-...">).
    451 的内联图标已全部换成 emoji, 因此不再引入本文件. */
 .icon {
@@ -22,8 +23,7 @@
 }
 
 /* sprite 宿主: <symbol> 定义完就不该占版面, 但也不能用 display:none --
-   那样 <use> 会一起不渲染. 所以是"零尺寸 + 溢出隐藏".
-   (以前是写成 svg 上的 style 属性, 已外置到这里) */
+   那样 <use> 会一起不渲染. 所以是"零尺寸 + 溢出隐藏". */
 .icon-sprite {
     position: absolute;
     width: 0;

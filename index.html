@@ -4,10 +4,8 @@
 ToyosatomiminoMiko
 -->
 <!--
-深色画面不在这里声明:配色方案(`color-scheme: dark`)与页面底色 / 正文色都在
-public/css/index.css 的"文档基线"一节.原先这里挂着 bootstrap 的
-`data-bs-theme="dark"`,只为让 reboot 给 `body` 写出深色底;bootstrap 整包移除后
-不需要了.
+配色方案(`color-scheme: dark`)与页面底色 / 正文色都在 public/css/index.css
+的"文档基线"一节,不在这里声明.
 -->
 <html>
 
@@ -16,7 +14,7 @@ public/css/index.css 的"文档基线"一节.原先这里挂着 bootstrap 的
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>ToyosatomiminoMiko</title>
 
-    <!-- style 设计令牌(字体/调色板/尺寸/圆角/间距/z-index/过渡):必须先于下列样式表加载 -->
+    <!-- 顺序有约束:后两个样式表全部按变量取值,令牌必须先加载 -->
     <link href="/css/tokens.css" rel="stylesheet" type="text/css" />
     <link href="/css/index.css" rel="stylesheet" type="text/css" />
     <link href="/css/ieee754.css" rel="stylesheet" type="text/css" />
@@ -24,25 +22,16 @@ public/css/index.css 的"文档基线"一节.原先这里挂着 bootstrap 的
 
 <body>
     <!--
-    页面骨架的**唯一宿主**.
+    页面骨架的唯一宿主:整页 UI 由 src/common/ui/site_shell.ts 生成后替换到这里.
 
-    首页的整套 UI -- 导航条(站名 + 标签 + 头像),首屏(舞台 / 压暗层 /
-    底部一排),五个标签页,以及每个模块的空宿主 -- 都不再写在这里,而是由
-    src/common/ui/site_shell.ts 按 src/common/site.config.ts 的声明式模型生成,
-    与 SETTING 里的地铁车窗控制台完全同一条约定:
-
-        宿主页不出现任何标记,只提供空位;结构 / 文案 / 类名 / id 只在
-        config.ts 里定义一次,组件与 CSS 都引用它.
-
-    所以改界面的入口是:
-
-        src/common/site.config.ts       骨架与站点的声明式模型(导航项/首屏/缩略图/宿主 id)
+    改界面的入口:
+        src/common/site.config.ts       站点骨架的声明式模型(导航项/首屏/缩略图/宿主 id)
         src/common/ui/site_shell.ts     生成骨架,并把各部分的元素引用交回 main.ts
         src/<模块>/config.ts            模块自己的声明式模型(文案/DOM 契约/几何)
-        src/<模块>/ui/*.ts              模块的纯函数标记组件
+        src/<模块>/ui/*.ts              模块的标记生成
         public/css/*.css                样式(靠类名与 id 命中,不靠结构位置)
 
-    唯一的例外是本文件 head 里的样式表顺序与 `<title>`:它们属于文档本身.
+    例外是 head 里的样式表顺序与 `<title>`:它们属于文档本身.
     -->
     <div id="site-root"></div>
     <script type="module" src="/src/main.ts"></script>

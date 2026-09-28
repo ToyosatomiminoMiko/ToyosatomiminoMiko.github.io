@@ -12,6 +12,7 @@
  *   t0 计算之前 -> t1 计算之后 -> t2 粒子绘制之后 -> t3 合成之后
  */
 import type { GpuPassTimings } from './stats';
+import { TIMESTAMP_QUERY_FEATURE } from './capabilities.config';
 import {
     BYTES_PER_TIMESTAMP,
     MARKS_PER_FRAME,
@@ -24,8 +25,8 @@ import {
     ZERO_READS_BEFORE_GIVING_UP,
 } from './gpu_timing.config';
 
-export function isGpuTimingSupported(device: GPUDevice): boolean {
-    return device.features.has('timestamp-query');
+function isGpuTimingSupported(device: GPUDevice): boolean {
+    return device.features.has(TIMESTAMP_QUERY_FEATURE);
 }
 
 export function createGpuTimer(device: GPUDevice): GpuTimer | null {
@@ -65,11 +66,6 @@ export class GpuTimer {
         return this.last;
     }
 
-    /** 是否已经判定"这个后端测不出 GPU 时间" */
-    get unavailable(): boolean {
-        return this.gaveUp;
-    }
-
     /** 一帧开始时取号, 返回本帧 4 个时间戳的起始槽位 */
     beginFrame(): number {
         const base = (this.frameIndex % 2) * MARKS_PER_FRAME;
@@ -84,8 +80,11 @@ export class GpuTimer {
     }
 
     /**
-     * 录制收尾: 把本帧 4 个点解析出来并异步读回.
-     * 上一帧还没读完就跳过本帧的读回 -- 统计永远不能拖住提交.
+     * 录制收尾: resolve 本帧 4 个点,拷进读回缓冲, 再异步 mapAsync 读回.
+     *
+     * resolveQuerySet / copyBufferToBuffer 是无条件执行的(只要还没 gaveUp),
+     * 所以上一帧的 mapAsync 没结束也照样会提交本帧的拷贝; 被跳过的只是本帧的
+     * mapAsync -- 等上一帧的 finally 把 reading 清掉.
      */
     endFrame(encoder: GPUCommandEncoder, base: number): void {
         if (this.gaveUp) return;

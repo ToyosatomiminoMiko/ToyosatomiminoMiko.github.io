@@ -1,10 +1,9 @@
 /**
  * IEEE 754 面板的标记契约(进程内,跑在 happy-dom 里).
  *
- * 面板原先写在 index.html 的 `#ieee754` 窗格里,是首页最大的一块静态标记
- * (栅格 / 精度菜单 / 图例 / 三个分区);现在由 `ui/ieee754_panel.ts` 生成.
- * `public/css/ieee754.css` 通篇按这里的类名命中,所以这一份测试相当于把
- * "CSS 与标记的接口"钉住:类名少一个,层级挪一层,样式就静默失效.
+ * 面板整块由 `ui/ieee754_panel.ts` 生成,而 `public/css/ieee754.css` 通篇按这里的
+ * 类名命中,所以这份测试相当于把"CSS 与标记的接口"钉住:类名少一个,层级挪一层,
+ * 样式就静默失效.
  *
  * 图例里那两个位数提示是**生成期就需要引用**的元素(行为代码要按精度改写它们),
  * 所以顺便断言"组件交回的引用就是文档里那两个 <b>".精度那一列是库的折叠菜单
@@ -150,14 +149,14 @@ describe('IEEE754:精度与输入那一行', () => {
         expect(panel.input.className).toBe(IEEE754_INPUT_CLASS);
         expect(panel.input.getAttribute('spellcheck')).toBe(IEEE754_INPUT_SPELLCHECK);
         expect(panel.input.parentElement?.className).toBe(IEEE754_INPUT_GROUP_CLASS);
-        // 转换按钮归 UI 库(`miko_ui` 的 `createButton`):带基线类 `.ui-button`,
-        // 站点原先的 bootstrap 类 `btn btn-primary` 与输入框的 `.form-control`
-        // 都已不用(输入框观感改由站点 `.ieee-input` 引库令牌)
+        // 转换按钮归 UI 库(`miko_ui` 的 `createButton`):`.ui-button` 是库的基线类,
+        // 站点旧表单类 `.btn` / `.form-control` 都不该出现在这里(负向断言),
+        // type="button" 也由库给
         expect(panel.convertButton.classList.contains('ui-button')).toBe(true);
         expect(panel.convertButton.classList.contains('btn')).toBe(false);
         expect(panel.convertButton.getAttribute('type')).toBe('button');
         expect(panel.convertButton.textContent).toBe(IEEE754_CONVERT_LABEL);
-        // 按钮与输入框在同一个输入组里(原标记如此)
+        // 输入框与按钮同在一个 `.ieee-input-group` 里(样式依赖这个层级)
         expect(panel.input.parentElement?.querySelector('button')).toBe(panel.convertButton);
     });
 
@@ -198,7 +197,7 @@ describe('IEEE754:图例与三个分区', () => {
         expect(mustQuery(`.${IEEE754_FORMULA_CLASS}#${IEEE754_DOM.formulaId}`)).toBe(panel.formula);
         expect(mustQuery(`.${IEEE754_SPECIAL_CLASS}#${IEEE754_DOM.specialId}`)).toBe(panel.special);
         expect(mustQuery(`#${IEEE754_DOM.bitsId}`)).toBe(panel.bits);
-        // 位图容器与位串同在一个 .ieee-section 里(原标记如此)
+        // 位图容器与位串同在一个 .ieee-section 里(样式依赖这个层级)
         expect(panel.bits.parentElement?.className).toBe(IEEE754_SECTION_CLASS);
         expect(panel.bits.parentElement).toBe(panel.bitstring.parentElement);
     });

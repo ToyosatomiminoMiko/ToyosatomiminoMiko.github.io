@@ -1,9 +1,9 @@
 /**
  * 418 茶壶交互(teapot/index.ts)的可调常量.
  *
- * 抽出的是: DOM id / 选择器 / 类名 / sprite 图标 id 与内联样式 /
+ * 覆盖: DOM id / 选择器 / 类名 / sprite 图标 id 与内联样式 /
  * 各类时长(ms) / 表情与面板的临时样式值 / 幽默文案.
- * 这些值原样搬自 418.html 内联脚本, 改变它们会改变交互表现, 不是纯重构.
+ * 这些值直接决定交互表现, 改动会改变行为, 不是纯重构.
  */
 
 /** 交互涉及的 DOM id(必须与 418.html 一致, 不要改) */
@@ -53,9 +53,9 @@ export const ICON_ID = {
 
 /** 图标内联样式片段 */
 export const ICON_STYLE = {
-    /** 与紧跟文字留出间距 */
+    /** 图标与相邻文字的间距(418_tokens.css 的 --teapot-icon-gap 是 8px, 与本值不一致) */
     marginRight: 'margin-right:6px;',
-    /** 警示红 */
+    /** 警示红; 镜像 418_tokens.css 的 --teapot-ban-icon-alert-color */
     alert: 'color:#b34e4e;',
 } as const;
 
@@ -68,7 +68,7 @@ export const REJECT_COUNT_STEP = 1;
 /** toast 可见时的不透明度 */
 export const TOAST_OPACITY_VISIBLE = '1';
 
-/** 茶壶晃动动画时长(ms) */
+/** 茶壶晃动动画时长(ms); 镜像 418_tokens.css 的 --teapot-wobble-duration(0.4s) */
 export const WOBBLE_MS = 400;
 
 /** 蒸汽增强后恢复默认时长的延迟(ms) */
@@ -98,7 +98,7 @@ export const EYE_LEFT_INDEX = 0;
 /** 蒸汽增强时的动画(更快) */
 export const STEAM_ANIMATION_BOOST = 'steamFloat 1.8s infinite ease-in-out';
 
-/** 蒸汽默认动画(与 418.css 里 .steam span 的 animation 一致) */
+/** 蒸汽默认动画; 镜像 418_tokens.css 的 --teapot-steam-animation */
 export const STEAM_ANIMATION_NORMAL = 'steamFloat 2.5s infinite ease-in-out';
 
 /** 泡茶: 瞳孔斜眼看茶 */
@@ -118,7 +118,8 @@ export const MOUTH_ANGRY = {
     transform: 'translateX(-50%) rotate(2deg)',
 } as const;
 
-/** 恢复默认: 不屑嘴(与 418.css 的 .mouth 一致) */
+/** 恢复默认嘴形, 各字段镜像 418_tokens.css 的 --teapot-mouth-h /
+ * --teapot-mouth-border-w / --teapot-mouth-color / --teapot-mouth-radius */
 export const MOUTH_REST = {
     borderBottom: '5px solid #6b3e1e',
     borderRadius: '0 0 30% 30%',
@@ -126,13 +127,13 @@ export const MOUTH_REST = {
     transform: 'translateX(-50%)',
 } as const;
 
-/** 计数面板闪烁的过渡时长 */
+/** 计数面板闪烁的过渡时长; 镜像 418_tokens.css 的 --teapot-duration-fast(0.2s) */
 export const PANEL_FLASH_TRANSITION = '0.2s';
 
 /** 计数面板闪烁时的背景色 */
 export const PANEL_FLASH_BG = '#f0cdb0';
 
-/** 计数面板恢复后的背景色(与 418.css 的 .counter-panel 一致) */
+/** 计数面板恢复后的背景色; 镜像 418_tokens.css 的 --teapot-counter-bg */
 export const PANEL_REST_BG = '#eedbcb';
 
 /** 可选茶叶(随机抽一种) */

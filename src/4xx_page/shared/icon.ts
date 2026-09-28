@@ -9,10 +9,10 @@
 /** <svg> 上的类名(对应 shared/icon.css 的 .icon) */
 const ICON_CLASS = 'icon';
 
-/** 让图标对读屏软件隐藏 -- 相邻文字已经说明了含义 */
+/** 相邻文字已说明含义, 不必让读屏重复播报 */
 const ICON_ARIA_HIDDEN = 'true';
 
-/** 不参与键盘 Tab 聚焦(图标永远只是装饰) */
+/** 图标只是装饰, 不进入键盘 Tab 序列 */
 const ICON_FOCUSABLE = 'false';
 
 export function icon(id: string, style = ''): string {

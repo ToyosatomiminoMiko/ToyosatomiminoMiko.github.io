@@ -13,10 +13,9 @@ crate-type = ["cdylib", "rlib"]
 wasm-bindgen = "0.2.127"
 wasm-bindgen-futures = "0.4.77"
 js-sys = "0.3.104"
-# 只列代码真正用到的类型(web_sys:: 在 src/ 与 examples/ 的出现处):
+# web-sys 只启用代码真正用到的类型对应的 feature
+# (web_sys:: 在 src/ 与 examples/ 的出现处):
 # console / Window / Response / HtmlElement / HtmlCanvasElement / Performance.
-# 不要随手补 "Document"/"Element":前者本 crate 从未用过,后者已由
-# HtmlElement/HtmlCanvasElement 传递启用,显式写上是纯噪音.
 web-sys = { version = "0.3.104", features = [
     "console",
     "HtmlCanvasElement",
@@ -28,8 +27,7 @@ web-sys = { version = "0.3.104", features = [
 wgpu = { version = "24", features = ["webgpu"] }
 png = "0.18"
 bytemuck = { version = "1", features = ["derive"] }
-# rand / getrandom 随水珠一起拆到了 water_droplet_demo/:
-# 本 crate 现在没有随机数需求(程序化贴图用的是自己的 hash01,见 random.rs).
+# 本 crate 没有随机数依赖:程序化贴图用的是自己的 hash01(见 random.rs).
 
 [dev-dependencies]
 naga = "=24.0.0"

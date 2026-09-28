@@ -47,23 +47,19 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
     ]);
 }
 
-/** 用户主动关闭 / ?nogpu=1 时直接放弃绘制 */
-function drawingDisabled(): boolean {
-    if (window.__emberDisabled === true) return true;
+/** 地址栏参数是否存在; URLSearchParams 不可用(或 location 受限)时按"没有"处理 */
+function hasQueryParam(name: string): boolean {
     try {
-        return new URLSearchParams(location.search).has(DISABLE_QUERY_PARAM);
+        return new URLSearchParams(location.search).has(name);
     } catch {
         return false;
     }
 }
 
-/** ?perf=1 时打开性能 HUD(并把摘要打到控制台) */
-function perfEnabled(): boolean {
-    try {
-        return new URLSearchParams(location.search).has(PERF_QUERY_PARAM);
-    } catch {
-        return false;
-    }
+/** 用户主动关闭(window.__emberDisabled)/ ?nogpu=1 时直接放弃绘制 */
+function drawingDisabled(): boolean {
+    if (window.__emberDisabled === true) return true;
+    return hasQueryParam(DISABLE_QUERY_PARAM);
 }
 
 /** 页面入口调用;自身不会 reject */
@@ -81,7 +77,8 @@ export async function startEmber(): Promise<void> {
         }
 
         const options: EmberBootOptions = { ...(window.__emberOptions ?? {}) };
-        const perf = perfEnabled();
+        // ?perf=1 时打开性能 HUD, 并把摘要限频打到控制台
+        const perf = hasQueryParam(PERF_QUERY_PARAM);
         if (perf) options.hud = true;
 
         const engine = new EmberWebGPU(canvas, options);
@@ -89,7 +86,6 @@ export async function startEmber(): Promise<void> {
 
         const ready = await withTimeout(engine.init(), options.initTimeoutMs ?? INIT_TIMEOUT_MS);
         if (!ready) {
-            // 用户明确要求: WebGPU 调用失败就放弃绘制, 不做 Canvas2D/WebGL 降级
             engine.dispose();
             reportStatus(EMBER_STATUS.unavailable, STATUS_DETAIL_INIT_FAILED);
             return;

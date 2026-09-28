@@ -24,7 +24,7 @@
 | 站点位置 | 站点首页的**四个**空宿主:舞台(画布)`#metro-window` 与风格按钮 `#metro-styles` 在 HOME 标签页的**首屏**(前者在 `.hero__stage` 里铺满整屏,后者在 `.hero__bottom` 里与 LED 时钟同排),其余设置面板 `#metro-params` 与它下方的图层贴图上传面板 `#metro-uploads` 在 SETTING 标签页;这四个宿主由站点骨架按 `config.ts` 的 `MOUNT_IDS` **生成**(站点把整页 UI 也改成了声明式编排:`index.html` 只剩 `<div id="site-root">`,骨架见 `src/common/ui/site_shell.ts`),挂载见 `src/main.ts`(已没有独立入口页) |
 | Rust 源码 | `src/metro_window/rust/`(crate `metro-window`,编译为 wasm32-unknown-unknown) |
 | 前端源码 | `src/metro_window/src/` |
-| 组件行为 | `src/metro_window/src/metro_window.ts`,导出 `mountMetroWindow(points: MetroMountPoints)` / `mountMetroWindowAtMountIds()`(站内入口给的是**宿主引用**:`mountMetroWindow({ stage: shell.metroStage, ... })`) |
+| 组件行为 | `src/metro_window/src/metro_window.ts`,导出 `mountMetroWindow(points)`(站内入口给的是**宿主引用**:`mountMetroWindow({ stage: shell.metroStage, ... })`) |
 | 运行时贴图 | 源码 `public/metro_window/resource/level_0.png` ~ `level_3.png`(站点 public,编号由近到远),公开地址 `/metro_window/resource/*.png` |
 
 ### 组件形态
@@ -34,13 +34,7 @@
 **上传面板**(图层贴图替换)四块,各挂各的宿主:
 
 ```ts
-import { mountMetroWindowAtMountIds } from '@/metro_window/src/metro_window';
-
-mountMetroWindowAtMountIds();   // 自己按约定的四个 id 找容器(见 MOUNT_IDS),缺一个就报错
-```
-
-```ts
-// 或者自己给宿主(站点入口用这种:宿主引用来自站点骨架,不查 DOM)
+// 站点入口给的是宿主引用(来自站点骨架,不查 DOM)
 // 舞台必填,风格按钮 / 控制台 / 上传面板都可省略
 import { mountMetroWindow } from '@/metro_window/src/metro_window';
 
@@ -52,8 +46,8 @@ mountMetroWindow({ stage, styles, panel, uploads });
 - **宿主只提供空容器**:站点里有四个 `<div id="metro-window">` /
   `<div id="metro-styles">` / `<div id="metro-params">` /
   `<div id="metro-uploads">`(最后两个在 SETTING 标签页里上下相邻;它们由站点骨架
-  按本组件 `config.ts` 的 `MOUNT_IDS` 生成并**把元素引用**交给
-  `mountMetroWindowAtMountIds` 之外的入口,站点侧不再按 id 查 DOM);画布由
+  按本组件 `config.ts` 的 `MOUNT_IDS` 生成,并把**元素引用**直接交给
+  `mountMetroWindow`,站点侧不按 id 查 DOM);画布由
   `src/ui/stage_content.ts` 按 `src/config.ts` 的分辨率生成,风格按钮行与设置面板
   (播放控制 / 滑块 / 状态区)由
   `src/ui/settings.ts` 按同一份模型生成,上传面板由 `src/ui/uploads.ts` 按
@@ -526,7 +520,7 @@ PREVIEW_PARAM=dirt_opacity=0,interior_opacity=0 cargo run --package metro-window
 
 | 改动 | 为什么 |
 | --- | --- |
-| `MOUNT_ID` -> `MOUNT_IDS { stage, panel }`;`mountMetroWindow(root)` -> `mountMetroWindow({ stage, panel? })`;`mountMetroWindowAtMountId()` -> `mountMetroWindowAtMountIds()` | 一个页面两个宿主:画布在首屏,设置面板在 SETTING 标签页."面板放哪"从此是站点的决定,组件不再假设两者同屏 |
+| `MOUNT_ID` -> `MOUNT_IDS`;`mountMetroWindow(root)` -> `mountMetroWindow({ stage, styles?, panel?, uploads? })` | 一个页面多个宿主:画布与风格按钮在首屏,设置面板与上传面板在 SETTING 标签页."面板放哪"从此是站点的决定,组件不再假设它们同屏;宿主引用由站点骨架交给挂载函数,组件不按 id 查 DOM |
 | `ui/window_content.ts` -> `ui/stage_content.ts`,`createWindowContent()` -> `createStageContent()`;一度新增 `STAGE_COPY_ENABLED` | 这个文件只管舞台;首屏文案后来改由站点页面负责(站名在导航左上角),组件不再生成标题 / 副标题.该开关连同 `WINDOW_TITLE` / `WINDOW_SUBTITLE` / `SUBTITLE_CLASS`,`metro_window.css` 的 `h1`/`.subtitle` 规则与 `--metro-font-size-title` **已整体删除**(开关长期为关,四处都没有消费者) |
 | 样式作用域类由挂载函数往**两个**宿主上都补;新增舞台修饰类 `.metro-window--stage` 与隐藏容器 `.metro-panel-sink` | `metro_window.css` 的选择器**全部**以 `.metro-window` 开头:面板换了宿主却没这个类就是"样式静默失效"(看着没坏但全乱);省略面板宿主时退回隐藏容器,面板 / 状态区 / 事件绑定一个都不少 |
 | `IntersectionObserver` 明确只观察**舞台** | 面板在别的标签页里,它的可见性不代表画面的可见性,不能拿来当暂停依据 |
