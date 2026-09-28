@@ -11,7 +11,12 @@ IEEE 754 面板的**标记组件**(声明式).
       <div class="card-body">
         <p class="ieee-hint">...</p>
         <div class="row g-3 align-items-center mb-3">
-          <div class="col-auto">精度 label + select#ieee-format</div>
+          <div class="col-auto">
+            精度 label(for 指触发按钮)
+            div.menu-anchor                      精度菜单的锚点(库的定位参照)
+              button#ieee-format.ui-button       触发按钮:显示当前精度
+              div.menu-panel.menu-popover        菜单面板(role="menu",两项,当前项带 .is-active)
+          </div>
           <div class="col-6">十进制 label + input-group(input#ieee-input + button#ieee-convert)</div>
         </div>
         <div id="ieee-error" class="ieee-error" hidden></div>
@@ -35,11 +40,15 @@ IEEE 754 面板的**标记组件**(声明式).
 本模块是纯函数:不读页面,不改全局,不绑事件(`addEventListener` / 初始渲染都是
 ieee754.ts 的事),只把"描述"变成元素并交回引用 -- 与 ui/settings.ts 的分工一致.
 标记的形状与类名逐个照搬重构前的 index.html,`public/css/ieee754.css` 按这些
-id / class 命中,不得合并或省略.**例外是转换按钮**:它改由 `miko_ui` 的
-`createButton` 生成(基线类 `.ui-button`,外观归库),站点不再给按钮写外观.
+id / class 命中,不得合并或省略.
+
+**两处归 UI 库(`miko_ui`)**:转换按钮是 `createButton`(基线类 `.ui-button`),
+精度那一列则由 `createMenu` 生成的**折叠菜单**替换了原来的 `<select>`
+(触发按钮同样是库的按钮,菜单面板 / 分组 / 当前项 / 开合都归库,本站只给数据
+与一个挂载锚点);站点不再给两者写外观,也没有 bootstrap 的 `.form-select` 了.
 */
 
-import { createButton } from 'miko_ui';
+import { createButton, createMenu, type MenuHandle } from 'miko_ui';
 
 import { h, type DomChild } from '@/common/dom';
 import {
@@ -56,8 +65,9 @@ import {
     IEEE754_DOM,
     IEEE754_ERROR_CLASS,
     IEEE754_EXP_BITS_ROLE,
+    IEEE754_FORMAT_ANCHOR_CLASS,
+    IEEE754_FORMAT_CHOICES,
     IEEE754_FORMAT_LABEL,
-    IEEE754_FORMAT_OPTIONS,
     IEEE754_FORMULA_CLASS,
     IEEE754_FORMULA_TITLE,
     IEEE754_FORMULA_TITLE_CLASS,
@@ -74,10 +84,8 @@ import {
     IEEE754_LEGENDS,
     IEEE754_PANEL_TITLE,
     IEEE754_SECTION_CLASS,
-    IEEE754_SELECT_CLASS,
     IEEE754_SPECIAL_CLASS,
     IEEE754_SPECIAL_TITLE,
-    type IEEE754FormatOptionSpec,
     type IEEE754LegendPart,
 } from '@/ieee754/config';
 
@@ -85,8 +93,10 @@ import {
 export interface Ieee754Panel {
     /** div.card */
     readonly root: HTMLElement;
-    /** #ieee-format */
-    readonly formatSelect: HTMLSelectElement;
+    /** 精度菜单的句柄:开合 / 选中回调 / 当前项都在它上面 */
+    readonly formatMenu: MenuHandle<string>;
+    /** #ieee-format:显示当前精度的触发按钮(引用它来改文案) */
+    readonly formatTrigger: HTMLButtonElement;
     /** #ieee-input */
     readonly input: HTMLInputElement;
     /** #ieee-convert */
@@ -109,13 +119,16 @@ export interface Ieee754Panel {
     readonly fracBitsLabel: HTMLElement;
 }
 
-/** 一个精度 option:selected 是布尔属性,按原标记的写法显式写出来 */
-function createFormatOption(spec: IEEE754FormatOptionSpec): HTMLOptionElement {
-    const attrs: Record<string, string> = { value: spec.value };
-    if (spec.selected) {
-        attrs.selected = 'selected';
-    }
-    return h('option', { text: spec.label, attrs });
+/**
+ * 触发按钮上的文案:当前精度的标签(与菜单项文案同一份).
+ *
+ * 当前精度显示在按钮上(原来的 `<select>` 自带这个能力,菜单没有),所以行为代码
+ * 换精度时要按同一条规则改写按钮文案 -- 规则只写在这里,组件与行为共用一份.
+ * 取值不在声明里时原样显示(声明与状态不同步时看得见,而不是静默显示空白).
+ */
+export function formatTriggerText(value: string): string {
+    const choice = IEEE754_FORMAT_CHOICES.find((spec) => spec.value === value);
+    return choice?.label ?? value;
 }
 
 /** 图例里的一段:纯文本直接返回;位数提示生成 <b> 并把它登记进 sink(供调用方交回引用) */
@@ -141,8 +154,30 @@ export function createIeee754Panel(): Ieee754Panel {
         h('span', { class: spec.className }, spec.parts.map((part) => createLegendPart(part, bitsLabels))),
     ));
 
-    const formatSelect = h('select', { class: IEEE754_SELECT_CLASS, attrs: { id: IEEE754_DOM.formatId } },
-        IEEE754_FORMAT_OPTIONS.map(createFormatOption));
+    // 精度菜单:触发按钮 + 浮层面板都归库的 `createMenu`,本站给的是数据(分组 /
+    // 菜单项 / 当前项)与一个锚点.按钮文案由 `formatTriggerText` 从当前项算出来;
+    // 面板自身由库建(`.menu-panel.menu-popover`,role="menu"),插在锚点里等它定位.
+    const initialFormat = IEEE754_FORMAT_CHOICES.find((choice) => choice.active)
+        ?? IEEE754_FORMAT_CHOICES[0];
+    const formatTrigger = createButton({ text: formatTriggerText(initialFormat.value) }).element;
+    formatTrigger.id = IEEE754_DOM.formatId;
+    const formatMenu = createMenu<string>({
+        groups: [{
+            title: IEEE754_FORMAT_LABEL,
+            entries: IEEE754_FORMAT_CHOICES.map((choice) => ({
+                value: choice.value,
+                text: choice.label,
+            })),
+        }],
+        ariaLabel: IEEE754_FORMAT_LABEL,
+        trigger: formatTrigger,
+    });
+    // 初始当前项:菜单只认"哪一项高亮",不自己记当前值(状态在行为代码那边).
+    formatMenu.setActive(initialFormat.value);
+    const formatAnchor = h('div', { class: IEEE754_FORMAT_ANCHOR_CLASS }, [
+        formatTrigger,
+        formatMenu.panel,
+    ]);
 
     const input = h('input', {
         class: IEEE754_INPUT_CLASS,
@@ -168,7 +203,9 @@ export function createIeee754Panel(): Ieee754Panel {
     const formula = h('div', { class: IEEE754_FORMULA_CLASS, attrs: { id: IEEE754_DOM.formulaId } });
     const special = h('div', { class: IEEE754_SPECIAL_CLASS, attrs: { id: IEEE754_DOM.specialId } });
 
-    // 精度 / 输入那一行:两列都按原标记的栅格类摆放
+    // 精度 / 输入那一行:两列都按原标记的栅格类摆放.
+    // 精度那一列的 label 仍指向 #ieee-format,只是它现在是菜单的触发按钮
+    // (`<label for>` 认所有可标注元素,按钮是其中之一).
     const controlsRow = h('div', { class: IEEE754_CONTROLS_ROW_CLASS }, [
         h('div', { class: IEEE754_COL_AUTO_CLASS }, [
             h('label', {
@@ -176,7 +213,7 @@ export function createIeee754Panel(): Ieee754Panel {
                 text: IEEE754_FORMAT_LABEL,
                 attrs: { for: IEEE754_DOM.formatId },
             }),
-            formatSelect,
+            formatAnchor,
         ]),
         h('div', { class: IEEE754_COL_HALF_CLASS }, [
             h('label', {
@@ -210,7 +247,8 @@ export function createIeee754Panel(): Ieee754Panel {
 
     return {
         root,
-        formatSelect,
+        formatMenu,
+        formatTrigger,
         input,
         convertButton,
         bits,

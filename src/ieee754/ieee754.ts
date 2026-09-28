@@ -48,7 +48,7 @@ import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import { h } from '@/common/dom';
 import type { IEEE754Class, IEEE754Format, IEEE754Value } from './types';
-import { createIeee754Panel } from './ui/ieee754_panel';
+import { createIeee754Panel, formatTriggerText } from './ui/ieee754_panel';
 import {
     FLOAT32,
     FLOAT32_KEY,
@@ -69,6 +69,7 @@ import {
     IEEE754_BITSTRING_PATTERN,
     IEEE754_BIT_CLASS,
     IEEE754_BIT_GROUP_CLASS,
+    IEEE754_DEFAULT_FORMAT_VALUE,
     IEEE754_ERROR_UI_PREFIX,
     IEEE754_ERR_EMPTY_INPUT,
     IEEE754_ERR_UNPARSABLE_PREFIX,
@@ -493,7 +494,8 @@ export function mountIEEE754(host: HTMLElement): void {
     const panel = createIeee754Panel();
     host.append(panel.root);
 
-    const formatSel = panel.formatSelect;
+    const formatMenu = panel.formatMenu;
+    const formatTrigger = panel.formatTrigger;
     const input = panel.input;
     const convertBtn = panel.convertButton;
     const bitsEl = panel.bits;
@@ -506,6 +508,25 @@ export function mountIEEE754(host: HTMLElement): void {
     const fracBitsLabel = panel.fracBitsLabel;
 
     let current: IEEE754Value | null = null;
+
+    /**
+     * 当前精度(菜单项 value).
+     *
+     * 菜单件只认"哪一项高亮",**不保存当前值**(那是消费者的事),所以这里存一份:
+     * 十进制转换与位串长度判别都读它,菜单选中与位串推断精度都写它.
+     */
+    let formatValue: string = IEEE754_DEFAULT_FORMAT_VALUE;
+
+    /** 切当前精度:本地状态 / 菜单当前项 / 触发按钮文案三处一起改(唯一写入点) */
+    const setFormat = (value: string): void => {
+        formatValue = value;
+        formatMenu.setActive(value);
+        formatTrigger.textContent = formatTriggerText(value);
+    };
+
+    // 点浮层外部关闭:根给 document.body -- 面板是浮在卡片上的,点在卡片外
+    // (导航条 / 空白处)也该收起来,而不是只有点回卡片里才关.
+    formatMenu.bind(document.body);
 
     /** 渲染某一比特位为可点击方块. */
     const makeBit = (bitVal: string, globalIndex: number, css: string): HTMLElement => {
@@ -595,7 +616,8 @@ export function mountIEEE754(host: HTMLElement): void {
             const sign = Number(bits[IEEE754_SIGN_START]);
             const exponentField = parseInt(bits.slice(expStart, fracStart).join(''), IEEE754_BINARY_RADIX);
             const fraction = parseInt(bits.slice(fracStart).join(''), IEEE754_BINARY_RADIX);
-            formatSel.value = fmt === FLOAT32 ? FLOAT32_KEY : FLOAT64_KEY;
+            // 位串长度本身就说明了精度,菜单跟着切(触发按钮文案同步)
+            setFormat(fmt === FLOAT32 ? FLOAT32_KEY : FLOAT64_KEY);
             refreshLabels(fmt);
             refreshSpecial(fmt);
             current = buildIEEE754(sign, exponentField, fraction, fmt);
@@ -609,15 +631,18 @@ export function mountIEEE754(host: HTMLElement): void {
             showError(`${IEEE754_ERR_UNPARSABLE_PREFIX}${t}${IEEE754_ERR_UNPARSABLE_SUFFIX}`);
             return;
         }
-        const fmt = formatSel.value === FLOAT32_KEY ? FLOAT32 : FLOAT64;
+        const fmt = formatValue === FLOAT32_KEY ? FLOAT32 : FLOAT64;
         current = computeIEEE754(num, fmt);
         renderAll(current);
     };
 
-    formatSel.addEventListener('change', () => {
-        // 切换精度:用当前位图重算(位图随之重排),并刷新特殊值表
+    // 菜单选中:先切当前精度(菜单当前项 + 按钮文案),再按新精度重算当前值.
+    // 顺序不能反:菜单是"先关浮层再回调",回调里要保证界面立刻反映新精度.
+    formatMenu.onSelect((value) => {
+        setFormat(value);
         if (!current) return;
-        const fmt = IEEE754_FORMATS[formatSel.value as 'f32' | 'f64'];
+        // 切换精度:用当前位图重算(位图随之重排),并刷新特殊值表
+        const fmt = IEEE754_FORMATS[value as 'f32' | 'f64'];
         refreshLabels(fmt);
         refreshSpecial(fmt);
         current = computeIEEE754(current.value, fmt);

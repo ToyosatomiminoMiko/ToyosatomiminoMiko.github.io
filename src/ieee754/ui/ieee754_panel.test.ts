@@ -2,19 +2,21 @@
  * IEEE 754 面板的标记契约(进程内,跑在 happy-dom 里).
  *
  * 面板原先写在 index.html 的 `#ieee754` 窗格里,是首页最大的一块静态标记
- * (栅格 / 下拉框 / 图例 / 三个分区);现在由 `ui/ieee754_panel.ts` 生成.
+ * (栅格 / 精度菜单 / 图例 / 三个分区);现在由 `ui/ieee754_panel.ts` 生成.
  * `public/css/ieee754.css` 通篇按这里的类名命中,所以这一份测试相当于把
  * "CSS 与标记的接口"钉住:类名少一个,层级挪一层,样式就静默失效.
  *
  * 图例里那两个位数提示是**生成期就需要引用**的元素(行为代码要按精度改写它们),
- * 所以顺便断言"组件交回的引用就是文档里那两个 <b>".
+ * 所以顺便断言"组件交回的引用就是文档里那两个 <b>".精度那一列是库的折叠菜单
+ * (`createMenu`),所以这里也把"锚点 / 触发按钮 / 面板 / 当前项"四件套钉住 --
+ * 少一个锚点类,面板就会相对别的定位祖先飘走.
  *
  * @vitest-environment happy-dom
  */
 import { describe, expect, it } from 'vitest';
 
-import { FLOAT64 } from '@/ieee754/config';
 import {
+    FLOAT64,
     IEEE754_BITSTRING_CLASS,
     IEEE754_BREAKDOWN_CLASS,
     IEEE754_CARD_BODY_CLASS,
@@ -24,11 +26,13 @@ import {
     IEEE754_COL_HALF_CLASS,
     IEEE754_CONTROLS_ROW_CLASS,
     IEEE754_CONVERT_LABEL,
+    IEEE754_DEFAULT_FORMAT_VALUE,
     IEEE754_DOM,
     IEEE754_ERROR_CLASS,
     IEEE754_EXP_BITS_ROLE,
+    IEEE754_FORMAT_ANCHOR_CLASS,
+    IEEE754_FORMAT_CHOICES,
     IEEE754_FORMAT_LABEL,
-    IEEE754_FORMAT_OPTIONS,
     IEEE754_FORMULA_CLASS,
     IEEE754_FORMULA_TITLE,
     IEEE754_FORMULA_TITLE_CLASS,
@@ -45,11 +49,14 @@ import {
     IEEE754_LEGENDS,
     IEEE754_PANEL_TITLE,
     IEEE754_SECTION_CLASS,
-    IEEE754_SELECT_CLASS,
     IEEE754_SPECIAL_CLASS,
     IEEE754_SPECIAL_TITLE,
 } from '@/ieee754/config';
-import { createIeee754Panel, type Ieee754Panel } from '@/ieee754/ui/ieee754_panel';
+import {
+    createIeee754Panel,
+    formatTriggerText,
+    type Ieee754Panel,
+} from '@/ieee754/ui/ieee754_panel';
 
 /** 生成面板并挂到文档里(引用一致性要在文档里查) */
 function render(): Ieee754Panel {
@@ -103,19 +110,35 @@ describe('IEEE754:精度与输入那一行', () => {
         expect(document.getElementById(IEEE754_DOM.inputId)).not.toBeNull();
     });
 
-    it('精度下拉框:两项,f64 默认选中(属性与属性值都要在)', () => {
+    it('精度菜单:触发按钮 + 库的浮层面板,两项,f64 默认是当前项', () => {
         const panel = render();
-        const select = mustQuery(`select#${IEEE754_DOM.formatId}`);
-        expect(select.className).toBe(IEEE754_SELECT_CLASS);
-        expect(select).toBe(panel.formatSelect);
-        const options = [...select.querySelectorAll('option')];
-        expect(options.map((option) => option.getAttribute('value')))
-            .toEqual(IEEE754_FORMAT_OPTIONS.map((option) => option.value));
-        expect(options.map((option) => option.textContent))
-            .toEqual(IEEE754_FORMAT_OPTIONS.map((option) => option.label));
-        expect(options.map((option) => option.hasAttribute('selected')))
-            .toEqual(IEEE754_FORMAT_OPTIONS.map((option) => option.selected));
-        expect(panel.formatSelect.value).toBe(FLOAT64 === undefined ? '' : 'f64');
+        // 触发按钮:库的按钮(基线类 .ui-button),id 仍是 #ieee-format(label 指向它)
+        const trigger = mustQuery(`button#${IEEE754_DOM.formatId}`);
+        expect(trigger).toBe(panel.formatTrigger);
+        expect(trigger.classList.contains('ui-button')).toBe(true);
+        expect(trigger.textContent).toBe(formatTriggerText(IEEE754_DEFAULT_FORMAT_VALUE));
+        expect(trigger.getAttribute('aria-expanded')).toBe('false');
+        // 锚点:面板靠 `.menu-anchor`(库样式给 position: relative)挂在按钮下沿,
+        // 两个子节点就是"按钮 + 面板",顺序即层叠关系
+        const anchor = mustQuery(`.${IEEE754_FORMAT_ANCHOR_CLASS}`);
+        expect([...anchor.children]).toEqual([trigger, panel.formatMenu.panel]);
+        // 面板:库建的 role="menu",初始收着(is-open 由库的 Popover 写)
+        const menuPanel = mustQuery('.menu-panel');
+        expect(menuPanel).toBe(panel.formatMenu.panel);
+        expect(menuPanel.getAttribute('role')).toBe('menu');
+        expect(menuPanel.getAttribute('aria-label')).toBe(IEEE754_FORMAT_LABEL);
+        expect(menuPanel.classList.contains('menu-popover')).toBe(true);
+        expect(menuPanel.classList.contains('is-open')).toBe(false);
+        expect(trigger.getAttribute('aria-controls')).toBe(menuPanel.id);
+        // 菜单项:顺序 / 文案来自声明,当前项由 setActive 标成 .is-active + aria-current
+        const items = [...menuPanel.querySelectorAll('.menu-item')];
+        expect(items).toHaveLength(IEEE754_FORMAT_CHOICES.length);
+        expect(items.map((item) => item.textContent))
+            .toEqual(IEEE754_FORMAT_CHOICES.map((choice) => choice.label));
+        expect(items.map((item) => item.classList.contains('is-active')))
+            .toEqual(IEEE754_FORMAT_CHOICES.map((choice) => choice.active));
+        expect(items.map((item) => item.hasAttribute('aria-current')))
+            .toEqual(IEEE754_FORMAT_CHOICES.map((choice) => choice.active));
     });
 
     it('十进制输入框沿用 bootstrap,转换按钮改成库按钮:初值 / 类名 / type 都对得上', () => {

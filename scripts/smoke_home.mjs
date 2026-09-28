@@ -304,6 +304,41 @@ const headerState = await cdp.eval(`(async () => {
     return { settingTop, settingScrolled, homeTop };
 })()`);
 
+// ---- 交互:IEEE754 的精度菜单(库的折叠菜单,不再是 <select>) ----
+// 开合靠库的 Popover(类名 + display 两条都要真渲染),选中要能改当前项 / 触发按钮
+// 文案 / 位图位数,点外部要能收起来 -- 这几件事进程内 DOM 都验不了.
+const formatMenu = await cdp.eval(`(async () => {
+    const nextFrame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const click = (href) => document.querySelector('a[href="' + href + '"]').click();
+    click('#ieee754');
+    await nextFrame();
+    const trigger = document.querySelector('#ieee-format');
+    const panel = document.querySelector('.menu-anchor .menu-popover');
+    const items = [...document.querySelectorAll('.menu-anchor .menu-item')];
+    const bits = () => document.querySelectorAll('#ieee-bits .ieee-bit').length;
+    const activeIndex = () => items.findIndex((item) => item.classList.contains('is-active'));
+    const before = { text: trigger.textContent, bits: bits(), expanded: trigger.getAttribute('aria-expanded'), active: activeIndex() };
+    trigger.click();
+    await nextFrame();
+    const opened = { isOpen: panel.classList.contains('is-open'), display: getComputedStyle(panel).display };
+    items[0].click(); // 选"单精度":位数应从 64 变 32,当前项与按钮文案跟着走
+    await nextFrame();
+    const after = { text: trigger.textContent, bits: bits(), expanded: trigger.getAttribute('aria-expanded'), active: activeIndex() };
+    trigger.click();
+    await nextFrame();
+    document.body.click(); // 点浮层外部:库的 Popover 该把它收起来
+    await nextFrame();
+    const outsideClosed = !panel.classList.contains('is-open');
+    // 复位到默认精度(f64),后面的检查不受这次交互影响
+    trigger.click();
+    await nextFrame();
+    items[1].click();
+    await nextFrame();
+    const resetBits = bits();
+    click('#home');
+    return { before, opened, after, outsideClosed, resetBits };
+})()`);
+
 // ---- 时钟是不是真的在走(每秒重绘) ----
 const clockTick = await cdp.eval(`(async () => {
     const c = document.querySelector('#time_canvas');
@@ -327,10 +362,19 @@ const headerOk = headerState?.settingTop === true && headerState?.settingScrolle
 console.log(`${headerOk ? '  ok  ' : ' FAIL '} 导航条隐形/实底正确` +
     `(非 HOME 顶端隐形,滚动后实底,HOME 顶端隐形;实得 ${JSON.stringify(headerState)})`);
 if (!headerOk) failed++;
+const formatMenuOk = formatMenu?.before?.bits === 64 && formatMenu?.before?.expanded === 'false' &&
+    formatMenu?.before?.active === 1 && formatMenu?.opened?.isOpen === true &&
+    formatMenu?.opened?.display === 'block' && formatMenu?.after?.bits === 32 &&
+    formatMenu?.after?.active === 0 && formatMenu?.after?.expanded === 'false' &&
+    String(formatMenu?.after?.text).includes('单精度') && formatMenu?.outsideClosed === true &&
+    formatMenu?.resetBits === 64;
+console.log(`${formatMenuOk ? '  ok  ' : ' FAIL '} IEEE754 精度菜单可开合,可切换(64->32 位),点外部关闭` +
+    `(实得 ${JSON.stringify(formatMenu)})`);
+if (!formatMenuOk) failed++;
 console.log(`${clockTick?.changed ? '  ok  ' : ' FAIL '} 时钟每秒重绘`);
 if (!clockTick?.changed) failed++;
 
-console.log(`\n共 ${report.length + 3} 项,失败 ${failed} 项`);
+console.log(`\n共 ${report.length + 4} 项,失败 ${failed} 项`);
 console.log('(结构/类名/文案契约由 `npm test` 的 happy-dom 单测覆盖,这里不重复)');
 console.log(`\n页面 console(${cdp.logs.length} 条):`);
 for (const log of cdp.logs.slice(0, 12)) console.log('  ' + log);

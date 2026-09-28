@@ -33,8 +33,8 @@ export const FLOAT64: IEEE754Format = {
 };
 
 /**
- * 精度下拉框取值 -> 格式描述.
- * 键名 'f32' / 'f64' 是下拉框 value 的类型契约(与 index.html 的 option 一致),
+ * 精度菜单取值 -> 格式描述.
+ * 键名 'f32' / 'f64' 是菜单项 value 的类型契约(声明在 IEEE754_FORMAT_CHOICES 里),
  * 保留为字面量;代码中请优先使用 FLOAT32_KEY / FLOAT64_KEY 常量.
  */
 export const IEEE754_FORMATS: Record<'f32' | 'f64', IEEE754Format> = {
@@ -42,10 +42,10 @@ export const IEEE754_FORMATS: Record<'f32' | 'f64', IEEE754Format> = {
     f64: FLOAT64,
 };
 
-/** 精度下拉框的 f32 取值(与 index.html 的 option value 一致) */
+/** 精度菜单的 f32 取值(与 IEEE754_FORMAT_CHOICES 的 value 一致) */
 export const FLOAT32_KEY = 'f32';
 
-/** 精度下拉框的 f64 取值(与 index.html 的 option value 一致) */
+/** 精度菜单的 f64 取值(与 IEEE754_FORMAT_CHOICES 的 value 一致) */
 export const FLOAT64_KEY = 'f64';
 
 // ============================================================
@@ -208,7 +208,7 @@ export const IEEE754_SPECIAL_VALUES: IEEE754SpecialSpec[] = [
 
 /** IEEE754 面板生成的 DOM 元素 id(样式见 public/css/ieee754.css) */
 export const IEEE754_DOM = {
-    /** 精度下拉框的 id */
+    /** 精度菜单触发按钮的 id(菜单浮层挂在它的锚点里) */
     formatId: 'ieee-format',
     /** 十进制输入框的 id */
     inputId: 'ieee-input',
@@ -263,17 +263,24 @@ export const IEEE754_HINT_CLASS = 'ieee-hint';
 /** 精度 / 输入那一行的栅格类名(bootstrap,逐个照搬原标记) */
 export const IEEE754_CONTROLS_ROW_CLASS = 'row g-3 align-items-center mb-3';
 
-/** 左列(精度下拉框)的栅格类名:宽度随内容 */
+/** 左列(精度菜单)的栅格类名:宽度随内容 */
 export const IEEE754_COL_AUTO_CLASS = 'col-auto';
 
 /** 右列(输入框 + 转换按钮)的栅格类名:半宽 */
 export const IEEE754_COL_HALF_CLASS = 'col-6';
 
-/** 表单标签类名(bootstrap) */
+/** 表单标签类名(bootstrap;精度那一列现在指向菜单的触发按钮) */
 export const IEEE754_LABEL_CLASS = 'form-label mb-0';
 
-/** 精度下拉框类名(bootstrap) */
-export const IEEE754_SELECT_CLASS = 'form-select form-select-sm';
+/**
+ * 精度菜单浮层的锚点类名(库里 `menu-anchor` 这个字面量).
+ *
+ * 触发按钮与菜单面板都装在这个锚点里:`miko_ui` 的 widgets.css 给它
+ * `position: relative`,面板(`.menu-popover`)才能按 `top: 100%` 挂在按钮下沿.
+ * 少写这个类不会报错 -- 面板会改为相对更外层的定位祖先定位,只是位置不对,
+ * 所以它写成具名常量,和库的样式表一一对应.
+ */
+export const IEEE754_FORMAT_ANCHOR_CLASS = 'menu-anchor';
 
 /** 输入框外层输入组类名(bootstrap) */
 export const IEEE754_INPUT_GROUP_CLASS = 'input-group input-group-sm';
@@ -281,7 +288,7 @@ export const IEEE754_INPUT_GROUP_CLASS = 'input-group input-group-sm';
 /** 十进制输入框类名(bootstrap) */
 export const IEEE754_INPUT_CLASS = 'form-control';
 
-/** 精度下拉框的 label 文案 */
+/** 精度菜单的标签文案(label 与菜单分组标题共用) */
 export const IEEE754_FORMAT_LABEL = '精度';
 
 /** 十进制输入框的 label 文案 */
@@ -326,21 +333,25 @@ export const IEEE754_FORMULA_TITLE = '公式 (KaTeX)';
 /** 特殊值分区标题文案 */
 export const IEEE754_SPECIAL_TITLE = '特殊值参考 (点击载入)';
 
-/** 精度下拉框的一个 option:取值 / 文案 / 是否默认选中 */
-export interface IEEE754FormatOptionSpec {
-    /** option 的 value(类型契约,与 FLOAT32_KEY / FLOAT64_KEY 一致) */
+/** 精度菜单的一条选项:取值 / 文案 / 是否初始当前项 */
+export interface IEEE754FormatChoiceSpec {
+    /** 菜单项的 value(类型契约,与 FLOAT32_KEY / FLOAT64_KEY 一致) */
     readonly value: string;
-    /** option 的可见文案 */
+    /** 菜单项可见文案(也是当前精度显示在触发按钮上的文案) */
     readonly label: string;
-    /** 是否带 selected 属性(默认选中项) */
-    readonly selected: boolean;
+    /** 是否初始当前项(菜单 `setActive` 的目标;有且只有一条为 true) */
+    readonly active: boolean;
 }
 
-/** 精度下拉框的两个 option(顺序即界面顺序,f64 默认选中) */
-export const IEEE754_FORMAT_OPTIONS = [
-    { value: FLOAT32_KEY, label: '单精度 float32 (32位)', selected: false },
-    { value: FLOAT64_KEY, label: '双精度 float64 (64位)', selected: true },
-] as const satisfies readonly IEEE754FormatOptionSpec[];
+/** 精度菜单的两项(顺序即菜单顺序,f64 默认是当前项) */
+export const IEEE754_FORMAT_CHOICES = [
+    { value: FLOAT32_KEY, label: '单精度 float32 (32位)', active: false },
+    { value: FLOAT64_KEY, label: '双精度 float64 (64位)', active: true },
+] as const satisfies readonly IEEE754FormatChoiceSpec[];
+
+/** 初始精度(取声明里 active 的那一条,行为代码用它起手) */
+export const IEEE754_DEFAULT_FORMAT_VALUE: string =
+    (IEEE754_FORMAT_CHOICES.find((choice) => choice.active) ?? IEEE754_FORMAT_CHOICES[0]).value;
 
 /** 指数位数提示的 data-role(组件据此生成 `<b data-role="exp-bits">`) */
 export const IEEE754_EXP_BITS_ROLE = 'exp-bits';
