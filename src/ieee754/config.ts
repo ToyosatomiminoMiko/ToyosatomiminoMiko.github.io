@@ -253,16 +253,16 @@ export const IEEE754_HINT_TEXT =
 /** 提示段落的类名(样式见 ieee754.css 的 .ieee-hint) */
 export const IEEE754_HINT_CLASS = 'ieee-hint';
 
-/** 精度 / 输入那一行的类名(替代原 bootstrap 的 `.row.g-3`) */
+/** 精度 / 输入那一行的类名(那行以前是 bootstrap 栅格,现为站点自研两列布局) */
 export const IEEE754_CONTROLS_ROW_CLASS = 'ieee-controls';
 
-/** 左列(精度菜单)的类名:宽度随内容(替代原 `.col-auto`) */
+/** 左列(精度菜单)的类名:宽度随内容 */
 export const IEEE754_CONTROLS_FORMAT_CLASS = 'ieee-controls__format';
 
-/** 右列(输入框 + 转换按钮)的类名:半宽(替代原 `.col-6`) */
+/** 右列(输入框 + 转换按钮)的类名:半宽 */
 export const IEEE754_CONTROLS_INPUT_CLASS = 'ieee-controls__input';
 
-/** 表单标签类名(替代原 bootstrap 的 `.form-label.mb-0`) */
+/** 表单标签类名(那行以前用 bootstrap 的 `.form-label`,现由站点样式给) */
 export const IEEE754_LABEL_CLASS = 'ieee-controls__label';
 
 /**
@@ -275,10 +275,10 @@ export const IEEE754_LABEL_CLASS = 'ieee-controls__label';
  */
 export const IEEE754_FORMAT_ANCHOR_CLASS = 'menu-anchor';
 
-/** 输入框外层输入组类名(替代原 bootstrap 的 `.input-group.input-group-sm`) */
+/** 输入框外层输入组类名(那行以前用 bootstrap 的 `.input-group`,现由站点样式给) */
 export const IEEE754_INPUT_GROUP_CLASS = 'ieee-input-group';
 
-/** 十进制输入框类名(替代原 bootstrap 的 `.form-control`) */
+/** 十进制输入框类名(以前是 bootstrap 的 `.form-control`,现由站点样式给) */
 export const IEEE754_INPUT_CLASS = 'ieee-input';
 
 /** 精度菜单的标签文案(label 与菜单分组标题共用) */

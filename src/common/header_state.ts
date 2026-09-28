@@ -18,8 +18,8 @@
 //          判据由 window.scrollY 给.
 //
 // 两条判据取"或":任一条成立就隐形,于是 HOME 的行为与从前逐字一致,其它标签页
-// 也拿到了同一套观感.切标签页不需要额外监听 bootstrap 的事件 -- 首屏在非 HOME
-// 窗格里是 display:none,它的观察结果自然是"不相交",由另一条判据接管.
+// 也拿到了同一套观感.切标签页不需要额外监听事件(src/common/tabs.ts 只改类名)--
+// 首屏在非 HOME 窗格里是 display:none,它的观察结果自然是"不相交",由另一条判据接管.
 //
 // [为什么首屏那条用 IntersectionObserver 而不是 scroll 事件]
 //   - scroll 每次滚动都要跑回调,还要读 layout,主线程白白多一份开销,

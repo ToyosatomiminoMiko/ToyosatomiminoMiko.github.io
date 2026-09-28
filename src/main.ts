@@ -5,14 +5,13 @@
 //   1. `mountSiteShell()` 先生成整页骨架(导航条 / 首屏 / 五个标签页 / 所有空宿主),
 //      并交回元素引用 -- 后面的模块全都靠这些引用,不按 id 查 DOM;
 //   2. 各模块各自把标记长进自己的宿主(每个模块的挂载函数只认宿主,不认页面);
-//   3. 最后挂行为:导航条状态与背景切换.
+//   3. 最后挂行为:标签页切换与导航条状态.
 //
 // 没有"按 id 找元素"这一步:骨架是唯一的结构来源,id 只留给 CSS 与调试定位.
 // 单例约束照旧:地铁车窗的 wasm App 是 crate 内 thread_local 单例,一个页面只挂一次.
 // ================================================================
 
 // --- 导入样式 ---
-import 'bootstrap/dist/css/bootstrap.min.css';
 /*
 UI 库的主题与控件样式.
 
@@ -42,7 +41,6 @@ import 'miko_ui/styles/editor.css';
 import 'miko_ui/styles/scrollbar.css';
 
 // --- 导入 JS 依赖 ---
-import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 import { mountClock } from '@/clock/clock';
 import { mountRBT } from '@/rbt/rbt';
 import { mountOLED } from '@/oled/oled';
@@ -50,6 +48,7 @@ import { mountIEEE754 } from '@/ieee754/ieee754';
 import { mountMetroWindow } from '@/metro_window/src/metro_window';
 import { mountBackgroundSwitcher } from '@/common/background';
 import { mountHeaderState } from '@/common/header_state';
+import { mountTabs } from '@/common/tabs';
 import { mountSiteShell } from '@/common/ui/site_shell';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -61,6 +60,9 @@ document.addEventListener('DOMContentLoaded', () => {
     mountOLED(shell.panes.oled);
     mountRBT(shell.panes.rbt);
     mountIEEE754(shell.panes.ieee754);
+
+    // 标签页:点击 / 方向键 / 显隐(整个仓库唯一的"标签页"实现,不再是 bootstrap)
+    mountTabs({ list: shell.navList, links: shell.navLinks, panes: shell.panes });
 
     // 背景切换:把 SETTING 标签页缩略图的 URL 写进 --bg-image-active 令牌
     // (点的是骨架生成的缩略图,行为走文档级委托,所以顺序无关)

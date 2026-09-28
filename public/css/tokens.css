@@ -8,6 +8,9 @@
  * 命名约定:
  *   --font-*      字体族
  *   --bg-*        背景图 / 背景填充
+ *   --bg-page     页面(html/body)底色
+ *   --text-page   页面正文色
+ *   --line-height-base 全站基准行距
  *   --led-*       LED 时钟
  *   --oled-*      OLED 像素画板
  *   --rbt-*       红黑树工具
@@ -15,6 +18,7 @@
  *   --setting-*   SETTING 标签页
  *   --hero-*      首屏(hero)
  *   --chrome-*    固定导航条(站名 / 导航项 / 隐形↔实底)
+ *   --tab-*       标签页窗格
  *   --radius-*    圆角(**由 miko_ui 主题提供,本站只引用**)
  *   --z-*         层级
  *   --transition-* 过渡
@@ -47,6 +51,25 @@
     /* 时钟面板底色:原实现写作 #000(保持字面量形态) */
     --clock-panel-bg: #000;
 
+    /* ---------- 文档基线(原先由 bootstrap 的 reboot 提供) ---------- */
+    /*
+     * 站点自己的 `*` 重置只写"清空"(margin / padding / border / background /
+     * 字体),而 reboot 是**带值**的元素级规则(html / body / a / p / ul / code /
+     * pre / ...),元素选择器的特异性(0,0,1)高过 `*`(0,0,0),所以这一层一直在
+     * 站点样式之上生效.bootstrap 移除后必须由本站接手,否则是**静默**变化:
+     * box-sizing 回到 content-box,body 露出白底,行距掉回 normal,链接回到
+     * 浏览器默认的蓝字加下划线.
+     */
+    /*
+     * 页面底色 / 正文色:reboot 深色主题下的取值(--bs-body-bg #212529 /
+     * --bs-body-color #dee2e6).本站原先靠 <html data-bs-theme="dark"> 拿它,
+     * 现在由本站持有 -- 要换站点主题色只改这两条.
+     */
+    --bg-page: #212529;
+    --text-page: #dee2e6;
+    /* 全站基准行距(reboot 的 --bs-body-line-height) */
+    --line-height-base: 1.5;
+
     /* ---------- 通用尺寸 / 圆角 / 过渡 ---------- */
     --card-width: 100%;
     /* 主内容区占视口宽度比例(首屏会从这里满宽逃逸到 100vw,见 index.css 的 .hero) */
@@ -60,6 +83,8 @@
      */
     /* 像素指示器移动过渡 */
     --transition-indicator: 10ms linear;
+    /* 标签页切换时的淡入时长(原先由 bootstrap 的 .fade 给 150ms) */
+    --transition-tab-fade: 150ms linear;
 
     /* ---------- 层级(z-index) ---------- */
     /* 像素指示器浮在页面最上层 */
@@ -99,8 +124,13 @@
     --chrome-font-size-brand: 15px;
     /* 导航项字号 */
     --chrome-font-size-nav: 14px;
-    /* 导航项左右内边距(bootstrap 默认 1rem,这里收窄一点让一行放得下更多项) */
+    /* 导航项内边距.上下值就是导航条高度的来源(--nav-height 与它必须对得上);
+       左右收窄一点,让一行放得下更多项 */
     --chrome-nav-padding-x: 12px;
+    --chrome-nav-padding-y: 8px;
+    /* 键盘焦点环:标签是自定义观感的链接,默认 outline 会画成方框,这里换成本站色系的可见光晕 */
+    --chrome-focus-ring-width: 4px;
+    --chrome-focus-ring: #0d6efd40;
     /* 站名 / 导航项文字色(压在画面上,必须不依赖背景亮度) */
     --chrome-text: #eef3f8;
     /* 未选中导航项的文字色(半透明) */
@@ -248,7 +278,7 @@
     --ieee-cell-padding: 5px 10px;
     /* 图例项间距 */
     --ieee-legend-gap: 16px;
-    /* 精度 / 输入那一行:两列间距与输入列宽度(替代 bootstrap 栅格的 g-3 / col-6) */
+    /* 精度 / 输入那一行:两列的间距与输入列宽度(布局在 ieee754.css 的 .ieee-controls) */
     --ieee-controls-gap: 1rem;
     --ieee-controls-input-width: 50%;
     /* 十进制输入框:内边距与字号(观感对齐 miko_ui 的数字框) */

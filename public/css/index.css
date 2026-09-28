@@ -22,6 +22,40 @@
     background: none;
 }
 
+/* ================================================================
+ * 文档基线(document baseline)
+ *
+ * `*` 重置只写"清空",**不带值**;而一个页面还需要一层带值的基线(盒模型 /
+ * 页面底色 / 正文色 / 行距 / 链接默认外观 / 元素默认外边距).这一层原先整层
+ * 由 bootstrap 的 reboot 提供 -- 它是元素级规则,特异性(0,0,1)高过 `*`(0,0,0),
+ * 所以像 `p { margin-bottom: 1rem }` / `ul { padding-left: 2rem }` 这种
+ * "作者以为被 `*` 清掉了,其实一直在生效"的规则有一批.
+ *
+ * bootstrap 移除后这一层归本站.下面每条都只写**确实还在被依赖**的部分:
+ * 多写一条就等于凭空造一个"改了没人知道为什么"的默认值.
+ * ================================================================ */
+
+/*
+ * 盒模型:全站 border-box(原先由 reboot 的 `*,::before,::after` 提供).
+ * 必须留 -- 站点样式里到处是"定宽 + 内边距"的盒子(面板 / 缩略图 / 编辑器 /
+ * 导航条),少了它就是全线溢出,而且**不报错**.
+ */
+*,
+::before,
+::after {
+    box-sizing: border-box;
+}
+
+/*
+ * 深色配色方案:让 UA 按深色渲染滚动条 / 表单控件 / 画布底色,并让 `html` 在
+ * 没有作者色时的默认文字色是白而不是黑.
+ * 原先由 bootstrap 的 `[data-bs-theme=dark] { color-scheme: dark }` 提供 --
+ * index.html 上那个 data-bs-theme 就是为它写的.
+ */
+html {
+    color-scheme: dark;
+}
+
 body {
     /*
      * 背景图取值链:--bg-image-active(SETTING 标签页点缩略图后由
@@ -34,11 +68,91 @@ body {
     background-image: var(--bg-image-active);
     background-attachment: fixed;
     /*
+     * 页面底色与正文色:原先由 reboot 的 `body { background-color:
+     * var(--bs-body-bg); color: var(--bs-body-color) }` 提供,而站点那个
+     * `* { background: none }` 权重更低压不过它 -- 所以整页底色一直是
+     * bootstrap 的深色值(换成浅色主题就会露出白底).现在归本站令牌.
+     */
+    background-color: var(--bg-page);
+    color: var(--text-page);
+    /* 全站基准行距:原先由 reboot 的 --bs-body-line-height 提供 */
+    line-height: var(--line-height-base);
+    /*
+     * 正文基准字号:这里必须落一个**绝对长度**.
+     * `*` 那条 `font-size: 100%` 是一根"相对父元素"的链,而 Chrome 对通用等宽族
+     * (generic `monospace`)会在这根链上取自己的等宽默认字号 13px 而不是 16px --
+     * 站内的 `--font-mono` 正好就是 generic monospace,少了这一条,.coords-display
+     * 的坐标读数会从 16px 静默变成 13px(连带行高 24px -> 19.5px).
+     * 原先由 reboot 的 `body { font-size: var(--bs-body-font-size) }`(1rem)提供.
+     */
+    font-size: 1rem;
+    /*
      * 首屏(.hero)用 margin-left/right: calc(50% - 50vw) 从 90% 宽的 main 里
      * 满宽逃逸到 100vw;而 100vw **含纵向滚动条宽度**,所以一定会横向溢出一点,
      * 这里必须裁掉,否则会多出一条横向滚动条.
      */
     overflow-x: hidden;
+}
+
+/*
+ * 链接:去掉浏览器默认的蓝色与下划线.
+ * 原先 reboot 的 `a { color: var(--bs-link-color); text-decoration: underline }`
+ * 给全站链接上了浅蓝 + 下划线,导航项靠自己的规则压掉,头像链接(只有一张图)
+ * 则一直带着它.归本站之后统一"继承所在元素的颜色,不要下划线",
+ * 需要强调的链接自己写 color.
+ */
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+/*
+ * 替换元素的对齐:去掉行内基线的下沉(原先由 reboot 的 `img,svg` 提供).
+ * 少了它,只放一张图的块(如头像链接)会平白多出几像素的 descender 高度,
+ * 头像整体下移,导航条跟着被撑高.
+ */
+img,
+svg {
+    vertical-align: middle;
+}
+
+/*
+ * 上下标:取值照抄 reboot(KaTeX 公式里会用到),少了它公式里的
+ * sub/sup 会掉回 UA 的 `vertical-align: sub/super` + 更大字号,公式观感会变.
+ */
+sub,
+sup {
+    position: relative;
+    font-size: 0.75em;
+    line-height: 0;
+    vertical-align: baseline;
+}
+
+sub {
+    bottom: -0.25em;
+}
+
+sup {
+    top: -0.5em;
+}
+
+/*
+ * fieldset 的 UA 默认是 `min-width: min-content`,作为 flex / grid 子项时
+ * 不肯收缩到内容以下;reboot 把它归零(地铁车窗控制台的两个 fieldset 依赖它).
+ */
+fieldset {
+    min-width: 0;
+}
+
+/*
+ * legend 的 UA 默认让它按"嵌在边框上"的特殊规则排版;reboot 把它当普通块排
+ * (宽度撑满 + 左浮动).字号不在这里 -- 地铁车窗的主题用 `--metro-font-size-legend`
+ * 自己给.
+ */
+legend {
+    float: left;
+    width: 100%;
+    margin-bottom: 0.5rem;
 }
 
 /* ================================================================
@@ -51,23 +165,21 @@ body {
  * (如 `.oled-card` 定宽)与它们内部的内容样式.
  * ================================================================ */
 
-/* ================================================================
- * bootstrap 的 `<code>`:颜色与字体接回本站口径
+/*
+ * 行内代码:字体用库的代码字体栈(与编辑器 / 位图同一套字形),颜色继承所在
+ * 元素,字号略小于正文.
  *
- * IEEE754 精度菜单项的主文案是本站自己放的 `<code>`(类型名 float / double 按
- * 代码字体显示),而 bootstrap 的 reboot 给 `code` 写了
- * `color: var(--bs-code-color)`(深色主题下是粉色)与 `.875em` 字号:粉色不跟着
- * 菜单项的悬停 / 当前项状态走,一行里会出现两种强调色.所以让 code **继承所在
- * 元素的颜色**(当前项 / 悬停的文字色照旧生效),字体用库的代码字体栈,与行右那
- * 个汉语小字(`.menu-item-hint`)同一套字形;`.875em` 的字号保留 -- 类型名比正文
- * 略小正是想要的分工.
- *
- * `body code` 同样是为了盖过 bootstrap 注入在后的 `code` 规则.过渡,bs5 移除时
- * 一起删.
- * ================================================================ */
-body code {
+ * 这条原先写作 `body code`,是为了盖过 bootstrap 注入在后的 `code`
+ * (`color: var(--bs-code-color)` -- 深色主题下是粉色,与 `.875em` 字号);
+ * IEEE754 精度菜单项的主文案就是本站自己放的一个 `<code>`,粉色不跟着菜单项的
+ * 悬停 / 当前项状态走,一行里会出现两种强调色.
+ * bootstrap 移除后不再需要 `body` 前缀:`code` 是元素选择器,自然赢过 `*` 的
+ * `--font-base`.字号沿用 reboot 的 `.875em` -- 类型名比正文略小正是想要的分工.
+ */
+code {
     color: inherit;
     font-family: var(--code-font-family);
+    font-size: 0.875em;
 }
 
 /* ================================================================
@@ -172,11 +284,16 @@ body code {
 }
 
 /*
- * 导航项:把 bootstrap 标签页的外观(白底,四边框,下边线)全部去掉,只留文字.
- * 选择器必须带上 .site-header 才压得住 bootstrap 的 `.nav-tabs .nav-link`:
- * bootstrap 的 CSS 由 TS import 注入,排在 <link> 之后,同权重时它赢.
+ * 标签栏:把标签页的外观(白底,四边框,下边线)全部去掉,只留文字.
+ * 布局上也由本站完全负责(不再有第三方样式兜底),下面那条 `display: flex` 与
+ * `list-style: none` 是**必需**的 -- 少了它们,导航栏会塌成"竖排 + 项目符号"
+ * 的普通列表,而且不报任何错.
+ * 选择器带 `.site-header` 是**作用域**,不是权重手段:标签栏只有导航条里有,
+ * 带上它以后这些规则不会误伤别处的列表.
  */
 .site-header .nav-tabs {
+    display: flex;
+    list-style: none;
     /* 站名在左,导航项与头像推到右边 */
     margin-left: auto;
     border-bottom: none;
@@ -194,6 +311,12 @@ body code {
 }
 
 .site-header .nav-tabs .nav-link {
+    /*
+     * 标签自身是块盒.必须留:`.nav-link` 是 `<a>`(行内元素),行内盒的上下
+     * 内边距不参与行高计算,导航条会被撑不住,高度塌掉.左边那两条内边距正是
+     * 导航条高度的来源.
+     */
+    display: block;
     border: none;
     border-radius: 0;
     background: none;
@@ -202,20 +325,20 @@ body code {
     text-shadow: var(--chrome-text-shadow);
     transition: color var(--chrome-transition);
     /*
-     * 收窄 bootstrap 默认的 1rem 左右内边距,并禁止标签内部换行
-     * (换行会撑高导航条,同样会溢出到首屏上).
+     * 上下内边距决定导航条高度,左右收窄以便一行放得下更多项;
+     * 并禁止标签内部换行(换行会撑高导航条,同样会溢出到首屏上).
      */
-    padding-right: var(--chrome-nav-padding-x);
-    padding-left: var(--chrome-nav-padding-x);
+    padding: var(--chrome-nav-padding-y) var(--chrome-nav-padding-x);
     white-space: nowrap;
-    /*
-     * bootstrap 给 .nav-tabs .nav-link 留了 -1px 的下外边距(它用来把自己的
-     * 下边框压在标签栏的边框上);本站已经把边框去掉了,这 -1px 只剩副作用 --
-     * 标签比 li 高 1px.头像还在标签栏里时,是头像的 45px 把整行撑高,盖住了
-     * 这 1px;头像挪到 header 上之后,这 1px 就会让 ul(overflow-x: auto)平白
-     * 多出一对滚动条,所以这里归零.
-     */
-    margin-bottom: 0;
+}
+
+/*
+ * 键盘焦点环:标签是自定义观感的链接,浏览器默认的 outline 会画成一个方框,
+ * 所以换成本站色系的可见光晕.键盘用户需要它,别删.
+ */
+.site-header .nav-tabs .nav-link:focus-visible {
+    outline: 0;
+    box-shadow: 0 0 0 var(--chrome-focus-ring-width) var(--chrome-focus-ring);
 }
 
 .site-header .nav-tabs .nav-link:hover,
@@ -242,6 +365,42 @@ main {
     min-height: 100vh;
     width: var(--main-width);
     background-color: rgba(0, 0, 0, 0);
+}
+
+/* ================================================================
+ * 标签页窗格
+ *
+ * 一次只显示一个.这两条显隐规则原先**完全**由 bootstrap 提供
+ * (`.tab-content > .tab-pane { display: none }` / `> .active { display: block }`),
+ * 站点自己的 `.tab-pane` 规则只写内边距 -- 少了它们,五个窗格会全部纵向
+ * 堆叠在首屏下面,而且**不报任何错**.
+ * ================================================================ */
+.tab-content > .tab-pane {
+    display: none;
+}
+
+.tab-content > .active {
+    display: block;
+}
+
+/*
+ * 切换时的淡入(原先由 bootstrap 的 `.fade` 提供):
+ * `.active` 立刻上屏(display: block),`.show` 由切换逻辑下一帧补上,
+ * 透明度从 0 过渡到 1.少了 `opacity: 0` 那条,新窗格会直接跳出来.
+ */
+.tab-pane.fade {
+    transition: opacity var(--transition-tab-fade);
+}
+
+.tab-pane.fade:not(.show) {
+    opacity: 0;
+}
+
+/* 尊重系统的"减少动态效果"偏好(原先在 reboot 的 media query 里) */
+@media (prefers-reduced-motion: reduce) {
+    .tab-pane.fade {
+        transition: none;
+    }
 }
 
 /* 固定导航条会盖住内容:除首屏外,每个标签页顶部让出导航条的高度 */
@@ -379,25 +538,6 @@ canvas#pixelCanvas {
  */
 .oled-card .code-editor-gutter {
     overflow: hidden;
-}
-
-/*
- * 编辑器里那两个 `<pre>` 都不是滚动容器 -- 这一条是在还原 bootstrap 的 reboot.
- *
- * bootstrap 给所有 `pre` 写了 `overflow: auto`,而库的 `editor.css` 刻意没给
- * `.code-editor-lines` / `.code-editor-highlight-code` 写 overflow(行号靠外层
- * `.code-editor-gutter` 裁,高亮正文靠 `.code-editor-highlight` 裁),于是
- * bootstrap 那条在库的编辑器里生效了:行号栏被画上一条自己的竖向滑条 -- 经典
- * 带上下箭头的滑条,直接压在行号上,而且**只有一行时也出现**(行盒高度的小数
- * 舍入就够触发).这里把两个 `<pre>` 还原成 `visible`,让"整个编辑器只有一个
- * 滚动容器(库的 textarea)"这条结构约定落定;行号与高亮正文的溢出仍旧由各自
- * 的裁剪框裁掉.
- * 选择器带 `.oled-card` 只为与本块其它规则同一口径(不是为压 bootstrap:
- * `.code-editor-lines` 一个类就已经赢过 `pre` 那个标签选择器).
- */
-.oled-card .code-editor-lines,
-.oled-card .code-editor-highlight-code {
-    overflow: visible;
 }
 
 .area-data {

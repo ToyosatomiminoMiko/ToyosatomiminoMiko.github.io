@@ -2,13 +2,13 @@
  * 首页骨架的**标记契约**回归网(进程内,跑在 happy-dom 里).
  *
  * 为什么这一层要进 `*.test.ts`:首页标记由 `site_shell.ts` 按 `site.config.ts`
- * 生成,而站点样式与仅剩的 bootstrap 标签页都是按**类名 / id / data-* 属性**命中的 --
- * 生成结果一旦走样,表现是"样式静默失效"(看着没坏但全乱),没有报错,
+ * 生成,而站点样式与标签页行为(src/common/tabs.ts)都是按**类名 / id / 结构位置**
+ * 命中的 -- 生成结果一旦走样,表现是"样式静默失效"(看着没坏但全乱),没有报错,
  * 也没有类型错误.这类契约的正确断言方式就是"把生成的 DOM 拿来按 CSS 用的选择器查一遍".
  *
  * 与 `scripts/smoke_home.mjs` 的分工:**这里管"标记长什么样"**(进程内,无浏览器,
  * 不需要 dist,CI 里也跑);真浏览器那份只管"必须真渲染才成立的事"
- * (canvas 像素,bootstrap 交互,computed style,时钟走秒).
+ * (canvas 像素,标签页交互,computed style,时钟走秒).
  *
  * @vitest-environment happy-dom
  */
@@ -41,13 +41,8 @@ import {
     TAB_CONTENT_CLASS,
     TAB_PANE_ACTIVE_CLASS,
     TAB_PANE_CLASS,
-    TAB_TOGGLE_DATA_KEY,
-    TAB_TOGGLE_DATA_VALUE,
 } from '@/common/site.config';
 import { mountSiteShell, type SiteShell } from '@/common/ui/site_shell';
-
-/** bootstrap 的标签页触发器选择器:属性名与取值都来自 config,这里只是拼出来 */
-const TOGGLE_SELECTOR = `a[data-${TAB_TOGGLE_DATA_KEY}="${TAB_TOGGLE_DATA_VALUE}"]`;
 
 /** 建好骨架宿主(#site-root)并生成一次骨架 */
 function setupShell(): SiteShell {
@@ -85,7 +80,7 @@ describe('首页骨架:宿主与整体结构', () => {
         mountSiteShell();
         expect(document.querySelectorAll(`header.${HEADER_CLASS}`)).toHaveLength(1);
         expect(document.querySelectorAll(`#${HERO_ID}`)).toHaveLength(1);
-        expect(document.querySelectorAll(TOGGLE_SELECTOR)).toHaveLength(NAV_ITEMS.length);
+        expect(document.querySelectorAll(`a.${NAV_LINK_CLASS}`)).toHaveLength(NAV_ITEMS.length);
     });
 
     it('整份文档里没有重复 id', () => {
@@ -102,16 +97,15 @@ describe('首页骨架:导航条', () => {
         expect(classes(shell.header)).toContain(HEADER_CLASS);
     });
 
-    it('站名是 span.site-brand 且文案不变(不是 <a>,不带标签页触发器属性)', () => {
+    it('站名是 span.site-brand 且文案不变(不是 <a>,不能点)', () => {
         setupShell();
         const brand = document.querySelector(`.${SITE_BRAND_CLASS}`);
         expect(brand?.tagName).toBe('SPAN');
         expect(brand?.textContent).toBe(SITE_BRAND_TEXT);
         expect(brand?.getAttribute('href')).toBeNull();
-        expect(brand?.hasAttribute(`data-${TAB_TOGGLE_DATA_KEY}`)).toBe(false);
     });
 
-    it('标签栏是 ul.nav.nav-tabs(bootstrap 的标签页容器约定)', () => {
+    it('标签栏是 ul.nav.nav-tabs 且只有 NAV_ITEMS 那么多个 li(.nav-tabs 是 CSS 与 tabs.ts 的契约)', () => {
         setupShell();
         const list = document.querySelector(`.${NAV_LIST_CLASS.split(' ')[0]}`);
         expect(list?.tagName).toBe('UL');
@@ -120,20 +114,22 @@ describe('首页骨架:导航条', () => {
         expect(list?.children).toHaveLength(NAV_ITEMS.length);
     });
 
-    it('每个导航项都是 li.nav-item + a.nav-link[href=#窗格][data-bs-toggle=tab]', () => {
+    it('每个导航项都是 li.nav-item + a.nav-link[href=#窗格]', () => {
         setupShell();
         for (const item of NAV_ITEMS) {
             const link = document.querySelector(`a.${NAV_LINK_CLASS}[href="#${item.pane}"]`);
             expect(link, item.pane).not.toBeNull();
             expect(link?.textContent, item.pane).toBe(item.label);
-            // 关键契约:bootstrap 的 data-api 就是按这个选择器委托的,
-            // 属性没写对(或写成了别的 data-* 键)时标签页会静默点不动.
-            expect(link?.getAttribute(`data-${TAB_TOGGLE_DATA_KEY}`), item.pane)
-                .toBe(TAB_TOGGLE_DATA_VALUE);
+            /*
+              触发器只靠 href 指向窗格:tabs.ts 绑的是**元素引用**,不再需要
+              bootstrap 那种"让文档级委托认出我"的 data-bs-toggle 属性.
+              这里顺手把"没有 data-* 残留"也钉住,免得旧的声明式属性又被加回来.
+            */
+            expect(link?.getAttributeNames().filter((name) => name.startsWith('data-')), item.pane)
+                .toEqual([]);
             expect(classes(link?.parentElement ?? null), item.pane).toEqual([NAV_ITEM_CLASS]);
             expect(link?.closest('li')?.className, item.pane).toBe(NAV_ITEM_CLASS);
         }
-        expect(document.querySelectorAll(TOGGLE_SELECTOR)).toHaveLength(NAV_ITEMS.length);
     });
 
     it('只有默认标签页带 active', () => {
@@ -214,7 +210,7 @@ describe('首页骨架:首屏', () => {
 });
 
 describe('首页骨架:五个标签页窗格', () => {
-    it('每个导航项都有一个同 id 的窗格,类名是 bootstrap 约定的 tab-pane fade', () => {
+    it('每个导航项都有一个同 id 的窗格,类名是 tab-pane fade', () => {
         const shell = setupShell();
         for (const item of NAV_ITEMS) {
             const pane = document.getElementById(item.pane);
@@ -286,9 +282,24 @@ describe('首页骨架:交回的引用与文档里的元素一一对应', () => 
         expect(shell.metroUploads).toBe(document.getElementById(SITE_HOST_IDS.metroUploads));
         expect(shell.header).toBe(document.querySelector(`header.${HEADER_CLASS}`));
         expect(shell.hero).toBe(document.getElementById(HERO_ID));
+        expect(shell.navList).toBe(document.querySelector(`.${NAV_LIST_CLASS.split(' ')[0]}`));
         for (const item of NAV_ITEMS) {
             expect(shell.panes[item.pane], item.pane).toBe(document.getElementById(item.pane));
         }
+    });
+
+    it('交回的触发器顺序与 NAV_ITEMS 一致,且各自指向自己的窗格', () => {
+        /*
+          tabs.ts 就是靠"第 i 个触发器 = NAV_ITEMS[i] 的窗格"配对的,顺序错了
+          它会在挂载时直接抛错.这里把顺序本身钉住,免得错在更晚的地方暴露.
+        */
+        const shell = setupShell();
+        expect(shell.navLinks).toHaveLength(NAV_ITEMS.length);
+        NAV_ITEMS.forEach((item, index) => {
+            expect(shell.navLinks[index], item.pane).toBe(
+                document.querySelector(`a.${NAV_LINK_CLASS}[href="#${item.pane}"]`),
+            );
+        });
     });
 
     it('宿主 id 与窗格 id 不撞车(撞了就会把标记长到别人的容器里)', () => {

@@ -228,7 +228,7 @@ export const LAYERS_NOTE =
  * 占多宽"是本站的口径**,定义在 `metro_window.css` 的
  * `.metro-window .slider-field`(`flex: 0 1 var(--metro-slider-field-width, 320px)`).
  * 库**没有**这个令牌 -- 它只给数值框留了 `--slider-field-value-width`(兜底 76px),
- * 所以这里按本站的 `--metro-` 前缀命名,不与库 / bootstrap 的变量撞名.
+ * 所以这里按本站的 `--metro-` 前缀命名,不与库 / 站点的变量撞名.
  * 只有声明里确实写了 `width` 时,组件才把这条属性设在该滑块根节点上,覆盖那里的
  * 默认值(自定义属性会继承,而根节点上这一份对自己那几条声明优先).
  */

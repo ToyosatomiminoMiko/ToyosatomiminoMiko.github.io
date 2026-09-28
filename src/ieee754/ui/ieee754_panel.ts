@@ -180,7 +180,7 @@ export function createIeee754Panel(): Ieee754Panel {
         trigger: formatTrigger,
     });
     // 菜单项的主文案用 `<code>` 包一层:显示的既然是类型名(float / double),
-    // 就按代码字体排(站点样式把 bootstrap 给 code 的粉色改成继承,见 index.css).
+    // 就按代码字体排(站点样式让 code 继承所在元素的颜色,见 index.css 的 code 规则).
     // 库的 `MenuEntry` 只收字符串,所以菜单建好后再把每项的**主文案文字节点**
     // 换成 `<code>`;行右的汉语小字是库追加的第二个子节点,原样不动.
     IEEE754_FORMAT_CHOICES.forEach((choice, index) => {

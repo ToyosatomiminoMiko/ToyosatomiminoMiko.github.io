@@ -3,14 +3,14 @@
  *
  * 分工(两边不重叠):
  *
- *   - **标记长什么样** -> `src/**\/*.test.ts`(vitest + happy-dom,进程内,`npm test` 里跑):
- *     标签名 / 类名 / id / data-* 属性 / 文案 / 结构与 CSS 选择器是否对得上.
- *     那层覆盖了骨架与四块面板的全部结构契约(含 data-bs-toggle 这类属性写法).
- *   - **在真浏览器里能不能用** -> 本脚本:canvas 真的画出来了吗,bootstrap 真的认这排
- *     标签吗,`getComputedStyle` 下布局对不对,生成出来的宿主与地铁车窗组件是否接上了.
+ *   - **标记长什么样 / 行为怎么迁移** -> `src/**\/*.test.ts`(vitest + happy-dom,进程内,
+ *     `npm test` 里跑):标签名 / 类名 / id / 属性 / 文案 / 结构与 CSS 选择器是否对得上,
+ *     以及标签页点击与方向键之后 active / show / ARIA 落在哪个元素上.
+ *   - **在真浏览器里能不能用** -> 本脚本:canvas 真的画出来了吗,标签页切完真的只有一个
+ *     窗格可见吗,`getComputedStyle` 下布局对不对,生成出来的宿主与地铁车窗组件是否接上了.
  *
- * 为什么要留下这一层:进程内 DOM 没有像素,没有布局,没有真实 CSS 级联与 bootstrap 的
- * 事件委托,happy-dom 里 `getContext('2d')` 也是空的 -- 上面那几件事只有在真引擎里才成立.
+ * 为什么要留下这一层:进程内 DOM 没有像素,没有布局,也没有真实 CSS 级联,happy-dom 里
+ * `getContext('2d')` 也是空的 -- 上面那几件事只有在真引擎里才成立.
  * 反之,把结构断言也写在这里,就会得到"要 build + 要 chromium 才能验证类名"的慢回路,
  * 所以两边各管一段.
  *
@@ -250,9 +250,8 @@ const report = await cdp.eval(`(() => {
             settingPanel ? getComputedStyle(settingPanel).backgroundColor : '没有面板');
         /*
           十进制输入框的圆角归 miko_ui 主题(站点 .ieee-input 引 --radius-sm,库默认
-          0px);菜单主文案的 <code> 继承所在元素颜色而不是 bootstrap reboot 的粉色
-          (reboot 由 main.ts 注入,标签页还在用 bootstrap,body code 是压它的出口) --
-          后者要在真级联里才验得出来.
+          0px);菜单主文案的 <code> 继承所在元素颜色而不是浏览器默认的链接色 --
+          后者要在真级联里才验得出来(进程内 DOM 不算样式).
         */
         const inputRadius = getComputedStyle(q('#ieee-input')).borderTopLeftRadius;
         ok('十进制输入框圆角归 miko_ui 主题(.ieee-input 引 --radius-sm = 0px)',
@@ -260,8 +259,63 @@ const report = await cdp.eval(`(() => {
         const codeEl = q('.menu-anchor .menu-item code');
         const codeColor = codeEl ? getComputedStyle(codeEl).color : '没有 <code>';
         const itemColor = codeEl ? getComputedStyle(codeEl.closest('.menu-item')).color : '';
-        ok('精度菜单主文案的 <code> 继承菜单项文字色(不是 bootstrap 的粉色)',
+        ok('精度菜单主文案的 <code> 继承菜单项文字色(站点 code 规则生效)',
             codeEl !== null && codeColor === itemColor, codeColor);
+
+        /*
+          ---- 第 4 组:原先由 bootstrap 的 reboot 提供的**文档基线** ----
+          这几条全是元素级规则,特异性高过站点的 '*' 重置,所以 bootstrap 移除之后
+          必须由站点的"文档基线"一节接手.它们**不会**以任何形式报错,只会静默地
+          让版式变样(五个窗格堆叠 / 导航栏竖排 / 盒模型反转 / 整页露白底),
+          所以只能靠真浏览器里的 computed style 与几何把它们钉住.
+        */
+        // 盒模型:全站 border-box(少了它,所有"定宽 + 内边距"的盒子一起溢出)
+        ok('全站盒模型是 border-box(文档基线生效)',
+            getComputedStyle(q('main')).boxSizing === 'border-box' &&
+            getComputedStyle(q('#output-button')).boxSizing === 'border-box',
+            getComputedStyle(q('main')).boxSizing);
+        // 深色配色方案:UA 的滚动条 / 表单控件 / 画布底色都按它走
+        ok('配色方案是 dark(滚动条与表单控件按深色渲染)',
+            getComputedStyle(document.documentElement).colorScheme === 'dark',
+            getComputedStyle(document.documentElement).colorScheme);
+        // 页面底色:不再是 bootstrap 的 --bs-body-bg,而是本站令牌 --bg-page
+        const bodyBg = getComputedStyle(document.body).backgroundColor;
+        ok('页面底色来自本站令牌 --bg-page(不是浏览器默认的白)',
+            bodyBg === 'rgb(33, 37, 41)', bodyBg);
+        // 正文基准字号是绝对长度:通用等宽族(monospace)不再被 Chrome 拉成 13px
+        ok('正文基准字号是 1rem = 16px(等宽族的坐标读数不再掉成 13px)',
+            getComputedStyle(document.body).fontSize === '16px' &&
+            getComputedStyle(q('#coordsDisplay')).fontSize === '16px',
+            getComputedStyle(q('#coordsDisplay')).fontSize);
+        // 标签栏的布局:display:flex + 无项目符号(少了它导航栏塌成竖排列表)
+        const navList = q('ul.nav-tabs');
+        ok('标签栏是横向 flex 且没有项目符号(文档基线里的标签栏规则生效)',
+            getComputedStyle(navList).display === 'flex' &&
+            getComputedStyle(navList).listStyleType === 'none',
+            getComputedStyle(navList).display + ' / ' + getComputedStyle(navList).listStyleType);
+        // 标签自身是块盒:行内盒的上下内边距不参与行高,导航条会塌
+        ok('标签是块盒且带上下内边距(导航条高度靠它撑)',
+            getComputedStyle(q('a.nav-link')).display === 'block' &&
+            getComputedStyle(q('a.nav-link')).paddingTop !== '0px',
+            getComputedStyle(q('a.nav-link')).paddingTop);
+        /*
+          窗格显隐:**最容易被静默改坏的一条**.'.tab-content > .tab-pane' 的
+          display:none 与 '> .active' 的 display:block 原先完全由 bootstrap 提供,
+          少了它们五个窗格会同时纵向堆叠在首屏下面(页面还是"能打开"的).
+          这里逐个数一遍:除当前项外,其余四个窗口的 display 必须是 none.
+          注:这段代码本身坐在一个模板字符串里,注释里不能出现反引号.
+        */
+        const panes = ['home', 'oled', 'rbt', 'ieee754', 'setting'];
+        const shown = panes.filter((id) => getComputedStyle(q('#' + id)).display !== 'none');
+        ok('五个窗格里只有一个可见(窗格显隐规则生效)',
+            shown.length === 1 && shown[0] === 'home', '可见: ' + JSON.stringify(shown));
+        ok('可见窗格是不透明的(.fade:not(.show) 的 opacity: 0 没有误伤当前项)',
+            getComputedStyle(q('#home')).opacity === '1',
+            getComputedStyle(q('#home')).opacity);
+        // 标签是自定义观感的链接:不能还带着浏览器默认的下划线
+        ok('标签栏的链接没有下划线(文档基线里的 a 规则接住了)',
+            getComputedStyle(q('a.nav-link')).textDecorationLine === 'none',
+            getComputedStyle(q('a.nav-link')).textDecorationLine);
 
         return out;
     } catch (e) {
@@ -281,16 +335,27 @@ if (!Array.isArray(report) || (report && report.__err)) {
     process.exit(1);
 }
 
-// ---- 交互:bootstrap 的 data-api 认不认生成的标签栏(点一次再点回来) ----
-const tabSwitch = await cdp.eval(`(() => {
+// ---- 交互:站点自己的标签页控制器认不认这排触发器(点一次再切回来) ----
+// 这里读的是**计算样式**,不只是类名:窗格的 display 由站点的"文档基线"提供,
+// 类名对了而 CSS 掉了的话,面板会全部堆叠 -- 那正是这一条要抓的.
+const tabSwitch = await cdp.eval(`(async () => {
     const click = (href) => document.querySelector('a[href="' + href + '"]').click();
+    // 等淡入走完(.show 是下一帧才补上的),否则读到 opacity 还停在 0
+    const settle = () => new Promise((r) => setTimeout(() => requestAnimationFrame(() => r()), 350));
+    const pane = (id) => {
+      const el = document.querySelector('#' + id);
+      const cs = getComputedStyle(el);
+      return { active: el.classList.contains('active'), show: el.classList.contains('show'),
+               display: cs.display, opacity: cs.opacity };
+    };
+    const active = (href) => document.querySelector('a[href="' + href + '"]').classList.contains('active');
+
     click('#oled');
-    const afterOled = { oled: document.querySelector('#oled').classList.contains('active'),
-                        home: document.querySelector('#home').classList.contains('active'),
-                        link: document.querySelector('a[href="#oled"]').classList.contains('active') };
+    await settle();
+    const afterOled = { oled: pane('oled'), home: pane('home'), link: active('#oled') };
     click('#home');
-    const afterHome = { home: document.querySelector('#home').classList.contains('active'),
-                        oled: document.querySelector('#oled').classList.contains('active') };
+    await settle();
+    const afterHome = { home: pane('home'), oled: pane('oled') };
     return { afterOled, afterHome };
 })()`);
 
@@ -302,8 +367,8 @@ const headerState = await cdp.eval(`(async () => {
     const click = (href) => document.querySelector('a[href="' + href + '"]').click();
     // 等两帧:class 的切换发生在 IO 回调 / scroll 回调里,写进去之后要等一次重绘
     const nextFrame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-    // behavior: 'instant' 必须写:bootstrap 的 reboot 给 :root 开了 scroll-behavior: smooth,
-    // 用默认行为滚 400px 时读到的还是动画刚起步的那一两个像素.
+    // behavior: 'instant' 必须写:站点样式里没有 smooth 了,但用默认行为滚动仍可能被
+    // 浏览器/扩展的偏好接管,读到的会是动画刚起步的那一两个像素.
     const scrollTo = (y) => window.scrollTo({ top: y, behavior: 'instant' });
     const over = () => header.classList.contains('is-over-hero');
     click('#setting');
@@ -373,9 +438,16 @@ for (const item of report) {
     if (!item.pass) failed++;
     console.log(`${item.pass ? '  ok  ' : ' FAIL '} ${item.name}${item.extra ? `  [${item.extra}]` : ''}`);
 }
-const tabOk = tabSwitch?.afterOled?.oled && tabSwitch?.afterOled?.link && !tabSwitch?.afterOled?.home &&
-    tabSwitch?.afterHome?.home && !tabSwitch?.afterHome?.oled;
-console.log(`${tabOk ? '  ok  ' : ' FAIL '} 点标签页能切窗格(生成的标签栏被 bootstrap 认下,再切回来也对)`);
+// 切过去的窗格必须真的"上屏且不透明",切走的必须真的 display: none --
+// 只对类名就会漏掉"类名对了但 CSS 掉了,五个窗格一起堆叠"这种最坏的静默失效.
+const shownOk = (pane) => pane?.active === true && pane?.show === true &&
+    pane?.display === 'block' && pane?.opacity === '1';
+const hiddenOk = (pane) => pane?.active === false && pane?.show === false && pane?.display === 'none';
+const tabOk = shownOk(tabSwitch?.afterOled?.oled) && tabSwitch?.afterOled?.link === true &&
+    hiddenOk(tabSwitch?.afterOled?.home) &&
+    shownOk(tabSwitch?.afterHome?.home) && hiddenOk(tabSwitch?.afterHome?.oled);
+console.log(`${tabOk ? '  ok  ' : ' FAIL '} 点标签页能切窗格(站点自己的控制器认下这排触发器,` +
+    `切过去的 window 真的 display: block + opacity: 1,切走的 display: none)`);
 if (!tabOk) failed++;
 const headerOk = headerState?.settingTop === true && headerState?.settingScrolled === false &&
     headerState?.homeTop === true;

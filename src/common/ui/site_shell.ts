@@ -11,8 +11,8 @@
 
     header.site-header
       ├── span.site-brand                      站名(压在首屏画面上时的站点身份)
-      ├── ul.nav.nav-tabs                      标签栏(bootstrap 声明式标签页)
-      │     └── li.nav-item > a.nav-link[href=#<pane>][data-bs-toggle=tab]
+      ├── ul.nav.nav-tabs                      标签栏(行为见 src/common/tabs.ts)
+      │     └── li.nav-item > a.nav-link[href=#<pane>]
       └── a.head-link[href=GitHub] > img.head
                                                头像(在标签栏**外面**,见下)
     main > div.tab-content
@@ -75,8 +75,6 @@ import {
     TAB_CONTENT_CLASS,
     TAB_PANE_ACTIVE_CLASS,
     TAB_PANE_CLASS,
-    TAB_TOGGLE_DATA_KEY,
-    TAB_TOGGLE_DATA_VALUE,
     type NavItemSpec,
     type NavPaneId,
 } from '@/common/site.config';
@@ -90,6 +88,10 @@ export interface SiteShell {
     readonly header: HTMLElement;
     /** 首屏:header_state.ts 用它判断"画面还在不在导航条下面" */
     readonly hero: HTMLElement;
+    /** 标签栏容器:mountTabs() 的 tablist */
+    readonly navList: HTMLElement;
+    /** 标签栏里的触发器,顺序与 NAV_ITEMS 一致 -> mountTabs() */
+    readonly navLinks: readonly HTMLAnchorElement[];
     /** LED 时钟宿主 -> mountClock() */
     readonly clockHost: HTMLElement;
     /** 地铁车窗四块宿主 -> mountMetroWindow() */
@@ -101,7 +103,7 @@ export interface SiteShell {
     readonly panes: Readonly<Record<NavPaneId, HTMLElement>>;
 }
 
-/** 一个标签页触发器:声明式 bootstrap 属性 + 指向窗格的锚点 */
+/** 一个标签页触发器:`<a href="#窗格">`,行为由 src/common/tabs.ts 绑上去 */
 function createNavLink(item: NavItemSpec): HTMLAnchorElement {
     const active = item.pane === DEFAULT_NAV_PANE;
     return create_element(
@@ -109,7 +111,6 @@ function createNavLink(item: NavItemSpec): HTMLAnchorElement {
         {
             class: active ? `${NAV_LINK_CLASS} ${NAV_ACTIVE_CLASS}` : NAV_LINK_CLASS,
             href: `#${item.pane}`,
-            [`data-${TAB_TOGGLE_DATA_KEY}`]: TAB_TOGGLE_DATA_VALUE,
         },
         item.label,
     );
@@ -144,18 +145,22 @@ export function mountSiteShell(): SiteShell {
     const metroUploads = create_element({ tag: 'div' }, { id: SITE_HOST_IDS.metroUploads });
 
     // --- 导航条 ---
+    // 触发器先建好,按 NAV_ITEMS 的顺序收进数组:后面 mountTabs() 要的就是
+    // "触发器列表 + 窗格表"(见 src/common/tabs.ts),不是 ul 的子孙查询.
+    const navLinks = NAV_ITEMS.map((item) => createNavLink(item));
+    const navList = create_element(
+        { tag: 'ul' },
+        { class: NAV_LIST_CLASS },
+        ...navLinks.map((link) =>
+            create_element({ tag: 'li' }, { class: NAV_ITEM_CLASS }, link),
+        ),
+    );
     const header = create_element(
         { tag: 'header' },
         { class: HEADER_CLASS },
         create_element({ tag: 'span' }, { class: SITE_BRAND_CLASS }, SITE_BRAND_TEXT),
-        create_element(
-            { tag: 'ul' },
-            { class: NAV_LIST_CLASS },
-            ...NAV_ITEMS.map((item) =>
-                create_element({ tag: 'li' }, { class: NAV_ITEM_CLASS }, createNavLink(item)),
-            ),
-        ),
-        // 头像:导航条最右,点了去 GitHub(不是标签页,所以不带 data-bs-toggle).
+        navList,
+        // 头像:导航条最右,点了去 GitHub(不是标签页,所以没有 href="#窗格").
         // 位置在标签栏**外面**:标签栏是横向滚动容器,会把 hover 辉光裁成方块
         // (完整理由见文件头的结构说明).
         create_element(
@@ -207,6 +212,8 @@ export function mountSiteShell(): SiteShell {
         root,
         header,
         hero,
+        navList,
+        navLinks,
         clockHost,
         metroStage,
         metroStyles,

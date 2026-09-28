@@ -4,22 +4,19 @@
 ToyosatomiminoMiko
 -->
 <!--
-`data-bs-theme="dark"`:站点是深色画面.面板 / 按钮 / 输入框 / 编辑器都已归
-miko_ui 与站点样式,不读 bootstrap 的变量;但 bootstrap 的 reboot 仍在给 `body`
-写 `background-color: var(--bs-body-bg)` 与 `color: var(--bs-body-color)`,
-这两条本站的 `* { background: none }` 压不过,所以整页底色仍然是 bootstrap 的
-暗色值 -- 少了 data-bs-theme 就会露出白底.仅剩的 bootstrap 组件(标签页)也走它.
-这是过渡:标签页也迁走,bootstrap 整包移除时,这一条一起消失.
+深色画面不在这里声明:配色方案(`color-scheme: dark`)与页面底色 / 正文色都在
+public/css/index.css 的"文档基线"一节.原先这里挂着 bootstrap 的
+`data-bs-theme="dark"`,只为让 reboot 给 `body` 写出深色底;bootstrap 整包移除后
+不需要了.
 -->
-<html data-bs-theme="dark">
+<html>
 
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>ToyosatomiminoMiko</title>
 
-    <!-- style -->
-    <!-- 设计令牌(字体/调色板/尺寸/圆角/间距/z-index/过渡):必须先于下列样式表加载 -->
+    <!-- style 设计令牌(字体/调色板/尺寸/圆角/间距/z-index/过渡):必须先于下列样式表加载 -->
     <link href="/css/tokens.css" rel="stylesheet" type="text/css" />
     <link href="/css/index.css" rel="stylesheet" type="text/css" />
     <link href="/css/ieee754.css" rel="stylesheet" type="text/css" />

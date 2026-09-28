@@ -153,8 +153,8 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
 
 | 层 | 跑什么 | 在哪 |
 | --- | --- | --- |
-| 标记契约(进程内) | 生成的标签 / 类名 / id / `data-*` / 文案与 CSS 是否对得上 | `src/**/ui/*.test.ts`,文件头 `@vitest-environment happy-dom`,进 `npm test`(不需要 build,CI 里也跑) |
-| 真浏览器验收 | canvas 真的画出来了吗,bootstrap 的标签页真的认这排标签吗,布局与 CSS 级联对不对,导航条隐形/实底的翻转对不对,宿主与车窗组件接上了吗 | `npm run smoke:home`(要 `dist/` 与 chromium,见[「构建」](#构建)) |
+| 标记契约 + 行为(进程内) | 生成的标签 / 类名 / id / 文案与 CSS 是否对得上;标签页的点击 / 方向键 / 显隐状态迁移对不对 | `src/**/*.test.ts`,文件头 `@vitest-environment happy-dom`,进 `npm test`(不需要 build,CI 里也跑) |
+| 真浏览器验收 | canvas 真的画出来了吗,五个窗格真的只有一个可见吗,布局与 CSS 级联对不对,导航条隐形/实底的翻转对不对,宿主与车窗组件接上了吗 | `npm run smoke:home`(要 `dist/` 与 chromium,见[「构建」](#构建)) |
 
 加/改 UI 之后:`npm test` 跑第一层;涉及渲染/交互/样式的改动再跑一次 `smoke:home`.
 
@@ -243,8 +243,14 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
   `miko_ui` 的 `createButton` 生成,基线类 `.ui-button` 与全部外观(描边
   `1px solid var(--color-border-strong)` / 底色 / 文字 / 悬停 / 焦点 / 禁用)都在库的
   `styles/widgets.css`;本站的组件只补 id / `data-*` / 激活态类,样式表里不再出现
-  按钮的描边 / 底色 / 文字规则.原先是 bootstrap `.btn.btn-primary`,已撤掉,
-  这是"逐渐移除 bs5"的一步.要改按钮长相就改库,不在下游给它的节点补类名.
+  按钮的描边 / 底色 / 文字规则.原先是 bootstrap 的 `.btn.btn-primary`,已撤掉.
+  要改按钮长相就改库,不在下游给它的节点补类名.
+
+  **库的按钮基线用 `:where(.ui-button)` 写(特异性 0),所以在 bootstrap 还在时
+  一直被 reboot 的 `button { font-size: inherit; line-height: inherit }` 压着** --
+  按钮实际上吃的是 body 的 16px / 1.5,而不是库给的 12px / 1.2.移除 bootstrap 之后
+  库的默认值才真正生效(按钮变小,`appearance: none` 生效),这是预期内的观感变化:
+  库拥有按钮外观,现在没有第三方规则插在中间了.
 
   **一组选项也不自己拼**:OLED 的三个绘图工具由库的 `createSegmented` 生成
   (`div.segmented` + 组内按钮,单选),不再是 `input[name="tools"]` 那组 radio;
@@ -283,21 +289,32 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
   收回 `.head` 的 `border-radius`.
 - **RBT 唯一一处结构变化**:提示区原先夹在标题栏与正文之间,框体归库之后正文只有
   一个入口,提示区移进了 `.ui-panel-body` 最前(其余面板结构不变).
-- **仅剩的 bootstrap 用法是标签页**(`.nav-tabs` / `.nav-item` / `.nav-link` /
-  `.tab-pane` 与 `data-bs-toggle="tab"` 的 data-api).在它迁走,bootstrap 整包
-  移除之前,下面两条 reboot 补偿必须留着:
-  `body code` 让 `<code>` 继承所在元素的文字色并用库的代码字体栈(IEEE754 精度
-  菜单项的主文案是 `<code>`,否则会吃 reboot 的粉色 `--bs-code-color`);
-  `<html data-bs-theme="dark">` 让 reboot 给 `body` 写的
-  `background-color: var(--bs-body-bg)` 是深色,否则整页会露出白底.
-- **bootstrap 的 `pre { overflow: auto }` 在库的编辑器里要还原**:库的
-  `.code-editor-lines` / `.code-editor-highlight-code` 自己不写 overflow
-  (行号靠 `.code-editor-gutter` 裁,高亮正文靠 `.code-editor-highlight` 裁),
-  于是 bootstrap 那条标签选择器在编辑器里生效,行号栏会被画上它自己的竖向滑条
-  (经典带上下箭头的滑条,直接压在行号上,**只有一行时也出现**:行盒高度的小数
-  舍入就够触发).`public/css/index.css` 给这两个 `<pre>` 写回 `overflow: visible`,
-  编辑器于是只有一个滚动容器 -- 库的 textarea.这条与上面两条一样,属于
-  "标签页还带着 bootstrap"期间的过渡代码.
+- **bootstrap 已整包移除**.原先最后一处 bootstrap 用法是标签页
+  (`.nav-tabs` / `.nav-item` / `.nav-link` / `.tab-pane` 与 `data-bs-toggle="tab"`
+  的 data-api),现在由 `src/common/tabs.ts` 自己实现:点击 /
+  方向键与 Home / End / roving tabindex / ARIA 角色,以及"先 `.active` 上屏,
+  下一帧再补 `.show`"的淡入时序.`package.json` 与 `package-lock.json` 里不再有它,
+  标记里也不再有任何 `data-bs-*` 属性.`nav-tabs` / `nav-link` / `tab-pane` /
+  `fade` 这套类名是当年抄 bootstrap 的名字,现在由本站样式与 `tabs.ts` 独家使用.
+
+  随之而来的是**一整套文档基线改由本站负责** -- 它们原先由 bootstrap 的 reboot
+  提供,而 reboot 是元素级规则(特异性高过站点的 `*` 重置),所以一直在生效.
+  现在写在 `public/css/index.css` 的"文档基线"一节里:
+  `box-sizing: border-box`,`html { color-scheme: dark }`,`body` 的底色 / 正文色 /
+  行距 / **绝对字号**,链接的默认外观,`img` / `svg` 的 `vertical-align`,
+  `sub` / `sup` 的取值,`fieldset { min-width: 0 }`,`legend` 的块级排版,
+  `code` 的字体与字号;再加上标签栏的 `display: flex` + `list-style: none` 与
+  窗格的 `display: none / block` + 淡入(原先是 bootstrap 的 `.nav` / `.tab-content`
+  规则给的).
+
+  这些规则**必须留着**,而且少一条都是**静默**的版式崩坏(五个窗格同时堆叠,
+  导航栏塌成竖排带项目符号的列表,全站盒模型反转,整页露出白底),不会有任何报错.
+  两条踩过的坑记在这里:
+  `body` 的字号必须写成**绝对长度**(`1rem`)-- 否则 Chrome 会对通用等宽族
+  (站内的 `--font-mono` 正是 generic `monospace`)取自己的等宽默认字号 13px,
+  而不是 16px,坐标读数与行高会一起变小;
+  `fieldset { min-width: 0 }` 是地铁车窗控制台那两个 fieldset 作为 flex 子项
+  肯不肯收缩的前提.
 - 等价性回归网:`cargo test` 与 `vitest` 覆盖参数布局与公式;
   首页**生成的标记**由 `src/**/ui/*.test.ts` 在 happy-dom 里逐条断言(进 `npm test`);
   真浏览器那层只剩"必须真渲染"的部分(`npm run smoke:home`);

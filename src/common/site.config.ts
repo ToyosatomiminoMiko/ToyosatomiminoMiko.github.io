@@ -8,11 +8,11 @@
 //
 //   - 宿主页(index.html)不出现任何标记,只留一个空位 `#site-root`;
 //   - "结构 / 文案 / 类名 / id" 只在这里定义一次,组件与 CSS 都引用它;
-//   - 行为模块(header_state.ts / background.ts)不读页面:骨架生成后由
+//   - 行为模块(tabs.ts / header_state.ts / background.ts)不读页面:骨架生成后由
 //     site_shell 把**元素引用**交回来,不再按 id 去 DOM 里找.
 //
 // 这里只放纯数据,不放模块级可变状态.凡是"改了必须同步改另一处"的字面量
-// (标签页的 bootstrap 类名与 data 属性,面板的站点类名,CSS 里的 id 选择器,
+// (标签页的类名,面板的站点类名,CSS 里的 id 选择器,
 // 模块的宿主 id)都写成具名常量,写错不会报错,只会静默失效的东西尤其不能散在各文件里.
 // ================================================================
 
@@ -42,22 +42,19 @@ export const SITE_BRAND_TEXT = 'ToyosatomiminoMiko';
 /** 站名的类名(样式见 public/css/index.css 的 .site-brand) */
 export const SITE_BRAND_CLASS = 'site-brand';
 
-/** 标签栏:三个类名都用 bootstrap 5 的约定(见 index.css 里压掉外观的规则) */
+/**
+ * 标签栏的容器类名与两项的类名.
+ * `nav` / `nav-tabs` / `nav-item` / `nav-link` 这套名字是当年照抄 bootstrap 的,
+ * 现在由本站样式(index.css 的标签栏一节)与 src/common/tabs.ts 独家使用 --
+ * bootstrap 已经不在仓库里,它们只是名字还留着.改名要同时动 CSS 与两个测试,
+ * 所以先按现状留着.
+ */
 export const NAV_LIST_CLASS = 'nav nav-tabs';
 export const NAV_ITEM_CLASS = 'nav-item';
 export const NAV_LINK_CLASS = 'nav-link';
 
-/** 选中态类名(bootstrap 的标签页契约) */
+/** 选中态类名:触发器用它点亮文字,窗格用它上屏(见 index.css 的 .tab-content > .active) */
 export const NAV_ACTIVE_CLASS = 'active';
-
-/**
- * 标签页触发器的**声明式属性**(bootstrap 的 data-api):
- * `data-bs-toggle="tab"` 让 bootstrap 的委托监听认出"这是标签页触发器",
- * href 指向的窗格由它切 .active / .show.属性名与取值都是 bootstrap 的约定,
- * 写成常量是为了"标签栏是怎么动起来的"只在这里解释一次.
- */
-export const TAB_TOGGLE_DATA_KEY = 'bs-toggle';
-export const TAB_TOGGLE_DATA_VALUE = 'tab';
 
 /** 头像:导航条最右侧,点了去 GitHub */
 export const AVATAR_LINK = 'https://github.com/ToyosatomiminoMiko';
@@ -122,12 +119,19 @@ export const HERO_BOTTOM_CLASS = 'hero__bottom';
 
 // ---------- 标签页 ----------
 
-/** bootstrap 的标签页容器 */
+/** 标签页窗格的容器(唯一消费者是 index.css 的 `.tab-content > .tab-pane` 规则) */
 export const TAB_CONTENT_CLASS = 'tab-content';
-/** 窗格基础类: fade 是过渡,bootstrap 切换时会加 .show */
+/** 窗格基础类:fade 只是一次过渡的名字,切换逻辑见 src/common/tabs.ts */
 export const TAB_PANE_CLASS = 'tab-pane fade';
-/** 激活窗格的类名(bootstrap:active 参与选择器,show 负责透明度) */
-export const TAB_PANE_ACTIVE_CLASS = 'show active';
+/**
+ * 窗格"正在显示"的类名.
+ *
+ * `active` 参与选择器(display: block),`show` 只负责透明度 -- 两者分开写成
+ * 常量,是因为 `classList` 不接受带空格的 token,tabs.ts 要按条增删;下面那条
+ * 合并串留给骨架生成标记时直接用(两边因此不会各写一份字面量).
+ */
+export const TAB_PANE_SHOW_CLASS = 'show';
+export const TAB_PANE_ACTIVE_CLASS = `${TAB_PANE_SHOW_CLASS} ${NAV_ACTIVE_CLASS}`;
 
 // ---------- SETTING:整页面板 ----------
 

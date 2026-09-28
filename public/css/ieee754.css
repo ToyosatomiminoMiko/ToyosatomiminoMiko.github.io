@@ -11,7 +11,7 @@
     margin: var(--ieee-error-margin);
 }
 
-/* ---- 精度 / 输入那一行:站点自研,替代 bootstrap 的 .row.g-3 / .col-auto / .col-6 ---- */
+/* ---- 精度 / 输入那一行:站点自研的两列布局(左列随内容,右列半宽) ---- */
 .ieee-controls {
     display: flex;
     flex-wrap: wrap;
@@ -32,19 +32,19 @@
     min-width: 0;
 }
 
-/* 两个字段标签(替代 bootstrap 的 .form-label.mb-0):各占一行,上下间距由全局重置归零 */
+/* 两个字段标签:各占一行,上下间距由全局重置归零 */
 .ieee-controls__label {
     display: block;
 }
 
-/* 输入框 + 转换按钮(替代 bootstrap 的 .input-group.input-group-sm) */
+/* 输入框 + 转换按钮:同一行,输入框吃掉剩余宽度 */
 .ieee-input-group {
     display: flex;
     align-items: stretch;
     width: 100%;
 }
 
-/* 十进制输入框(替代 bootstrap 的 .form-control):观感引 miko_ui 令牌,
+/* 十进制输入框:观感引 miko_ui 令牌,
    与库的数字框 / 编辑器共用同一个凹陷底与描边 */
 .ieee-input {
     flex: 1 1 auto;

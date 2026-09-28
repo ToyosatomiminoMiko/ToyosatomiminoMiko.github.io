@@ -107,7 +107,7 @@ mountMetroWindow({ stage, styles, panel, uploads });
 - 组件样式里**没有**页面级选择器:`body { margin: 0 }` 这类规则的宿主是站点,
   由站点的 `public/css/index.css` 负责;写进 `metro_window.css` 就等于让组件去改
   宿主页面的 body.原先独立页用的 `metro_index.css` 随入口页一起删掉了.
-- 样式**全部**以 `.metro-window` 作用域开头.站点首页引了 bootstrap,还有一条
+- 样式**全部**以 `.metro-window` 作用域开头.站点首页有一条
   `* { margin:0; padding:0; border:0; background:none }` 的通配重置,
   原来那份独立页写法里的 `body` / `canvas` / `button` 裸元素选择器一旦进站,
   会把 OLED 的 `#pixelCanvas`,RBT 的 `#rbCanvas` 一起改样.
@@ -495,7 +495,7 @@ PREVIEW_PARAM=dirt_opacity=0,interior_opacity=0 cargo run --package metro-window
 | 前端入口 `main.ts` -> `metro_window.ts`(行为)+ `metro_window.css`(样式) | 把行为做成"有标记就能挂"的模块,不再养一个页面级入口 |
 | 后来撤掉 `/metro_window/` 独立入口页(`index.html` / `page.ts` / `metro_index.css`),并入站点首页 | 车窗只在首页挂一次;页面级标记(画布)改由 `src/ui/stage_content.ts` 生成,宿主只留空容器 `#metro-window` |
 | 删掉 `web/design/city_mid.png.kra`(1.5 MB 的设计源文件) | 它只在独立页时代有用;入口页撤掉后不再参与构建,随后从仓库删除 |
-| `style.css` 全部选择器加 `.metro-window` 作用域,自定义属性加 `--metro-` 前缀 | 站点有一条 `* { ... }` 通配重置和 bootstrap,原来 `body`/`canvas`/`button` 的裸元素选择器会污染站点的其它页面 |
+| `style.css` 全部选择器加 `.metro-window` 作用域,自定义属性加 `--metro-` 前缀 | 站点有一条 `* { ... }` 通配重置,原来 `body`/`canvas`/`button` 的裸元素选择器会污染站点的其它页面 |
 | 新增渲染生命周期(IntersectionObserver + visibilitychange) | rAF 不会因为容器 `display:none` 而停,不禁的话切走标签页后 GPU 一直空转 |
 | Rust 里贴图路径 `/resource/...` -> `/metro_window/resource/...`,集中成 `app.rs` 的 `RESOURCE_BASE` | 并进站点后资源挂在子路径下;地址是 Rust 里写死的,必须和产物里的真实路径一致 |
 | 城市贴图从子项目的 `public/resource/` 挪进站点唯一静态资源根 `public/metro_window/resource/`,删掉 `metroWindowAssets()` 插件 | 站点 Vite 只有一个 `publicDir`,另建 `public/` 就得靠插件在 dev 重写,在 build 手动 emit;放进 `public/` 后 URL 与目录同构,dev/build 行为天然一致 |
