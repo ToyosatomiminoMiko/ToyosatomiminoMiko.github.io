@@ -274,8 +274,12 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
   四个 bootstrap 变量接回库的 `--color-bg-panel` / `--color-border-panel` /
   `--radius-md` / `--color-bg-header`,并给 `<html>` 加 `data-bs-theme="dark"`
   让剩下的表单件(输入框 / 滚动条)也走深色那套(IEEE754 的精度下拉框已换成
-  库的 `createMenu`,不再有 bootstrap 的 `.form-select`).这两处都是过渡,
-  bs5 移除时一起删.
+  库的 `createMenu`,不再有 bootstrap 的 `.form-select`).同一处还有两条小的
+  出口:`body` 上的 `--bs-border-radius*` 接回库的 `--radius-sm` / `--radius-md`
+  (否则 `.form-control` / `.input-group-sm > .form-control` 会留着 0.375rem /
+  0.25rem 的"残余圆角"),`body code` 让 `<code>` 继承所在元素的文字色并用库的
+  代码字体栈(IEEE754 精度菜单项的主文案是 `<code>`,否则会吃 bootstrap 的粉色
+  `--bs-code-color`).这几处都是过渡,bs5 移除时一起删.
 - **bootstrap 的 `pre { overflow: auto }` 在库的编辑器里要还原**:库的
   `.code-editor-lines` / `.code-editor-highlight-code` 自己不写 overflow
   (行号靠 `.code-editor-gutter` 裁,高亮正文靠 `.code-editor-highlight` 裁),

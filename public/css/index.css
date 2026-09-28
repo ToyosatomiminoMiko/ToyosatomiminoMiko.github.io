@@ -71,6 +71,51 @@ body .card {
 }
 
 /* ================================================================
+ * bootstrap 的圆角出口:接回 miko_ui 主题
+ *
+ * bootstrap 的表单件自带圆角:`.form-control` 读 `--bs-border-radius`(0.375rem),
+ * `.input-group-sm > .form-control` 读 `--bs-border-radius-sm`(0.25rem)......于是
+ * IEEE754 的十进制输入框在本站的直角画面里留着"残余圆角"(卡片 / 按钮都已经是
+ * 库主题的 0px).与其逐条重写 `.form-control`(还要连带 `.input-group-*` 的组合
+ * 选择器,状态类,漏一条就露一个角),不如把 bootstrap 自己的几个圆角出口接到库
+ * 主题的 `--radius-sm` / `--radius-md`:组件里那些规则读到的就是库的口径.
+ *
+ * 变量定义写在 `body` 上(不是 `:root`):bootstrap 由 `main.ts` 注入,排在
+ * `<link>` 之后,同在 `:root` 时它的值会赢;自定义属性是可继承的,body 上这份
+ * 离元素更近,body 里的元素一律读它(与上面卡片那条同一个理由).
+ *
+ * 不改的两个圆角:`--bs-border-radius-pill`(50rem,胶囊是"故意圆"的)与
+ * `.rounded-circle` 这类工具类(它们写的是字面量,头像的圆形不归这条管).
+ * 这条也是过渡:bs5 移除时一起删.
+ * ================================================================ */
+body {
+    --bs-border-radius: var(--radius-md);
+    --bs-border-radius-sm: var(--radius-sm);
+    --bs-border-radius-lg: var(--radius-md);
+    --bs-border-radius-xl: var(--radius-md);
+    --bs-border-radius-xxl: var(--radius-md);
+}
+
+/* ================================================================
+ * bootstrap 的 `<code>`:颜色与字体接回本站口径
+ *
+ * IEEE754 精度菜单项的主文案是本站自己放的 `<code>`(类型名 float / double 按
+ * 代码字体显示),而 bootstrap 的 reboot 给 `code` 写了
+ * `color: var(--bs-code-color)`(深色主题下是粉色)与 `.875em` 字号:粉色不跟着
+ * 菜单项的悬停 / 当前项状态走,一行里会出现两种强调色.所以让 code **继承所在
+ * 元素的颜色**(当前项 / 悬停的文字色照旧生效),字体用库的代码字体栈,与行右那
+ * 个汉语小字(`.menu-item-hint`)同一套字形;`.875em` 的字号保留 -- 类型名比正文
+ * 略小正是想要的分工.
+ *
+ * `body code` 同样是为了盖过 bootstrap 注入在后的 `code` 规则.过渡,bs5 移除时
+ * 一起删.
+ * ================================================================ */
+body code {
+    color: inherit;
+    font-family: var(--code-font-family);
+}
+
+/* ================================================================
  * 首屏(hero)
  *
  * 只属于 HOME 标签页:视口在页面顶部时,地铁车窗的画布铺满整个屏幕.

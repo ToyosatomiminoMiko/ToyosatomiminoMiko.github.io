@@ -110,7 +110,7 @@ describe('IEEE754:精度与输入那一行', () => {
         expect(document.getElementById(IEEE754_DOM.inputId)).not.toBeNull();
     });
 
-    it('精度菜单:触发按钮 + 库的浮层面板,两项,f64 默认是当前项', () => {
+    it('精度菜单:触发按钮 + 库的浮层面板(<code> 主文案 + 小字),两项,f64 默认是当前项', () => {
         const panel = render();
         // 触发按钮:库的按钮(基线类 .ui-button),id 仍是 #ieee-format(label 指向它)
         const trigger = mustQuery(`button#${IEEE754_DOM.formatId}`);
@@ -130,11 +130,15 @@ describe('IEEE754:精度与输入那一行', () => {
         expect(menuPanel.classList.contains('menu-popover')).toBe(true);
         expect(menuPanel.classList.contains('is-open')).toBe(false);
         expect(trigger.getAttribute('aria-controls')).toBe(menuPanel.id);
-        // 菜单项:顺序 / 文案来自声明,当前项由 setActive 标成 .is-active + aria-current
+        // 菜单项:顺序 / 主文案 / 右侧小字都来自声明,当前项由 setActive 标成
+        // .is-active + aria-current.主文案包在 `<code>` 里(类型名按代码字体排),
+        // 小字是库的 `.menu-item-hint`,排在它后面 -- 所以 textContent 是两者拼起来.
         const items = [...menuPanel.querySelectorAll('.menu-item')];
         expect(items).toHaveLength(IEEE754_FORMAT_CHOICES.length);
-        expect(items.map((item) => item.textContent))
+        expect(items.map((item) => item.querySelector('code')?.textContent))
             .toEqual(IEEE754_FORMAT_CHOICES.map((choice) => choice.label));
+        expect(items.map((item) => item.querySelector('.menu-item-hint')?.textContent))
+            .toEqual(IEEE754_FORMAT_CHOICES.map((choice) => choice.hint));
         expect(items.map((item) => item.classList.contains('is-active')))
             .toEqual(IEEE754_FORMAT_CHOICES.map((choice) => choice.active));
         expect(items.map((item) => item.hasAttribute('aria-current')))

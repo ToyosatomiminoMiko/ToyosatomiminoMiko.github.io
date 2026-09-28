@@ -16,6 +16,7 @@ IEEE 754 面板的**标记组件**(声明式).
             div.menu-anchor                      精度菜单的锚点(库的定位参照)
               button#ieee-format.ui-button       触发按钮:显示当前精度
               div.menu-panel.menu-popover        菜单面板(role="menu",两项,当前项带 .is-active)
+                button.menu-item                 主文案是 <code>float (32bit)</code>,行右弱色小字"单精度"
           </div>
           <div class="col-6">十进制 label + input-group(input#ieee-input + button#ieee-convert)</div>
         </div>
@@ -157,6 +158,7 @@ export function createIeee754Panel(): Ieee754Panel {
     // 精度菜单:触发按钮 + 浮层面板都归库的 `createMenu`,本站给的是数据(分组 /
     // 菜单项 / 当前项)与一个锚点.按钮文案由 `formatTriggerText` 从当前项算出来;
     // 面板自身由库建(`.menu-panel.menu-popover`,role="menu"),插在锚点里等它定位.
+    // 菜单项的小字(`hint`)是汉语名词,由库排在行右端(弱的 `.menu-item-hint`).
     const initialFormat = IEEE754_FORMAT_CHOICES.find((choice) => choice.active)
         ?? IEEE754_FORMAT_CHOICES[0];
     const formatTrigger = createButton({ text: formatTriggerText(initialFormat.value) }).element;
@@ -167,11 +169,24 @@ export function createIeee754Panel(): Ieee754Panel {
             entries: IEEE754_FORMAT_CHOICES.map((choice) => ({
                 value: choice.value,
                 text: choice.label,
+                hint: choice.hint,
             })),
         }],
         ariaLabel: IEEE754_FORMAT_LABEL,
         trigger: formatTrigger,
     });
+    // 菜单项的主文案用 `<code>` 包一层:显示的既然是类型名(float / double),
+    // 就按代码字体排(站点样式把 bootstrap 给 code 的粉色改成继承,见 index.css).
+    // 库的 `MenuEntry` 只收字符串,所以菜单建好后再把每项的**主文案文字节点**
+    // 换成 `<code>`;行右的汉语小字是库追加的第二个子节点,原样不动.
+    IEEE754_FORMAT_CHOICES.forEach((choice, index) => {
+        const button = formatMenu.items[index].element;
+        const label = button.firstChild;
+        // 库一定先写主文案再追加小字,这里的判空只是满足类型(取不到就跳过)
+        if (!label) return;
+        button.replaceChild(h('code', { text: choice.label }), label);
+    });
+
     // 初始当前项:菜单只认"哪一项高亮",不自己记当前值(状态在行为代码那边).
     formatMenu.setActive(initialFormat.value);
     const formatAnchor = h('div', { class: IEEE754_FORMAT_ANCHOR_CLASS }, [

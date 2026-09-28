@@ -246,6 +246,20 @@ const report = await cdp.eval(`(() => {
             settingCard !== null && settingHeader?.textContent === '设置' &&
             getComputedStyle(settingCard).backgroundColor === getComputedStyle(q('#oled .card')).backgroundColor,
             settingCard ? getComputedStyle(settingCard).backgroundColor : '没有卡片');
+        /*
+          bootstrap 的圆角出口与 <code> 出口都接回库主题(见 index.css):前者让
+          .form-control / .input-group-sm > .form-control 的"残余圆角"变 0,
+          后者让菜单主文案的 code 继承菜单项文字色而不是 bootstrap 的粉色 --
+          两条都是"变量定义在 body 上,由注入在后的 bootstrap 规则消费",只在真级联里成立.
+        */
+        const inputRadius = getComputedStyle(q('#ieee-input')).borderTopLeftRadius;
+        ok('十进制输入框的残余圆角归零(bootstrap 圆角变量接回库主题)',
+            inputRadius === '0px', inputRadius);
+        const codeEl = q('.menu-anchor .menu-item code');
+        const codeColor = codeEl ? getComputedStyle(codeEl).color : '没有 <code>';
+        const itemColor = codeEl ? getComputedStyle(codeEl.closest('.menu-item')).color : '';
+        ok('精度菜单主文案的 <code> 继承菜单项文字色(不是 bootstrap 的粉色)',
+            codeEl !== null && codeColor === itemColor, codeColor);
 
         return out;
     } catch (e) {
@@ -317,11 +331,15 @@ const formatMenu = await cdp.eval(`(async () => {
     const items = [...document.querySelectorAll('.menu-anchor .menu-item')];
     const bits = () => document.querySelectorAll('#ieee-bits .ieee-bit').length;
     const activeIndex = () => items.findIndex((item) => item.classList.contains('is-active'));
-    const before = { text: trigger.textContent, bits: bits(), expanded: trigger.getAttribute('aria-expanded'), active: activeIndex() };
+    // 菜单项自己的文案(主文案 + 行右小字):触发按钮该跟着当前项走,所以拿它当基准,
+    // 不在这里再抄一份 config 里的字符串
+    const labels = items.map((item) => item.querySelector('code')?.textContent);
+    const hints = items.map((item) => item.querySelector('.menu-item-hint')?.textContent);
+    const before = { text: trigger.textContent, bits: bits(), expanded: trigger.getAttribute('aria-expanded'), active: activeIndex(), labels, hints };
     trigger.click();
     await nextFrame();
     const opened = { isOpen: panel.classList.contains('is-open'), display: getComputedStyle(panel).display };
-    items[0].click(); // 选"单精度":位数应从 64 变 32,当前项与按钮文案跟着走
+    items[0].click(); // 选第一项(单精度):位数应从 64 变 32,当前项与按钮文案跟着走
     await nextFrame();
     const after = { text: trigger.textContent, bits: bits(), expanded: trigger.getAttribute('aria-expanded'), active: activeIndex() };
     trigger.click();
@@ -363,12 +381,14 @@ console.log(`${headerOk ? '  ok  ' : ' FAIL '} 导航条隐形/实底正确` +
     `(非 HOME 顶端隐形,滚动后实底,HOME 顶端隐形;实得 ${JSON.stringify(headerState)})`);
 if (!headerOk) failed++;
 const formatMenuOk = formatMenu?.before?.bits === 64 && formatMenu?.before?.expanded === 'false' &&
-    formatMenu?.before?.active === 1 && formatMenu?.opened?.isOpen === true &&
-    formatMenu?.opened?.display === 'block' && formatMenu?.after?.bits === 32 &&
-    formatMenu?.after?.active === 0 && formatMenu?.after?.expanded === 'false' &&
-    String(formatMenu?.after?.text).includes('单精度') && formatMenu?.outsideClosed === true &&
-    formatMenu?.resetBits === 64;
-console.log(`${formatMenuOk ? '  ok  ' : ' FAIL '} IEEE754 精度菜单可开合,可切换(64->32 位),点外部关闭` +
+    formatMenu?.before?.active === 1 && formatMenu?.before?.hints?.join('/') === '单精度/双精度' &&
+    formatMenu?.before?.text === formatMenu?.before?.labels?.[1] &&
+    formatMenu?.opened?.isOpen === true && formatMenu?.opened?.display === 'block' &&
+    formatMenu?.after?.bits === 32 && formatMenu?.after?.active === 0 &&
+    formatMenu?.after?.expanded === 'false' &&
+    formatMenu?.after?.text === formatMenu?.before?.labels?.[0] &&
+    formatMenu?.outsideClosed === true && formatMenu?.resetBits === 64;
+console.log(`${formatMenuOk ? '  ok  ' : ' FAIL '} IEEE754 精度菜单可开合,可切换(64->32 位),行右小字是汉语名词,点外部关闭` +
     `(实得 ${JSON.stringify(formatMenu)})`);
 if (!formatMenuOk) failed++;
 console.log(`${clockTick?.changed ? '  ok  ' : ' FAIL '} 时钟每秒重绘`);

@@ -333,20 +333,22 @@ export const IEEE754_FORMULA_TITLE = '公式 (KaTeX)';
 /** 特殊值分区标题文案 */
 export const IEEE754_SPECIAL_TITLE = '特殊值参考 (点击载入)';
 
-/** 精度菜单的一条选项:取值 / 文案 / 是否初始当前项 */
+/** 精度菜单的一条选项:取值 / 文案 / 小字 / 是否初始当前项 */
 export interface IEEE754FormatChoiceSpec {
     /** 菜单项的 value(类型契约,与 FLOAT32_KEY / FLOAT64_KEY 一致) */
     readonly value: string;
     /** 菜单项可见文案(也是当前精度显示在触发按钮上的文案) */
     readonly label: string;
+    /** 菜单项右侧小字(库的 `.menu-item-hint`):汉语名词 */
+    readonly hint: string;
     /** 是否初始当前项(菜单 `setActive` 的目标;有且只有一条为 true) */
     readonly active: boolean;
 }
 
 /** 精度菜单的两项(顺序即菜单顺序,f64 默认是当前项) */
 export const IEEE754_FORMAT_CHOICES = [
-    { value: FLOAT32_KEY, label: '单精度 float32 (32位)', active: false },
-    { value: FLOAT64_KEY, label: '双精度 float64 (64位)', active: true },
+    { value: FLOAT32_KEY, label: 'float  (32bit)', hint: '单精度', active: false },
+    { value: FLOAT64_KEY, label: 'double (64bit)', hint: '双精度', active: true },
 ] as const satisfies readonly IEEE754FormatChoiceSpec[];
 
 /** 初始精度(取声明里 active 的那一条,行为代码用它起手) */
