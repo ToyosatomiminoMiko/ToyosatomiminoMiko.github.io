@@ -20,8 +20,6 @@ import {
     AVATAR_LINK,
     AVATAR_LINK_CLASS,
     AVATAR_SRC,
-    BACKGROUND_PRESETS,
-    BACKGROUND_ROW_CLASS,
     DEFAULT_NAV_PANE,
     HEADER_CLASS,
     HERO_BOTTOM_CLASS,
@@ -34,7 +32,6 @@ import {
     NAV_ITEMS,
     NAV_LINK_CLASS,
     NAV_LIST_CLASS,
-    SETTING_PANEL_TITLE,
     SITE_BRAND_CLASS,
     SITE_BRAND_TEXT,
     SITE_HOST_IDS,
@@ -238,49 +235,14 @@ describe('首页骨架:五个标签页窗格', () => {
         }
     });
 
-    it('交回的背景行就是 .bgrow 那一个元素(页面透明度滑块往里追加)', () => {
+    it('SETTING 窗格是**空的**:整页那张面板由设置页自己长进去', () => {
         /*
-          背景行不是空宿主:骨架建完它里面已经有 BACKGROUND_PRESETS 那么多个缩略图,
-          页面透明度滑块(src/common/page_opacity.ts)是 main.ts 挂载时往它里面
-          **追加**的第三条参数行.这里钉住"交回的确实是文档里那一行",骨架本身
-          不建滑块(标记归模块).
+          骨架不替 SETTING 页记结构(那一页有自己的声明式模型与标记生成器,见
+          src/setting/):这里交给 main.ts 的只是一颗空窗格,面板 / 三块设置组都由
+          mountSettingPage() 长出来.骨架里多写一层就是"两处各记一半",改一处漏一处.
         */
         const shell = setupShell();
-        expect(classes(shell.backgroundRow)).toEqual([BACKGROUND_ROW_CLASS]);
-        expect(shell.backgroundRow.parentElement?.className).toBe('ui-panel-body');
-        expect(shell.backgroundRow).toBe(document.querySelector(`.${BACKGROUND_ROW_CLASS}`));
-        expect(shell.backgroundRow.children).toHaveLength(BACKGROUND_PRESETS.length);
-    });
-
-    it('SETTING 窗格是"整页一张面板",标题在 .ui-panel-header', () => {
-        const shell = setupShell();
-        const setting = shell.panes.setting;
-        // 窗格只有面板这一个子节点;框体的结构与类名归 miko_ui 的 `createPanel`
-        //(section.ui-panel > header.ui-panel-header > span.ui-panel-title + div.ui-panel-body).
-        expect([...setting.children]).toHaveLength(1);
-        const panel = setting.firstElementChild;
-        expect(classes(panel)).toEqual(['ui-panel']);
-        const header = panel?.querySelector(':scope > .ui-panel-header');
-        const body = panel?.querySelector(':scope > .ui-panel-body');
-        expect(header).not.toBeNull();
-        expect(body).not.toBeNull();
-        // 标题("设置")只在面板头里出现一次,窗格里没有第二份
-        expect(header?.querySelector('.ui-panel-title')?.textContent).toBe(SETTING_PANEL_TITLE);
-        expect(setting.querySelectorAll('.ui-panel-title')).toHaveLength(1);
-    });
-
-    it('SETTING 面板体里依次是"背景缩略图 + 控制台宿主 + 上传面板宿主"', () => {
-        const shell = setupShell();
-        const setting = shell.panes.setting;
-        const body = setting.querySelector('.ui-panel-body');
-        // 背景区只交出一行按钮(div),后两个是车窗的宿主(宿主仍在面板体里,组件照旧长进去)
-        expect([...(body?.children ?? [])].map((child) => child.tagName))
-            .toEqual(['DIV', 'DIV', 'DIV']);
-        expect(body?.firstElementChild).toBe(shell.backgroundRow);
-        expect(body?.lastElementChild).toBe(shell.metroUploads);
-        expect(body?.children[1]).toBe(shell.metroPanel);
-        expect(setting.querySelector(`#${SITE_HOST_IDS.metroPanel}`)).toBe(shell.metroPanel);
-        expect(setting.querySelector(`#${SITE_HOST_IDS.metroUploads}`)).toBe(shell.metroUploads);
+        expect(shell.panes.setting.children).toHaveLength(0);
     });
 });
 
@@ -295,8 +257,6 @@ describe('首页骨架:交回的引用与文档里的元素一一对应', () => 
         expect(shell.clockHost).toBe(document.getElementById(SITE_HOST_IDS.clock));
         expect(shell.metroStage).toBe(document.getElementById(SITE_HOST_IDS.metroStage));
         expect(shell.metroStyles).toBe(document.getElementById(SITE_HOST_IDS.metroStyles));
-        expect(shell.metroPanel).toBe(document.getElementById(SITE_HOST_IDS.metroPanel));
-        expect(shell.metroUploads).toBe(document.getElementById(SITE_HOST_IDS.metroUploads));
         expect(shell.header).toBe(document.querySelector(`header.${HEADER_CLASS}`));
         expect(shell.hero).toBe(document.getElementById(HERO_ID));
         expect(shell.navList).toBe(document.querySelector(`.${NAV_LIST_CLASS.split(' ')[0]}`));
@@ -321,8 +281,7 @@ describe('首页骨架:交回的引用与文档里的元素一一对应', () => 
 
     it('宿主 id 与窗格 id 不撞车(撞了就会把标记长到别人的容器里)', () => {
         const shell = setupShell();
-        const hostIds = [shell.clockHost.id, shell.metroStage.id, shell.metroStyles.id,
-            shell.metroPanel.id, shell.metroUploads.id];
+        const hostIds = [shell.clockHost.id, shell.metroStage.id, shell.metroStyles.id];
         expect(new Set(hostIds).size).toBe(hostIds.length);
         for (const id of hostIds) {
             expect(NAV_ITEMS.some((item) => item.pane === id), id).toBe(false);

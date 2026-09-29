@@ -1,5 +1,5 @@
 /**
- * 背景切换的点击委托(见 `common/background.ts`).
+ * 背景切换的点击委托(见 `setting/background.ts`).
  *
  * 缩略图整块是一颗库的按钮之后,"被点的"可能是那张 `<img>`,也可能是按钮自己
  * (文案 / 内边距 / 描边).委托必须按**按钮**命中,再从按钮里取出那张图 --
@@ -12,9 +12,9 @@
  */
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { mountBackgroundSwitcher } from '@/common/background';
-import { BACKGROUND_IMAGE_VARIABLE, BACKGROUND_ROW_CLASS } from '@/common/site.config';
-import { createBackgroundSection } from '@/common/ui/background_section';
+import { mountBackgroundSwitcher } from '@/setting/background';
+import { BACKGROUND_IMAGE_VARIABLE, BACKGROUND_ROW_CLASS } from '@/setting/config';
+import { mountBackgroundSection } from '@/setting/background_section';
 
 /** 当前写进文档根的那张背景图(没写过时是空串) */
 function activeBackground(): string {
@@ -56,7 +56,10 @@ describe('背景切换的点击委托', () => {
     beforeEach(() => {
         document.body.innerHTML = '';
         document.documentElement.style.removeProperty(BACKGROUND_IMAGE_VARIABLE);
-        document.body.append(createBackgroundSection());
+        // 宿主 = 设置页建的那颗空设置组(挂载函数只往里面长内容)
+        const host = document.createElement('fieldset');
+        document.body.append(host);
+        mountBackgroundSection(host);
     });
 
     it('点缩略图本身切到那一张', () => {

@@ -52,7 +52,7 @@ html {
 body {
     /*
      * 背景图取值链:--bg-image-active(SETTING 标签页点缩略图后由
-     * src/common/background.ts 改写)-> --bg-image-default(tokens.css 的默认图).
+     * src/setting/background.ts 改写)-> --bg-image-default(tokens.css 的默认图).
      * 刻意不写 !important:
      *   - 站点内唯一的竞争者是 * 的 background: none,权重更低,天然被压过;
      *   - 不与浏览器扩展争抢 body 的内联样式,深色呈现交给用户自己的选择
@@ -120,7 +120,7 @@ sup {
 
 /*
  * fieldset 的 UA 默认是 `min-width: min-content`,作为 flex / grid 子项时不肯收缩
- * 到内容以下;归零它,地铁车窗控制台的两个 fieldset 才能跟着面板收窄.
+ * 到内容以下;归零它,SETTING 页那三颗设置组才能跟着面板收窄.
  */
 fieldset {
     min-width: 0;
@@ -128,8 +128,9 @@ fieldset {
 
 /*
  * legend 的 UA 默认按"嵌在边框上"的特殊规则排版,这里把它当普通块排
- * (宽度撑满 + 左浮动).字号不在这里 -- 地铁车窗的主题用 `--metro-font-size-legend`
- * 自己给.
+ * (宽度撑满 + 左浮动).字号与颜色不在这里 -- 设置组的主题用
+ * `--metro-font-size-legend` / `--metro-color-accent` 自己给
+ * (见 src/setting/setting.css).
  */
 legend {
     float: left;
@@ -375,7 +376,7 @@ main {
 /*
  * 窗格自身的透明度 = 令牌 `--tab-pane-opacity`(默认 0.9,见 tokens.css).
  * SETTING 里那条"页面透明度"滑块用 `documentElement.style.setProperty()` 改写它
- * (src/common/page_opacity.ts),所以整站的标签页内容一起变淡.
+ * (src/setting/page_opacity.ts),所以整站的标签页内容一起变淡.
  *
  * 这条写的是 (0,1,0),**故意低于**上面那条隐藏态的 (0,3,0):窗格藏起来时必须是
  * 真透明,否则切走的窗格会以"半透明"留在页面上.同理,滑块绝不能改成往窗格上写
@@ -542,84 +543,20 @@ canvas#pixelCanvas {
     margin-bottom: var(--oled-area-margin);
 }
 
-.bgrow {
-    /*
-     * 两颗背景缩略图 + 一条"页面透明度"滑块(见下面的 .opacity-field),用 flex 并排
-     * 摆开.行本身不是控件,只是排布容器:滑块由 src/common/page_opacity.ts 在挂载时
-     * append 进来,不写在这一行的标记里.
-     *
-     * 这里不再需要"让容器包住子项"那一步:缩略图按钮原是浮动的 tile,浮动项不参与
-     * 父容器的高度计算,所以老写法要在列表上补 `display: flow-root` 建 BFC,否则行高
-     * 算成 0,后面的兄弟块(SETTING 标签页里紧接着它的地铁车窗控制台 #metro-params)
-     * 会从行的顶边开始排,边框盒与缩略图重叠;flex 容器的高度本来就包含子项,
-     * 这条坑随之消失.
-     */
-    display: flex;
-    /*
-     * 行的盒子贴着按钮(shrink-to-fit),不吃满整行:块级 flex 容器默认铺满父宽,
-     * 点按钮右边那截空白就会落在 `.bgrow` 自己身上(委托按 .bgbtn 找不到按钮,
-     * 静默什么也不发生 -- 不报错,但"点了没反应").收成内容宽之后,行上就没有
-     * 那种"看着在某颗按钮旁边,其实不在按钮里"的死区.
-     */
-    width: fit-content;
-    gap: var(--setting-row-gap);
-    /* 两块 tile 各自按内容定高,不被 flex 的默认 stretch 拉平 */
-    align-items: flex-start;
-    /*
-     * 窄窗口里允许换行:行里除了两颗缩略图还有一条定宽的"页面透明度"滑块
-     * (见下面的 .opacity-field),三块并排的宽度是固定的.不许换行的话,窗口一窄
-     * 滑块右半边(数值框与 reset)就会被 body 的 overflow-x: hidden 裁掉 -- 裁掉的
-     * 部分点不到.允许换行之后,放不下的那一块整体落到下一行,自己仍然完整.
-     */
-    flex-wrap: wrap;
-}
-
-/*
- * 背景缩略图按钮:整块 tile 就是 miko_ui 的按钮(基线类 `.ui-button`,见库的
- * styles/widgets.css),本站只盖住基线里"块形状"那一半.
+/* ================================================================
+ * SETTING 标签页:见 src/setting/
  *
- * 为什么不用 !important 也不用调样式表顺序:库的基线四条(默认 / 悬停 / 焦点 /
- * 禁用)全部写成 `:where(.ui-button)`,**优先级是 0**,这里带类名的 (0,1,0)
- * 天然压得住它.所以本站只写"基线里要改的那两条"(块的排布与内边距),
- * 底色**不写**:库基线的透明底就是最终观感,不再往 tile 上铺一层站点自己的色.
+ * 那一页有自己的声明式模型与样式表,骨架只给它一个空窗格:
+ *   src/setting/config.ts        声明式模型(三块设置组的 id / 类名 / 文案口径)
+ *   src/setting/setting_page.ts  整页面板 + 三块设置组(宿主就是那颗 fieldset)
+ *   src/setting/setting.css      设置组框体 + 组里控件的观感 + 背景行
+ *   src/setting/tokens.css       那一页的可调数值(--setting-*)
  *
- * `display: block` 让图与文案竖排(图是 `display:block`,文案自然落下一行),
- * 按钮的宽高由缩略图与内边距撑出来;`align-items: flex-start` 再挡掉 flex 的
- * 默认 `stretch`(行里两块 tile 一样高时看不出差别,一旦有一块更高,另一块就会
- * 被拉长,块的形状跟着内容走这句话就不成立了).描边 / 悬停描边变色 / 焦点环 /
- * 禁用透明度仍归库,本站不重写.
- */
-.bgbtn {
-    display: block;
-    padding: var(--setting-item-padding);
-}
-
-.bgimg {
-    display: block;
-    width: var(--setting-thumb-width);
-    height: var(--setting-thumb-height);
-    /* 圆角用 miko_ui 主题的小圆角(库默认 0px);指针样式不在这里:
-       cursor: pointer 由按钮基线给(整块 tile 都可点) */
-    border-radius: var(--radius-sm);
-}
-
-/*
- * 背景行里那条"页面透明度"滑块:整条参数行(名称 + 滑杆 + 数值框 + reset)由库的
- * `createSlider` 生成(类名 `.slider-field*`,见库 styles/widgets.css),本站只加
- * 这一个作用域类,写两件事 -- 它在行里占多宽,以及数值框要多宽.
- *
- * 为什么要固定宽度:`.bgrow` 是 shrink-to-fit 的 flex 行,库的 `.slider-field` 宽度
- * 跟着内容走;不定宽的话,数值框文本从 "0.90" 变成 "1.00" 这类抖动都会让整行的
- * 宽度跳一下(右边两颗缩略图跟着动).
- *
- * 数值框宽度走库留的出口 `--slider-field-value-width`(默认 76px):这里最长只有
- * "0.90" 四个字符,收窄一点名字就不会被挤到换行.
- */
-.opacity-field {
-    flex: 0 0 auto;
-    width: var(--setting-opacity-field-width);
-    --slider-field-value-width: 56px;
-}
+ * 本站样式表里**不再**有 `.setting-group` / `.bgrow` / `.bgbtn` / `.opacity-field`:
+ * 它们只服务那一页,搬过去之后页面样式与页面标记就在同一个目录里,改一处不会漏.
+ * 三块设置组的框体与组里每条滑块的观感只有一份定义(作用域 `.setting-group`),
+ * 所以背景组里那条"页面透明度"滑块与车窗面板里的滑块长得一模一样.
+ * ================================================================ */
 
 /* LED clock */
 #app_led_clock {

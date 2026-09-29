@@ -48,11 +48,13 @@ $there$ $is$ $nothing$ $to$ $do.$
 
 Rust + WASM + WebGPU 实时渲染的地铁车窗玻璃效果(窗外城市多层视差 + 玻璃污渍 +
 冷凝雾气 + 车厢灯光与倒影,外加三套风格调色),拆成"舞台"与"控制台"两块,
-站点给四个空宿主:画布挂 `#metro-window`(HOME 首屏,铺满整屏),三颗风格按钮挂
-`#metro-styles`(首屏底部,与 LED 时钟同排),其余设置面板挂 `#metro-params`
-(SETTING 标签页),图层贴图上传面板挂它正下方的 `#metro-uploads`.
-四个挂载点 id 见 `src/metro_window/src/config.ts` 的
-`MOUNT_IDS`;挂载见 `src/main.ts`,源码在 `src/metro_window/`.
+**四块宿主分两处给**:首屏那两块由站点骨架建 -- 画布挂 `#metro-window`
+(HOME 首屏,铺满整屏,id 见 `src/metro_window/src/config.ts` 的 `MOUNT_IDS`),
+三颗风格按钮挂 `#metro-styles`(首屏底部,与 LED 时钟同排);SETTING 页那两块由
+**设置页**建 -- 实时参数控制台挂 `#metro-params`,图层贴图上传面板挂它正下方的
+`#metro-uploads`,两颗都是带框体的设置组 `fieldset.setting-group`
+(见 [`src/setting/`](src/setting/)).挂载见 `src/main.ts`,源码在
+`src/metro_window/`.
 搬入前它是独立仓库
 [metro_window](https://github.com/ToyosatomiminoMiko/metro_window)(上游已归档).
 
@@ -86,8 +88,8 @@ HOME 标签页的最上面是一块**首屏**(`.hero`,由 `src/common/ui/site_sh
   首屏就只能从它下沿开始,顶部那一条盖不住.代价是它会压在内容上,所以除首屏外
   每个标签页自己用 `padding-top` 让开(见 `public/css/index.css` 的 `.tab-pane`).
   同一个 `.tab-pane` 规则还挂着窗格的默认透明度 `--tab-pane-opacity`(0.9,SETTING
-  背景行里那条"页面透明度"滑块改它,见
-  [`src/common/page_opacity.ts`](src/common/page_opacity.ts);导航条在窗格外面,
+  背景设置组里那条"页面透明度"滑块改它,见
+  [`src/setting/page_opacity.ts`](src/setting/page_opacity.ts);导航条在窗格外面,
   所以不受它影响).
 - **导航条在"底下没有内容"时是"隐形"的**:没有底色,没有边框,没有磨砂,只有
   站名与导航文字.两种情形算"底下没有内容" -- 首屏还压在它下面(HOME,可读性靠
@@ -109,15 +111,26 @@ HOME 标签页的最上面是一块**首屏**(`.hero`,由 `src/common/ui/site_sh
   `box-shadow` 跟着 `border-radius` 画,才是圆的.两条都在 `public/css/index.css`
   (`.head` / `.head-link`),结构那半有回归断言
   (`src/common/ui/site_shell.test.ts`).
-- **首屏的结构与每个模块的宿主都在 `src/common/site.config.ts` 里声明**
+- **首屏的结构与首屏那几颗宿主都在 `src/common/site.config.ts` 里声明**
   (`HERO_ID` / `HERO_*_CLASS` / `SITE_HOST_IDS`),由 `src/common/ui/site_shell.ts`
   生成并把元素引用交回 `src/main.ts`.要动首屏布局就改这两处 -- `index.html` 里
   只有骨架宿主,没有第二处标记可改(见[「UI 在哪里」](#ui-在哪里)).
+  SETTING 页的三颗设置组不在这一份声明里:它们由 `src/setting/setting_page.ts` 建.
 - 画布怎么"覆盖"整屏由组件负责:挂载函数给舞台宿主加
-  `.metro-window--bare`(去掉面板的内边距与底色)与 `.metro-window--stage`
-  (absolute 铺满父层),画布再用 `object-fit: cover` 缩放进这个盒子.
-  注意这两条修饰类的选择器都把类名写了两遍(`.metro-window.metro-window--stage`):
-  要压过后面那条 `.metro-window canvas` 的基础规则,靠的就是多出来的那点特异性.
+  `.metro-window--stage`(absolute 铺满父层),画布再用 `object-fit: cover`
+  缩放进这个盒子.注意这条修饰类的选择器把类名写了两遍
+  (`.metro-window.metro-window--stage`):要压过后面那条 `.metro-window canvas`
+  的基础规则,靠的就是多出来的那点特异性.
+- **设置页只有一个样式作用域 `.setting-group`**:SETTING 页里三块设置组
+  (背景 / 实时参数 / 图层贴图)是同一种东西的三份实例,**宿主就是那颗
+  `fieldset.setting-group` 本身**(面板体的直接子节点正好三颗组,没有 `div` 包
+  `fieldset` 的空壳).组的框体与**组里每条滑块的观感**(底色 / 圆角 / 字体 /
+  标签色 / 滑杆强调色 / 数值框)都只在
+  [`src/setting/setting.css`](src/setting/setting.css) 里写一份,所以背景组那条
+  "页面透明度"滑块与车窗面板里的七条长得一模一样 --
+  这一页的标记与样式都在 `src/setting/`(`setting_page.ts` 建组,各模块只往交回的
+  fieldset 里长内容).组件样式表(`metro_window.css`)只管车窗**自己**的排布
+  (网格 / 控制条 / 状态区 / 上传行),不再定义任何一条控件外观.
 - **后备缓冲跟着视口走,但比例恒为 16:9**:城市层是按 uv 直接铺满画布的,
   画布比例一变整幅场景就被拉伸,所以尺寸取"覆盖宿主所需的 16:9"(见
   `src/metro_window/src/stage_size.ts`,有单测)再乘 dpr -- 覆盖多出来的部分
@@ -139,23 +152,26 @@ HOME 标签页的最上面是一块**首屏**(`.hero`,由 `src/common/ui/site_sh
 config.ts        声明式模型:文案 / 类名 / DOM 契约 id / 几何 / 清单(纯数据,无副作用)
 ui/*.ts          纯函数组件:模型 -> 元素,并交回行为代码要用的元素引用
 <模块>.ts         挂载函数 mount<模块>(host):插进宿主 + 绑事件,不回头查 DOM
-site_shell.ts    先生成整页骨架(导航条 / 首屏 / 五个窗格 / 所有空宿主),把引用交回
-main.ts          按顺序调用:骨架 -> 各模块 -> 行为
+site_shell.ts    先生成整页骨架(导航条 / 首屏 / 五个空窗格 / 首屏那几个宿主),把引用交回
+setting/         再生成 SETTING 页自己的面板与三块设置组,把三颗组交回
+main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 ```
 
 | 想改什么 | 去哪 |
 | --- | --- |
 | 站名 / 标签栏 / 头像 / 首屏结构 / 标签页清单 | `src/common/site.config.ts`(`NAV_ITEMS` / `SITE_BRAND_TEXT` / `AVATAR_*` / `HERO_*`),骨架代码在 `src/common/ui/site_shell.ts` |
-| 背景缩略图(加一张图 / 换名字) | `src/common/site.config.ts` 的 `BACKGROUND_PRESETS`,标记在 `src/common/ui/background_section.ts`(两颗按钮在一行 flex 里并排,每颗都是库的按钮,缩略图在按钮里面) |
-| 页面透明度(滑块 / 初值 / 区间) | `src/common/site.config.ts` 的 `PAGE_OPACITY_*`(初值必须与 `public/css/tokens.css` 的 `--tab-pane-opacity` 相等),滑块在 `src/common/page_opacity.ts`,消费方是 `public/css/index.css` 的 `.tab-pane` 规则 |
-| SETTING 页的面板 / 标题 | `src/common/site.config.ts` 的 `SETTING_PANEL_TITLE`(标题"设置");框体由 miko_ui 的 `createPanel` 建(`section.ui-panel`),结构与外观都在库(`styles/widgets.css`),面板结构在 `src/common/ui/site_shell.ts` |
+| SETTING 页的三块设置组 / 面板标题 | `src/setting/config.ts`(组 id / 类名 / 面板标题),页面骨架在 `src/setting/setting_page.ts`,样式在 `src/setting/setting.css` + `src/setting/tokens.css` |
+| 背景缩略图(加一张图 / 换名字) | `src/setting/config.ts` 的 `BACKGROUND_PRESETS` 与 `BACKGROUND_GROUP_LEGEND`,标记在 `src/setting/background_section.ts` 的 `mountBackgroundSection()`(宿主是设置页建的那颗带 legend 的 `#setting-bg` 设置组,里面一条 `.bgrow` flex 行;每颗 tile 都是库的按钮,缩略图在按钮里面) |
+| 页面透明度(滑块 / 初值 / 区间) | `src/setting/config.ts` 的 `PAGE_OPACITY_*`(初值必须与 `public/css/tokens.css` 的 `--tab-pane-opacity` 相等,`config.test.ts` 会核对),滑块在 `src/setting/page_opacity.ts`,消费方是 `public/css/index.css` 的 `.tab-pane` 规则 |
+| 设置组框体 / 组里控件的观感 | `src/setting/setting.css`(作用域 `.setting-group`:框体 + 组里每条滑块的配色与字体);取值来自 `--metro-*`(`src/metro_window/src/tokens.css`)与 `--setting-*`(`src/setting/tokens.css`) |
 | LED 时钟的画布尺寸 / 时间戳格式 | `src/clock/config.ts`;标记在 `src/clock/ui/clock_display.ts`;绘制在 `src/clock/clock.ts` |
 | OLED 画板的按钮 / 文案 / 提示 | `src/oled/config.ts`,面板标记在 `src/oled/ui/oled_panel.ts` |
 | 红黑树的提示文案 / 画布尺寸 / 占位符 / 性质清单 | `src/rbt/config.ts`(`RBT_PROPERTIES` 是性质清单,清单顺序 = 检查顺序),面板标记在 `src/rbt/ui/rbt_panel.ts`,解析与性质检查在 `src/rbt/rbt_tree.ts`,绘制与挂载在 `src/rbt/rbt.ts` |
 | IEEE 754 的标签 / 精度菜单项 / 初值 | `src/ieee754/config.ts`,面板标记在 `src/ieee754/ui/ieee754_panel.ts` |
 | 地铁车窗的滑块 / 风格按钮 / 上传图层 | `src/metro_window/src/config.ts`,面板在 `src/metro_window/src/ui/`(见它自己的 README) |
-| 导航条"隐形 / 实底"(首屏,各标签页),背景切换,页面透明度 | `src/common/header_state.ts` / `src/common/background.ts` / `src/common/page_opacity.ts`(行为),令牌与类名在 `src/common/site.config.ts` |
-| 样式 | `public/css/*.css`;选择器按**类名与 id** 命中(config.ts 里的 id 契约),不依赖结构位置 |
+| 导航条"隐形 / 实底"(首屏,各标签页) | `src/common/header_state.ts`(行为),类名与令牌名在 `src/common/site.config.ts` |
+| 背景切换,页面透明度 | `src/setting/background.ts` / `src/setting/page_opacity.ts`(行为),口径在 `src/setting/config.ts` |
+| 样式 | `public/css/*.css`(站点级)+ `src/setting/*.css`(SETTING 页)+ `src/metro_window/src/*.css`(车窗组件);选择器按**类名与 id** 命中(config.ts 里的 id 契约),不依赖结构位置 |
 
 几条硬约束:
 
@@ -167,8 +183,13 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
 - **宿主只提供空位**:每个模块的宿主都是空容器,标记全部由组件生成.
   宿主页不出现任何面板标记,所以"改了 HTML 但忘了改组件"这种失配不存在.
   挂载函数对**自己独占**的宿主用 `replaceChildren` 整体接管(重复挂载不会插两份,
-  OLED / RBT / IEEE754 / 时钟都是这样);地铁车窗例外 -- 它的一个宿主可以同时
-  接收设置面板与上传面板(省略上传宿主时),所以那边是 `append`.
+  OLED / RBT / IEEE754 / 时钟 / 背景设置组都是这样);地铁车窗例外 -- 它往调用方
+  给的设置组里长内容,并**整体接管**那颗 fieldset 的内容(参数组与上传组是两颗,
+  各接管各的);省略上传宿主时上传面板落进参数组内部,所以那一步是 `append`.
+  这条也管**结构**:SETTING 面板体的直接子节点因此正好是三颗
+  `fieldset.setting-group`(`#setting-bg` / `#metro-params` / `#metro-uploads`),
+  **宿主就是那颗组本身** -- 没有 `div` 包 `fieldset` 的空壳,也没有"一个 id 定位
+  宿主,另一个 id 定位里面的框体"这种一物两名.
 - **不按 id 回头查 DOM**:骨架与组件都把元素引用直接交回来.唯一的 id 查找是
   骨架找自己的宿主 `#site-root`,拿到了就往下传,后面再没有任何 `getElementById`.
 - **id 仍然重要**:它是 CSS 与调试定位的锚点,集中写在 `config.ts` 里;
@@ -176,6 +197,10 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
 - **组件不写页面级选择器**:`body { margin: 0 }` 这类规则属于站点的
   `public/css/index.css`,组件样式只作用在自己的作用域类下(地铁车窗是
   `.metro-window`,其余模块用库的面板框体 `.ui-panel` + 自己的类名).
+  SETTING 页那三块设置组连**类名都不用组件写**:组由设置页建成
+  `fieldset.setting-group`,组件只接元素引用并补自己的 `.metro-window`
+  (内部排布的作用域).所以组件样式表里一条页面级选择器都没有,也不再需要
+  "记住站点的类名"这种跨边界约定.
 - **修饰类由挂载函数补**:组件的样式作用域类不写在 HTML 里(骨架不替组件记约定),
   宿主换了位置照样能命中.
 
@@ -198,11 +223,13 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
 ## 约定
 
 - **`src/` 下按域分目录,不散放在根上**:每个控件/子项目一个目录
-  (`clock/`,`oled/`,`rbt/`,`ieee754/`,`4xx_page/`,`metro_window/`),
+  (`clock/`,`oled/`,`rbt/`,`ieee754/`,`4xx_page/`,`setting/`,`metro_window/`),
   跨域复用的公共函数与站点级常量放 `src/common/`;根上只留
   `main.ts`(入口)与 `vite_env.d.ts`(Vite 全局模块声明).
   每个目录里 `config.ts` 是**声明式模型 + 可调常量**(或 `*_tokens.css`),
   纯标记组件收进 `ui/`,类型在 `types.ts`,实现细节与行为留在目录根的那个模块文件里.
+  `setting/` 就是"SETTING 标签页"那一个域:模型 / 页骨架 / 样式 / 令牌 / 行为都在里面,
+  站点骨架与它无关(骨架只给它一个空窗格).
 - **首页的 UI 全部"声明式编排"**(与地铁车窗控制台同一套做法):宿主页
   `index.html` 只有一个空位 `#site-root`,骨架由 `src/common/ui/site_shell.ts` 按
   `src/common/site.config.ts` 的模型生成;每个模块的挂载函数签名统一是
@@ -231,13 +258,14 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
 
 | 作用域 | 配置文件 | 放什么 |
 | --- | --- | --- |
-| 主站样式 | `public/css/tokens.css` | 站点设计令牌(`:root`):字体栈,调色板,尺寸,圆角,间距,`z-index`,过渡;首屏(`--hero-*`)与固定导航条(`--chrome-*`) |
-| 主站脚本 | `src/clock/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,OLED 画板尺寸/通道/文案,红黑树布局与配色 + 性质清单(四条性质的名字与出错文案都在 `RBT_PROPERTIES`),IEEE 754 精度格式与掩码,站点级声明式模型(导航项 / 首屏结构 / SETTING 整页面板的类名与标题 / 背景缩略图行 / 页面透明度滑块的初值·区间·令牌名 / 各模块宿主 id / `is-over-hero` 类名 / `--nav-height` 令牌名) |
-| 首页骨架 | `src/common/ui/site_shell.ts`,`src/common/ui/background_section.ts` | 骨架(含 SETTING 那面站点面板)与背景缩略图两块声明式组件(标记用库的 `create_element`;每块缩略图 tile 整块是库的 `createButton`) |
-| 主站行为 | `src/main.ts`,`src/common/header_state.ts`,`src/common/background.ts`,`src/common/page_opacity.ts` | 挂载顺序(骨架 -> 各模块 -> 行为),导航条"隐形 / 实底"状态(首屏还压在它下面时,以及任何标签页停在页面顶端时),背景切换令牌写入,页面透明度滑块(库的 `createSlider`)往 `.bgrow` 里追加并写 `--tab-pane-opacity` 令牌 |
+| 主站样式 | `public/css/tokens.css` | 站点设计令牌(`:root`):字体栈,调色板,尺寸,圆角,间距,`z-index`,过渡;首屏(`--hero-*`)与固定导航条(`--chrome-*`).SETTING 页自己的令牌不在这一份里,见下面那行 |
+| 主站脚本 | `src/clock/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,OLED 画板尺寸/通道/文案,红黑树布局与配色 + 性质清单(四条性质的名字与出错文案都在 `RBT_PROPERTIES`),IEEE 754 精度格式与掩码,站点级声明式模型(导航项 / 首屏结构 / 首屏那几颗宿主 id / `is-over-hero` 类名 / `--nav-height` 令牌名) |
+| 首页骨架 | `src/common/ui/site_shell.ts` | 骨架:导航条 / 首屏 / 五个**空**窗格 / 首屏那几颗宿主(标记用库的 `create_element`;SETTING 页的结构不在这里,骨架只给它一个空窗格) |
+| SETTING 页 | `src/setting/config.ts`,`src/setting/tokens.css`,`src/setting/setting.css`,`src/setting/setting_page.ts` | 那一页的全部声明与外观:三块设置组的 id·类名·面板标题,背景缩略图清单,页面透明度滑块的初值·区间·令牌名(纯数据);`--setting-*` 令牌;设置组框体与**组里每条控件的观感**(滑块配色 / 字体,作用域 `.setting-group`);整页面板 + 三颗空设置组的生成者 |
+| 主站行为 | `src/main.ts`,`src/common/header_state.ts`,`src/setting/background.ts`,`src/setting/page_opacity.ts` | 挂载顺序(骨架 -> 设置页 -> 各模块 -> 行为),导航条"隐形 / 实底"状态(首屏还压在它下面时,以及任何标签页停在页面顶端时),背景切换令牌写入,页面透明度滑块(库的 `createSlider`)往背景组里那条 `.bgrow` 追加并写 `--tab-pane-opacity` 令牌 |
 | 4xx 页面样式 | `src/4xx_page/418/418_tokens.css`,`src/4xx_page/451/451_tokens.css`;`404/404.css` 与 `shared/icon.css` 顶部的 `:root` 块 | 各彩蛋页的设计令牌(颜色 / 几何 / 阴影 / 时长 / 字体) |
 | 4xx 页面脚本 | `src/4xx_page/418/teapot/config.ts`,`src/4xx_page/451/boot.config.ts`,`src/4xx_page/451/ember/*.config.ts` | 茶壶交互,启动开关,GPU 计时 / 统计 / 资源 / 能力 / 性能面板参数 |
-| 地铁车窗前端 | `src/metro_window/src/config.ts`,`src/metro_window/src/stage_size.ts`,`src/metro_window/src/ui/`,`src/metro_window/src/tokens.css` | DOM id / class / `data-*` 键名,`setParam` 参数名映射,车窗标记 / 设置面板 / 上传图层的声明式模型(画布分辨率 / 滑块分组 / 风格 / 按钮 / 可上传贴图清单 / 文案),后备缓冲尺寸与防抖 / dpr 上限;声明式 DOM 组件(库的 `create_element` + 舞台标记 + 风格按钮行 + 设置面板 + 上传面板 + PNG 解码);组件设计令牌.**单个滑块(名称 + 滑杆 + 数值框 + 重置按钮)不在这里**:它是 UI 库 `miko_ui` 的 `createSlider`,本站只把声明翻译成它的选项(见下一行;SETTING 里那条页面透明度滑块同理,见 `src/common/page_opacity.ts`) |
+| 地铁车窗前端 | `src/metro_window/src/config.ts`,`src/metro_window/src/stage_size.ts`,`src/metro_window/src/ui/`,`src/metro_window/src/tokens.css` | DOM id / class / `data-*` 键名,`setParam` 参数名映射,车窗标记 / 设置面板 / 上传图层的声明式模型(画布分辨率 / 滑块分组 / 风格 / 按钮 / 可上传贴图清单 / 文案),后备缓冲尺寸与防抖 / dpr 上限;声明式 DOM 组件(库的 `create_element` + 舞台标记 + 风格按钮行 + 设置面板 + 上传面板 + PNG 解码);组件设计令牌.**单个滑块(名称 + 滑杆 + 数值框 + 重置按钮)不在这里**:它是 UI 库 `miko_ui` 的 `createSlider`,本站只把声明翻译成它的选项(见下一行;SETTING 里那条页面透明度滑块同理,见 `src/setting/page_opacity.ts`);控件在设置页里的**观感**(配色 / 字体)也不在这里,见 `src/setting/setting.css` |
 | UI 库 | npm 包 `miko_ui`(声明在 `package.json`);配色与宽度在 `src/metro_window/src/metro_window.css` | 通用控件(滑块 / 按钮 / 开关 / 分段 / 数值框 / **折叠菜单** ...)与它们的样式.**全站标记的唯一原语**也是库的 `create_element`(站点没有自己的 DOM 原语);站内**所有按钮**都由库的 `createButton` 生成(基线类 `.ui-button`),本站不再写按钮外观;IEEE754 的精度选择是库的 `createMenu`(触发按钮 + `.menu-popover` 浮层,本站只给数据与一个 `.menu-anchor` 锚点);OLED 数据区那颗输入框也整颗是库的 `createCodeEditor`(`.code-editor`:行号槽 + 真 textarea + 高亮层,导出与导入共用这一颗),本站只注入 id / 槽宽下限 / 高亮函数;库的默认主题由 `src/main.ts` 引 `miko_ui/styles/tokens.css` 接进来.四块面板的框体是库的 `createPanel`(`section.ui-panel` + 标题栏 + 正文容器,与桌面窗口同源).**面板框体是本轮新加进库的**:`package.json` / `package-lock.json` 仍钉在 npm 上那一版,所以**库发版并把依赖 bump 到含 `createPanel` 的版本之前,CI / Pages 会缺这个导出**(本地走 `dev_ui_link` 的符号链接不受影响).本地联调与依赖契约见 [`scripts/dev_ui_link.py`](scripts/dev_ui_link.py) 顶部 |
 | 地铁车窗渲染 | `src/metro_window/rust/src/droplet_params.rs`,`app_params.rs`,`render_params.rs`,`random_params.rs`,`texture_params.rs` | 水滴生成 / 物理 / 折射 / 高光,主循环与资源路径 / 可上传材质槽位白名单,管线与绑定槽位 / 上传纹理尺寸上限,白噪声哈希,程序化贴图生成参数 |
 | 构建 | `vite.config.ts` | 多页入口,4xx 产物路径回移前缀,`miko_ui` 的运行期依赖(`katex` / `@preact/signals-core`)去重(`resolve.dedupe`) |
@@ -269,6 +297,18 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
   加一个背景缩略图只往 `BACKGROUND_PRESETS` 加一条,换 OLED 的一句提示只改
   `src/oled/config.ts`;`index.html` 里没有第二处标记要同步.
   完整约定(含目录地图与"加东西改哪里")见[「UI 在哪里」](#ui-在哪里).
+- **一页的标记 / 样式 / 令牌 / 行为放在同一个目录**:SETTING 页不再散在
+  `src/common/` 各处 -- 三块设置组的 id·类名·面板标题,背景缩略图清单,页面透明度
+  的初值·区间·令牌名在 `src/setting/config.ts`,整页面板与三颗空设置组的生成者在
+  `setting_page.ts`,框体与**组里每条控件的外观**在 `setting.css` + `tokens.css`,
+  背景切换与页面透明度的行为在 `background.ts` / `page_opacity.ts`;站点骨架只给
+  SETTING 一个空窗格,不替那一页记结构.
+  这样"设置页里的控件长什么样"就只有一份定义(作用域 `.setting-group`),
+  背景组那条"页面透明度"滑块与车窗面板里那七条**长得一模一样** -- 原先滑块的配色
+  挂在组件的 `.metro-window` 作用域下,背景组那条只能拿到 UI 库的默认主题
+  (浅蓝强调 + 白 2% 底 + consolas),同一个页面里两条滑块两种长相.
+  宿主也随之从"`div` 包 `fieldset` + 两个 id"收成**宿主就是那颗
+  `fieldset.setting-group`**:面板体的直接子节点正好三颗组.
 - **按钮只在库那边写**:站内(OLED / IEEE754 / 地铁车窗)的每一颗按钮都由
   `miko_ui` 的 `createButton` 生成,基线类 `.ui-button` 与全部外观(描边
   `1px solid var(--color-border-strong)` / 底色 / 文字 / 悬停 / 焦点 / 禁用)都在库的

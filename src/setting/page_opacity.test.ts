@@ -7,7 +7,9 @@
  * 这里管三件事:
  *
  *   1. 滑块是**追加**进宿主的(宿主里已经有背景缩略图,不能被接管掉);
- *   2. 结构 = 库的 `.slider-field` + 站点那个定宽的 `.opacity-field`;
+ *   2. 结构 = 库的 `.slider-field` + 站点那个定宽的 `.opacity-field`
+ *      (控件观感 -- 配色与字体 -- 不在这条断言里:它由 setting.css 的
+ *      `.setting-group .slider-field*` 统一给,与车窗面板里那条滑块同一份定义);
  *   3. 拖动 / 输入 / 重置都只改写文档根上那一个令牌,值还是两位小数的**纯数字**
  *      (数值框是 `<input type="number">`,写成 "90%" 会被浏览器丢掉).
  *
@@ -23,15 +25,15 @@ import {
     PAGE_OPACITY_MIN,
     PAGE_OPACITY_STEP,
     PAGE_OPACITY_VARIABLE,
-} from '@/common/site.config';
-import { mountPageOpacity } from '@/common/page_opacity';
+} from '@/setting/config';
+import { mountPageOpacity } from '@/setting/page_opacity';
 
 /** 挂在文档根上的令牌值(空串 = 没写过,初值由 CSS 提供) */
 function token(): string {
     return document.documentElement.style.getPropertyValue(PAGE_OPACITY_VARIABLE);
 }
 
-/** 宿主里已有一颗缩略图按钮(模拟 `.bgrow`),滑块只能追加在它后面 */
+/** 宿主里已有一颗缩略图按钮(模拟背景组里那条 `.bgrow`),滑块只能追加在它后面 */
 function hostWithTile(): HTMLElement {
     const host = document.createElement('div');
     const tile = document.createElement('button');
@@ -77,7 +79,7 @@ describe('SETTING:页面透明度滑块', () => {
         expect(slider.element.querySelector('.slider-field-reset')).toBe(slider.reset.element);
     });
 
-    it('名称 / 区间 / 步长都来自 site.config.ts', () => {
+    it('名称 / 区间 / 步长都来自 config.ts', () => {
         const { slider } = mount();
         const label = slider.element.querySelector('.slider-field-label');
         // 名称是整条 label 的文本(没有 hint,所以 label 里不该再多一个 <small>)

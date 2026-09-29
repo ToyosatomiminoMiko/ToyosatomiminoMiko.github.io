@@ -1,0 +1,208 @@
+@import '@/setting/tokens.css';
+
+/*
+SETTING 标签页的样式(框体 + 控件观感 + 背景行).
+
+**这一页只有一个样式作用域:`.setting-group`**.三块设置组(背景 / 实时参数 /
+图层贴图)是同一颗 `<fieldset class="setting-group">` 的三份实例,所以组与组之间
+长得一样这件事,靠"选择器只写一份,三处都命中"来保证,而不是靠三处各写一遍再对齐:
+
+  - 框体:内边距 / 底色 / 正文色 / 描边 / 圆角 / legend / 禁用态;
+  - 控件观感:**组里任何一条滑块**的底色 / 圆角 / 字体 / 标签色 / 滑杆强调色 /
+    数值框(这几条以前挂在组件的 `.metro-window` 作用域下,于是背景组里那条
+    "页面透明度"滑块只能拿到 UI 库的默认主题 -- 同一个页面里两条滑块两种长相.
+    现在归到这里:`.setting-group .slider-field*`,三块组一条不落);
+  - 背景行的排布(缩略图 + 那条滑块).
+
+**不在这里**的:控件"在一排里占多宽".那是各自排布上下文的口径 -- 车窗面板里
+一排滑块走 `.metro-window .slider-grid`(metro_window.css),背景行里那条走下面
+的 `.opacity-field`.两者都与"控件长什么样"无关,所以留在各自那一层.
+
+取值全部引用 `--metro-*`(车窗设计令牌,定义在 src/metro_window/src/tokens.css 的
+:root 上)与本目录的 `--setting-*`:这套观感本来就是从车窗面板抽出来的,站点与
+组件共用同一份定义,改车窗的令牌这一页跟着变.
+
+与站点基线的关系:public/css/index.css 有一条
+`* { margin:0; padding:0; border:0; background:none; font-family: var(--font-base) }`
+的通配重置.它是 (0,0,0),下面每条都带类名,天然压得住它;注意 `font-family`
+必须显式写在**控件树的每个元素上**(靠继承会被那条重置截断,它给每个元素都设了字体).
+*/
+
+/* ================================================================
+ * 设置组的框体
+ *
+ * 三块组共用这一套 -- 内边距 / 底色 / 正文色 / 描边 / 圆角 / legend / 禁用态
+ * 全在这里写一份.宿主(那颗 fieldset 本身)不带第二份框体样式.
+ * ================================================================ */
+.setting-group {
+    /* 组与组之间的间距:上一组的 margin-bottom 与下一组的 margin-top 会塌成较大的那个 */
+    margin: var(--metro-space-16) 0 var(--metro-space-10);
+    padding: var(--metro-space-10) var(--metro-space-14) var(--metro-space-14);
+    background: var(--metro-color-bg);
+    color: var(--metro-color-text);
+    border: var(--metro-size-border) solid var(--metro-color-border);
+    border-radius: var(--metro-radius-lg);
+}
+
+/*
+ * 组的标题.块级排版(宽度撑满 + 左浮动)来自文档基线那条 `legend` 规则
+ * (public/css/index.css),这里只补观感:左右留一点白让标题与描边断开,
+ * 颜色用强调色,字号略小于正文.
+ */
+.setting-group legend {
+    padding: 0 var(--metro-space-6);
+    color: var(--metro-color-accent);
+    font-size: var(--metro-font-size-legend);
+}
+
+/* 禁用态:整组降透明度(fieldset 的 disabled 会拦下组里所有输入) */
+.setting-group:disabled {
+    opacity: var(--metro-alpha-disabled-panel);
+}
+
+/* ================================================================
+ * 控件观感:滑块
+ *
+ * 一条滑块(名称 + 滑杆 + 数值框 + 重置按钮)的**结构**由 UI 库的
+ * `createSlider` 生成(`.slider-field*`,见库的 styles/widgets.css),库那一层
+ * 只保证"排得开,看得见"(它自己的主题色是浅蓝强调 + 白 2% 底).
+ * 这一层的差事是**把配色接回本站的车窗主题**:底色 / 正文色 / 标签色 / 滑杆强调色 /
+ * 数值框的底与描边 / 字体,一条不落.
+ *
+ * 选择器带 `.setting-group` 前缀的理由是**特异性**:库的默认规则是 (0,1,0),
+ * 这里 (0,2,0) 才压得住;外层 `.slider-field` 同理.前缀是"设置页"这个作用域,
+ * 不是某一颗宿主的 id -- 三块组里的滑块命中同一条规则,长相不可能漂移.
+ *
+ * 字体要显式写在控件树的**每个**元素上(`.slider-field` 与它所有子孙):
+ * 库的 `.slider-field` 不声明 font-family,靠继承的话会被站点通配重置截断
+ * (它给每个元素都设了 `--font-base`,也就是 consolas),于是同一页面里
+ * 车窗面板的滑块是界面字体,背景行的滑块是等宽字体.
+ * ================================================================ */
+.setting-group .slider-field,
+.setting-group .slider-field * {
+    font-family: var(--metro-font-family-base);
+}
+
+.setting-group .slider-field {
+    color: var(--metro-color-text);
+    background: var(--metro-color-panel);
+    border-radius: var(--metro-radius-sm);
+}
+
+.setting-group .slider-field-label {
+    color: var(--metro-color-muted);
+}
+
+.setting-group .slider-field-label small {
+    color: var(--metro-color-muted);
+}
+
+/* 滑杆与数值框:库给这两个成员控件挂了定位类名,库的样式表也为它们写了默认规则
+   (`.slider-field-range` / `.slider-field-value`,见库 `widgets/Slider.ts`),所以这里
+   直接按类名选 -- 不比按"标签 + 结构"猜,库的标记怎么变都跟得上. */
+.setting-group .slider-field-range {
+    width: 100%;
+    min-width: 0;
+    accent-color: var(--metro-color-accent);
+    cursor: pointer;
+}
+
+.setting-group .slider-field-value {
+    flex: none;
+    width: var(--slider-field-value-width, 76px);
+    background: var(--metro-color-input-bg);
+    color: var(--metro-color-text);
+    border: var(--metro-size-border) solid var(--metro-color-border);
+    border-radius: var(--metro-radius-sm);
+    padding: var(--metro-space-4) var(--metro-space-6);
+    font-family: var(--metro-font-family-mono);
+    text-align: right;
+}
+
+.setting-group .slider-field-value:focus {
+    border-color: var(--metro-color-accent);
+    outline: none;
+}
+
+/* ================================================================
+ * 背景切换组:缩略图行 + 页面透明度滑块
+ * ================================================================ */
+
+/*
+ * 那条 flex 行(`.bgrow`):两颗背景缩略图 + 一条"页面透明度"滑块,并排摆开.
+ * 行本身不是控件,只是排布容器:滑块由 page_opacity.ts 在挂载时 append 进来,
+ * 不写在这一行的标记里.
+ *
+ * 行在**组里面**,组的内边距盒铺满面板宽,行自己收成内容宽(见下面 width 那条).
+ *
+ * 行不需要"让容器包住子项"那一步:缩略图按钮原是浮动的 tile,浮动项不参与父容器
+ * 的高度计算,所以老写法要在列表上补 `display: flow-root` 建 BFC,否则行高算成 0,
+ * 后面的兄弟块会从行的顶边开始排,边框盒与缩略图重叠;flex 容器的高度本来就包含
+ * 子项,这条坑随之消失.
+ */
+.bgrow {
+    display: flex;
+    /*
+     * 行的盒子贴着按钮(shrink-to-fit),不吃满整行(组的内边距盒仍然铺满面板宽):
+     * 块级 flex 容器默认铺满父宽,点按钮右边那截空白就会落在行自己身上(委托按
+     * .bgbtn 找不到按钮,静默什么也不发生 -- 不报错,但"点了没反应").收成内容宽
+     * 之后,行上就没有那种"看着在某颗按钮旁边,其实不在按钮里"的死区.
+     */
+    width: fit-content;
+    gap: var(--setting-row-gap);
+    /* 两块 tile 各自按内容定高,不被 flex 的默认 stretch 拉平 */
+    align-items: flex-start;
+    /*
+     * 窄窗口里允许换行:行里除了两颗缩略图还有一条定宽的"页面透明度"滑块
+     * (见下面的 .opacity-field),三块并排的宽度是固定的.不许换行的话,窗口一窄
+     * 滑块右半边(数值框与 reset)就会被 body 的 overflow-x: hidden 裁掉 -- 裁掉的
+     * 部分点不到.允许换行之后,放不下的那一块整体落到下一行,自己仍然完整.
+     */
+    flex-wrap: wrap;
+}
+
+/*
+ * 背景缩略图按钮:整块 tile 就是 miko_ui 的按钮(基线类 `.ui-button`,见库的
+ * styles/widgets.css),本站只盖住基线里"块形状"那一半.
+ *
+ * 为什么不用 !important 也不用调样式表顺序:库的基线四条(默认 / 悬停 / 焦点 /
+ * 禁用)全部写成 `:where(.ui-button)`,**优先级是 0**,这里带类名的 (0,1,0)
+ * 天然压得住它.所以本站只写"基线里要改的那两条"(块的排布与内边距),
+ * 底色**不写**:库基线的透明底就是最终观感,不再往 tile 上铺一层站点自己的色.
+ *
+ * `display: block` 让图与文案竖排(图是 `display:block`,文案自然落下一行),
+ * 按钮的宽高由缩略图与内边距撑出来;`align-items: flex-start` 再挡掉 flex 的
+ * 默认 `stretch`(行里两块 tile 一样高时看不出差别,一旦有一块更高,另一块就会
+ * 被拉长,块的形状跟着内容走这句话就不成立了).描边 / 悬停描边变色 / 焦点环 /
+ * 禁用透明度仍归库,本站不重写.
+ */
+.bgbtn {
+    display: block;
+    padding: var(--setting-item-padding);
+}
+
+.bgimg {
+    display: block;
+    width: var(--setting-thumb-width);
+    height: var(--setting-thumb-height);
+    /* 圆角用 miko_ui 主题的小圆角(库默认 0px);指针样式不在这里:
+       cursor: pointer 由按钮基线给(整块 tile 都可点) */
+    border-radius: var(--radius-sm);
+}
+
+/*
+ * 背景行里那条"页面透明度"滑块:它**只声明排布** -- 控件观感由上面那一节统一给
+ * (它也是 `.setting-group` 里的一条 `.slider-field`),所以这里不再重复任何配色.
+ *
+ * 为什么要在这一层定宽:`.bgrow` 是 shrink-to-fit 的 flex 行,库的 `.slider-field`
+ * 宽度跟着内容走;不定宽的话,数值框文本从 "0.90" 变成 "1.00" 这类抖动都会让整行
+ * 的宽度跳一下(右边两颗缩略图跟着动).
+ *
+ * 数值框宽度走库留的出口 `--slider-field-value-width`(默认 76px):这里最长只有
+ * "0.90" 四个字符,收窄一点名字就不会被挤到换行.
+ */
+.opacity-field {
+    flex: 0 0 auto;
+    width: var(--setting-opacity-field-width);
+    --slider-field-value-width: 56px;
+}

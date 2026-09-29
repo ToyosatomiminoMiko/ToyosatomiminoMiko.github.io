@@ -2,12 +2,14 @@
 // 站点入口:生成骨架,再把各模块挂到骨架交回的空宿主上.
 //
 // 顺序有讲究:
-//   1. `mountSiteShell()` 先生成整页骨架(导航条 / 首屏 / 五个标签页 / 所有空宿主),
-//      并交回元素引用 -- 后面的模块全都靠这些引用,不按 id 查 DOM;
-//   2. 各模块各自把标记长进自己的宿主(每个模块的挂载函数只认宿主,不认页面);
-//   3. 最后挂行为:标签页切换与导航条状态.
+//   1. `mountSiteShell()` 先生成整页骨架(导航条 / 首屏 / 五个空窗格 / 首屏那几个
+//      空宿主),并交回元素引用 -- 后面的模块全都靠这些引用,不按 id 查 DOM;
+//   2. 各模块把标记长进骨架给的宿主(每个模块的挂载函数只认宿主,不认页面);
+//   3. SETTING 页自己建整张面板与三块设置组(src/setting/setting_page.ts),
+//      再把交回的那三块组分给背景区与地铁车窗;
+//   4. 最后挂行为:标签页切换,背景切换,导航条状态,地铁车窗(wasm 启动).
 //
-// 没有"按 id 找元素"这一步:骨架是唯一的结构来源,id 只留给 CSS 与调试定位.
+// 没有"按 id 找元素"这一步:骨架与设置页是唯一的结构来源,id 只留给 CSS 与调试定位.
 // 单例约束照旧:地铁车窗的 wasm App 是 crate 内 thread_local 单例,一个页面只挂一次.
 // ================================================================
 
@@ -47,43 +49,49 @@ import { mountRBT } from '@/rbt/rbt';
 import { mountOLED } from '@/oled/oled';
 import { mountIEEE754 } from '@/ieee754/ieee754';
 import { mountMetroWindow } from '@/metro_window/src/metro_window';
-import { mountBackgroundSwitcher } from '@/common/background';
-import { mountPageOpacity } from '@/common/page_opacity';
+import { mountBackgroundSwitcher } from '@/setting/background';
+import { mountPageOpacity } from '@/setting/page_opacity';
 import { mountHeaderState } from '@/common/header_state';
 import { mountTabs } from '@/common/tabs';
 import { mountSiteShell } from '@/common/ui/site_shell';
+import { mountBackgroundSection } from '@/setting/background_section';
+import { mountSettingPage } from '@/setting/setting_page';
 
 document.addEventListener('DOMContentLoaded', () => {
     // 1) 整页骨架:宿主建好,引用交回
     const shell = mountSiteShell();
 
-    // 2) 各模块:只往宿主里长标记,宿主从骨架拿
+    // 2) 各模块:只往骨架给的宿主里长标记
     mountClock(shell.clockHost);
     mountOLED(shell.panes.oled);
     mountRBT(shell.panes.rbt);
     mountIEEE754(shell.panes.ieee754);
 
+    // 3) SETTING 页:整页面板与三块设置组由它自己建(骨架只给它一个空窗格),
+    //    三块组都是空 fieldset,内容由下面几个模块分别长进去.
+    const setting = mountSettingPage(shell.panes.setting);
+    // 背景组:挂载函数交回组里那条行 -- 页面透明度滑块要往它里面追加
+    const backgroundRow = mountBackgroundSection(setting.backgroundGroup);
+    // 页面透明度:往背景组里那条行(.bgrow)追加滑块,拖它写 --tab-pane-opacity 令牌.
+    // 宿主不是空容器(里面已经有两颗背景缩略图),所以这个挂载是 append 不是接管.
+    mountPageOpacity(backgroundRow);
+
     // 标签页:点击 / 方向键 / 显隐(整个仓库唯一的"标签页"实现)
     mountTabs({ list: shell.navList, links: shell.navLinks, panes: shell.panes });
 
     // 背景切换:把 SETTING 标签页缩略图的 URL 写进 --bg-image-active 令牌
-    // (点的是骨架生成的缩略图,行为走文档级委托,所以顺序无关)
+    // (点的是设置页生成的缩略图,行为走文档级委托,所以顺序无关)
     mountBackgroundSwitcher();
-
-    // 页面透明度:往背景行(.bgrow)里追加那条滑块,拖它写 --tab-pane-opacity 令牌.
-    // 宿主不是空容器(里面已经有两颗背景缩略图),所以这个挂载是 append 不是接管.
-    mountPageOpacity(shell.backgroundRow);
 
     // 导航条:压在首屏画面上时隐形(只有文字),滚过去/切走标签页变实底
     mountHeaderState({ header: shell.header, hero: shell.hero });
 
-    // 地铁车窗:舞台在首屏,风格按钮在首屏底部,控制台与上传面板在 SETTING.
-    // 挂载点 id 见 src/metro_window/src/config.ts 的 MOUNT_IDS --
-    // 骨架按同一份清单建宿主,所以这里给的是引用而不是 id.
+    // 地铁车窗:舞台在首屏,风格按钮在首屏底部,控制台与上传面板长进 SETTING 页
+    // 交回的那两块设置组里.挂载点是**元素引用**,组件不按 id 查 DOM.
     mountMetroWindow({
         stage: shell.metroStage,
         styles: shell.metroStyles,
-        panel: shell.metroPanel,
-        uploads: shell.metroUploads,
+        panel: setting.paramsGroup,
+        uploads: setting.uploadsGroup,
     });
 });

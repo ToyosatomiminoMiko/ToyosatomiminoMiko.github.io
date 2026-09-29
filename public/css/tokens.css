@@ -15,7 +15,7 @@
  *   --oled-*      OLED 像素画板
  *   --rbt-*       红黑树工具
  *   --ieee-*      IEEE 754 面板
- *   --setting-*   SETTING 标签页
+ *   --tab-*       标签页窗格(SETTING 页自己的令牌见 src/setting/tokens.css)
  *   --hero-*      首屏(hero)
  *   --chrome-*    固定导航条(站名 / 导航项 / 隐形↔实底)
  *   --tab-*       标签页窗格
@@ -38,7 +38,7 @@
     /* 站点默认背景图 */
     --bg-image-default: url("/images/bgimg/bgcode.gif");
     /*
-     * 当前生效的背景图:运行时由 src/common/background.ts 用
+     * 当前生效的背景图:运行时由 src/setting/background.ts 用
      * documentElement.style.setProperty() 改写(SETTING 标签页点缩略图),
      * 没点过就一直回落到 --bg-image-default.
      * 它是普通令牌,靠"内联自定义属性覆盖 :root 声明"生效,不依赖 !important.
@@ -75,7 +75,7 @@
     /* ---------- 标签页窗格 ---------- */
     /*
      * 窗格透明度的初值,由 SETTING 里那条"页面透明度"滑块改写
-     * (src/common/page_opacity.ts 写到文档根的内联样式上,内联值覆盖这里的声明).
+     * (src/setting/page_opacity.ts 写到文档根的内联样式上,内联值覆盖这里的声明).
      * 消费方只有 index.css 的 `.tab-pane` 一条规则.
      *
      * 这个数**必须**与 site.config.ts 的 PAGE_OPACITY_DEFAULT 相等:它是 CSS 与
@@ -193,23 +193,11 @@
     --oled-editor-expanded-height: 1366px;
     --oled-area-margin: 10px;
 
-    /* ---------- SETTING 标签页 ---------- */
-    /* 背景缩略图行的间距(排在 flex 行 `.bgrow` 的 gap 上)/ 缩略图按钮的内边距
-       (排在库的按钮上):盒子跟着内容走,不再有"项的宽高"两个令牌;
-       底色也不在这里 -- 整块 tile 是库的按钮,底色用基线的透明,不另铺站点自己的色 */
-    --setting-row-gap: 10px;
-    --setting-item-padding: 5px;
-    /* 背景缩略图自身的宽高 */
-    --setting-thumb-width: 80px;
-    --setting-thumb-height: 50px;
     /*
-     * 背景行里那条"页面透明度"滑块占的宽度.
-     * 库的 `.slider-field` 只管内部排布(它自己的宽度是"跟着内容走"),**一条滑块
-     * 在一排里占多宽是本站的口径**,所以这个数只出现在 index.css 的 `.opacity-field`
-     * 上.它的下限是"名称 + 数值框 + reset 那一行放得下"(太窄会被挤到换行),
-     * 上限是别把行撑得比相邻的缩略图还宽太多.
+     * SETTING 标签页的令牌不在这里:它们跟着那一页走,见 src/setting/tokens.css
+     * (--setting-*).唯一留下的是下面那条 --tab-pane-opacity:它属于标签页窗格
+     * (消费方是 index.css 的 `.tab-pane`),设置页那条滑块只是它的写入方.
      */
-    --setting-opacity-field-width: 220px;
 
     /* ---------- 红黑树 ---------- */
     /* 表达式输入框的字体绿 / 背景黑 */

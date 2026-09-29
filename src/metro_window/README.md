@@ -21,37 +21,38 @@
 
 | | |
 | --- | --- |
-| 站点位置 | 站点首页的**四个**空宿主:舞台(画布)`#metro-window` 与风格按钮 `#metro-styles` 在 HOME 标签页的**首屏**(前者在 `.hero__stage` 里铺满整屏,后者在 `.hero__bottom` 里与 LED 时钟同排),其余设置面板 `#metro-params` 与它下方的图层贴图上传面板 `#metro-uploads` 在 SETTING 标签页;这四个宿主由站点骨架按 `config.ts` 的 `MOUNT_IDS` **生成**(站点把整页 UI 也改成了声明式编排:`index.html` 只剩 `<div id="site-root">`,骨架见 `src/common/ui/site_shell.ts`),挂载见 `src/main.ts`(已没有独立入口页) |
+| 站点位置 | 站点首页的**四块**宿主,分两处给:**首屏两块**由站点骨架按 `config.ts` 的 `MOUNT_IDS` 生成(画布 `#metro-window` 在 `.hero__stage` 里铺满整屏,风格按钮 `#metro-styles` 在 `.hero__bottom` 里与 LED 时钟同排);**SETTING 页两块**由设置页自己建成带框体的设置组 `fieldset.setting-group`(`#metro-params` 实时参数控制台 + 紧接它下方的 `#metro-uploads` 图层贴图上传面板,id 见 `src/setting/config.ts` 的 `SETTING_GROUP_IDS`).骨架见 `src/common/ui/site_shell.ts`,设置页见 `src/setting/`,挂载见 `src/main.ts`(已没有独立入口页) |
 | Rust 源码 | `src/metro_window/rust/`(crate `metro-window`,编译为 wasm32-unknown-unknown) |
 | 前端源码 | `src/metro_window/src/` |
-| 组件行为 | `src/metro_window/src/metro_window.ts`,导出 `mountMetroWindow(points)`(站内入口给的是**宿主引用**:`mountMetroWindow({ stage: shell.metroStage, ... })`) |
+| 组件行为 | `src/metro_window/src/metro_window.ts`,导出 `mountMetroWindow(points)`(站内入口给的是**宿主引用**:`mountMetroWindow({ stage: shell.metroStage, panel: setting.paramsGroup, ... })`) |
 | 运行时贴图 | 源码 `public/metro_window/resource/level_0.png` ~ `level_3.png`(站点 public,编号由近到远),公开地址 `/metro_window/resource/*.png` |
 
 ### 组件形态
 
-前端做成了"挂载函数"而不是页面入口:**宿主只提供空容器**,标记由组件生成;
+前端做成了"挂载函数"而不是页面入口:宿主由调用方给(首屏两块是空容器,
+SETTING 两块是设置组 fieldset),标记由组件生成;
 组件拆成**舞台**(画布),**风格按钮行**,**控制台**(其余设置面板)与
 **上传面板**(图层贴图替换)四块,各挂各的宿主:
 
 ```ts
-// 站点入口给的是宿主引用(来自站点骨架,不查 DOM)
+// 站点入口给的是宿主引用(来自站点骨架与设置页,不查 DOM)
 // 舞台必填,风格按钮 / 控制台 / 上传面板都可省略
 import { mountMetroWindow } from '@/metro_window/src/metro_window';
 
 // styles 不给 => 风格按钮留在控制台里;panel 不给 => 面板与状态区仍在,只是不显示;
-// uploads 不给 => 上传面板落在控制台宿主内部(仍在设置面板之后)
+// uploads 不给 => 上传面板落在控制台那颗组内部(仍在设置面板内容之后)
 mountMetroWindow({ stage, styles, panel, uploads });
 ```
 
-- **宿主只提供空容器**:站点里有四个 `<div id="metro-window">` /
-  `<div id="metro-styles">` / `<div id="metro-params">` /
-  `<div id="metro-uploads">`(最后两个在 SETTING 标签页里上下相邻;它们由站点骨架
-  按本组件 `config.ts` 的 `MOUNT_IDS` 生成,并把**元素引用**直接交给
-  `mountMetroWindow`,站点侧不按 id 查 DOM);画布由
-  `src/ui/stage_content.ts` 按 `src/config.ts` 的分辨率生成,风格按钮行与设置面板
-  (播放控制 / 滑块 / 状态区)由
-  `src/ui/settings.ts` 按同一份模型生成,上传面板由 `src/ui/uploads.ts` 按
-  `UPLOAD_LAYERS` 生成,分别插进各自的宿主 --
+- **首屏那两块是空容器,SETTING 那两块是设置组**:站点里 `#metro-window` /
+  `#metro-styles` 是骨架建的两颗空 `<div>`;`#metro-params` / `#metro-uploads`
+  是**设置页**建的两颗 `<fieldset class="setting-group">`(上下相邻),
+  它们的 id 与框体都在站点那一侧(`src/setting/config.ts` 的 `SETTING_GROUP_IDS`
+  与 `setting.css`),站点侧把**元素引用**直接交给 `mountMetroWindow`,不按 id 查 DOM.
+  画布由 `src/ui/stage_content.ts` 按 `src/config.ts` 的分辨率生成,风格按钮行与
+  设置面板(播放控制 / 滑块 / 状态区)由 `src/ui/settings.ts` 按同一份模型生成,
+  上传面板由 `src/ui/uploads.ts` 按 `UPLOAD_LAYERS` 生成,分别长进各自的宿主 --
+  **内容整体接管**(`replaceChildren`),所以重复挂载不会插两份;
   风格按钮行**只建一份**(给 `styles` 宿主就挂首屏,不给就留在控制台里,
   两个地方不会各出现一份).宿主页不出现任何
   车窗标记,加一个滑块只需要往 `SLIDER_GROUPS` 里加一条,加一层可上传贴图只需要往
@@ -59,13 +60,22 @@ mountMetroWindow({ stage, styles, panel, uploads });
   Rust 侧不需要同步登记一份清单(层数与着色器实现不一致时 wasm 启动就会报错,
   见"TS 与 Rust 的职责边界"),
   改文案只动 `config.ts`.
-- **"调参"与"换素材"分两块**:设置面板与上传面板是**两个 fieldset,两个宿主**,
+- **"调参"与"换素材"分两块**:设置面板与上传面板是**两颗设置组 fieldset,两块宿主**,
   不合并 -- 前者改渲染参数,后者换美术素材,混在一起会让两件事都不好找;
-  两者的"卡片"外观由 `metro_window.css` 里写在一起的选择器统一(改一处两块一起变).
+  它们的框体(内边距 / 底色 / 描边 / 圆角 / legend / 禁用态)与**组里控件的观感**
+  (滑块的配色与字体)由站点设置页的样式统一(设置组作用域 `.setting-group`,
+  定义在 `src/setting/setting.css`,取值仍是本组件的 `--metro-*` 令牌);
+  组由设置页建,类名由设置页给,组件只接引用并补自己的 `.metro-window` --
+  SETTING 页的背景组是同一套框体,同一条控件规则,所以"这一页的控件长什么样"
+  只有一份定义(原先滑块的配色挂在 `.metro-window` 下,背景组那条滑块拿不到,
+  同一个页面里两条滑块两种长相).
 - **拆分的两条硬约束**:
-  - 样式作用域类 `.metro-window` 由挂载函数往**每个**宿主上都补 --
-    `metro_window.css` 的每条选择器都以它开头,面板换了宿主却没这个类,
+  - 样式作用域类 `.metro-window` 由挂载函数往**每块**宿主上都补 --
+    `metro_window.css` 的每条选择器都以它开头,宿主换了却没这个类,
     样式会**静默失效**(看着"没坏"但全乱);
+  - 组件**不碰站点的类名**:设置组上那条 `.setting-group` 是设置页建元素时给的,
+    组件只往上叠自己的 `.metro-window`.所以组件样式表里没有页面级选择器,
+    也不再需要"记住站点的类名"这种跨边界约定(见下面"样式作用域");
   - 渲染可见性只看**舞台**:`IntersectionObserver` 观察的是画布所在容器,
     面板在别的标签页里可见与否不代表画面可见与否,不能拿来当暂停依据.
 - **声明式组件**:标记一律由 UI 库 `miko_ui` 的 `create_element` 构造(描述 -> 元素;
@@ -79,11 +89,13 @@ mountMetroWindow({ stage, styles, panel, uploads });
   "名称(左) + 数值(右) + 重置按钮(最右)",本站不再维护第二份.
 - `metro_window.ts` 只做行为,`metro_window.css` 只做组件样式.
   `.metro-window` 类名由 `metro_window.ts` 挂上(宿主不用记这个约定),
-  组件只在容器内解析元素.
+  组件只在容器内解析元素.设置组(框体与组里控件的观感)归站点设置页那一侧
+  (`src/setting/setting.css` 的 `.setting-group`),`.metro-window` 只负责组件
+  自己的排布:画布 / 舞台,滑块网格 / 控制条 / 状态区 / 上传行.
 - **舞台修饰类 `.metro-window--stage`**(由挂载函数固定加在舞台宿主上,
-  面板宿主不加):它把舞台变成"铺满宿主的一层" -- `position: absolute; inset: 0`
-  加去掉面板的内边距与底色;**因此带这个类的舞台,其宿主必须是定位祖先**
-  (站点里是 `.hero__stage`).画布在这一层里用 `object-fit: cover` 铺满:
+  面板宿主不加):它把舞台变成"铺满宿主的一层" -- `position: absolute; inset: 0`;
+  **因此带这个类的舞台,其宿主必须是定位祖先**(站点里是 `.hero__stage`).
+  画布在这一层里用 `object-fit: cover` 铺满:
 
   ```css
   .metro-window--stage canvas { width:100%; height:100%; max-width:none;
@@ -105,6 +117,9 @@ mountMetroWindow({ stage, styles, panel, uploads });
   `* { margin:0; padding:0; border:0; background:none }` 的通配重置,
   原来那份独立页写法里的 `body` / `canvas` / `button` 裸元素选择器一旦进站,
   会把 OLED 的 `#pixelCanvas`,RBT 的 `#rbCanvas` 一起改样.
+  设置组不是这条约束的例外:`.setting-group` 是**站点侧**的类,写在
+  `src/setting/setting.css` 里,由设置页在**建那颗 fieldset 时**就给上 --
+  组件既不写它,也不补它,本文件依旧一条页面级选择器都没有.
 - **单实例**:wasm 侧的 `App` 是 crate 内的 `thread_local` 单例,
   `setStyle` / `setParam` / `setRunning` / `reset` 全都作用于它,
   所以一个页面只应挂载一次.
@@ -196,10 +211,11 @@ src/metro_window/
 │   ├── metro_window.ts  挂载函数:长出标记/组装面板/交互/WebGPU 适配器检查/生命周期
 │   ├── ui/
 │   │   ├── stage_content.ts   舞台标记组件(画布)
-│   │   ├── settings.ts        设置面板组件(按 config.ts 的模型生成并交回元素引用)
-│   │   └── uploads.ts         图层贴图上传面板组件
+│   │   ├── settings.ts        设置面板组件:往调用方给的设置组 fieldset 里长内容并交回元素引用
+│   │   └── uploads.ts         图层贴图上传面板组件(同上,往设置组里长内容)
 │   ├── tokens.css       设计令牌(全部可调数值)
-│   └── metro_window.css 组件样式(全部以 .metro-window 作用域)
+│   └── metro_window.css 组件样式(全部以 .metro-window 作用域;设置组的框体与控件观感不在
+│                        这里,在站点设置页那一侧 src/setting/setting.css)
 ├── wasm/                生成:wasm-bindgen 输出(gitignore)
 └── .cargo-tools/        生成:按 Cargo.lock 对齐版本的 wasm-bindgen CLI(gitignore)
 
@@ -371,7 +387,7 @@ code --no-sandbox --enable-unsafe-webgpu
 SETTING 标签页里每层一个上传按钮,换掉其中一层
 不影响另外三层(视差照旧).整条链路是:
 
-1. **前端选文件**(`src/ui/uploads.ts` 的 `createUploadPanel()`):`accept="image/png"`,
+1. **前端选文件**(`src/ui/uploads.ts` 的 `fillUploadPanel(host)`):`accept="image/png"`,
    再按 MIME 复查一次(JPEG 没有 alpha,换上去会把下面几层整片盖住);
 2. **前端解码**(`decodeImageToRgba`):`createImageBitmap` + canvas 的 `getImageData`
    -- 浏览器自带解码器,而 wasm 侧只有 `png` crate,不必再养一套;拿到的是**未预乘**
@@ -399,8 +415,8 @@ SETTING 标签页里每层一个上传按钮,换掉其中一层
 - 单边上限是**策略值**:前端 `MAX_UPLOAD_DIMENSION` 先挡一次给可读报错,wasm 侧
   再与设备真实能力(`device.limits().max_texture_dimension_2d`)取小后挡一次 --
   设备能力是硬件事实,不从 TS 传;
-- 上传面板与设置面板是**两块 fieldset / 两个宿主**:一边调渲染参数,一边换素材,
-  不合并(见 `config.ts` 的 `MOUNT_IDS`).
+- 上传面板与设置面板是**两颗设置组 / 两块宿主**:一边调渲染参数,一边换素材,
+  不合并(宿主由站点设置页给,见 `src/setting/config.ts` 的 `SETTING_GROUP_IDS`).
 
 ## 水珠拆分
 
@@ -526,7 +542,7 @@ PREVIEW_PARAM=dirt_opacity=0,interior_opacity=0 cargo run --package metro-window
 | `IntersectionObserver` 明确只观察**舞台** | 面板在别的标签页里,它的可见性不代表画面的可见性,不能拿来当暂停依据 |
 | Rust 侧只改了 `startApp` 的签名(多一个 `style` 参数) | 面板只是换了 DOM 宿主;`startApp(canvas, status, style)` 要的 `status` 元素在任何宿主里都成立,`setStyle` / `setParam` / `setRunning` / `reset` 仍作用于同一个单例 |
 | 风格按钮行从设置面板里拆出来(`createStyleRow()` + `createSettingsPanel(styleRow)`),新增第三个挂载点 `#metro-styles` | 切风格属于"看",和 LED 时钟一起放在首屏底部最顺手;而"参数"属于"调",留在 SETTING.行仍然**只建一份**,由挂载函数决定放哪(给了 `styles` 宿主就挂首屏,没给就留在控制台里),所以两个地方不会各出现一份 |
-| 新增"裸宿主"修饰类 `.metro-window--bare`,`.metro-window--stage` 从此只负责"铺满父层" | 首屏里的舞台与风格按钮宿主都不要车窗面板的内边距与底色;两件事拆成两条规则,比一条规则兼两职好读 |
+| 新增"裸宿主"修饰类 `.metro-window--bare`,`.metro-window--stage` 从此只负责"铺满父层" | 首屏里的舞台与风格按钮宿主都不要车窗面板的内边距与底色;两件事拆成两条规则,比一条规则兼两职好读.**这条后来被"设置组抽公共样式"取代**:宿主的框体整体撤掉,`--bare` 随之删除(见"设置组框体:抽成站点公共样式") |
 | 后备缓冲从"固定 1344×756"改成"随宿主算的 16:9 × dpr",并给 Rust 加 `resize()` 导出 | 首屏要铺满整屏,还要 1:1 清晰;比例必须锁死 16:9(场景按 uv 铺满画布),所以算的是"覆盖宿主所需的 16:9"而不是宿主本身的形状 |
 | 新增 `data-state="unavailable"` 回退 | WebGPU 不可用时藏掉画布,露出站点背景并留一句短提示;首屏不再出现"什么都不显示的黑框",完整排查步骤仍只进 SETTING |
 | 首屏那两个修饰类的选择器改成**把类名写两遍**(`.metro-window.metro-window--stage`) | 它们与基础规则 `.metro-window canvas` 的特异性打平(都是 0,1,1),而基础规则在后面 -- 结果画布被压回 `max-width: 1600px` + `aspect-ratio: 16/9` + 圆角 + 边框,右边与下边露出宿主背景.多写一个类把特异性抬到 0,2,x,顺序就再也影响不到它 |
@@ -535,12 +551,48 @@ PREVIEW_PARAM=dirt_opacity=0,interior_opacity=0 cargo run --package metro-window
 
 | 改动 | 为什么 |
 | --- | --- |
-| 新增第四个挂载点 `#metro-uploads`:独立 `<fieldset class="uploads">`,紧接设置面板下方,不并进去 | 换素材与调参是两件事,合成一块会让"这个滑块管哪一层"和"这张图换的是哪一层"混在一起;组件这边多一块声明式面板(`src/ui/uploads.ts` 的 `createUploadPanel()`) |
+| 新增第四个挂载点 `#metro-uploads`:独立 `<fieldset class="uploads">`(挂载时再补公共设置组类 `.setting-group`),紧接设置面板下方,不并进去(后来宿主直接就是那颗设置组,`.uploads` 与"挂载时补类"都已撤,见"SETTING 页收进 src/setting/") | 换素材与调参是两件事,合成一块会让"这个滑块管哪一层"和"这张图换的是哪一层"混在一起;组件这边多一块声明式面板(`src/ui/uploads.ts` 的 `fillUploadPanel()`) |
 | Rust 新增导出 `setLayerImage` / `resetLayerImage`,并新增 `app_params::UPLOADABLE_LAYERS` 白名单 | 材质纹理是 wasm 内部的 wgpu GPU 资源,JS 没有别的途径写进去 -- 所以"只在前端做"做不到,必须有这一对导出;白名单让未登记的层(污渍 / 雾气 / 车厢等程序化贴图)直接报错,而不是静默换错层 |
 | `pipelines.rs` 的绑定组构造拆出 `create_render_bind_group` | 换贴图只需要重建**渲染**绑定组(它只持有 uniforms / 材质纹理 / 采样器),不必重建管线或着色器 |
 | `App` 新增 `default_material_textures` 字段 | "恢复默认"的来源 -- 重新建视图即可,不重新 fetch,断网也能还原 |
 | 解码放前端(`createImageBitmap` + canvas `getImageData`) | 浏览器自带 PNG 解码器,wasm 侧只有 `png` crate,再养一套纯属重复;顺带拿到"文件不出浏览器"这条性质(整条链路**没有后端**) |
-| 上传面板与设置面板共用同一套卡片样式(选择器写在一起) | 两块面板分属两个宿主,外观必须一致;复制一份迟早漂移 |
+| 上传面板与设置面板的框体一度"选择器写在一起" | 两块面板分属两个宿主,外观必须一致;复制一份迟早漂移.后来更进一步:框体抽成站点公共设置组样式 `.setting-group`,连 SETTING 页的背景组也用它(见"设置组框体:抽成站点公共样式") |
+
+### 设置组框体:抽成站点公共样式
+
+SETTING 页里其实是**三块同构的设置组**:背景,实时参数,图层贴图.
+框体原先一半写在组件样式表的 `.metro-window`(内边距 / 底色)上,一半写在
+`.sliders` / `.uploads`(描边 / 圆角 / legend)上,而背景组什么框体都没有.
+这轮把它们收进一份定义.
+
+> 这一轮只收了**框体**:控件观感(滑块的配色 / 字体)当时还挂在 `.metro-window`
+> 下,宿主也还是"`div` 包 `fieldset`".两件事都在下一节
+> [「SETTING 页收进 src/setting/」](#setting-页收进-srcsetting宿主--设置组控件观感统一本次)
+> 里继续收口,`.sliders` / `.uploads` 两个定位类也随之删掉.
+
+| 改动 | 为什么 |
+| --- | --- |
+| 框体(内边距 / 底色 / 文字色 / 描边 / 圆角 / legend / 禁用态)抽成站点的 `.setting-group`,类名契约是 `src/common/site.config.ts` 的 `SETTING_GROUP_CLASS`(后来随那一页搬进 `src/setting/config.ts`,样式搬进 `setting.css`) | 三块设置组要长得一样,而"一样"只能有一份定义:原先宿主写一半,组再写一半,改一处漏一处不会报错.取值仍引用本组件的 `--metro-*` 令牌,换肤照样只改 `tokens.css` |
+| 两块面板 fieldset 的类名由**挂载函数**补(`metro_window.ts`),组件标记与组件样式表都不写它(后来改成"设置页建那颗 fieldset 时就给上",组件连这一步也不做了) | 这是站点外观的约定,不是组件结构;放挂载层与"宿主由站点骨架建"同一分工,组件样式表也因此保持"零页面级选择器" |
+| 删除 `.metro-window` 的内边距 / 底色与"裸宿主"修饰类 `.metro-window--bare` | 框体只该留在一层:宿主再铺一层就是第二份定义.舞台与风格按钮宿主本来就靠 `--bare` 去掉那一层,现在整条规则一起没了,少一个"加了等于没加"的修饰类 |
+| 背景区从"一行 div"改成"宿主 `#setting-bg` + `fieldset.setting-group` + legend + 内层 `.bgrow` 行",并由 `mountBackgroundSection(host)` 挂载(宿主由站点骨架建,与另外两颗同级).后来宿主直接就是那颗组,骨架也不再参与 | 面板体的直接子节点统一是"宿主里一颗同构的组" -- 原先背景区"自己就是组",与 `#metro-params` / `#metro-uploads` 的层级对不齐.缩略图与"页面透明度"滑块仍要一条 flex 行,而"行排布"与 legend 的块级排版混在同一个盒子里在各浏览器表现不稳,所以行单独一层;页面透明度滑块的追加目标就是交回的 `.bgrow` |
+
+### SETTING 页收进 src/setting/:宿主 = 设置组,控件观感统一(本次)
+
+上一轮只把"三块设置组的**框体**"收成了一份定义,SETTING 页的声明仍散在
+`src/common/`,宿主还是"`div` 包 `fieldset`",而组里**控件的观感**(滑块的配色 /
+字体)挂在组件的 `.metro-window` 作用域下 -- 于是背景组里那条"页面透明度"滑块
+拿不到它,只能吃 UI 库的默认主题(浅蓝强调 + 白 2% 底 + consolas):
+同一个页面里两条滑块两种长相.这一轮把那一页整体收口.
+
+| 改动 | 为什么 |
+| --- | --- |
+| 新增 `src/setting/`:`config.ts`(三块设置组的 id / 类名 / 面板标题 / 背景清单 / 页面透明度口径),`tokens.css`(`--setting-*`,从 `public/css/tokens.css` 搬来),`setting.css`(设置组框体 + **组里每条控件的观感** + 背景行,分别从 `public/css/index.css` 与 `metro_window.css` 搬来),`setting_page.ts`(整页面板 + 三颗空设置组),`background_section.ts` / `background.ts` / `page_opacity.ts`(从 `src/common/` 搬来) | "这一页的东西"原先分散在四处(`site.config.ts` / `common/ui/` / `common/*.ts` / 两张站点样式表),改一处要记得改另一处,而漏改一律是静默失效.收进一个目录之后,模型 / 页骨架 / 样式 / 令牌 / 行为在同一处,页面的样式表与页面的标记生成器也终于挨在一起 |
+| 宿主的定义从"`div` 包 `fieldset`"改成**宿主就是那颗 `fieldset.setting-group`**:`setting_page.ts` 建三颗空组,`mountBackgroundSection(group)` 与 `mountMetroWindow({ panel, uploads })` 只往交回的元素里长内容;组件不再自己建框体,也不再补站点的类名 | 原先面板体的子节点是三颗宿主 `div`,每颗里再一颗 fieldset -- 中间那层没有类名 / 样式 / 语义,只让同一个东西有了两个 id(`#metro-params` 定位宿主,`#paramPanel` 定位里面那颗框体),改名字要改两处,还看不出哪个才是框体.现在面板体的直接子节点正好是三颗组,`MetroMountPoints.panel` / `uploads` 也随之收窄成 `HTMLFieldSetElement` |
+| 控件观感从 `.metro-window .slider-field*` 搬到 `.setting-group .slider-field*`(并补一条字体规则 `font-family` -- 站点的通配重置给每个元素都设了字体,靠继承传不下去),`metro_window.css` 只留"一排滑块怎么排"(`.slider-grid > .slider-field` 的宽度口径) | 这里其实是两件事:外观是**设置页**的口径(三块组共用一份,作用域只能是三块组都有的 `.setting-group`),排布是**各自上下文**的口径(车窗面板里一排,背景行里一条).原先外观挂在 `.metro-window` 下,背景组那条滑块就落到库的默认主题上 -- 同一个页面里两条滑块两种长相,而"这两条本该一样"这句话没有任何地方承载得住 |
+| `MOUNT_IDS` 只剩首屏两块(`stage` / `styles`);`PANEL_ID`(`#paramPanel`)与 `.sliders` / `.uploads` 两个定位类删掉;两块设置组的 id 移到 `src/setting/config.ts` 的 `SETTING_GROUP_IDS` | 谁建元素,id 就归谁:SETTING 那两块由设置页建,组件只接引用,没必要在组件里再存一份同值 id.`.sliders` / `.uploads` 是"宿主 div 时代"的查询钩子,宿主换成设置组之后 id 与 `.setting-group` 已经够用(单测 / 冒烟脚本都改成按 id 与 `fieldset.setting-group` 查) |
+| 站点骨架不再建 SETTING 面板:`site_shell.ts` 只留一颗空窗格,面板与三块组由 `mountSettingPage(pane)` 长出来;`main.ts` 的挂载顺序变成"骨架 -> 设置页 -> 各模块 -> 行为" | 与 OLED / RBT / IEEE754"窗格就是宿主"完全一致:SETTING 页原本是骨架里唯一的特例(骨架替它建面板与三颗宿主),现在它也是普通一页,骨架不替任何一页记结构 |
+| 兜底路径跟着改:省略 `panel` / `uploads` 宿主时,组件自建的是一颗**没有站点框体**的 `fieldset.metro-window`,参数组落进舞台里的隐藏容器(`.metro-panel-sink`),上传组落进参数组内部 | 兜底只服务"只想挂舞台"的调用方,页面不在场,站点的框体与观感本来就不该出现;`display:none` 的隐藏容器仍由舞台作用域命中,面板 / 状态区 / 事件绑定一个不少 |
 
 ### 水珠拆分
 
@@ -554,7 +606,7 @@ PREVIEW_PARAM=dirt_opacity=0,interior_opacity=0 cargo run --package metro-window
 | 前端去掉"水滴与风""背景景深"两组滑块,`LAYERS_NOTE` 改写 | 这些滑块对应的参数已经不在本 crate 里,留着就是"拖了没反应"的静默失效 |
 | `examples/` 只剩 `validate_wgsl` | `preview`(水珠离线预览)与 `native_smoke`(水珠管线冒烟)都是水珠的验证工具,已随水珠搬走 |
 
-### 控制台去掉折叠与 flex 控制条(本次)
+### 控制台去掉折叠与 flex 控制条
 
 | 改动 | 为什么 |
 | --- | --- |

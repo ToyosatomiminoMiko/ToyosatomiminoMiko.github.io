@@ -19,19 +19,23 @@
 - 注意 `font-family` 必须写成 `.metro-window, .metro-window *`:站点的通配重置
   给**每个元素**都设了字体,靠继承是传不下去的.
 
-宿主只需要带 `.metro-window` 类名的容器元素:组件的舞台(画布)/ 风格按钮行 /
-控制台(设置面板)/ 上传面板各挂一个宿主,挂载函数往**每个**宿主上都补这个类名
+作用域里**只放车窗自己的东西**:画布与舞台,以及车窗面板**内部怎么排**
+(分组 / 滑块网格 / 控制条 / 状态区 / 上传行).
+
+设置组的框体与组里控件的观感**不在这里**,在站点的设置页样式
+`src/setting/setting.css`(作用域 `.setting-group`,取值同样是本组件的
+`--metro-*` 令牌).两边不是同一件事的两份写法:`setting.css` 管"设置页里的设置组
+长什么样"(三块组 + 组里的控件共用一份),这里管"车窗的面板内容怎么排".
+早先把滑块的配色挂在 `.metro-window` 下,结果同一个页面里背景组那条滑块只能拿到
+UI 库的默认主题 -- 两条滑块两种长相,正是这条分工要避免的.
+
+宿主只需要带 `.metro-window` 类名的元素:舞台(画布)/ 风格按钮行各挂一个,控制台与
+上传面板则是**站点设置页建好的设置组 fieldset**,挂载函数只往它们身上补这个类名
 (样式作用域),所以面板换到别的标签页也照样有样式.
 */
-.metro-window {
-    padding: var(--metro-space-20);
-    background: var(--metro-color-bg);
-    color: var(--metro-color-text);
-}
-
-/* "裸宿主"修饰类:去掉车窗面板的内边距与底色,只留组件内容.
-   首屏里的两个宿主都带它 -- 舞台要自己铺满整屏,风格按钮要跟 LED 时钟并排,
-   都不是"卡片里嵌一个车窗面板"那种形态,多一层内边距就是多一层看不出源头的留白.
+/* 舞台修饰类:把宿主变成**铺满父层**的一层(absolute + inset: 0).
+   画布随后用 object-fit: cover 覆盖这一层 -- 首屏要的就是这个.
+   因此带这个类的舞台,其宿主必须是**定位祖先**(站点的 .hero__stage 是).
 
    选择器写成 `.metro-window.metro-window--xxx`(类名写两遍)不是啰嗦:
    下面有一条 `.metro-window canvas` 的基础规则(16:9 / max-width / 圆角 / 边框),
@@ -39,14 +43,6 @@
    于是谁在后面谁赢 -- 基础规则在后面,舞台规则会被它整条压掉:
    画布退回 1600×900 带圆角,右边与下边露出宿主背景.
    多写一个类把特异性抬到 0,2,x,顺序就再也影响不到它. */
-.metro-window.metro-window--bare {
-    padding: 0;
-    background: none;
-}
-
-/* 舞台修饰类:在"裸宿主"的基础上再**铺满父层**(absolute + inset: 0).
-   画布随后用 object-fit: cover 覆盖这一层 -- 首屏要的就是这个.
-   因此带这个类的舞台,其宿主必须是**定位祖先**(站点的 .hero__stage 是). */
 .metro-window.metro-window--stage {
     position: absolute;
     inset: 0;
@@ -120,31 +116,18 @@
 }
 
 /*
- 设置面板(.sliders)与上传面板(.uploads)共用同一种"卡片"外观.
- 两块面板分属两个宿主(见 config.ts 的 MOUNT_IDS):一个在 #metro-params,
- 一个在它下方的 #metro-uploads.样式必须一致,所以选择器把两者写在一起 --
- 改一处两块一起变,也避免"复制一份再各自漂移".
+  设置组(.setting-group)的**框体与控件观感不在这里**:
+  内边距 / 底色 / 描边 / 圆角 / legend / 禁用透明度,以及组里每条滑块的配色与字体,
+  统一归站点的设置页样式 `src/setting/setting.css`(作用域是 `.setting-group`,
+  取值也是本组件的 `--metro-*` 令牌).这条分工让 SETTING 页里三块设置组
+  (背景 / 实时参数 / 图层贴图)**只有一份定义**,不会各写一半再各自漂移 --
+  背景组里那条"页面透明度"滑块与车窗面板里的滑块因此长得一模一样.
+
+  本文件只留车窗**自己**的东西:画布与舞台,以及面板**内部怎么排**
+  (分组 / 滑块网格 / 控制条 / 状态区 / 上传行).选择器一律以 `.metro-window`
+  作用域开头:那是组件内部结构的名字,与站点设置页的 `.setting-group` 不是
+  同一件事,也不重复定义任何一条外观.
 */
-.metro-window .sliders,
-.metro-window .uploads {
-    margin: var(--metro-space-16) 0 var(--metro-space-10);
-    padding: var(--metro-space-10) var(--metro-space-14) var(--metro-space-14);
-    border: var(--metro-size-border) solid var(--metro-color-border);
-    border-radius: var(--metro-radius-lg);
-}
-
-.metro-window .sliders legend,
-.metro-window .uploads legend {
-    padding: 0 var(--metro-space-6);
-    color: var(--metro-color-accent);
-    font-size: var(--metro-font-size-legend);
-}
-
-.metro-window .sliders:disabled,
-.metro-window .uploads:disabled {
-    opacity: var(--metro-alpha-disabled-panel);
-}
-
 .metro-window .slider-group {
     margin-top: var(--metro-space-8);
     border: none;
@@ -158,10 +141,9 @@
     padding: var(--metro-space-4) 0;
 }
 
-/* 单个滑块(名称 / 滑杆 / 数值框 / 重置按钮)的**结构,布局与配色都归 UI 库**
-   (`miko_ui` 的 `.slider-field`,见 styles/widgets.css),本站不再维护
-   `.slider / .slider-meta / .slider-label / .slider-range / .slider-value`
-   那一套,只保留这一层"怎么排列若干滑块"的规则与下面几条按本站主题改的口径. */
+/* 单个滑块(名称 / 滑杆 / 数值框 / 重置按钮)的**结构与配色**都归 UI 库
+   (`miko_ui` 的 `.slider-field`,见 styles/widgets.css)接一层站点主题,
+   见本文件头那段;这里只保留"一排滑块怎么排"这一条. */
 .metro-window .slider-grid {
     display: flex;
     flex-wrap: wrap;
@@ -169,64 +151,18 @@
     margin-top: var(--metro-space-6);
 }
 
-/* 宽度:单个滑块在一排里的伸缩口径.
+/* 宽度:单个滑块**在车窗面板这一排里**的伸缩口径.
    库的 `.slider-field` 只负责"内部怎么排"(它给的尺寸出口是数值框的
-   --slider-field-value-width),**"一块滑块占多宽"是本站的口径**,就在这里用
-   --metro-slider-field-width 定义(这是它唯一出现的地方;config.ts 的声明里
-   没有宽度这一项).补 `flex: 0 1 <同一口径>` -- 只收缩不伸张,所以一排里的
-   滑块不会因为分摊剩余空间而宽窄不一,只有窄到放不下时才允许收缩. */
-.metro-window .slider-field {
+   --slider-field-value-width),**"一块滑块占多宽"是各自排布上下文的口径**:
+   车窗面板里用 --metro-slider-field-width(这是它唯一出现的地方,
+   config.ts 的声明里没有宽度这一项),背景行里那条由 setting.css 的
+   `.opacity-field` 定宽 -- 两者互不干涉,因为这条选择器要求滑块在 `.slider-grid` 里.
+
+   补 `flex: 0 1 <同一口径>` -- 只收缩不伸张,所以一排里的滑块不会因为分摊剩余
+   空间而宽窄不一,只有窄到放不下时才允许收缩. */
+.metro-window .slider-grid > .slider-field {
     flex: 0 1 var(--metro-slider-field-width, 320px);
     max-width: 100%;
-    /* 配色:库的滑块读的是库主题 token(--color-*),本站控制台用自己那套
-       --metro-color-*;在车窗作用域内把两者接上,免得滑块与周围面板两套观感.
-       值与 tokens.css 里各自对应的 --metro-* 同一个来源,不新造颜色. */
-    color: var(--metro-color-text);
-    background: var(--metro-color-panel);
-    border-radius: var(--metro-radius-sm);
-}
-
-.metro-window .slider-field-label {
-    color: var(--metro-color-muted);
-}
-
-.metro-window .slider-field-label small {
-    color: var(--metro-color-muted);
-}
-
-/*
-滑杆与数值框:库给这两个成员控件挂上了定位类名,库的样式表也为它们写了默认规则
-(`.slider-field-range` / `.slider-field-value`,见库 `widgets/Slider.ts`),所以这里
-直接按类名选 -- 不比按"标签 + 结构"猜,库的标记怎么变都跟得上.
-
-选择器带 `.metro-window` 前缀的理由是**特异性**:下面这几条是本站的口径(配色 /
-宽度 / 焦点态),要压过库的默认值,而库那两条只有 (0,1,0);带上前缀是 (0,2,0),
-本站的口径才落得下去.外层 `.slider-field` 同理(见上面那条).
-
-库是上游(`https://github.com/ToyosatomiminoMiko/miko_ui`),本站只从 npm 装它的
-发布版:要改库的标记或样式就改库,不在下游这里给它的节点改名 / 补类名. */
-.metro-window .slider-field-range {
-    width: 100%;
-    min-width: 0;
-    accent-color: var(--metro-color-accent);
-    cursor: pointer;
-}
-
-.metro-window .slider-field-value {
-    flex: none;
-    width: var(--slider-field-value-width, 76px);
-    background: var(--metro-color-input-bg);
-    color: var(--metro-color-text);
-    border: var(--metro-size-border) solid var(--metro-color-border);
-    border-radius: var(--metro-radius-sm);
-    padding: var(--metro-space-4) var(--metro-space-6);
-    font-family: var(--metro-font-family-mono);
-    text-align: right;
-}
-
-.metro-window .slider-field-value:focus {
-    border-color: var(--metro-color-accent);
-    outline: none;
 }
 
 /* .controls 只是播放控制那一行的定位钩子(单测 / 冒烟脚本按它选按钮),

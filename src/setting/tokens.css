@@ -1,0 +1,30 @@
+/*
+SETTING 标签页的设计令牌.
+
+与组件同级:页面里可调的数(间距 / 缩略图尺寸 / 那两条滑块的宽度口径)集中在这里,
+`setting.css` 只引用 `var(--setting-*)`,不出现字面尺寸.取值挂在 `:root` 上,所以
+站点任何一处想复用都可以直接引用(冒烟脚本也会读 `--setting-row-gap` 与
+`--setting-item-padding` 去核对真级联,见 scripts/smoke_home.mjs).
+
+这里**没有** `--tab-pane-opacity`:那条令牌属于标签页窗格(消费方是 index.css 的
+`.tab-pane`),住在 public/css/tokens.css;本页这条滑块只是它的写入方,口径(初值 /
+区间)在 config.ts 的 PAGE_OPACITY_* 里.
+*/
+:root {
+    /* 背景缩略图行的间距(排在 flex 行 `.bgrow` 的 gap 上)/ 缩略图按钮的内边距
+       (排在库的按钮上):盒子跟着内容走,不再有"项的宽高"两个令牌;
+       底色也不在这里 -- 整块 tile 是库的按钮,底色用基线的透明,不另铺站点自己的色 */
+    --setting-row-gap: 10px;
+    --setting-item-padding: 5px;
+    /* 背景缩略图自身的宽高 */
+    --setting-thumb-width: 80px;
+    --setting-thumb-height: 50px;
+    /*
+     * 背景行里那条"页面透明度"滑块占的宽度.
+     * 库的 `.slider-field` 只管内部排布(它自己的宽度是"跟着内容走"),**一条滑块
+     * 在一排里占多宽是本站的口径**,所以这个数只出现在 setting.css 的 `.opacity-field`
+     * 上.它的下限是"名称 + 数值框 + reset 那一行放得下"(太窄会被挤到换行),
+     * 上限是别把行撑得比相邻的缩略图还宽太多.
+     */
+    --setting-opacity-field-width: 220px;
+}

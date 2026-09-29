@@ -41,22 +41,35 @@ import {
     CANVAS_ASPECT_PROPERTY,
     CANVAS_HEIGHT,
     CANVAS_WIDTH,
+    PANEL_LEGEND,
     RUNTIME_CONFIG,
     SLIDER_GROUPS,
     SLIDER_SPECS,
     TRANSPORT_BUTTONS,
     TRANSPORT_TOGGLE_LABEL,
+    UPLOAD_LAYERS,
+    UPLOAD_LEGEND,
     type SliderSpec,
 } from './config';
 import { mountMetroWindow } from './metro_window';
 
-/** 装出四个空宿主并挂载车窗(挂载即开始异步 boot) */
+/** 站点建的那颗设置组(类名契约见 src/setting/setting.css) */
+const SITE_GROUP_CLASS = 'setting-group';
+
+/**
+ * 装出四个宿主并挂载车窗(挂载即开始异步 boot).
+ *
+ * 前两颗是骨架/站点给的**空容器**(舞台与风格按钮行),后两颗是 SETTING 页给的
+ * **设置组 fieldset** -- 组件往它们里面长内容,只补自己的样式作用域类.
+ */
 function mountAtEmptyHosts(): HTMLDivElement {
     const host = document.createElement('div');
     const stage = document.createElement('div');
     const styles = document.createElement('div');
-    const panel = document.createElement('div');
-    const uploads = document.createElement('div');
+    const panel = document.createElement('fieldset');
+    panel.className = SITE_GROUP_CLASS;
+    const uploads = document.createElement('fieldset');
+    uploads.className = SITE_GROUP_CLASS;
     host.append(stage, styles, panel, uploads);
     document.body.append(host);
     mountMetroWindow({ stage, styles, panel, uploads });
@@ -135,6 +148,66 @@ describe('地铁车窗启动参数', () => {
         expect(stage?.style.getPropertyValue(CANVAS_ASPECT_PROPERTY)).toBe(
             `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}`,
         );
+    });
+});
+
+/*
+  SETTING 页给车窗的两块宿主**就是设置组本身**(`fieldset.setting-group`,由
+  src/setting/setting_page.ts 建).组件只往里面长内容(legend + 主体),并补上自己的
+  样式作用域类 `.metro-window` -- 它**不碰**站点的框体类,也不再自己建框体.
+
+  这类"少了就静默失效"的约定只能靠断言钉住:宿主上少一个 `.metro-window` 是
+  "面板看着没坏但全乱"(组件自己的排布规则全都以它作用域),而组件多写 / 少写
+  `.setting-group` 则是"两处各定义一半框体".
+*/
+describe('地铁车窗设置组', () => {
+    it('内容长进调用方给的设置组 fieldset,宿主上只多一个组件作用域类', async () => {
+        await waitBooted();
+        const groups = [...mountedHost.querySelectorAll<HTMLFieldSetElement>(`fieldset.${SITE_GROUP_CLASS}`)];
+        expect(groups).toHaveLength(2);
+        for (const group of groups) {
+            // 站点类原样保留(框体归它),组件只叠自己的作用域类
+            expect([...group.classList], group.id).toEqual([SITE_GROUP_CLASS, 'metro-window']);
+        }
+        // legend 由组件放在最前(组标题属于内容,不属于框体)
+        expect(groups[0]?.querySelector(':scope > legend')?.textContent).toBe(PANEL_LEGEND);
+        expect(groups[1]?.querySelector(':scope > legend')?.textContent).toBe(UPLOAD_LEGEND);
+        // 参数组里是滑块,上传组里是上传行 -- 两块内容不串门
+        expect(groups[0]?.querySelector('.slider-field')).not.toBeNull();
+        expect(groups[0]?.querySelector('.upload')).toBeNull();
+        expect(groups[1]?.querySelector('.upload')).not.toBeNull();
+    });
+
+    it('框体不在组件这一侧:宿主的类名与 id 全由设置页给,组件一个都不加', async () => {
+        await waitBooted();
+        const group = mountedHost.querySelector<HTMLFieldSetElement>(`fieldset.${SITE_GROUP_CLASS}`);
+        // 组件不写 id(那是设置页的声明),也不铺内边距 / 底色(那是 .setting-group 的活)
+        expect(group?.id).toBe('');
+        expect(group?.getAttribute('style')).toBeNull();
+    });
+});
+
+/*
+  调用方**只给舞台**(或只给舞台与风格按钮)时的兜底:面板 / 状态区 / 上传行一个都
+  不能少,只是不显示.这条也在 README 的"组件形态"里承诺过,坏了不会报错 --
+  表现是"挂上去了但状态区永远停在初始化中"(状态 span 根本不在 DOM 里).
+*/
+describe('地铁车窗:省略 SETTING 宿主时的兜底', () => {
+    it('参数组与上传组都落进舞台里的隐藏容器,内容一个不少', () => {
+        const host = document.createElement('div');
+        const stage = document.createElement('div');
+        host.append(stage);
+        document.body.append(host);
+        mountMetroWindow({ stage });
+
+        const sink = stage.querySelector<HTMLElement>('.metro-panel-sink');
+        expect(sink).not.toBeNull();
+        // 两颗自建的设置组都在隐藏容器里(上传组落在参数组内部,所以是"容器里两颗")
+        expect(sink!.querySelectorAll('fieldset.metro-window')).toHaveLength(2);
+        expect(sink!.querySelectorAll('.slider-field')).toHaveLength(SLIDER_SPECS.length);
+        expect(sink!.querySelectorAll('.upload')).toHaveLength(UPLOAD_LAYERS.length);
+        // 状态区仍在(面板不显示,但启动状态照旧写进它)
+        expect(sink!.querySelector('.gpu_info span')).not.toBeNull();
     });
 });
 
@@ -257,7 +330,7 @@ describe('地铁车窗播放-暂停开关', () => {
 describe('地铁车窗实时参数的分组', () => {
     it('分组不可折叠,标题是静态文案(与声明一一对应)', async () => {
         await waitBooted();
-        const panel = mountedHost.querySelector('#paramPanel');
+        const panel = mountedHost.querySelector<HTMLFieldSetElement>(`fieldset.${SITE_GROUP_CLASS}`);
         expect(panel).not.toBeNull();
         expect(panel!.querySelector('details')).toBeNull();
         expect(panel!.querySelector('summary')).toBeNull();

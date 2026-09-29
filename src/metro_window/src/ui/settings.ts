@@ -5,24 +5,30 @@
 TRANSPORT_BUTTONS 等模型,本模块只负责"把模型变成元素"并交回元素引用:
 
   - 每个组件都是一个纯函数:接收 props,返回刚建好的元素,不读页面,不改全局;
-  - `createSettingsPanel()` 一次建出整块 <fieldset>,并把行为代码需要绑事件的
-    元素(风格按钮 / 播放控制 / 每个滑块的句柄 / 状态 span)一起返回,
-    行为代码因此不用按 id 去 DOM 里"找"这些元素;
+  - `fillSettingsPanel()` 往调用方给的**设置组 fieldset** 里长内容(legend +
+    控制条 + 各分组 + 状态区),并把行为代码需要绑事件的元素(风格按钮 /
+    播放控制 / 每个滑块的句柄 / 状态 span)一起返回,行为代码因此不用按 id 去
+    DOM 里"找"这些元素;
+  - **框体与 id 不归本模块**:那颗 fieldset 由 SETTING 页建(src/setting/
+    setting_page.ts:`.setting-group` 类名,id,内边距 / 底色 / 描边),
+    本模块只负责它的**内容**;实测不到宿主时由挂载函数自建一颗(见
+    metro_window.ts 的 createPanelSink);
   - **滑块本身由 UI 库拼**:名称 + 滑杆 + 数值框 + 重置按钮是 UI 库的
     `createSlider`(`miko_ui`),本模块只把 config.ts 的声明翻译成它的选项,
     再把句柄摊平进返回值.结构与样式(类名 `.slider-field*`)都归库,本站不再
-    维护第二份;库从 npm 装,本地联调与取用链路见 `scripts/dev_ui_link.py` 顶部.
+    维护第二份;控件在设置页里的观感(配色 / 字体)由 src/setting/setting.css
+    的 `.setting-group .slider-field*` 统一给 -- 同一页里不可能有两种长相.
+    库从 npm 装,本地联调与取用链路见 `scripts/dev_ui_link.py` 顶部.
   - **按钮同样归库**:风格按钮与播放-暂停开关 / 重置都由 `createButton` 生成(基线类
     `.ui-button`),本站只补声明里的 id 与 `data-*`,以及"当前风格"的激活类;
     按钮外观一律归库的基线,本模块不写任何外观规则.
 */
 
-import { createButton, create_element, createSlider, type Child, type SliderHandle } from 'miko_ui';
+import { createButton, create_element, createSlider, type SliderHandle } from 'miko_ui';
 
 import {
     DEFAULT_STYLE_INDEX,
     LAYERS_NOTE,
-    PANEL_ID,
     PANEL_LEGEND,
     SLIDER_GROUPS,
     STATUS_INITIAL,
@@ -36,26 +42,9 @@ import {
     type TransportAction,
 } from '@/metro_window/src/config';
 
-/**
- * 建一块面板 fieldset(legend + 内容),并带上加载前的初始禁用.
- *
- * 设置面板与上传面板共用这一条骨架:两块面板各在自己的宿主里,类名与内容不同,
- * 但"legend 在最前 / 内容按顺序排 / 初始 disabled / 就绪后由行为代码统一解禁"
- * 是同一件事,写两份迟早漂移(见 createSettingsPanel 与 ui/uploads.ts).
- */
-export function createPanelFieldSet(
-    attributes: { class: string; id?: string },
-    legend: string,
-    ...children: Child[]
-): HTMLFieldSetElement {
-    const root = create_element(
-        { tag: 'fieldset' },
-        attributes,
-        create_element({ tag: 'legend' }, {}, legend),
-        ...children,
-    );
-    root.disabled = true;
-    return root;
+/** 组标题:块级排版(宽度撑满 + 左浮动)按站点的 `legend` 基线走,只放文案 */
+function createLegend(text: string): HTMLLegendElement {
+    return create_element({ tag: 'legend' }, {}, text);
 }
 
 /**
@@ -83,7 +72,13 @@ interface StyleRow {
     readonly buttons: readonly HTMLButtonElement[];
 }
 
-/** 整块设置面板,以及行为代码要绑事件的元素引用 */
+/**
+ * 整块设置面板的内容,以及行为代码要绑事件的元素引用.
+ *
+ * `root` 就是调用方交进来的那颗设置组 fieldset(内容被本函数整体接管),
+ * 它同时是"加载前统一禁用 / 就绪后统一解禁"的那一层(fieldset 的 disabled
+ * 会拦下组里所有输入).
+ */
 interface SettingsPanel {
     readonly root: HTMLFieldSetElement;
     readonly status: HTMLSpanElement;
@@ -174,7 +169,7 @@ export function createStyleRow(): StyleRow {
     return { root: create_element({ tag: 'div' }, { class: 'style-row' }, ...buttons), buttons };
 }
 
-/** 播放-暂停开关 + 重置;加载前的禁用由外层 fieldset 统一负责(见 createSettingsPanel) */
+/** 播放-暂停开关 + 重置;加载前的禁用由外层 fieldset 统一负责(见 fillSettingsPanel) */
 function createTransportButtons(): Record<TransportAction, HTMLButtonElement> {
     const entries = TRANSPORT_BUTTONS.map((spec) => {
         const button = createButton({ text: spec.label }).element;
@@ -185,10 +180,10 @@ function createTransportButtons(): Record<TransportAction, HTMLButtonElement> {
 }
 
 /**
- * 建出整块设置面板,文档流顺序即这里写出的顺序:
+ * 把设置面板的内容长进给定的设置组 fieldset,文档流顺序即这里写出的顺序:
  *
- *     <fieldset class="sliders">         <- root,初始 disabled
- *       <legend>实时参数</legend>
+ *     <fieldset class="setting-group" id="metro-params">   <- host,由 SETTING 页建
+ *       <legend>实时参数</legend>                            <- 本函数放最前
  *       <div class="controls">           <- [风格按钮行?] + 播放控制(按文档流排)
  *       <div class="slider-group">       <- 每个分组一个(来自 SLIDER_GROUPS)
  *         <div class="slider-group-title">  <- 静态标题,不可折叠
@@ -198,13 +193,19 @@ function createTransportButtons(): Record<TransportAction, HTMLButtonElement> {
  *
  * 所有内容都来自 config.ts 的声明式模型,本函数不写死任何文案或数值;
  * 返回的元素引用供 metro_window.ts 绑事件与切换状态,所以调用方无需再查 DOM.
- * 初始 disabled:wasm 与 WebGPU 就绪前不可操作,挂载流程完成后打开.
+ *
+ * **整体接管宿主内容**(replaceChildren):重复挂载不会把面板插两遍,宿主里
+ * 也不会残留上一次的标记.初始 disabled:wasm 与 WebGPU 就绪前不可操作,
+ * 挂载流程完成后由行为代码打开.
  *
  * `styleRow` 是**传进来**的,不在这里新建:风格按钮行可能被挂到首屏底部
  * (切风格属于"看",与时钟同排更顺手),那时面板里就不该再多出第二份.
  * 传 null 表示风格按钮行挂在别处 -- 此时控制条只剩播放控制(开关 + 重置).
  */
-export function createSettingsPanel(styleRow: StyleRow | null): SettingsPanel {
+export function fillSettingsPanel(
+    host: HTMLFieldSetElement,
+    styleRow: StyleRow | null,
+): SettingsPanel {
     // 两组滑块分组,顺序即 config.ts 里的声明顺序(各自带已建好的滑块控件).
     const groups = SLIDER_GROUPS.map(createSliderGroup);
     const transport = createTransportButtons();
@@ -233,20 +234,21 @@ export function createSettingsPanel(styleRow: StyleRow | null): SettingsPanel {
         create_element({ tag: 'div' }, { class: 'layers' }, LAYERS_NOTE),
     );
 
-    // 整块 fieldset:legend -> 控制条 -> 各分组 -> 状态区.
-    // 外层类名 .sliders 是 CSS 的作用域锚点,id 留给单测 / 调试定位(浏览器会
-    // 自动置灰 disabled 的 fieldset 并拦下所有输入,boot() 成功后置回 false).
-    const root = createPanelFieldSet(
-        { class: 'sliders', id: PANEL_ID },
-        PANEL_LEGEND,
+    // 内容整体接管:legend -> 控制条 -> 各分组 -> 状态区.
+    // 框体 / id / 类名都在宿主上(由 SETTING 页给),这里一个都不碰.
+    host.replaceChildren(
+        createLegend(PANEL_LEGEND),
         controls,
         ...groups.map((group) => group.element),
         gpuInfo,
     );
+    // 浏览器会自动置灰 disabled 的 fieldset 并拦下所有输入,
+    // boot() 成功后由行为代码置回 false.
+    host.disabled = true;
 
     // 摊平所有分组里的滑块,行为代码按这一份清单逐个绑事件(顺序即界面顺序).
     return {
-        root,
+        root: host,
         status,
         toggleButton: transport.toggle,
         resetButton: transport.reset,

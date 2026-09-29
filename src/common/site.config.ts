@@ -2,9 +2,12 @@
  * 站点级(main.ts / common)的声明式配置.
  *
  * 首页整套骨架都在这里声明,由 src/common/ui/site_shell.ts 生成:导航条(站名 +
- * 标签 + 头像),首屏(舞台 / 压暗层 / 底部一排),五个标签页,以及每个模块自己的
- * 空宿主;各模块的挂载函数只往宿主里长标记.宿主页 index.html 里没有任何标记,
+ * 标签 + 头像),首屏(舞台 / 压暗层 / 底部一排),五个标签页,以及首屏那几个
+ * 模块空宿主;各模块的挂载函数只往宿主里长标记.宿主页 index.html 里没有任何标记,
  * 只留一个空位 `#site-root`.
+ *
+ * SETTING 页不在骨架里(骨架只给它一个空窗格):那一页有自己的声明式模型与骨架,
+ * 见 `src/setting/`(config.ts / setting_page.ts).
  *
  * 只放纯数据,不放模块级可变状态.凡是"改了必须同步改另一处"的字面量(标签页类名,
  * 宿主 id,CSS 里的选择器)都写成具名常量:这类字面量写错不会报错,只会静默失效,
@@ -121,101 +124,6 @@ export const TAB_PANE_CLASS = 'tab-pane fade';
 export const TAB_PANE_SHOW_CLASS = 'show';
 export const TAB_PANE_ACTIVE_CLASS = `${TAB_PANE_SHOW_CLASS} ${NAV_ACTIVE_CLASS}`;
 
-// ---------- SETTING:整页面板 ----------
-
-/*
- SETTING 标签页与 OLED / RBT / IEEE754 用**同一套面板结构**:框体由 miko_ui 的
- `createPanel` 建(`section.ui-panel > header.ui-panel-header > span.ui-panel-title`
- + `div.ui-panel-body`,外观与桌面窗口同源),本站只给标题文案与作用域类.
-*/
-
-/** 面板标题文案(标签栏那一项是 SETTING,页内标题沿用中文"设置") */
-export const SETTING_PANEL_TITLE = '设置';
-
-// ---------- SETTING:背景切换 ----------
-
-/** 背景缩略图清单的一项 */
-interface BackgroundPresetSpec {
-    /** 图片地址(站点 public 下的路径) */
-    readonly src: string;
-    /** 缩略图下方的名字(同时是那颗按钮的可访问名) */
-    readonly label: string;
-}
-
-/** 可选背景,顺序即界面顺序;点缩略图切整站背景(见 background.ts) */
-export const BACKGROUND_PRESETS = [
-    { src: '/images/bgimg/bgstar.gif', label: 'STAR' },
-    { src: '/images/bgimg/bgcode.gif', label: 'CODE' },
-] as const satisfies readonly BackgroundPresetSpec[];
-
-/**
- * 背景缩略图那一行(排布行的容器)的类名(样式见 public/css/index.css 的 `.bgrow`).
- * 行本身不是控件,只是把两颗按钮并排摆开的 flex 容器.
- */
-export const BACKGROUND_ROW_CLASS = 'bgrow';
-/**
- * 缩略图按钮的类名:整块 tile 由库的 `createButton` 生成(基线类 `.ui-button`),
- * 这个类只叠本站要盖住基线的部分(块的排布与内边距,见 index.css 的 `.bgbtn`).
- */
-export const BACKGROUND_BUTTON_CLASS = 'bgbtn';
-/**
- * 缩略图本身的类名:background.ts 的点击委托先按**按钮**命中,
- * 再从这个按钮里按它取出要切的那张图.
- */
-export const BACKGROUND_IMAGE_CLASS = 'bgimg';
-
-// ---------- SETTING:页面透明度 ----------
-
-/*
- 背景行里那条"页面透明度"滑块:拖它改的是**标签页窗格**的 opacity(导航条在窗格
- 外面,不受影响).这个量的三处落点(滑块本身 / tokens.css 的初值 / index.css 的
- `.tab-pane` 规则)里,数值口径集中在这里,样式那边只引用令牌名.
-*/
-
-/**
- * 窗格透明度的 CSS 自定义属性名.
- * 默认值在 public/css/tokens.css 的 :root,消费方是 index.css 的 `.tab-pane`
- * 规则;运行时的值由 src/common/page_opacity.ts 写到文档根的内联样式上.
- * 这是 CSS 与 TS 的跨语言契约,改这里的字面量必须同步那两个样式表.
- */
-export const PAGE_OPACITY_VARIABLE = '--tab-pane-opacity';
-
-/**
- * 透明度初值(也是滑块的重置目标).
- * 必须与 public/css/tokens.css 的 `--tab-pane-opacity` 相等,理由见那边.
- */
-export const PAGE_OPACITY_DEFAULT = 0.9;
-
-/**
- * 滑块区间与步长.
- *
- * 下限 0.5:这条滑块自己就住在窗格(SETTING)里,再往下调连它也会跟着变淡 --
- * 到 0 就是彻底消失,只剩一条看不见的滑杆,想拖回来全靠盲操;0.5 是"自己还看得清"
- * 的那一档.步长 0.01 与缺省的两位小数显示同一档.
- */
-export const PAGE_OPACITY_MIN = 0.5;
-export const PAGE_OPACITY_MAX = 1;
-export const PAGE_OPACITY_STEP = 0.01;
-
-/** 滑块名称(可见文案:库会把 `<label for>` 关联到滑杆,同时是数值框的可访问名) */
-export const PAGE_OPACITY_LABEL = '页面透明度';
-
-/**
- * 滑块根节点的站点类名(样式见 index.css 的 `.opacity-field`:它在背景行里占多宽).
- * 库的 `.slider-field` 只管内部排布,不决定"一条滑块在一排里多宽".
- */
-export const PAGE_OPACITY_FIELD_CLASS = 'opacity-field';
-
-// ---------- 背景切换(行为侧) ----------
-
-/**
- * 背景切换:承载"当前生效背景图"的 CSS 自定义属性名.
- * 默认值在 public/css/tokens.css 的 :root(回落到 --bg-image-default),
- * 由 public/css/index.css 的 body 规则消费.这是 CSS 与 TS 的跨语言契约,
- * 改这里的字面量必须同步那两个样式表.
- */
-export const BACKGROUND_IMAGE_VARIABLE = '--bg-image-active';
-
 // ---------- 导航条"隐形 / 实底"状态(行为侧) ----------
 
 /**
@@ -239,16 +147,19 @@ export const NAV_HEIGHT_FALLBACK = 42;
 // ---------- 各模块的空宿主 id(集中成一张表,便于核对"骨架长在哪") ----------
 
 /**
- * 骨架里给各模块留的空宿主 id.
+ * **骨架**里给各模块留的空宿主 id(首屏那两颗 + 时钟).
+ *
  * 每个 id 的**所有权**在对应模块的 config.ts 里(改 id 时改那边),这里只是
  * 把它们汇总成一张表:site_shell.ts 按这张表建宿主,并交回元素引用.
+ *
+ * SETTING 页的三块设置组不在这张表里:它们由设置页自己建(见
+ * `@/setting/setting_page.ts` 与 `@/setting/config.ts` 的 SETTING_GROUP_IDS),
+ * 骨架不替那一页记结构.
  */
 export const SITE_HOST_IDS = {
     /** LED 时钟(HOME 首屏底部左侧) */
     clock: CLOCK_HOST_ID,
-    /** 地铁车窗:舞台(首屏画布层)/ 风格按钮(首屏底部右侧)/ 控制台与上传面板(SETTING) */
+    /** 地铁车窗:舞台(首屏画布层)/ 风格按钮(首屏底部右侧) */
     metroStage: MOUNT_IDS.stage,
     metroStyles: MOUNT_IDS.styles,
-    metroPanel: MOUNT_IDS.panel,
-    metroUploads: MOUNT_IDS.uploads,
 } as const;

@@ -6,9 +6,9 @@ index.html 只留一个空位 `#site-root`,骨架的全部结构由这里按 sit
 宿主页因此不出现任何标记,也没有第二处 id 需要同步.
 
 宿主只提供空位:结构里的每个宿主 div 都是空的,标记由对应模块的挂载函数生成.
-OLED / RBT / IEEE754 三个模块直接把整个标签页窗格当宿主,所以骨架给它们建的就是
-窗格本身.组装出的完整结构(导航条 / 首屏 / 五个窗格 / SETTING 面板)见
-README.md 的"首屏与导航条"一节.
+OLED / RBT / IEEE754 / SETTING 四个模块直接把整个标签页窗格当宿主,所以骨架给它们
+建的就是窗格本身(SETTING 页的整张面板由 src/setting/setting_page.ts 长进窗格).
+组装出的完整结构(导航条 / 首屏 / 五个窗格)见 README.md 的"首屏与导航条"一节.
 
 头像与标签栏平级,排在 header 末尾,而不是当标签栏的最后一项:标签栏是横向滚动
 容器(窄窗口时标签横向滑动),滚动容器的 padding box 就是裁剪区,头像放进去 hover
@@ -19,7 +19,7 @@ README.md 的"首屏与导航条"一节.
 每个宿主上,骨架不替组件记这些约定.
 */
 
-import { create_element, createPanel } from 'miko_ui';
+import { create_element } from 'miko_ui';
 import {
     AVATAR_ALT,
     AVATAR_CLASS,
@@ -38,7 +38,6 @@ import {
     NAV_ITEMS,
     NAV_LINK_CLASS,
     NAV_LIST_CLASS,
-    SETTING_PANEL_TITLE,
     SITE_BRAND_CLASS,
     SITE_BRAND_TEXT,
     SITE_HOST_IDS,
@@ -50,7 +49,6 @@ import {
     type NavItemSpec,
     type NavPaneId,
 } from '@/common/site.config';
-import { createBackgroundSection } from '@/common/ui/background_section';
 
 /** 骨架生成后交回的元素引用(挂载函数据此绑行为,不再按 id 查 DOM) */
 export interface SiteShell {
@@ -66,18 +64,10 @@ export interface SiteShell {
     readonly navLinks: readonly HTMLAnchorElement[];
     /** LED 时钟宿主 -> mountClock() */
     readonly clockHost: HTMLElement;
-    /** 地铁车窗四块宿主 -> mountMetroWindow() */
+    /** 地铁车窗首屏的两块宿主(舞台 / 风格按钮) -> mountMetroWindow() */
     readonly metroStage: HTMLElement;
     readonly metroStyles: HTMLElement;
-    readonly metroPanel: HTMLElement;
-    readonly metroUploads: HTMLElement;
-    /**
-     * 背景缩略图那一行(`.bgrow`,SETTING 面板体的第一个子节点).
-     * 它**已经有两颗缩略图**,不是空宿主:页面透明度滑块
-     * (src/common/page_opacity.ts)往它里面 append 第三条参数行.
-     */
-    readonly backgroundRow: HTMLElement;
-    /** 五个标签页窗格:OLED / RBT / IEEE754 直接把窗格当面板宿主 */
+    /** 五个标签页窗格:OLED / RBT / IEEE754 / SETTING 直接把窗格当面板宿主 */
     readonly panes: Readonly<Record<NavPaneId, HTMLElement>>;
 }
 
@@ -119,8 +109,6 @@ export function mountSiteShell(): SiteShell {
     const clockHost = create_element({ tag: 'div' }, { id: SITE_HOST_IDS.clock });
     const metroStage = create_element({ tag: 'div' }, { id: SITE_HOST_IDS.metroStage });
     const metroStyles = create_element({ tag: 'div' }, { id: SITE_HOST_IDS.metroStyles });
-    const metroPanel = create_element({ tag: 'div' }, { id: SITE_HOST_IDS.metroPanel });
-    const metroUploads = create_element({ tag: 'div' }, { id: SITE_HOST_IDS.metroUploads });
 
     // --- 导航条 ---
     // 触发器先建好,按 NAV_ITEMS 的顺序收进数组:后面 mountTabs() 要的就是
@@ -162,19 +150,10 @@ export function mountSiteShell(): SiteShell {
     for (const item of NAV_ITEMS) {
         panes[item.pane] = createTabPane(item);
     }
-    // 首屏在 HOME 窗格里;SETTING 窗格 = 库的 `createPanel` 建的一张面板
-    // (`section.ui-panel`),面板体里依次是背景缩略图 + 车窗控制台宿主 + 上传面板宿主
-    // (标题"设置"在 `.ui-panel-header`).
+    // 首屏在 HOME 窗格里.其余四个窗格都留空:OLED / RBT / IEEE754 的整块面板由各自的
+    // 模块长进去,SETTING 页同理(整张 `section.ui-panel` + 三块设置组由
+    // src/setting/setting_page.ts 生成),骨架不替任何一页记结构.
     panes.home.append(hero);
-    // 背景行先建好并留个引用:页面透明度滑块要往这一行里追加
-    // (见 main.ts 的 mountPageOpacity).
-    const backgroundRow = createBackgroundSection();
-    panes.setting.append(
-        createPanel({
-            title: SETTING_PANEL_TITLE,
-            body: [backgroundRow, metroPanel, metroUploads],
-        }).element,
-    );
 
     root.replaceChildren(
         header,
@@ -198,9 +177,6 @@ export function mountSiteShell(): SiteShell {
         clockHost,
         metroStage,
         metroStyles,
-        metroPanel,
-        metroUploads,
-        backgroundRow,
         panes,
     };
 }

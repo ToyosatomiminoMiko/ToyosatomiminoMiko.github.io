@@ -41,7 +41,6 @@ import {
     UPLOAD_STATUS_DEFAULT,
     type UploadLayerSpec,
 } from '@/metro_window/src/config';
-import { createPanelFieldSet } from '@/metro_window/src/ui/settings';
 
 /** 一行上传控件:根元素 + 输入框 / 状态行 / 恢复按钮 + 它的声明式配置 */
 export interface UploadControl {
@@ -56,7 +55,7 @@ export interface UploadControl {
     readonly reset: HTMLButtonElement;
 }
 
-/** 整块上传面板,以及行为代码要绑事件的元素引用 */
+/** 整块上传面板的内容,以及行为代码要绑事件的元素引用 */
 interface UploadPanel {
     readonly root: HTMLFieldSetElement;
     readonly controls: readonly UploadControl[];
@@ -96,27 +95,29 @@ function createUploadRow(spec: UploadLayerSpec): UploadControl {
 }
 
 /**
- * 建出整块上传面板:
+ * 把上传面板的内容长进给定的设置组 fieldset:
  *
- *     <fieldset class="uploads">   <- root,初始 disabled
+ *     <fieldset class="setting-group" id="metro-uploads">   <- host,由 SETTING 页建
  *       <legend>图层贴图</legend>
  *       <p class="upload-note">说明</p>
  *       <div class="upload"> ... 每层一行(来自 UPLOAD_LAYERS)...
  *     </fieldset>
  *
- * 与设置面板分开成两块 fieldset / 两个宿主:一个是"调参",一个是"换素材",
- * 合成一块会让"参数"和"文件"混在一起(见 config.ts 的 MOUNT_IDS 注释).
- * 骨架(legend -> 内容 -> 初始 disabled)与设置面板共用 createPanelFieldSet.
+ * 与参数面板分开成两块设置组:一个是"调参",一个是"换素材",合成一块会让"参数"
+ * 和"文件"混在一起.框体 / id / 类名都在宿主上(由 SETTING 页给),这里只放内容,
+ * 并**整体接管**(replaceChildren):重复挂载不会把内容插两遍.
  */
-export function createUploadPanel(): UploadPanel {
+export function fillUploadPanel(host: HTMLFieldSetElement): UploadPanel {
     const controls = UPLOAD_LAYERS.map(createUploadRow);
-    const root = createPanelFieldSet(
-        { class: 'uploads' },
-        UPLOAD_LEGEND,
+    host.replaceChildren(
+        create_element({ tag: 'legend' }, {}, UPLOAD_LEGEND),
         create_element({ tag: 'p' }, { class: 'upload-note' }, UPLOAD_NOTE),
         ...controls.map((control) => control.root),
     );
-    return { root, controls };
+    // 初始禁用:wasm 与 WebGPU 就绪前不可操作,与参数面板同一条约定,
+    // 由挂载流程统一解禁(fieldset 的 disabled 会拦下组里所有输入).
+    host.disabled = true;
+    return { root: host, controls };
 }
 
 /** 解码结果:RGBA8 像素与原始尺寸(尺寸要一并发给 wasm,由它算字节数) */

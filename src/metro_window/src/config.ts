@@ -1,13 +1,14 @@
 /*
 地铁车窗前端的集中配置(纯声明式数据,不含业务逻辑).
 
-站点给组件留了**四个**空宿主(舞台 / 风格按钮行 / 控制台 / 上传面板);舞台标记
-(只有画布)由 src/ui/stage_content.ts 生成,设置面板(风格按钮 / 播放控制 /
-滑块 / 状态区)由 src/ui/settings.ts 按本文件的模型生成,上传面板由
-src/ui/uploads.ts 按同一份模型生成;两边靠下面这些字符串对齐,一旦散落在代码里,
-改一处漏一处就是"静默失效",所以统一收到这里:
+站点给组件留了**四块**宿主(首屏的舞台 / 风格按钮行,SETTING 页的控制台 /
+上传面板);舞台标记(只有画布)由 src/ui/stage_content.ts 生成,设置面板(风格
+按钮 / 播放控制 / 滑块 / 状态区)由 src/ui/settings.ts 按本文件的模型生成,上传
+面板由 src/ui/uploads.ts 按同一份模型生成;两边靠下面这些字符串对齐,一旦散落在
+代码里,改一处漏一处就是"静默失效",所以统一收到这里:
 
-  - 宿主提供的挂载点 id,组件生成 / 查找的元素 id,类名 / data-* 键名;
+  - 组件**生成 / 查找**的元素 id,类名 / data-* 键名(宿主必须提供的 id 只有首屏
+    那两块,见 MOUNT_IDS);
   - 画布渲染分辨率与宽高比属性名;
   - setParam / setStyle 的参数名        -- 必须能对应 Rust 侧 `GlassParams` 的字段
     (由 rust/src/app_params.rs 的 param_field 分发,rust/src/boot_config.rs 启动时校验);
@@ -27,14 +28,7 @@ src/ui/uploads.ts 按同一份模型生成;两边靠下面这些字符串对齐,
 export const WINDOW_CLASS = 'metro-window';
 
 /**
- * "裸宿主"修饰类:去掉车窗面板的内边距与底色,只留组件内容.
- * 首屏(hero)里的两个宿主都用它 -- 舞台要自己铺满整屏,风格按钮要跟时钟并排,
- * 都不是"卡片里嵌一个车窗面板"那种形态,多一层内边距就是多一层看不出源头的留白.
- */
-export const BARE_MODIFIER_CLASS = 'metro-window--bare';
-
-/**
- * 舞台宿主的修饰类:在"裸宿主"的基础上再**铺满父层**(absolute + inset: 0).
+ * 舞台宿主的修饰类:把宿主变成**铺满父层**的一层(absolute + inset: 0).
  * 画布随后用 object-fit: cover 覆盖这一层 -- 首屏要的就是这个.
  * 因此带这个类的舞台,其宿主必须是**定位祖先**(站点的 .hero__stage 是).
  * 画布的显示尺寸与裁切都由 metro_window.css 里这条修饰类的规则决定.
@@ -49,16 +43,12 @@ export const STAGE_MODIFIER_CLASS = 'metro-window--stage';
 export const PANEL_SINK_CLASS = 'metro-panel-sink';
 
 /**
- * 站点给组件留的四个空宿主 id(所有权在这里,站点骨架按同一份清单建宿主).
+ * 站点骨架给组件留的两块**首屏**空宿主 id(所有权在这里,骨架按同一份清单建宿主).
  *
- * 四个宿主各放一块:
- *   - stage:WebGPU 画布,放在首屏(要铺满整屏);
- *   - styles:三颗风格按钮,放在首屏底部(与 LED 时钟同排) -- 切风格是"看"的一部分,
- *     不该跟滑块一起埋在 SETTING 里;
- *   - panel:其余整套设置面板(播放控制 / 滑块 / 状态区),放在 SETTING 标签页;
- *   - uploads:图层贴图上传面板,放在 SETTING 标签页里**紧接 panel 的下方** --
- *     它和"调参"是两件事(一个改渲染参数,一个换素材),所以各自一个宿主 / 一块
- *     fieldset,不合并进设置面板.
+ * 另外两块宿主 -- 控制台与上传面板 -- 由 **SETTING 页**建(`src/setting/config.ts`
+ * 的 `SETTING_GROUP_IDS`,宿主就是那两颗设置组 fieldset),组件只接元素引用
+ * (见 `MetroMountPoints`),所以这里不为它们出 id:谁建元素,id 就归谁.
+ *
  * 与下面的 ELEMENT_IDS 区别要分清:这里是**宿主必须提供**的,
  * ELEMENT_IDS 是**组件自己生成**的.
  */
@@ -67,10 +57,6 @@ export const MOUNT_IDS = {
     stage: 'metro-window',
     /** 风格按钮空宿主(首屏底部) */
     styles: 'metro-styles',
-    /** 控制台(设置面板)空宿主 */
-    panel: 'metro-params',
-    /** 图层贴图上传面板空宿主(设置面板正下方) */
-    uploads: 'metro-uploads',
 } as const;
 
 /** 按 id 查元素时的选择器前缀:`#webgpu-canvas` 里的 `#` */
@@ -349,9 +335,6 @@ export const TRANSPORT_BUTTONS = [
     },
     { action: 'reset', id: 'resetBtn', label: '重置' },
 ] as const satisfies readonly TransportButtonSpec[];
-
-/** 设置面板 <fieldset> 的 id(单测按它取面板;也是调试时的定位锚点) */
-export const PANEL_ID = 'paramPanel';
 
 // ---------- 图层贴图上传 ----------
 

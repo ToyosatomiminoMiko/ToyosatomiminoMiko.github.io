@@ -7,16 +7,26 @@
 - **风格按钮行**(挂载点的 `styles`):三颗 data-style 按钮,站点放在首屏底部;
   省略这个宿主时按钮留在控制台里(行只建一份,不会两处各出现一份);
 - **控制台**(挂载点的 `panel`):整套设置面板(播放控制 / 全部滑块 /
-  状态区)由 ui/settings.ts 按 config.ts 的声明式模型生成,插进面板宿主;
-  省略面板宿主时退回一个隐藏容器,面板与状态区仍然存在,只是不显示;
+  状态区)由 ui/settings.ts 按 config.ts 的声明式模型生成,长进给定的那块
+  **设置组 fieldset**;省略面板宿主时退回舞台里的一个隐藏容器,面板与状态区
+  仍然存在,只是不显示;
 - **上传面板**(挂载点的 `uploads`):图层贴图替换(每层一个上传按钮 + 恢复默认)
-  由 ui/uploads.ts 生成,站点把它放在控制台**正下方**的另一个宿主里 --
+  由 ui/uploads.ts 生成,站点把它放在控制台**正下方**的另一块设置组里 --
   它换的是"素材",和"调参"是两件事,所以两块 fieldset 不合并;
-  省略上传宿主时落进控制台宿主内部(仍在设置面板之后).
+  省略上传宿主时落进控制台那块组内部(仍在设置面板内容之后).
 
-每个宿主都会由挂载函数补上样式作用域类 `.metro-window`:**样式全靠它作用域**,
-面板换了宿主却没这个类就是"样式静默失效".本模块负责:引入样式,长出标记,
-组装面板,绑定交互,加载 wasm,启动 WebGPU 渲染.
+宿主分两类,**谁建元素谁出 id**:
+
+- 首屏那两块由站点骨架建,id 见 config.ts 的 MOUNT_IDS;
+- SETTING 页那两块由**设置页**建(src/setting/setting_page.ts),已经是带
+  `.setting-group` 框体的 fieldset,组件只往里面长内容 -- 组件不再自己建框体,
+  也不再碰站点的类名(它只给自己的宿主补样式作用域类 `.metro-window`).
+
+样式全靠 `.metro-window` 作用域:面板换了宿主却没这个类就是"样式静默失效".
+**控件的观感不在这里**:设置页里每条滑块的配色 / 字体由站点的
+`src/setting/setting.css` 以 `.setting-group` 作用域统一给,组件样式表只管
+自己的排布(网格 / 控制条 / 状态区).本模块负责:引入样式,长出标记,组装面板,
+绑定交互,加载 wasm,启动 WebGPU 渲染.
 
 上传这条链路值得一提:文件由前端解码成 RGBA8 像素(浏览器自带解码器),
 再调 wasm 的 setLayerImage 换掉某个材质槽位的贴图 -- 那些纹理是 wgpu 的
@@ -25,24 +35,26 @@ GPU 资源,只有 wasm 内部能改.**没有后端**:文件不上传服务器,�
 所有字面量(id / 类名 / data-* 键名 / Rust 参数名 / 文案 / 阈值)都集中在
 @/metro_window/src/config.ts,标记与面板的结构集中在 @/metro_window/src/ui/,本文件只保留逻辑与生命周期.
 
-调用方式(站点入口 src/main.ts 给的是**宿主引用**,来自站点骨架,不按 id 查 DOM;
-导入统一用源码根别名 `@/`):
+调用方式(站点入口 src/main.ts 给的是**宿主引用**,来自站点骨架与设置页,
+不按 id 查 DOM;导入统一用源码根别名 `@/`):
 
     import { mountMetroWindow } from '@/metro_window/src/metro_window';
 
     mountMetroWindow({
-        stage: shell.metroStage,      // 必填:舞台宿主,承接画布
-        styles: shell.metroStyles,    // 省略 => 风格按钮留在控制台里
-        panel: shell.metroPanel,      // 省略 => 面板与状态区仍在,只是不显示
-        uploads: shell.metroUploads,  // 省略 => 上传面板落在控制台宿主内部
+        stage: shell.metroStage,             // 必填:舞台宿主,承接画布
+        styles: shell.metroStyles,           // 省略 => 风格按钮留在控制台里
+        panel: setting.paramsGroup,          // 省略 => 面板与状态区仍在,只是不显示
+        uploads: setting.uploadsGroup,       // 省略 => 上传面板落在控制台那块组内部
     });
 
-宿主必须是**空容器**:标记全部由组件生成,已有的子节点不会被清掉,重复挂载
-只会把标记插两遍(wasm 侧的 App 是单例,本来也不允许挂载两次).
+舞台与风格按钮宿主必须是**空容器**(标记全部由组件生成);SETTING 那两块是设置组
+fieldset,内容由组件**整体接管**(`replaceChildren`),所以重复挂载也不会插两份
+(wasm 侧的 App 是单例,本来也不允许挂载两次).
 
 单实例约束:wasm 侧的 App 是 crate 内的 thread_local 单例,setStyle/setParam/
 setRunning/reset 全都作用于它,所以一个页面只应挂载一次(舞台上也只应有一张画布).
 */
+
 import './metro_window.css';
 
 import { childNodes, create_element } from 'miko_ui';
@@ -60,7 +72,6 @@ import init, {
 
 import {
     ADAPTER_LABEL_SEPARATOR,
-    BARE_MODIFIER_CLASS,
     buildSoftwareAdapterMessage,
     buildUploadStatusApplied,
     buildUploadStatusTooLarge,
@@ -104,9 +115,9 @@ import {
     WINDOW_CLASS,
     type UploadLayerSpec,
 } from './config';
-import { createSettingsPanel, createStyleRow, type SliderControl } from '@/metro_window/src/ui/settings';
+import { fillSettingsPanel, createStyleRow, type SliderControl } from '@/metro_window/src/ui/settings';
 import { createStageContent } from '@/metro_window/src/ui/stage_content';
-import { createUploadPanel, decodeImageToRgba, type UploadControl } from '@/metro_window/src/ui/uploads';
+import { fillUploadPanel, decodeImageToRgba, type UploadControl } from '@/metro_window/src/ui/uploads';
 import { computeBackingSize } from '@/metro_window/src/stage_size';
 
 // WebGPU 适配器的最小类型定义(不依赖具体 TypeScript 版本的 DOM 类型)
@@ -192,10 +203,16 @@ interface MetroMountPoints {
     readonly stage: HTMLElement;
     /** 风格按钮宿主(首屏底部);不给则风格按钮留在控制台里 */
     readonly styles?: HTMLElement;
-    /** 控制台宿主:承接整套设置面板;不给则退回隐藏容器 */
-    readonly panel?: HTMLElement;
-    /** 上传面板宿主(设置面板正下方);不给则落在控制台宿主里(仍在设置面板之后) */
-    readonly uploads?: HTMLElement;
+    /**
+     * 控制台宿主:**一颗设置组 fieldset**(SETTING 页建的,带框体与 id);
+     * 不给则退回舞台里自建的隐藏容器(面板与状态区仍在,只是不显示).
+     */
+    readonly panel?: HTMLFieldSetElement;
+    /**
+     * 上传面板宿主:控制台**正下方**的另一颗设置组 fieldset;
+     * 不给则落在控制台那颗组内部(仍在设置面板内容之后).
+     */
+    readonly uploads?: HTMLFieldSetElement;
 }
 
 /** 省略面板宿主时自建的隐藏容器(见 config.ts 的 PANEL_SINK_CLASS) */
@@ -203,6 +220,16 @@ function createPanelSink(stage: HTMLElement): HTMLElement {
     const sink = create_element({ tag: 'div' }, { class: PANEL_SINK_CLASS });
     stage.append(sink);
     return sink;
+}
+
+/**
+ * 自建一颗设置组(只在调用方没给宿主时用).
+ *
+ * 与站点建的那两颗只差 `.setting-group`(框体 / 观感):这里是隐藏容器里的兜底,
+ * 站点样式表不参与;`.metro-window` 由调用处补,组件自己的排布规则照样命中.
+ */
+function createOwnSettingGroup(): HTMLFieldSetElement {
+    return create_element({ tag: 'fieldset' });
 }
 
 /**
@@ -221,9 +248,10 @@ export function mountMetroWindow(points: MetroMountPoints): void {
 
     // 类名只在这里补:样式全靠它作用域,宿主漏写就是"样式静默失效",
     // 补一下比让宿主去记这个约定划算(站点的 HTML 里就不写类名了).
-    // 舞台额外带两个修饰类:--bare 去掉车窗面板的内边距与底色,
-    // --stage 再把它变成铺满父层的一层(画布用 object-fit: cover 覆盖).
-    stage.classList.add(WINDOW_CLASS, BARE_MODIFIER_CLASS, STAGE_MODIFIER_CLASS);
+    // 舞台额外带舞台修饰类:把它变成铺满父层的一层(画布用 object-fit: cover 覆盖).
+    // 框体(内边距 / 底色 / 描边)不在这里加:站点建的设置组自带 `.setting-group`,
+    // 组件不碰站点的类名.
+    stage.classList.add(WINDOW_CLASS, STAGE_MODIFIER_CLASS);
 
     // 画布由组件生成(宿主只提供空容器);顺序即显示顺序.
     // 组件交出的是库口径的子节点表(`Child[]`,假值表示"这一项不要"),
@@ -244,27 +272,37 @@ export function mountMetroWindow(points: MetroMountPoints): void {
     const styles = createStyleRow();
     const styleButtons = styles.buttons;
     if (points.styles) {
-        // 与舞台同理:这个宿主也不要面板的内边距与底色,只留一排按钮.
-        points.styles.classList.add(WINDOW_CLASS, BARE_MODIFIER_CLASS);
+        // 风格按钮行挂在首屏底部:宿主只当样式作用域(框体归设置组,这排按钮不在
+        // 设置组里,所以本来也没有框体要脱).
+        points.styles.classList.add(WINDOW_CLASS);
         points.styles.append(styles.root);
     }
 
-    // 设置面板整体由声明式组件生成,挂到**另一个**宿主(站点放在 SETTING 标签页);
-    // 调用方没给面板宿主时退回一个隐藏容器,面板 / 状态区 / 事件绑定一个不少.
-    const settings = createSettingsPanel(points.styles ? null : styles);
-    const panel = points.panel ?? createPanelSink(stage);
-    // 面板宿主也要补样式作用域类:metro_window.css 的每条选择器都以 `.metro-window`
-    // 开头,面板换了宿主却没有这个类,样式会静默失效(看着"没坏"但全乱).
-    panel.classList.add(WINDOW_CLASS);
-    panel.append(settings.root);
+    /*
+      设置面板:内容由声明式组件生成,长进调用方给的**设置组 fieldset**
+      (站点放在 SETTING 标签页).调用方没给宿主时退回舞台里的隐藏容器 --
+      面板 / 状态区 / 事件绑定一个不少,只是不显示.
+    */
+    const paramsGroup = points.panel ?? createOwnSettingGroup();
+    if (!points.panel) {
+        createPanelSink(stage).append(paramsGroup);
+    }
+    // 样式作用域类:metro_window.css 的选择器都以 `.metro-window` 开头(面板换了宿主
+    // 却没有这个类就是"看着没坏但全乱").框体与 id 由站点那颗设置组自带,这里不碰.
+    paramsGroup.classList.add(WINDOW_CLASS);
+    const settings = fillSettingsPanel(paramsGroup, points.styles ? null : styles);
 
-    // 上传面板:与设置面板**分开放**(站点把宿主紧接在 #metro-params 下方),
-    // 它换的是素材(贴图),不是渲染参数,合成一块会让两件事混在一起.
-    // 省略宿主时退回控制台宿主内部 -- 仍然在设置 fieldset 之后,不会静默消失.
-    const uploads = createUploadPanel();
-    const uploadsHost = points.uploads ?? panel;
-    uploadsHost.classList.add(WINDOW_CLASS);
-    uploadsHost.append(uploads.root);
+    /*
+      上传面板:与参数面板**分开放**(站点把宿主紧接在 #metro-params 下方),
+      它换的是素材(贴图),不是渲染参数,合成一块会让两件事混在一起.
+      省略宿主时落在参数组**内部** -- 仍然在设置面板内容之后,不会静默消失.
+    */
+    const uploadsGroup = points.uploads ?? createOwnSettingGroup();
+    uploadsGroup.classList.add(WINDOW_CLASS);
+    if (!points.uploads) {
+        paramsGroup.append(uploadsGroup);
+    }
+    const uploads = fillUploadPanel(uploadsGroup);
 
     // setStatus 给状态区用,同时留一份 console.log(启动过程的每条状态都值得留痕).
     const setStatus = (message: string): void => writeStatus(settings.status, message, message);
@@ -385,7 +423,7 @@ export function mountMetroWindow(points: MetroMountPoints): void {
                 btn.disabled = false;
             });
             // 播放-暂停开关与重置按钮都在这块 fieldset 里,由它统一解禁:
-            // 加载前的禁用态是 createSettingsPanel 的初始 disabled,解禁只在这里做一次.
+            // 加载前的禁用态是 fillSettingsPanel 的初始 disabled,解禁只在这里做一次.
             settings.root.disabled = false;
             // 文案按当前状态刷一次(按钮初值来自 INITIAL_RUNNING,这里确认一遍)
             syncTransportLabel();

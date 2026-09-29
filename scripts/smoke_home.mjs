@@ -173,8 +173,9 @@ const report = await cdp.eval(`(() => {
         // 库的 createSlider 给成员控件挂了定位类名(.slider-field-range),按它选;
         // 行数即滑块条数.
         const sliderRanges = qa('#metro-params .slider-field-range');
-        ok('控制台长进了 SETTING 宿主(fieldset + 7 条滑块)',
-            q('#metro-params > fieldset.sliders') !== null && sliderRanges.length === 7,
+        ok('控制台长进了 SETTING 页给的设置组(fieldset.setting-group + 7 条滑块)',
+            q('#metro-params') !== null && q('#metro-params').tagName === 'FIELDSET' &&
+            q('#metro-params').classList.contains('setting-group') && sliderRanges.length === 7,
             sliderRanges.length + ' 条');
         // 滑块的重置按钮由 UI 库的 createSlider 生成:条数与滑块一致(每条行末一颗).
         ok('每条滑块都带库的重置按钮',
@@ -186,14 +187,14 @@ const report = await cdp.eval(`(() => {
           点一下文案在"暂停 / 播放"之间切(见 config.ts 的 TRANSPORT_BUTTONS /
           TRANSPORT_TOGGLE_LABEL).这里点两次,回到原状态.
         */
-        const transportButtons = qa('#paramPanel .controls button');
+        const transportButtons = qa('#metro-params .controls button');
         const transportToggle = q('#playPauseBtn');
         const toggledTransport = (() => {
             if (!transportToggle) return { before: '没有开关', after: '', back: '' };
             // headless 里没有 GPU,boot 失败后面板仍是 disabled(按钮点不动),
             // 所以这里临时把 fieldset 解开再点 -- 只改 disabled,不动别的状态,
             // 点完还原.booted 为假时点击只切文案,不会碰 wasm.
-            const panel = q('#paramPanel');
+            const panel = q('#metro-params');
             const wasDisabled = panel ? panel.disabled : false;
             if (panel) panel.disabled = false;
             const before = transportToggle.textContent;
@@ -350,24 +351,38 @@ const report = await cdp.eval(`(() => {
           ---- 第 3 组:布局与 CSS 级联(进程内 DOM 没有布局,只能在这里验) ----
         */
         /*
-          背景缩略图只是一行 flex 容器(见 common/ui/background_section.ts):两颗按钮并排,
-          行高必须包住它们 -- 老写法里浮动项会让行高塌成 0,压住下面的控制台,所以那时
-          验的是 .bgul 的 flow-root;现在行是 flex 容器,直接验"行真的摊开 + 两块 tile
-          并排 + 行高包住它们".
+          背景区与车窗那两块面板**同构**:SETTING 面板体的直接子节点就是**三颗设置组
+          fieldset.setting-group**(宿主 = 那颗组本身,由 src/setting/setting_page.ts
+          建),每颗的内容由各自的模块长进去(背景见 setting/background_section.ts 的
+          mountBackgroundSection).背景组里那条 flex 行是 .bgrow:两颗按钮并排,行高
+          必须包住它们 -- 老写法里浮动项会让行高塌成 0,压住下面的控制台,所以那时
+          验的是 .bgul 的 flow-root;现在行是 flex 容器,直接验"行真的摊开 +
+          两块 tile 并排 + 行高包住它们".
 
           量之前要先把 SETTING 窗格临时点亮:此刻它还是 .fade:not(.show) 底下的
           display: none,隐藏子树的 offset / rect 一律是 0(量不出布局,只会得到
           "行高 0" 这种假失败).临时加一次 .active 量完就撤,不动类名契约,
           也不给用户看见(整个表达式在浏览器里同步跑完,中间没有渲染帧).
+          注:这段代码本身坐在一个模板字符串里,注释里不能出现反引号或美元花括号.
         */
+        const settingBody = q('#setting .ui-panel-body');
+        const bgGroup = q('#setting-bg');
         const bgRow = q('.bgrow');
+        // 面板体的直接子节点 = 三颗设置组(没有 div 包 fieldset 的空壳)
+        const settingGroups = settingBody ? [...settingBody.children] : [];
+        ok('SETTING 面板体正好三颗设置组 fieldset.setting-group(没有多余的包裹层)',
+            settingBody !== null && settingGroups.length === 3 &&
+            settingGroups.every((el) => el.tagName === 'FIELDSET' && el.classList.contains('setting-group')) &&
+            qa('#setting .ui-panel-body > fieldset.setting-group').length === 3 &&
+            settingGroups[0] === bgGroup,
+            settingGroups.map((el) => el.tagName + (el.id ? '#' + el.id : '')).join(' / '));
         const bgLayout = (() => {
             const pane = q('#setting');
-            if (!bgRow || !pane) return null;
+            if (!bgGroup || !bgRow || !pane) return null;
             // 隐藏子树里量不到布局:先点亮 SETTING,量完立刻撤(同一次同步执行,不出帧)
             pane.classList.add('active');
             const tiles = qa('.bgrow .bgbtn');
-            // 行里第三块是"页面透明度"滑块(库的 .slider-field,见 common/page_opacity.ts):
+            // 行里第三块是"页面透明度"滑块(库的 .slider-field,见 src/setting/page_opacity.ts):
             // 它也是行的内容,宽度必须算进去,否则下面那条"行盒贴着内容"会假失败
             const opacityField = q('.bgrow .opacity-field');
             const gap = parseFloat(getComputedStyle(bgRow).columnGap) || 0;
@@ -403,7 +418,58 @@ const report = await cdp.eval(`(() => {
                 ' row:' + bgLayout.width + 'px(内容 ' + bgLayout.contentWidth + 'px)' +
                 ' tiles:' + bgLayout.tiles.map((t) => t.width + 'x' + t.height).join(' / ') : '没有背景行');
         /*
-          背景缩略图项整块是库的按钮(见 common/ui/background_section.ts).两件事只有
+          设置组的框体归公共样式 .setting-group(src/setting/setting.css):背景组与车窗
+          那两块设置组必须拿到同一套底色 / 描边 / 内边距 / legend 观感.这条只有
+          真级联才验得出来 -- 类名对了而规则掉了的表现是"背景组没有框体"(不报错).
+        */
+        const bgLegend = q('#setting-bg > legend');
+        const paramFieldset = q('#metro-params');
+        const paramLegend = q('#metro-params > legend');
+        const uploadFieldset = q('#metro-uploads');
+        const bgFrame = bgGroup ? getComputedStyle(bgGroup) : null;
+        const paramFrame = paramFieldset ? getComputedStyle(paramFieldset) : null;
+        ok('三块设置组共用一套框体(.setting-group:底色 / 描边 / 内边距 / legend 颜色一致)',
+            bgGroup !== null && bgLegend !== null && bgLegend.textContent === '背景' &&
+            [bgGroup, paramFieldset, uploadFieldset].every((el) => el !== null && el.classList.contains('setting-group')) &&
+            bgFrame !== null && paramFrame !== null &&
+            bgFrame.backgroundColor !== 'rgba(0, 0, 0, 0)' && bgFrame.borderTopStyle === 'solid' &&
+            bgFrame.paddingTop !== '0px' &&
+            bgFrame.backgroundColor === paramFrame.backgroundColor &&
+            bgFrame.borderTopColor === paramFrame.borderTopColor &&
+            bgFrame.paddingTop === paramFrame.paddingTop &&
+            uploadFieldset !== null &&
+            getComputedStyle(uploadFieldset).backgroundColor === bgFrame.backgroundColor &&
+            paramLegend !== null && getComputedStyle(bgLegend).color === getComputedStyle(paramLegend).color,
+            bgFrame ? '底色:' + bgFrame.backgroundColor + ' 描边:' + bgFrame.borderTopColor +
+                ' 内边距:' + bgFrame.paddingTop +
+                ' legend:' + (bgLegend ? getComputedStyle(bgLegend).color : '没有 legend') : '没有背景组');
+        /*
+          **这一页里所有滑块必须是同一副长相**:控件的观感(底色 / 圆角 / 字体 /
+          标签色 / 滑杆强调色 / 数值框)只由 src/setting/setting.css 里
+          ".setting-group .slider-field*" 一份定义,作用域是"设置组",不是某一颗宿主.
+          这条只有在真级联里才验得出来:少了作用域前缀,背景组那条滑块会静默退回
+          UI 库的默认主题(浅蓝强调 + 白 2% 底),看着"也是滑块",但和旁边那七条不是一个东西.
+        */
+        const metroSlider = q('#metro-params .slider-field');
+        const opacitySliderField = q('.bgrow .opacity-field');
+        const controlLook = (field) => {
+            if (!field) return null;
+            const cs = getComputedStyle(field);
+            const range = getComputedStyle(field.querySelector('.slider-field-range'));
+            const value = getComputedStyle(field.querySelector('.slider-field-value'));
+            const label = getComputedStyle(field.querySelector('.slider-field-label'));
+            return [cs.backgroundColor, cs.borderTopLeftRadius, cs.fontFamily,
+                range.accentColor, value.backgroundColor, value.borderTopColor, value.color,
+                label.color].join(' | ');
+        };
+        const metroLook = controlLook(metroSlider);
+        const opacityLook = controlLook(opacitySliderField);
+        ok('设置组里的滑块只有一副长相(背景组那条与车窗面板里的配色 / 字体 / 强调色完全一致)',
+            metroLook !== null && opacityLook !== null && metroLook === opacityLook &&
+            getComputedStyle(opacitySliderField).fontFamily.indexOf('consolas') === -1,
+            '车窗: ' + metroLook + '  <=>  背景: ' + opacityLook);
+        /*
+          背景缩略图项整块是库的按钮(见 src/setting/background_section.ts).两件事只有
           在真级联里才验得出来:本站的 .bgbtn 盖住了库基线的块排布 / 内边距,而"按钮
           该有的部分"(指针 / 描边 / 悬停 / 焦点)仍由库基线供着 -- 本站样式表或库样式
           表少引入一份,这两边就会各塌一半,进程内 DOM 看不出来.
