@@ -200,6 +200,12 @@
     /* 输入框上下外边距 / 最小高度 */
     --rbt-input-margin: 10px;
     --rbt-input-min-height: 100px;
+    /* 性质检查:通过(浅绿,与输入框的绿同一色系)/ 不通过(玫红,同解析错误) */
+    --rbt-pass-color: #4ade80;
+    --rbt-fail-color: #e11d48;
+    /* 性质检查清单的抬头色(弱化)与上下外边距 */
+    --rbt-diag-summary-color: #94a3b8;
+    --rbt-diag-margin: 6px;
 
     /* ---------- IEEE 754 面板:文案色 ---------- */
     /* 提示文字(浅灰) */

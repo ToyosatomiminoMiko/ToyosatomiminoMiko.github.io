@@ -1,6 +1,15 @@
 /*
 2026.05.01.00:00:00
-红黑树工具
+红黑树工具:画布绘制 + 挂载
+
+解析与性质检查在 rbt_tree.ts(纯逻辑,可单测);本文件只剩两件事:
+- TreeDrawer:区间递归分配布局 + 画节点 / 连线 / 文本;
+- mountRBT:接管宿主,把"格式检查 -> 性质检查 -> 重绘"接到输入框的 input 事件上.
+
+三步的先后是死的(见 renderTree):
+1. 解析(格式检查)不过 -> 只出 #treeError,画布画错误文案,清单隐藏;
+2. 解析过了 -> 画树,并把性质检查的结果画在画布顶部(清单也点亮);
+3. 输入为空 -> 画布出提示文案,错误与清单都隐藏.
 */
 import {
     RBT_BLACK_NODE_FILL,
@@ -9,45 +18,40 @@ import {
     RBT_BLACK_NODE_TEXT,
     RBT_CANVAS_BACKGROUND,
     RBT_CLAMP_TOLERANCE,
-    RBT_COLOR_BLACK,
     RBT_COLOR_RED,
-    RBT_COMMA,
+    RBT_DIAGNOSTICS_ROW_CLASS,
+    RBT_DIAGNOSTICS_STATE_CLASS,
+    RBT_DIAGNOSTICS_SUMMARY_CLASS,
     RBT_EDGE_COLOR,
     RBT_EDGE_LINE_WIDTH,
     RBT_EMPTY_HINT_COLOR,
     RBT_EMPTY_HINT_FONT,
     RBT_EMPTY_HINT_TEXT,
     RBT_EMPTY_TEXT,
-    RBT_ERR_COLOR_MARK,
-    RBT_ERR_NODE_FORMAT,
-    RBT_ERR_NO_COMMA,
-    RBT_ERR_PARSE_FAILED,
-    RBT_ERR_SHORTHAND_NO_COLOR,
-    RBT_ERR_SHORTHAND_TOO_SHORT,
-    RBT_ERR_SHORTHAND_TOO_SHORT_SUFFIX,
-    RBT_ERR_UNBALANCED,
     RBT_ERROR_HINT_COLOR,
     RBT_ERROR_HINT_FONT,
     RBT_ERROR_PREFIX,
     RBT_ERROR_TEXT_MAX,
     RBT_ERROR_UI_PREFIX,
-    RBT_LEAF_SUFFIX,
-    RBT_LEFT_PAREN,
     RBT_MIN_CHILD_WIDTH_FACTOR,
     RBT_MIN_HORIZONTAL_GAP,
-    RBT_MIN_SHORTHAND_LENGTH,
-    RBT_NIL,
     RBT_NODE_FONT_FAMILY,
     RBT_NODE_FONT_MIN_SIZE,
     RBT_NODE_FONT_RADIUS_FACTOR,
     RBT_NODE_RADIUS,
     RBT_NODE_SHADOW_BLUR,
     RBT_NODE_SHADOW_COLOR,
+    RBT_PROPERTIES,
+    RBT_PROPERTY_FAIL_COLOR,
+    RBT_PROPERTY_PASS_COLOR,
+    RBT_PROPERTY_ROW_FONT,
+    RBT_PROPERTY_ROW_LINE_HEIGHT,
+    RBT_PROPERTY_STATE_FAIL,
+    RBT_PROPERTY_STATE_PASS,
     RBT_RED_NODE_FILL,
     RBT_RED_NODE_LINE_WIDTH,
     RBT_RED_NODE_STROKE,
     RBT_RED_NODE_TEXT,
-    RBT_RIGHT_PAREN,
     RBT_SIDE_MARGIN,
     RBT_SINGLE_CHILD_GAP_FACTOR,
     RBT_START_Y,
@@ -56,110 +60,14 @@ import {
     RBT_TREE_EXAMPLE,
     RBT_Y_STEP,
 } from './config';
+import {
+    buildTreeFromExpression,
+    checkTreeProperties,
+    formatPropertySummary,
+    type RbtNode,
+    type RbtPropertyReport,
+} from './rbt_tree';
 import { createRbtPanel } from './ui/rbt_panel';
-
-// ============================================================
-// 红黑树节点定义(值统一按字符串处理)
-// ============================================================
-type Color = 'R' | 'B';
-
-class RBNode {
-    value: string;
-    color: Color;
-    left: RBNode | null;
-    right: RBNode | null;
-    // 布局时添加的坐标属性(由 TreeDrawer 设置)
-    x?: number;
-    y?: number;
-
-    constructor(value: string, color: Color, left: RBNode | null = null, right: RBNode | null = null) {
-        this.value = value;
-        this.color = color;
-        this.left = left;
-        this.right = right;
-    }
-}
-
-// ============================================================
-// 解析核心: 支持 "13B(8R(1B,11R),17R(15B,25B))" 以及简写叶子 "5R" -> 自动补全 "(nil,nil)"
-// ============================================================
-function parseNode(str: string): RBNode | null {
-    let s = str.trim();
-    // nil / 空 直接返回 null
-    if (s === '' || s === RBT_NIL || s === 'Nil' || s === 'NIL') {
-        return null;
-    }
-
-    // 简写叶子节点: 不带括号 => 自动包装成 值颜色(nil,nil)
-    if (!s.includes(RBT_LEFT_PAREN)) {
-        if (s.length < RBT_MIN_SHORTHAND_LENGTH) {
-            throw new Error(`${RBT_ERR_SHORTHAND_TOO_SHORT}${s}${RBT_ERR_SHORTHAND_TOO_SHORT_SUFFIX}`);
-        }
-        const lastChar = s[s.length - 1];
-        if (lastChar !== RBT_COLOR_RED && lastChar !== RBT_COLOR_BLACK) {
-            throw new Error(`${RBT_ERR_SHORTHAND_NO_COLOR}${s}"`);
-        }
-        const fullExpr = `${s}${RBT_LEAF_SUFFIX}`;
-        return parseNode(fullExpr);
-    }
-
-    // 标准带括号解析
-    const leftParenIdx = s.indexOf(RBT_LEFT_PAREN);
-    const valueColorPart = s.substring(0, leftParenIdx);
-    if (valueColorPart.length < RBT_MIN_SHORTHAND_LENGTH) {
-        throw new Error(`${RBT_ERR_NODE_FORMAT}${valueColorPart}`);
-    }
-    const colorChar = valueColorPart[valueColorPart.length - 1];
-    if (colorChar !== RBT_COLOR_RED && colorChar !== RBT_COLOR_BLACK) {
-        throw new Error(`${RBT_ERR_COLOR_MARK}${valueColorPart}`);
-    }
-    const valueStr = valueColorPart.substring(0, valueColorPart.length - 1);
-
-    // 匹配括号内左右子树
-    let balance = 1;
-    let rightParenIdx = leftParenIdx + 1;
-    while (rightParenIdx < s.length && balance > 0) {
-        if (s[rightParenIdx] === RBT_LEFT_PAREN) balance++;
-        else if (s[rightParenIdx] === RBT_RIGHT_PAREN) balance--;
-        rightParenIdx++;
-    }
-    if (balance !== 0) {
-        throw new Error(`${RBT_ERR_UNBALANCED}${s}`);
-    }
-    const inside = s.substring(leftParenIdx + 1, rightParenIdx - 1);
-    let commaIdx = -1;
-    let depth = 0;
-    for (let i = 0; i < inside.length; i++) {
-        const ch = inside[i];
-        if (ch === RBT_LEFT_PAREN) depth++;
-        else if (ch === RBT_RIGHT_PAREN) depth--;
-        else if (ch === RBT_COMMA && depth === 0) {
-            commaIdx = i;
-            break;
-        }
-    }
-    if (commaIdx === -1) {
-        throw new Error(`${RBT_ERR_NO_COMMA}${inside}`);
-    }
-    const leftStr = inside.substring(0, commaIdx);
-    const rightStr = inside.substring(commaIdx + 1);
-
-    const leftChild = parseNode(leftStr);
-    const rightChild = parseNode(rightStr);
-    return new RBNode(valueStr, colorChar as Color, leftChild, rightChild);
-}
-
-function buildTreeFromExpression(expr: string): RBNode | null {
-    if (!expr || expr.trim() === '') {
-        return null;
-    }
-    try {
-        return parseNode(expr);
-    } catch (e) {
-        console.error(e);
-        throw new Error(`${RBT_ERR_PARSE_FAILED}${(e as Error).message}`);
-    }
-}
 
 // ============================================================
 // 画布绘制器 -- 区间递归分配法:每个节点占据一段水平区间并居中,左右子树
@@ -189,7 +97,7 @@ class TreeDrawer {
     // --------------------------------------------------------
     // 核心布局: 递归分配区间
     // --------------------------------------------------------
-    private placeNodeRecursive(node: RBNode, leftBound: number, rightBound: number, y: number): void {
+    private placeNodeRecursive(node: RbtNode, leftBound: number, rightBound: number, y: number): void {
         // 节点水平居中于可用区间
         const x = (leftBound + rightBound) / 2;
         node.x = x;
@@ -230,7 +138,7 @@ class TreeDrawer {
         }
     }
 
-    layoutTree(root: RBNode): void {
+    layoutTree(root: RbtNode): void {
         const leftBoundary = this.sideMargin;
         const rightBoundary = this.canvasWidth - this.sideMargin;
         if (leftBoundary >= rightBoundary) return;
@@ -239,7 +147,7 @@ class TreeDrawer {
         this.clampNodePositions(root);
     }
 
-    private clampNodePositions(node: RBNode): void {
+    private clampNodePositions(node: RbtNode): void {
         const minX = this.sideMargin - RBT_CLAMP_TOLERANCE;
         const maxX = this.canvasWidth - this.sideMargin + RBT_CLAMP_TOLERANCE;
         if (node.x !== undefined && node.x < minX) node.x = minX;
@@ -248,7 +156,7 @@ class TreeDrawer {
         if (node.right) this.clampNodePositions(node.right);
     }
 
-    drawLines(node: RBNode | null): void {
+    drawLines(node: RbtNode | null): void {
         if (!node) return;
         const ctx = this.ctx;
         const startX = node.x!;
@@ -274,7 +182,7 @@ class TreeDrawer {
         }
     }
 
-    drawNode(node: RBNode): void {
+    drawNode(node: RbtNode): void {
         const ctx = this.ctx;
         const x = node.x!;
         const y = node.y!;
@@ -308,7 +216,7 @@ class TreeDrawer {
         ctx.fillText(node.value, x, y);
     }
 
-    drawAllNodes(node: RBNode | null): void {
+    drawAllNodes(node: RbtNode | null): void {
         if (!node) return;
         this.drawNode(node);
         this.drawAllNodes(node.left);
@@ -321,7 +229,39 @@ class TreeDrawer {
         this.ctx.fillRect(0, 0, this.canvasWidth, this.canvasHeight);
     }
 
-    render(root: RBNode | null): void {
+    /**
+     * 把性质检查的结论画在画布左上角(树之前先画,树盖不住这几行之外的区域).
+     *
+     * 为什么清单之外还要在画布上画一份:清单在输入框下面,长表达式把输入框拉高
+     * 之后会被推出屏幕,而"这棵树到底合不合法"是这幅图的一部分 -- 截图或单看画布
+     * 时不带上结论就会漏看.两处渲染的是同一份 report,不会一处通过一处不通过.
+     */
+    renderPropertyReport(report: RbtPropertyReport): void {
+        const ctx = this.ctx;
+        const left = 16;
+        let y = 24;
+
+        ctx.textAlign = 'left';
+        ctx.textBaseline = RBT_TEXT_BASELINE;
+        ctx.font = RBT_ERROR_HINT_FONT;
+        ctx.fillStyle = report.failedCount === 0 ? RBT_PROPERTY_PASS_COLOR : RBT_PROPERTY_FAIL_COLOR;
+        ctx.fillText(formatPropertySummary(report), left, y);
+
+        ctx.font = RBT_PROPERTY_ROW_FONT;
+        for (const [index, spec] of RBT_PROPERTIES.entries()) {
+            const result = report.results[index];
+            y += RBT_PROPERTY_ROW_LINE_HEIGHT;
+            ctx.fillStyle = result.pass ? RBT_PROPERTY_PASS_COLOR : RBT_PROPERTY_FAIL_COLOR;
+            const state = result.pass ? RBT_PROPERTY_STATE_PASS : RBT_PROPERTY_STATE_FAIL;
+            // 不通过时把出错位置一起画上:只说"不通过",读者还得自己找是哪一层
+            const detail = result.pass || result.detail === '' ? '' : ` (${result.detail})`;
+            ctx.fillText(`${spec.label}: ${state}${detail}`, left, y);
+        }
+        // 交还画布状态,别影响后面的绘制(错误文案与树都由各自的分支重设对齐)
+        ctx.textAlign = RBT_TEXT_ALIGN;
+    }
+
+    render(root: RbtNode | null): void {
         this.clearCanvas();
         if (!root) {
             this.ctx.font = RBT_EMPTY_HINT_FONT;
@@ -343,7 +283,8 @@ class TreeDrawer {
 /**
  * 把红黑树面板挂到宿主(骨架交回的 `shell.panes.rbt` 空窗格)上.
  * 标记由 rbt_panel.ts 生成并把元素引用交回,所以这里只按引用操作元素,
- * 不查 DOM,也没有"找不到元素"的失败路径;绘制与解析逻辑都在本文件里.
+ * 不查 DOM,也没有"找不到元素"的失败路径;绘制在 TreeDrawer,解析与性质检查在
+ * rbt_tree.ts.
  */
 export function mountRBT(host: HTMLElement): void {
     const panel = createRbtPanel();
@@ -353,6 +294,7 @@ export function mountRBT(host: HTMLElement): void {
 
     const input = panel.input;
     const errorEl = panel.error;
+    const diagnosticsEl = panel.diagnostics;
     const canvas = panel.canvas;
 
     const ctx = canvas.getContext('2d');
@@ -367,6 +309,42 @@ export function mountRBT(host: HTMLElement): void {
         return drawer;
     };
 
+    /**
+     * 把清单渲染成"每条一行":抬头 + 四条性质,每条是
+     * `<div class="tree-property">性质名: <span class="tree-property-state">通过 / 不通过</span> 出错位置</div>`.
+     *
+     * 整批重建而不是逐条更新:条数与文案都由 config 的 RBT_PROPERTIES 决定,
+     * 重建最省事也很难写错;这一块每次输入都会重建,但只有"抬头 + 四条"这么几个
+     * 节点,不是性能路径.
+     */
+    const renderDiagnostics = (report: RbtPropertyReport | null): void => {
+        if (report === null) {
+            diagnosticsEl.replaceChildren();
+            diagnosticsEl.hidden = true;
+            return;
+        }
+        const rows = RBT_PROPERTIES.map((spec, index) => {
+            const result = report.results[index];
+            const row = document.createElement('div');
+            row.className = RBT_DIAGNOSTICS_ROW_CLASS;
+            row.append(document.createTextNode(`${spec.label}: `));
+            const state = document.createElement('span');
+            state.className = RBT_DIAGNOSTICS_STATE_CLASS;
+            state.classList.add(result.pass ? 'is-pass' : 'is-fail');
+            state.textContent = result.pass ? RBT_PROPERTY_STATE_PASS : RBT_PROPERTY_STATE_FAIL;
+            row.append(state);
+            if (!result.pass && result.detail !== '') {
+                row.append(document.createTextNode(` ${result.detail}`));
+            }
+            return row;
+        });
+        const summary = document.createElement('div');
+        summary.className = RBT_DIAGNOSTICS_SUMMARY_CLASS;
+        summary.textContent = formatPropertySummary(report);
+        diagnosticsEl.replaceChildren(summary, ...rows);
+        diagnosticsEl.hidden = false;
+    };
+
     const renderTree = (): void => {
         const activeDrawer = ensureDrawer();
         const expr = input.value.trim();
@@ -378,17 +356,31 @@ export function mountRBT(host: HTMLElement): void {
 
         if (expr === RBT_EMPTY_TEXT) {
             setError(RBT_EMPTY_TEXT);
+            renderDiagnostics(null);
             activeDrawer.render(null);
             return;
         }
 
         try {
+            // 第 1 步:格式检查(解析).过了才有树可查性质
             const rootNode = buildTreeFromExpression(expr);
             setError(RBT_EMPTY_TEXT);
+            if (rootNode === null) {
+                // 表达式非空但解析成 nil:画布出空树提示,没有性质可查
+                renderDiagnostics(null);
+                activeDrawer.render(null);
+                return;
+            }
+            // 第 2 步:性质检查.清单与画布上那几行渲染同一份 report
+            const report = checkTreeProperties(rootNode);
+            renderDiagnostics(report);
             activeDrawer.render(rootNode);
+            activeDrawer.renderPropertyReport(report);
         } catch (err) {
+            // 格式检查没过:只出错误框,清单隐藏(性质检查的输入都还没有)
             const msg = (err as Error).message;
             setError(msg);
+            renderDiagnostics(null);
             activeDrawer.clearCanvas();
             activeDrawer.ctx.font = RBT_ERROR_HINT_FONT;
             activeDrawer.ctx.fillStyle = RBT_ERROR_HINT_COLOR;

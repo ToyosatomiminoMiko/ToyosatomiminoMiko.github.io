@@ -622,3 +622,32 @@ canvas#pixelCanvas {
     /* 保留显式声明 */
     white-space: pre-wrap;
 }
+
+/*
+ * 性质检查清单(输入框下面那块,由 rbt.ts 逐条重建 #treeProperties 的子节点).
+ *
+ * 布局用 gap 而不是给每行 margin:行数是 config 里 RBT_PROPERTIES 的长度,加一条
+ * 就多一行,行距只该写一处.每条一行,等宽字体(与输入框里的表达式对齐),状态色
+ * 挂在 `.tree-property-state` 上,抬头弱化:一眼扫过去先看有没有红的.
+ */
+#treeProperties {
+    display: flex;
+    flex-direction: column;
+    gap: var(--rbt-diag-margin);
+    margin-bottom: var(--rbt-diag-margin);
+    font-family: var(--font-code);
+    line-height: 1.4;
+}
+
+#treeProperties .tree-property-summary {
+    color: var(--rbt-diag-summary-color);
+}
+
+/* 通过 / 不通过:颜色只认令牌(见 tokens.css 的 --rbt-pass-color / --rbt-fail-color) */
+#treeProperties .tree-property-state.is-pass {
+    color: var(--rbt-pass-color);
+}
+
+#treeProperties .tree-property-state.is-fail {
+    color: var(--rbt-fail-color);
+}

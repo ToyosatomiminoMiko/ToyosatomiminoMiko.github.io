@@ -264,6 +264,68 @@ const report = await cdp.eval(`(() => {
         } catch (e) { redPixels = -1; }
         ok('红黑树真的画出来了(有红色节点)', redPixels > 200, redPixels + ' 个红像素(采样到上限即停)');
 
+        /*
+          性质检查(见 rbt/rbt_tree.ts):清单是"抬头 + 每条一行",示例树是合法红黑树
+          所以四条全过.这里验的是**清单真的被渲染出来了**(条数 == config 里的条数)
+          与"通过 / 不通过"两种结论的类名与颜色都挂上了;具体某棵树该过哪几条由
+          npm test 的 rbt_tree.test.ts 覆盖,这里不重复.
+        */
+        const propertyRows = qa('#treeProperties .tree-property');
+        const propertySummary = q('#treeProperties .tree-property-summary');
+        const passStates = qa('#treeProperties .tree-property-state.is-pass');
+        const failStates = qa('#treeProperties .tree-property-state.is-fail');
+        /*
+          颜色要换算过再比:令牌里写的是 #4ade80,getComputedStyle 给的永远是
+          rgb(74, 222, 128),直接比字符串会永远不相等;而且令牌读不到时两边都是
+          空串也会"相等",那种真问题正好被这条换算暴露出来.
+        */
+        const readColorToken = (name) =>
+            getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        const toRgb = (color) => {
+            const hex = /^#([0-9a-f]{6})$/i.exec(color);
+            if (!hex) return color;
+            const n = parseInt(hex[1], 16);
+            return 'rgb(' + ((n >> 16) & 255) + ', ' + ((n >> 8) & 255) + ', ' + (n & 255) + ')';
+        };
+        ok('红黑树性质清单渲染出来了(示例树四条全过)',
+            q('#treeProperties') !== null && q('#treeProperties').hidden === false &&
+            propertyRows.length === 4 && passStates.length === 4 && failStates.length === 0 &&
+            propertySummary !== null &&
+            propertyRows.every((row) => row.textContent.indexOf('通过') !== -1) &&
+            (passStates[0] ? getComputedStyle(passStates[0]).color : '') ===
+                toRgb(readColorToken('--rbt-pass-color')) &&
+            (propertySummary ? propertySummary.textContent : '').indexOf('4 条中 0 条') !== -1,
+            '行数 ' + propertyRows.length + ' / 通过 ' + passStates.length + ' / 抬头 ' +
+                (propertySummary ? propertySummary.textContent : '没有抬头'));
+
+        /*
+          往输入框里喂一棵坏树(根是红的 + 左子树里塞了更小的值),看清单会不会跟着变:
+          这一下同时走"input 事件 -> 重新解析 -> 性质检查 -> 重建清单"整条链路,
+          单测各自只覆盖其中一段.
+        */
+        const treeInput = q('#treeInput');
+        if (treeInput) {
+            treeInput.value = '10R(5B(3B,7B),40B(2B,50B))';
+            treeInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        const failAfterBad = qa('#treeProperties .tree-property-state.is-fail');
+        const badRows = qa('#treeProperties .tree-property');
+        const failRowTexts = badRows.filter((row) => row.textContent.indexOf('不通过') !== -1)
+            .map((row) => row.textContent);
+        ok('喂一棵坏树:清单跟着报不通过(根红 + 值乱序两条)',
+            failAfterBad.length === 2 && failRowTexts.length === 2 &&
+            (failAfterBad[0] ? getComputedStyle(failAfterBad[0]).color : '') ===
+                toRgb(readColorToken('--rbt-fail-color')),
+            '未通过 ' + failAfterBad.length + ' 条: ' + failRowTexts.join(' / '));
+        // 还原成一条合法红黑树,免得后面几条"页面状态"的断言读到被改过的输入
+        if (treeInput) {
+            treeInput.value = '15B(7R(3B,11B),23R(19B,27B))';
+            treeInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        ok('改回合法树:清单回到四条全过',
+            qa('#treeProperties .tree-property-state.is-fail').length === 0 &&
+            qa('#treeProperties .tree-property-state.is-pass').length === 4);
+
         // IEEE754:初始那次渲染真的跑完了(位图 64 格 + KaTeX 公式 + 特殊值表)
         ok('IEEE754 初始渲染跑完(位图 64 格 + KaTeX + 特殊值表)',
             qa('#ieee-bits .ieee-bit').length === 64 && q('#ieee-formula .katex') !== null &&

@@ -13,7 +13,29 @@ $there$ $is$ $nothing$ $to$ $do.$
 
 ## Red-Black Tree Lab
 
-读取字符串生成红黑树
+读取字符串生成红黑树,并检查它到底是不是一棵红黑树.
+
+两步是分开的,先格式后性质:
+
+1. **格式检查**(`src/rbt/rbt_tree.ts` 的解析器):表达式写法错了(缺逗号 / 括号不配 /
+   颜色不是 R 或 B)只出一条错误提示,画布中央画错误文案,性质清单不显示 --
+   连树都没有,列性质没有意义.
+2. **性质检查**(同文件的 `checkTreeProperties`):解析成功后才跑,四条性质各一条,
+   结果显示两处(输入框下面的清单 + 画布左上角那几行),两边渲染的是同一份结果:
+
+   | 性质 | 不通过时说的是什么 |
+   | --- | --- |
+   | 根节点是黑色 | 指出那个红根(如 `10R`) |
+   | 红节点的孩子是黑色 | 指出那个红节点 |
+   | 各路径黑节点数相同 | 指出黑高开始分岔的节点,并给出两侧的黑高 |
+   | 二叉搜索树有序 | 指出哪棵子树不满足左小右大(值按数值比,相等也算乱序) |
+
+清单顺序 = 检查顺序 = `src/rbt/config.ts` 的 `RBT_PROPERTIES` 顺序;加一条性质要同时
+在 `RBT_PROPERTIES` 里加一条,在 `checkTreeProperties` 的 `checks` 里加一条对应的
+检查函数(有单测钉住两边条数一致).CLRS 那五条里剩下的几条(非红即黑 / nil 叶子黑 /
+每个节点要么两个孩子要么都是 nil)**结构上不可能违反**,所以不列进清单:
+颜色是表达式里写死的,`nil` 由解析器当黑叶子(不建节点),单孩子写法
+`5B(1B)` 在解析阶段就报"缺少逗号".理由写在 `config.ts` 的 `RBT_PROPERTIES` 上方.
 
 ## IEEE 754
 
@@ -121,7 +143,7 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
 | SETTING 页的面板 / 标题 | `src/common/site.config.ts` 的 `SETTING_PANEL_TITLE`(标题"设置");框体由 miko_ui 的 `createPanel` 建(`section.ui-panel`),结构与外观都在库(`styles/widgets.css`),面板结构在 `src/common/ui/site_shell.ts` |
 | LED 时钟的画布尺寸 / 时间戳格式 | `src/clock/config.ts`;标记在 `src/clock/ui/clock_display.ts`;绘制在 `src/clock/clock.ts` |
 | OLED 画板的按钮 / 文案 / 提示 | `src/oled/config.ts`,面板标记在 `src/oled/ui/oled_panel.ts` |
-| 红黑树的提示文案 / 画布尺寸 / 占位符 | `src/rbt/config.ts`,面板标记在 `src/rbt/ui/rbt_panel.ts` |
+| 红黑树的提示文案 / 画布尺寸 / 占位符 / 性质清单 | `src/rbt/config.ts`(`RBT_PROPERTIES` 是性质清单,清单顺序 = 检查顺序),面板标记在 `src/rbt/ui/rbt_panel.ts`,解析与性质检查在 `src/rbt/rbt_tree.ts`,绘制与挂载在 `src/rbt/rbt.ts` |
 | IEEE 754 的标签 / 精度菜单项 / 初值 | `src/ieee754/config.ts`,面板标记在 `src/ieee754/ui/ieee754_panel.ts` |
 | 地铁车窗的滑块 / 风格按钮 / 上传图层 | `src/metro_window/src/config.ts`,面板在 `src/metro_window/src/ui/`(见它自己的 README) |
 | 导航条"隐形 / 实底"(首屏,各标签页),背景切换 | `src/common/header_state.ts` / `src/common/background.ts`(行为),令牌与类名在 `src/common/site.config.ts` |
@@ -202,7 +224,7 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
 | 作用域 | 配置文件 | 放什么 |
 | --- | --- | --- |
 | 主站样式 | `public/css/tokens.css` | 站点设计令牌(`:root`):字体栈,调色板,尺寸,圆角,间距,`z-index`,过渡;首屏(`--hero-*`)与固定导航条(`--chrome-*`) |
-| 主站脚本 | `src/clock/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,OLED 画板尺寸/通道/文案,红黑树布局与配色,IEEE 754 精度格式与掩码,站点级声明式模型(导航项 / 首屏结构 / SETTING 整页面板的类名与标题 / 背景缩略图行 / 各模块宿主 id / `is-over-hero` 类名 / `--nav-height` 令牌名) |
+| 主站脚本 | `src/clock/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,OLED 画板尺寸/通道/文案,红黑树布局与配色 + 性质清单(四条性质的名字与出错文案都在 `RBT_PROPERTIES`),IEEE 754 精度格式与掩码,站点级声明式模型(导航项 / 首屏结构 / SETTING 整页面板的类名与标题 / 背景缩略图行 / 各模块宿主 id / `is-over-hero` 类名 / `--nav-height` 令牌名) |
 | 首页骨架 | `src/common/ui/site_shell.ts`,`src/common/ui/background_section.ts` | 骨架(含 SETTING 那面站点面板)与背景缩略图两块声明式组件(标记用库的 `create_element`;每块缩略图 tile 整块是库的 `createButton`) |
 | 主站行为 | `src/main.ts`,`src/common/header_state.ts`,`src/common/background.ts` | 挂载顺序(骨架 -> 各模块 -> 行为),导航条"隐形 / 实底"状态(首屏还压在它下面时,以及任何标签页停在页面顶端时),背景切换令牌写入 |
 | 4xx 页面样式 | `src/4xx_page/418/418_tokens.css`,`src/4xx_page/451/451_tokens.css`;`404/404.css` 与 `shared/icon.css` 顶部的 `:root` 块 | 各彩蛋页的设计令牌(颜色 / 几何 / 阴影 / 时长 / 字体) |
