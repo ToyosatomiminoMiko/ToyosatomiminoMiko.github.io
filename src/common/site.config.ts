@@ -148,9 +148,11 @@ export const BACKGROUND_PRESETS = [
     { src: '/images/bgimg/bgcode.gif', label: 'CODE' },
 ] as const satisfies readonly BackgroundPresetSpec[];
 
-/** 背景列表 / 列表项 / 缩略图按钮 / 缩略图本身的类名(样式见 public/css/index.css) */
-export const BACKGROUND_LIST_CLASS = 'bgul';
-export const BACKGROUND_ITEM_CLASS = 'bgli';
+/**
+ * 背景缩略图那一行(排布行的容器)的类名(样式见 public/css/index.css 的 `.bgrow`).
+ * 行本身不是控件,只是把两颗按钮并排摆开的 flex 容器.
+ */
+export const BACKGROUND_ROW_CLASS = 'bgrow';
 /**
  * 缩略图按钮的类名:整块 tile 由库的 `createButton` 生成(基线类 `.ui-button`),
  * 这个类只叠本站要盖住基线的部分(块的排布与内边距,见 index.css 的 `.bgbtn`).

@@ -272,15 +272,60 @@ const report = await cdp.eval(`(() => {
         /*
           ---- 第 3 组:布局与 CSS 级联(进程内 DOM 没有布局,只能在这里验) ----
         */
-        ok('背景列表真的包住了浮动子项(.bgul 的 flow-root 生效,不再压住下面的控制台)',
-            getComputedStyle(q('ul.bgul')).display === 'flow-root');
+        /*
+          背景缩略图只是一行 flex 容器(见 common/ui/background_section.ts):两颗按钮并排,
+          行高必须包住它们 -- 老写法里浮动项会让行高塌成 0,压住下面的控制台,所以那时
+          验的是 .bgul 的 flow-root;现在行是 flex 容器,直接验"行真的摊开 + 两块 tile
+          并排 + 行高包住它们".
+
+          量之前要先把 SETTING 窗格临时点亮:此刻它还是 .fade:not(.show) 底下的
+          display: none,隐藏子树的 offset / rect 一律是 0(量不出布局,只会得到
+          "行高 0" 这种假失败).临时加一次 .active 量完就撤,不动类名契约,
+          也不给用户看见(整个表达式在浏览器里同步跑完,中间没有渲染帧).
+        */
+        const bgRow = q('.bgrow');
+        const bgLayout = (() => {
+            const pane = q('#setting');
+            if (!bgRow || !pane) return null;
+            // 隐藏子树里量不到布局:先点亮 SETTING,量完立刻撤(同一次同步执行,不出帧)
+            pane.classList.add('active');
+            const tiles = qa('.bgrow .bgbtn');
+            const gap = parseFloat(getComputedStyle(bgRow).columnGap) || 0;
+            const measured = {
+                height: bgRow.offsetHeight,
+                // 行盒应该正好是"两块 tile + 一道 gap":多出来的宽度就是行上的死区
+                width: bgRow.offsetWidth,
+                contentWidth: gap + tiles.reduce((sum, tile) => sum + tile.offsetWidth, 0),
+                tiles: tiles.map((tile) => ({
+                    width: tile.offsetWidth,
+                    height: tile.offsetHeight,
+                    left: tile.offsetLeft,
+                })),
+            };
+            pane.classList.remove('active');
+            return measured;
+        })();
+        const bgTilesSideBySide = bgLayout !== null && bgLayout.tiles.length === 2 &&
+            bgLayout.tiles.every((tile) => tile.width > 0 && tile.height > 0) &&
+            bgLayout.tiles[1].left >= bgLayout.tiles[0].left + bgLayout.tiles[0].width;
+        ok('背景缩略图行真的摊开且被两块 tile 撑出高度(.bgrow 的 flex + gap 生效)',
+            bgRow !== null && getComputedStyle(bgRow).display === 'flex' &&
+            getComputedStyle(bgRow).columnGap ===
+                getComputedStyle(document.documentElement).getPropertyValue('--setting-row-gap').trim() &&
+            bgTilesSideBySide && bgLayout.height > 0 &&
+            // 行盒贴着按钮(width: fit-content):按钮右边不留"点了没反应"的死区
+            Math.abs(bgLayout.width - bgLayout.contentWidth) < 1,
+            bgRow && bgLayout ? 'display:' + getComputedStyle(bgRow).display +
+                ' gap:' + getComputedStyle(bgRow).columnGap + ' height:' + bgLayout.height + 'px' +
+                ' row:' + bgLayout.width + 'px(内容 ' + bgLayout.contentWidth + 'px)' +
+                ' tiles:' + bgLayout.tiles.map((t) => t.width + 'x' + t.height).join(' / ') : '没有背景行');
         /*
           背景缩略图项整块是库的按钮(见 common/ui/background_section.ts).两件事只有
           在真级联里才验得出来:本站的 .bgbtn 盖住了库基线的块排布 / 内边距,而"按钮
           该有的部分"(指针 / 描边 / 悬停 / 焦点)仍由库基线供着 -- 本站样式表或库样式
           表少引入一份,这两边就会各塌一半,进程内 DOM 看不出来.
         */
-        const bgButton = q('ul.bgul button.bgbtn');
+        const bgButton = q('.bgrow button.bgbtn');
         const bgStyle = bgButton ? getComputedStyle(bgButton) : null;
         const bgPaddingToken = getComputedStyle(document.documentElement)
             .getPropertyValue('--setting-item-padding').trim();
@@ -301,7 +346,7 @@ const report = await cdp.eval(`(() => {
         ok('点按钮本身(文案 / 内边距)就能换整站背景',
             bgAfter !== bgBefore && bgAfter.indexOf('bgstar') !== -1,
             bgBefore.split('/').pop() + ' -> ' + bgAfter.split('/').pop());
-        qa('ul.bgul button.bgbtn')[1]?.click();
+        qa('.bgrow button.bgbtn')[1]?.click();
         ok('导航条是脱离文档流的固定条(position: fixed)',
             getComputedStyle(q('header.site-header')).position === 'fixed');
         ok('首屏铺满视口高度(hero 的 100dvh 令牌生效)',

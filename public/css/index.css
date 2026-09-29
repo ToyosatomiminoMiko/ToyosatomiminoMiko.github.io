@@ -527,19 +527,27 @@ canvas#pixelCanvas {
     margin-bottom: var(--oled-area-margin);
 }
 
-.bgul {
-    list-style: none;
+.bgrow {
     /*
-     * 让 ul 自己包住浮动子项(建立 BFC).少了它,ul 高度算成 0,后面的兄弟块 --
-     * SETTING 标签页里紧接着它的地铁车窗控制台 #metro-params -- 会从 ul 的顶边
-     * 开始排,于是边框盒与缩略图重叠:缩略图浮在面板底色上,面板内容被挤到右侧.
+     * 只有两颗按钮,用 flex 并排摆开.行本身不是控件,只是排布容器.
+     *
+     * 这里不再需要"让容器包住子项"那一步:缩略图按钮原是浮动的 tile,浮动项不参与
+     * 父容器的高度计算,所以老写法要在列表上补 `display: flow-root` 建 BFC,否则行高
+     * 算成 0,后面的兄弟块(SETTING 标签页里紧接着它的地铁车窗控制台 #metro-params)
+     * 会从行的顶边开始排,边框盒与缩略图重叠;flex 容器的高度本来就包含子项,
+     * 这条坑随之消失.
      */
-    display: flow-root;
-}
-
-.bgli {
-    float: left;
-    margin: var(--setting-item-margin);
+    display: flex;
+    /*
+     * 行的盒子贴着按钮(shrink-to-fit),不吃满整行:块级 flex 容器默认铺满父宽,
+     * 点按钮右边那截空白就会落在 `.bgrow` 自己身上(委托按 .bgbtn 找不到按钮,
+     * 静默什么也不发生 -- 不报错,但"点了没反应").收成内容宽之后,行上就没有
+     * 那种"看着在某颗按钮旁边,其实不在按钮里"的死区.
+     */
+    width: fit-content;
+    gap: var(--setting-row-gap);
+    /* 两块 tile 各自按内容定高,不被 flex 的默认 stretch 拉平 */
+    align-items: flex-start;
 }
 
 /*
@@ -552,8 +560,10 @@ canvas#pixelCanvas {
  * 底色**不写**:库基线的透明底就是最终观感,不再往 tile 上铺一层站点自己的色.
  *
  * `display: block` 让图与文案竖排(图是 `display:block`,文案自然落下一行),
- * 按钮的宽度由缩略图与内边距撑出来(浮动项的 shrink-to-fit),不再钉死宽高.
- * 描边 / 悬停描边变色 / 焦点环 / 禁用透明度仍归库,本站不重写.
+ * 按钮的宽高由缩略图与内边距撑出来;`align-items: flex-start` 再挡掉 flex 的
+ * 默认 `stretch`(行里两块 tile 一样高时看不出差别,一旦有一块更高,另一块就会
+ * 被拉长,块的形状跟着内容走这句话就不成立了).描边 / 悬停描边变色 / 焦点环 /
+ * 禁用透明度仍归库,本站不重写.
  */
 .bgbtn {
     display: block;

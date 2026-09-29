@@ -13,7 +13,7 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { mountBackgroundSwitcher } from '@/common/background';
-import { BACKGROUND_IMAGE_VARIABLE } from '@/common/site.config';
+import { BACKGROUND_IMAGE_VARIABLE, BACKGROUND_ROW_CLASS } from '@/common/site.config';
 import { createBackgroundSection } from '@/common/ui/background_section';
 
 /** 当前写进文档根的那张背景图(没写过时是空串) */
@@ -71,8 +71,8 @@ describe('背景切换的点击委托', () => {
         expect(activeBackground()).toBe(backgroundValue(source));
     });
 
-    it('点列表空白处(不在按钮里)不改背景', () => {
-        document.querySelector<HTMLElement>('ul.bgul')?.click();
+    it('点行上的空白处(不在按钮里)不改背景', () => {
+        document.querySelector<HTMLElement>(`.${BACKGROUND_ROW_CLASS}`)?.click();
         expect(activeBackground()).toBe('');
     });
 });

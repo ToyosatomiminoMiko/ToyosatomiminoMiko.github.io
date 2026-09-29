@@ -257,9 +257,9 @@ describe('首页骨架:五个标签页窗格', () => {
         const shell = setupShell();
         const setting = shell.panes.setting;
         const body = setting.querySelector('.ui-panel-body');
-        // 背景区只交出一个 ul,后两个是车窗的宿主(宿主仍在面板体里,组件照旧长进去)
+        // 背景区只交出一行按钮(div),后两个是车窗的宿主(宿主仍在面板体里,组件照旧长进去)
         expect([...(body?.children ?? [])].map((child) => child.tagName))
-            .toEqual(['UL', 'DIV', 'DIV']);
+            .toEqual(['DIV', 'DIV', 'DIV']);
         expect(body?.lastElementChild).toBe(shell.metroUploads);
         expect(body?.children[1]).toBe(shell.metroPanel);
         expect(setting.querySelector(`#${SITE_HOST_IDS.metroPanel}`)).toBe(shell.metroPanel);

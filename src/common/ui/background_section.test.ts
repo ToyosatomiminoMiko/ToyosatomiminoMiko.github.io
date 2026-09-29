@@ -3,7 +3,7 @@
  *
  * 这一块的类名有一半是**行为契约**:`common/background.ts` 的点击委托先按
  * `.bgbtn` 命中"被点的是哪一颗按钮",再从按钮里按 `.bgimg` 取出要切的那张图;
- * 另一半是 CSS(`.bgul` 的 flow-root,`.bgli` 的浮动,`.bgbtn` / `.bgimg` 的盒子).
+ * 另一半是布局(`.bgrow` 的 flex 并排,`.bgbtn` / `.bgimg` 的盒子).
  * 所以这里既断言结构,也断言"缩略图清单换了以后选择器照样命中".
  *
  * 委托本身的行为(点图 / 点文案各自切到哪一张)在 `common/background.test.ts`.
@@ -15,9 +15,8 @@ import { describe, expect, it } from 'vitest';
 import {
     BACKGROUND_BUTTON_CLASS,
     BACKGROUND_IMAGE_CLASS,
-    BACKGROUND_ITEM_CLASS,
-    BACKGROUND_LIST_CLASS,
     BACKGROUND_PRESETS,
+    BACKGROUND_ROW_CLASS,
 } from '@/common/site.config';
 import { createBackgroundSection } from '@/common/ui/background_section';
 
@@ -30,35 +29,45 @@ function render(): HTMLElement {
     return container;
 }
 
+/** 本次渲染出来的缩略图行(就是组件交出的那个节点) */
+function row(container: HTMLElement): HTMLElement {
+    const found = container.querySelector<HTMLElement>(`.${BACKGROUND_ROW_CLASS}`);
+    if (found === null) throw new Error('没有背景缩略图行');
+    return found;
+}
+
 describe('SETTING:背景切换区', () => {
-    it('只交出一个 ul(SETTING 的标题属于整页面板的 .ui-panel-header,不在这里)', () => {
+    it('只交出一行(SETTING 的标题属于整页面板的 .ui-panel-header,不在这里)', () => {
         const container = render();
-        expect([...container.children].map((child) => child.tagName)).toEqual(['UL']);
+        expect([...container.children].map((child) => child.tagName)).toEqual(['DIV']);
+        expect(row(container).className).toBe(BACKGROUND_ROW_CLASS);
         expect(container.querySelector('.ui-panel-header')).toBeNull();
         expect(container.querySelector('.ui-panel-title')).toBeNull();
+        // 列表语义已撤:只有两颗并排的按钮,不再包一层 ul/li
+        expect(container.querySelector('ul, li')).toBeNull();
     });
 
-    it('列表与列表项用 CSS 约定的类名', () => {
+    it('行里的直接子节点就是各颗按钮(没有列表项夹在中间)', () => {
         const container = render();
-        const list = container.querySelector(`ul.${BACKGROUND_LIST_CLASS}`);
-        expect(list).not.toBeNull();
-        expect(list?.children).toHaveLength(BACKGROUND_PRESETS.length);
-        for (const item of [...(list?.children ?? [])]) {
-            expect(item.tagName).toBe('LI');
-            expect(item.className).toBe(BACKGROUND_ITEM_CLASS);
+        const children = [...row(container).children];
+        expect(children).toHaveLength(BACKGROUND_PRESETS.length);
+        for (const child of children) {
+            expect(child.tagName, child.className).toBe('BUTTON');
+            expect(child.classList.contains(BACKGROUND_BUTTON_CLASS), child.className).toBe(true);
         }
     });
 
-    it('每项是一颗库的按钮(基线 .ui-button + 本站 .bgbtn),type=button', () => {
+    it('每颗按钮都是库的按钮(基线 .ui-button + 本站 .bgbtn),type=button', () => {
         const container = render();
-        const buttons = [...container.querySelectorAll(`li.${BACKGROUND_ITEM_CLASS} > button`)];
+        const buttons = [...container.querySelectorAll<HTMLButtonElement>(`button.${BACKGROUND_BUTTON_CLASS}`)];
         expect(buttons).toHaveLength(BACKGROUND_PRESETS.length);
         for (const button of buttons) {
             // 按钮本体归库:基线类由 createButton 补,本站的类只叠在它后面
             expect(button.classList.contains('ui-button'), button.className).toBe(true);
-            expect(button.classList.contains(BACKGROUND_BUTTON_CLASS), button.className).toBe(true);
             // 显式 type 才不会在将来被塞进 <form> 时变成提交按钮
             expect(button.getAttribute('type')).toBe('button');
+            // 按钮直接挂在行上:委托按 .bgbtn 命中它,取图也只往按钮里找
+            expect(button.parentElement).toBe(row(container));
         }
     });
 
@@ -91,5 +100,12 @@ describe('SETTING:背景切换区', () => {
         // 取出要切的那张图就是按钮里的 .bgimg
         expect(image?.closest(`.${BACKGROUND_BUTTON_CLASS}`)).toBe(button);
         expect(button?.querySelector(`.${BACKGROUND_IMAGE_CLASS}`)).toBe(image);
+    });
+
+    it('行本身不是控件(点行上的空白不会落到任何一颗按钮里)', () => {
+        const container = render();
+        const element = row(container);
+        expect(element).toBeInstanceOf(HTMLDivElement);
+        expect(element.closest(`.${BACKGROUND_BUTTON_CLASS}`)).toBeNull();
     });
 });
