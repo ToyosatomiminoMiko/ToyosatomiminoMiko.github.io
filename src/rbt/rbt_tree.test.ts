@@ -105,13 +105,13 @@ describe('红黑树:性质检查', () => {
         expect(check('10B(5R(1B,7B),20R(15B,30B))').failedCount).toBe(0);
     });
 
-    it('空树是合法红黑树:四条都通过,节点数为 0', () => {
+    it('空树是合法红黑树:四条都 PASS,节点数为 0', () => {
         const report = checkTreeProperties(null);
         expect(report.failedCount).toBe(0);
         expect(report.nodeCount).toBe(0);
     });
 
-    it('第 1 条:根是红色 -> 根黑不通过,并指出是哪个节点', () => {
+    it('第 1 条:根是红色 -> 根黑 FAIL,并指出是哪个节点', () => {
         const result = property('10R(5B,20B)', PROPERTY_IDS.rootBlack);
         expect(result.pass).toBe(false);
         expect(result.detail).toContain('10R');
@@ -144,7 +144,7 @@ describe('红黑树:性质检查', () => {
         expect(result.detail).toMatch(/较深一侧 3/);
     });
 
-    it('第 4 条:值乱序 -> 搜索序不通过(黑高合法也照样报)', () => {
+    it('第 4 条:值乱序 -> 搜索序 FAIL(黑高合法也照样报)', () => {
         // 根的右子树里放了 2:父子关系(2<40)全对,只有"已见到的区间"
         // 能发现 2 比根 10 小
         const expression = '10B(5B(3B,7B),40B(2B,50B))';
@@ -166,7 +166,7 @@ describe('红黑树:性质检查', () => {
         // "搜索能确认违规的地方",不是根因定位.
     });
 
-    it('相等值(重复)不算有序:两侧共用同一个数会判不通过', () => {
+    it('相等值(重复)不算有序:两侧共用同一个数会判 FAIL', () => {
         expect(property('10B(10B,20B)', PROPERTY_IDS.bstOrder).pass).toBe(false);
         expect(property('10B(5B,10B)', PROPERTY_IDS.bstOrder).pass).toBe(false);
     });
@@ -187,9 +187,9 @@ describe('红黑树:性质检查', () => {
         expect(findPropertyResult(report, PROPERTY_IDS.bstOrder).pass).toBe(true);
     });
 
-    it('抬头文案把总条数 / 未通过条数换成数字', () => {
+    it('抬头文案把总条数 / FAIL 条数换成数字', () => {
         expect(formatPropertySummary(check('10B(5R(1B,7B),20R(15B,30B))')))
             .toContain(`${RBT_PROPERTIES.length} 条中 0 条`);
-        expect(formatPropertySummary(check('10R(5B,20B)'))).toMatch(/条中 [1-9]\d* 条未通过/);
+        expect(formatPropertySummary(check('10R(5B,20B)'))).toMatch(/条中 [1-9]\d* 条 FAIL/);
     });
 });

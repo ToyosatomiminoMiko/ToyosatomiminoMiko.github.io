@@ -136,7 +136,16 @@ function parseNode(str: string): RbtNode | null {
  * 把表达式解析成一棵树;空表达式给 `null`(空树).
  *
  * 失败一律抛 Error:文案是 config 里那几条 RBT_ERR_*,由调用方决定是显示在
- * 画布上还是错误框里.`console.error` 保留原始错误对象(带栈),方便定位是谁抛的.
+ * 画布上还是错误框里.
+ *
+ * 原始错误对象挂在新错误的 `cause` 上(而不是像原来那样先 `console.error(e)`):
+ * 解析失败是**预期内的用户输入错误**,不是异常状况 -- 每敲错一个字符就往控制台
+ * 打一条红字,正常使用会被刷屏;跑测试时更糟:故意喂错表达式的用例会往 stderr
+ * 打字,看日志的人会以为测试挂了(运行时这条路径会真实发生,不是只在测试里).
+ * 需要看原始栈时走 `error.cause` 即可,信息一点没少.
+ *
+ * `cause` 是手动挂的,不是 `new Error(msg, { cause })`:tsconfig 是 ES2020
+ * (ErrorOptions 是 ES2022 才进 lib),用构造函数那个重载编译不过.
  */
 export function buildTreeFromExpression(expr: string): RbtNode | null {
     if (!expr || expr.trim() === '') {
@@ -145,8 +154,9 @@ export function buildTreeFromExpression(expr: string): RbtNode | null {
     try {
         return parseNode(expr);
     } catch (e) {
-        console.error(e);
-        throw new Error(`${RBT_ERR_PARSE_FAILED}${(e as Error).message}`);
+        const error = new Error(`${RBT_ERR_PARSE_FAILED}${(e as Error).message}`);
+        (error as Error & { cause?: unknown }).cause = e;
+        throw error;
     }
 }
 
@@ -158,9 +168,9 @@ export function buildTreeFromExpression(expr: string): RbtNode | null {
 export interface RbtPropertyResult {
     /** 对应 RbtPropertySpec.id */
     readonly id: string;
-    /** 是否通过 */
+    /** 是否 PASS */
     readonly pass: boolean;
-    /** 不通过时的出错位置(已填好占位符);通过时是空串 */
+    /** FAIL 时的出错位置(已填好占位符);PASS 时是空串 */
     readonly detail: string;
 }
 
@@ -168,13 +178,13 @@ export interface RbtPropertyResult {
 export interface RbtPropertyReport {
     /** 逐条结论,顺序与 RBT_PROPERTIES 一致 */
     readonly results: readonly RbtPropertyResult[];
-    /** 不通过的条数 */
+    /** FAIL 的条数 */
     readonly failedCount: number;
     /** 总条数(= RBT_PROPERTIES.length) */
     readonly total: number;
     /**
      * 检查了多少个节点(不含 nil 叶子).
-     * 空树是合法的红黑树,此时是 0,所有条目照样通过(每条性质在空树上都是空真).
+     * 空树是合法的红黑树,此时是 0,所有条目照样 PASS(每条性质在空树上都是空真).
      */
     readonly nodeCount: number;
 }

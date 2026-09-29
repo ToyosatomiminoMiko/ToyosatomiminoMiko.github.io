@@ -643,7 +643,7 @@ canvas#pixelCanvas {
     color: var(--rbt-diag-summary-color);
 }
 
-/* 通过 / 不通过:颜色只认令牌(见 tokens.css 的 --rbt-pass-color / --rbt-fail-color) */
+/* PASS/FAIL:颜色只认令牌(见 tokens.css 的 --rbt-pass-color / --rbt-fail-color) */
 #treeProperties .tree-property-state.is-pass {
     color: var(--rbt-pass-color);
 }

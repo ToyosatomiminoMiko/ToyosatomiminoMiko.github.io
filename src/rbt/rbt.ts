@@ -8,7 +8,7 @@
 
 三步的先后是死的(见 renderTree):
 1. 解析(格式检查)不过 -> 只出 #treeError,画布画错误文案,清单隐藏;
-2. 解析过了 -> 画树,并把性质检查的结果画在画布顶部(清单也点亮);
+2. 解析过了 -> 画树,性质检查的结论写进输入框下面的 HTML 清单;
 3. 输入为空 -> 画布出提示文案,错误与清单都隐藏.
 */
 import {
@@ -42,10 +42,6 @@ import {
     RBT_NODE_SHADOW_BLUR,
     RBT_NODE_SHADOW_COLOR,
     RBT_PROPERTIES,
-    RBT_PROPERTY_FAIL_COLOR,
-    RBT_PROPERTY_PASS_COLOR,
-    RBT_PROPERTY_ROW_FONT,
-    RBT_PROPERTY_ROW_LINE_HEIGHT,
     RBT_PROPERTY_STATE_FAIL,
     RBT_PROPERTY_STATE_PASS,
     RBT_RED_NODE_FILL,
@@ -229,38 +225,6 @@ class TreeDrawer {
         this.ctx.fillRect(0, 0, this.canvasWidth, this.canvasHeight);
     }
 
-    /**
-     * 把性质检查的结论画在画布左上角(树之前先画,树盖不住这几行之外的区域).
-     *
-     * 为什么清单之外还要在画布上画一份:清单在输入框下面,长表达式把输入框拉高
-     * 之后会被推出屏幕,而"这棵树到底合不合法"是这幅图的一部分 -- 截图或单看画布
-     * 时不带上结论就会漏看.两处渲染的是同一份 report,不会一处通过一处不通过.
-     */
-    renderPropertyReport(report: RbtPropertyReport): void {
-        const ctx = this.ctx;
-        const left = 16;
-        let y = 24;
-
-        ctx.textAlign = 'left';
-        ctx.textBaseline = RBT_TEXT_BASELINE;
-        ctx.font = RBT_ERROR_HINT_FONT;
-        ctx.fillStyle = report.failedCount === 0 ? RBT_PROPERTY_PASS_COLOR : RBT_PROPERTY_FAIL_COLOR;
-        ctx.fillText(formatPropertySummary(report), left, y);
-
-        ctx.font = RBT_PROPERTY_ROW_FONT;
-        for (const [index, spec] of RBT_PROPERTIES.entries()) {
-            const result = report.results[index];
-            y += RBT_PROPERTY_ROW_LINE_HEIGHT;
-            ctx.fillStyle = result.pass ? RBT_PROPERTY_PASS_COLOR : RBT_PROPERTY_FAIL_COLOR;
-            const state = result.pass ? RBT_PROPERTY_STATE_PASS : RBT_PROPERTY_STATE_FAIL;
-            // 不通过时把出错位置一起画上:只说"不通过",读者还得自己找是哪一层
-            const detail = result.pass || result.detail === '' ? '' : ` (${result.detail})`;
-            ctx.fillText(`${spec.label}: ${state}${detail}`, left, y);
-        }
-        // 交还画布状态,别影响后面的绘制(错误文案与树都由各自的分支重设对齐)
-        ctx.textAlign = RBT_TEXT_ALIGN;
-    }
-
     render(root: RbtNode | null): void {
         this.clearCanvas();
         if (!root) {
@@ -311,7 +275,7 @@ export function mountRBT(host: HTMLElement): void {
 
     /**
      * 把清单渲染成"每条一行":抬头 + 四条性质,每条是
-     * `<div class="tree-property">性质名: <span class="tree-property-state">通过 / 不通过</span> 出错位置</div>`.
+     * `<div class="tree-property">性质名: <span class="tree-property-state">PASS / FAIL</span> 出错位置</div>`.
      *
      * 整批重建而不是逐条更新:条数与文案都由 config 的 RBT_PROPERTIES 决定,
      * 重建最省事也很难写错;这一块每次输入都会重建,但只有"抬头 + 四条"这么几个
@@ -371,11 +335,9 @@ export function mountRBT(host: HTMLElement): void {
                 activeDrawer.render(null);
                 return;
             }
-            // 第 2 步:性质检查.清单与画布上那几行渲染同一份 report
-            const report = checkTreeProperties(rootNode);
-            renderDiagnostics(report);
+            // 第 2 步:性质检查(结果只进 HTML 清单,不往画布上画)
+            renderDiagnostics(checkTreeProperties(rootNode));
             activeDrawer.render(rootNode);
-            activeDrawer.renderPropertyReport(report);
         } catch (err) {
             // 格式检查没过:只出错误框,清单隐藏(性质检查的输入都还没有)
             const msg = (err as Error).message;

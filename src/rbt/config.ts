@@ -153,7 +153,7 @@ export const RBT_ERROR_HINT_COLOR = '#e11d48';
 // 表达式先过**格式检查**(解析器,错了只出 #treeError),解析成功再过**性质检查**:
 // 这棵树到底是不是一棵红黑树.清单排在输入框下面,每条一行,文案全部来自本区块.
 //
-// 性质有**先后**之分:前一条不通过时,后面的往往也在报同一处错(一棵根为红的树
+// 性质有**先后**之分:前一条 FAIL 时,后面的往往也在报同一处错(一棵根为红的树
 // 通常还伴随红红相接),所以清单按下面这个顺序排,第一条不过就先看第一条.
 
 /** 清单容器的类名 */
@@ -171,17 +171,17 @@ export const RBT_DIAGNOSTICS_SUMMARY_CLASS = 'tree-property-summary';
 /**
  * 清单抬头模板(可见文本).
  *
- * `{total}` 换成性质总条数,`{failed}` 换成不通过的条数 -- 两处都在代码里算,
- * 所以"加一条性质"或"改文案"都只动这一个地方,不会出现抬头写着 5 条,
- * 清单里其实 6 行这种对不上的情况.
+ * `{total}` 换成性质总条数,`{failed}` 换成FAIL 的条数 -- 两处都在代码里算,
+ * 所以"加一条性质"或"改文案"都只动这一个地方,不会出现抬头写着 4 条,
+ * 清单里其实 5 行这种对不上的情况.
  */
-export const RBT_PROPERTY_SUMMARY = '红黑树性质检查: {total} 条中 {failed} 条未通过';
+export const RBT_PROPERTY_SUMMARY = '红黑树性质检查: {total} 条中 {failed} 条 FAIL';
 
-/** 单条性质通过时的结论文案(可见文本,不用符号 / 表情) */
-export const RBT_PROPERTY_STATE_PASS = '通过';
+/** 单条性质 PASS 时的结论文案(可见文本,不用符号 / 表情) */
+export const RBT_PROPERTY_STATE_PASS = 'PASS';
 
-/** 单条性质不通过时的结论文案(可见文本,不用符号 / 表情) */
-export const RBT_PROPERTY_STATE_FAIL = '不通过';
+/** 单条性质 FAIL 时的结论文案(可见文本,不用符号 / 表情) */
+export const RBT_PROPERTY_STATE_FAIL = 'FAIL';
 
 // ---------- 性质检查:逐条的出错文案 ----------
 //
@@ -211,7 +211,7 @@ export interface RbtPropertySpec {
     /** 界面上的性质名(可见文本) */
     readonly label: string;
     /**
-     * 不通过时的出错位置模板(可见文本).
+     * FAIL 时的出错位置模板(可见文本).
      *
      * 约定:`{node}` 换成出错节点的"值+颜色"(如 `11R`) -- 节点值只存在表达式里,
      * 不给位置读者对不上是哪个节点;其余占位符是该条性质自己的量(见上面各条).
@@ -239,7 +239,7 @@ export interface RbtPropertySpec {
  * - "nil 叶子是黑色":解析器不建 nil 节点(用 null 表示),颜色恒为黑;
  * - "每个节点要么两个子节点都不是 nil,要么都是":括号表达式必须写两个子树
  *   (`5B(1B,2B)`),单孩子写法 `5B(1B)` 在解析阶段就报"缺少逗号",到不了性质检查.
- * 列一条永远通过的条目只会让清单看着更长,所以不列;哪天支持了单孩子写法,
+ * 列一条永远 PASS 的条目只会让清单看着更长,所以不列;哪天支持了单孩子写法,
  * 再把那条加回来.
  */
 export const RBT_PROPERTIES: readonly RbtPropertySpec[] = [
@@ -269,28 +269,10 @@ export const RBT_PROPERTIES: readonly RbtPropertySpec[] = [
  * 二叉搜索树有序性的比较容差.
  *
  * 只用来兜住浮点写法(如 `0.1 + 0.2` 那类值在字符串里看不出误差)与整数写法
- * 混用时的边界;相等值(左右子树出现和祖先同一个值)仍然判不通过,所以容差取
+ * 混用时的边界;相等值(左右子树出现和祖先同一个值)仍然判 FAIL,所以容差取
  * 极小值,不会把"值重复"放过.
  */
 export const RBT_COMPARISON_TOLERANCE = 1e-9;
-
-// ---------- 性质检查的绘制(画布左上角那一份,与清单同一份 report) ----------
-//
-// 画布是 canvas 2D,fillsStyle 只认色值,读不到 CSS 变量,所以下面这两个色值
-// 与 public/css/tokens.css 的 --rbt-pass-color / --rbt-fail-color **必须同值**:
-// 清单(canvas 外)走令牌,画布(canvas 内)走这里的常量,改色时两处一起改.
-
-/** 性质全部通过时的绿色(与 tokens.css 的 --rbt-pass-color 同值) */
-export const RBT_PROPERTY_PASS_COLOR = '#4ade80';
-
-/** 性质不通过时的玫红(与 tokens.css 的 --rbt-fail-color 同值) */
-export const RBT_PROPERTY_FAIL_COLOR = '#e11d48';
-
-/** 画布上性质逐条的字体(与解析错误同为 13px 等宽) */
-export const RBT_PROPERTY_ROW_FONT = '13px monospace';
-
-/** 画布上性质逐条的行高(像素) */
-export const RBT_PROPERTY_ROW_LINE_HEIGHT = 22;
 
 // ---------- 文本对齐与占位 ----------
 

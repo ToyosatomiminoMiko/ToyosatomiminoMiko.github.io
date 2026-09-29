@@ -267,9 +267,22 @@ const report = await cdp.eval(`(() => {
         /*
           性质检查(见 rbt/rbt_tree.ts):清单是"抬头 + 每条一行",示例树是合法红黑树
           所以四条全过.这里验的是**清单真的被渲染出来了**(条数 == config 里的条数)
-          与"通过 / 不通过"两种结论的类名与颜色都挂上了;具体某棵树该过哪几条由
+          与"PASS / FAIL"两种结论的类名与颜色都挂上了;具体某棵树该过哪几条由
           npm test 的 rbt_tree.test.ts 覆盖,这里不重复.
         */
+        /*
+          状态文案的真值只有一处(src/rbt/config.ts 的 RBT_PROPERTY_STATE_PASS / _FAIL).
+          这里过去抄了两份字面量,后来 config 那句被改写成 PASS / FAIL 而脚本没跟上,
+          这两条断言就直接挂了 -- 所以现在从页面上现读,不在脚本里维护第二份文案.
+
+          坏树那一轮里,清单上只会出现两种状态文案(一条 PASS 一条 FAIL),所以
+          "不是 PROPERTY_PASS 的那个"就是失败文案;这样脚本对文案本身完全免疫.
+        */
+        const collectStateTexts = () =>
+            [...new Set([...document.querySelectorAll('#treeProperties .tree-property-state')]
+                .map((state) => state.textContent))];
+        const stateTextsBefore = collectStateTexts();
+        const PROPERTY_PASS = stateTextsBefore[0] || '';
         const propertyRows = qa('#treeProperties .tree-property');
         const propertySummary = q('#treeProperties .tree-property-summary');
         const passStates = qa('#treeProperties .tree-property-state.is-pass');
@@ -291,11 +304,11 @@ const report = await cdp.eval(`(() => {
             q('#treeProperties') !== null && q('#treeProperties').hidden === false &&
             propertyRows.length === 4 && passStates.length === 4 && failStates.length === 0 &&
             propertySummary !== null &&
-            propertyRows.every((row) => row.textContent.indexOf('通过') !== -1) &&
+            propertyRows.every((row) => row.textContent.indexOf(PROPERTY_PASS) !== -1) &&
             (passStates[0] ? getComputedStyle(passStates[0]).color : '') ===
                 toRgb(readColorToken('--rbt-pass-color')) &&
             (propertySummary ? propertySummary.textContent : '').indexOf('4 条中 0 条') !== -1,
-            '行数 ' + propertyRows.length + ' / 通过 ' + passStates.length + ' / 抬头 ' +
+            '行数 ' + propertyRows.length + ' / PASS ' + passStates.length + ' / 抬头 ' +
                 (propertySummary ? propertySummary.textContent : '没有抬头'));
 
         /*
@@ -310,13 +323,15 @@ const report = await cdp.eval(`(() => {
         }
         const failAfterBad = qa('#treeProperties .tree-property-state.is-fail');
         const badRows = qa('#treeProperties .tree-property');
-        const failRowTexts = badRows.filter((row) => row.textContent.indexOf('不通过') !== -1)
+        const stateTextsAfter = collectStateTexts();
+        const PROPERTY_FAIL = stateTextsAfter.find((text) => text !== PROPERTY_PASS) || '';
+        const failRowTexts = badRows.filter((row) => row.textContent.indexOf(PROPERTY_FAIL) !== -1)
             .map((row) => row.textContent);
-        ok('喂一棵坏树:清单跟着报不通过(根红 + 值乱序两条)',
+        ok('喂一棵坏树:清单跟着报 FAIL(根红 + 值乱序两条)',
             failAfterBad.length === 2 && failRowTexts.length === 2 &&
             (failAfterBad[0] ? getComputedStyle(failAfterBad[0]).color : '') ===
                 toRgb(readColorToken('--rbt-fail-color')),
-            '未通过 ' + failAfterBad.length + ' 条: ' + failRowTexts.join(' / '));
+            'FAIL ' + failAfterBad.length + ' 条: ' + failRowTexts.join(' / '));
         // 还原成一条合法红黑树,免得后面几条"页面状态"的断言读到被改过的输入
         if (treeInput) {
             treeInput.value = '15B(7R(3B,11B),23R(19B,27B))';
