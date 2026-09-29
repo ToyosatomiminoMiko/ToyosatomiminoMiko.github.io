@@ -12,7 +12,7 @@ IEEE 754 面板的标记组件(声明式).
           <div class="ieee-controls__format">
             精度 label(for 指触发按钮)
             div.menu-anchor                      精度菜单的锚点(库的定位参照)
-              button#ieee-format.ui-button       触发按钮:显示当前精度
+              button#ieee-format.ui-button       触发按钮:显示当前精度(<code>类型名</code>)
               div.menu-panel.menu-popover        菜单面板(role="menu",两项,当前项带 .is-active)
                 button.menu-item                 主文案是 <code>float (32bit)</code>,行右弱色小字"单精度"
           </div>
@@ -112,6 +112,17 @@ export function formatTriggerText(value: string): string {
     return choice?.label ?? value;
 }
 
+/**
+ * 把精度文案写进触发按钮,并按代码字体排:内容是 `<code>标签</code>`.
+ *
+ * 与菜单项同一套排法(类型名 float / double 是代码,不是正文),两处都由本文件管,
+ * 所以行为代码换精度时也走这里,不必知道里面包了 `<code>`;`.textContent` 直接赋值的
+ * 话会把那个 `<code>` 冲掉,提交后按钮就从等宽字体退回正文字体(不报错,只是看着不一样).
+ */
+export function setFormatTriggerText(trigger: HTMLButtonElement, value: string): void {
+    trigger.replaceChildren(create_element({ tag: 'code' }, {}, formatTriggerText(value)));
+}
+
 /** 图例里的一段:纯文本直接返回;位数提示生成 <b> 并把它登记进 sink(供调用方交回引用) */
 function createLegendPart(part: IEEE754LegendPart, sink: Record<string, HTMLElement>): Child {
     if (!('bitsRole' in part)) {
@@ -160,6 +171,15 @@ export function createIeee754Panel(): Ieee754Panel {
         ariaLabel: IEEE754_FORMAT_LABEL,
         trigger: formatTrigger,
     });
+    /*
+      分组标题(`.menu-group-title`)从面板里摘掉:这一个菜单只有一组,而它叫什么
+      写在这一列的 `<label>`("精度")与触发按钮身上了 -- 组标题是同一句话的第三遍.
+      库的 `createMenu` 总会建这个节点(它不知道调用方有几组),所以在建好之后移除;
+      组的 `aria-label` 是另一个属性(库直接写在 `.menu-group` 上),读屏那边不受影响.
+    */
+    for (const title of formatMenu.panel.querySelectorAll('.menu-group-title')) {
+        title.remove();
+    }
     // 菜单项的主文案用 `<code>` 包一层:显示的既然是类型名(float / double),
     // 就按代码字体排(站点样式让 code 继承所在元素的颜色,见 index.css 的 code 规则).
     // 库的 `MenuEntry` 只收字符串,所以菜单建好后再把每项的**主文案文字节点**
@@ -171,6 +191,8 @@ export function createIeee754Panel(): Ieee754Panel {
         if (!label) return;
         button.replaceChild(create_element({ tag: 'code' }, {}, choice.label), label);
     });
+    // 触发按钮里的文案同样是类型名,按菜单项的同一套排法包 `<code>`(见上面的函数)
+    setFormatTriggerText(formatTrigger, initialFormat.value);
 
     // 初始当前项:菜单只认"哪一项高亮",不自己记当前值(状态在行为代码那边).
     formatMenu.setActive(initialFormat.value);

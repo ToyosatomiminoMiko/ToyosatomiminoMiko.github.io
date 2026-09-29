@@ -37,7 +37,7 @@ import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import { create_element } from 'miko_ui';
 import type { IEEE754Class, IEEE754Format, IEEE754Value } from './types';
-import { createIeee754Panel, formatTriggerText } from './ui/ieee754_panel';
+import { createIeee754Panel, setFormatTriggerText } from './ui/ieee754_panel';
 import {
     FLOAT32,
     FLOAT32_KEY,
@@ -519,7 +519,9 @@ export function mountIEEE754(host: HTMLElement): void {
     const setFormat = (value: string): void => {
         formatValue = value;
         formatMenu.setActive(value);
-        formatTrigger.textContent = formatTriggerText(value);
+        // 按钮里的文案是 `<code>标签</code>`(与菜单项同一套排法),包法在组件那边,
+        // 这里不直接写 textContent -- 那样会把 `<code>` 冲掉,字体悄悄变回正文
+        setFormatTriggerText(formatTrigger, value);
     };
 
     // 点浮层外部关闭的监听挂在 document.body 上:面板浮在卡片上,点在卡片外

@@ -51,6 +51,7 @@ import {
 import {
     createIeee754Panel,
     formatTriggerText,
+    setFormatTriggerText,
     type Ieee754Panel,
 } from '@/ieee754/ui/ieee754_panel';
 
@@ -115,6 +116,9 @@ describe('IEEE754:精度与输入那一行', () => {
         expect(trigger).toBe(panel.formatTrigger);
         expect(trigger.classList.contains('ui-button')).toBe(true);
         expect(trigger.textContent).toBe(formatTriggerText(IEEE754_DEFAULT_FORMAT_VALUE));
+        // 按钮里的文案也是类型名,和菜单项一样包在 <code> 里(等宽字体)
+        expect(trigger.querySelector('code')?.textContent)
+            .toBe(formatTriggerText(IEEE754_DEFAULT_FORMAT_VALUE));
         expect(trigger.getAttribute('aria-expanded')).toBe('false');
         // 锚点:面板靠 `.menu-anchor`(库样式给 position: relative)挂在按钮下沿,
         // 两个子节点就是"按钮 + 面板",顺序即层叠关系
@@ -141,6 +145,31 @@ describe('IEEE754:精度与输入那一行', () => {
             .toEqual(IEEE754_FORMAT_CHOICES.map((choice) => choice.active));
         expect(items.map((item) => item.hasAttribute('aria-current')))
             .toEqual(IEEE754_FORMAT_CHOICES.map((choice) => choice.active));
+    });
+
+    it('菜单分组不写标题(.menu-group-title 已摘掉),分组名只留在 aria-label 上', () => {
+        const panel = render();
+        // 这一个菜单只有一组,组名与那一列的 label / 触发按钮重复,所以不要可见标题;
+        // 库的 createMenu 总会建这个节点,摘除是组件在生成之后做的
+        expect(panel.formatMenu.panel.querySelector('.menu-group-title')).toBeNull();
+        // 分组本身还在(role=group + aria-label),读屏那边照旧能听到组名
+        const group = panel.formatMenu.panel.querySelector('.menu-group');
+        expect(group).not.toBeNull();
+        expect(group?.getAttribute('role')).toBe('group');
+        expect(group?.getAttribute('aria-label')).toBe(IEEE754_FORMAT_LABEL);
+        // 摘的是标题,不是把菜单项一起带走
+        expect(panel.formatMenu.panel.querySelectorAll('.menu-item'))
+            .toHaveLength(IEEE754_FORMAT_CHOICES.length);
+    });
+
+    it('换精度时走 setFormatTriggerText:文字是新的,<code> 还在', () => {
+        const panel = render();
+        const other = IEEE754_FORMAT_CHOICES.find((choice) => !choice.active);
+        if (!other) throw new Error('声明里只有一种精度,这条用例没有可切的目标');
+        setFormatTriggerText(panel.formatTrigger, other.value);
+        expect(panel.formatTrigger.textContent).toBe(other.label);
+        // 直接写 textContent 会把 <code> 冲掉,字体悄悄退回正文 -- 这条钉住包法
+        expect(panel.formatTrigger.querySelector('code')?.textContent).toBe(other.label);
     });
 
     it('十进制输入框改用站点样式类,转换按钮是库按钮:初值 / 类名 / type 都对得上', () => {

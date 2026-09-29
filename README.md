@@ -321,6 +321,12 @@ main.ts          按顺序调用:骨架 -> 各模块 -> 行为
   收回 `.head` 的 `border-radius`.
 - **RBT 唯一一处结构变化**:提示区原先夹在标题栏与正文之间,框体归库之后正文只有
   一个入口,提示区移进了 `.ui-panel-body` 最前(其余面板结构不变).
+- **IEEE754 精度菜单的两处本站裁量**(都写在 `src/ieee754/ui/ieee754_panel.ts` 里):
+  一是触发按钮与菜单项一样,把类型名包在 `<code>` 里(`setFormatTriggerText` 是唯一
+  写入点 -- 行为代码换精度时直接写 `textContent` 会把 `code` 冲掉,字体悄悄退回正文);
+  二是**分组标题不显示**:库的 `createMenu` 总会建 `.menu-group-title`,而这一个菜单
+  只有一组,组名与同一行的 `<label>`("精度")重复,所以建好之后把那个节点摘掉
+  (分组自己的 `aria-label` 是属性,读屏照旧能听到).
 - **bootstrap 已整包移除**.原先最后一处 bootstrap 用法是标签页
   (`.nav-tabs` / `.nav-item` / `.nav-link` / `.tab-pane` 与 `data-bs-toggle="tab"`
   的 data-api),现在由 `src/common/tabs.ts` 自己实现:点击 /
