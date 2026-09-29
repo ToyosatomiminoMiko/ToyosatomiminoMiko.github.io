@@ -164,6 +164,48 @@ export const BACKGROUND_BUTTON_CLASS = 'bgbtn';
  */
 export const BACKGROUND_IMAGE_CLASS = 'bgimg';
 
+// ---------- SETTING:页面透明度 ----------
+
+/*
+ 背景行里那条"页面透明度"滑块:拖它改的是**标签页窗格**的 opacity(导航条在窗格
+ 外面,不受影响).这个量的三处落点(滑块本身 / tokens.css 的初值 / index.css 的
+ `.tab-pane` 规则)里,数值口径集中在这里,样式那边只引用令牌名.
+*/
+
+/**
+ * 窗格透明度的 CSS 自定义属性名.
+ * 默认值在 public/css/tokens.css 的 :root,消费方是 index.css 的 `.tab-pane`
+ * 规则;运行时的值由 src/common/page_opacity.ts 写到文档根的内联样式上.
+ * 这是 CSS 与 TS 的跨语言契约,改这里的字面量必须同步那两个样式表.
+ */
+export const PAGE_OPACITY_VARIABLE = '--tab-pane-opacity';
+
+/**
+ * 透明度初值(也是滑块的重置目标).
+ * 必须与 public/css/tokens.css 的 `--tab-pane-opacity` 相等,理由见那边.
+ */
+export const PAGE_OPACITY_DEFAULT = 0.9;
+
+/**
+ * 滑块区间与步长.
+ *
+ * 下限 0.5:这条滑块自己就住在窗格(SETTING)里,再往下调连它也会跟着变淡 --
+ * 到 0 就是彻底消失,只剩一条看不见的滑杆,想拖回来全靠盲操;0.5 是"自己还看得清"
+ * 的那一档.步长 0.01 与缺省的两位小数显示同一档.
+ */
+export const PAGE_OPACITY_MIN = 0.5;
+export const PAGE_OPACITY_MAX = 1;
+export const PAGE_OPACITY_STEP = 0.01;
+
+/** 滑块名称(可见文案:库会把 `<label for>` 关联到滑杆,同时是数值框的可访问名) */
+export const PAGE_OPACITY_LABEL = '页面透明度';
+
+/**
+ * 滑块根节点的站点类名(样式见 index.css 的 `.opacity-field`:它在背景行里占多宽).
+ * 库的 `.slider-field` 只管内部排布,不决定"一条滑块在一排里多宽".
+ */
+export const PAGE_OPACITY_FIELD_CLASS = 'opacity-field';
+
 // ---------- 背景切换(行为侧) ----------
 
 /**

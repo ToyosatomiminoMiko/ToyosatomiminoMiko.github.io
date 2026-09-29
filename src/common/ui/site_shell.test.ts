@@ -20,6 +20,8 @@ import {
     AVATAR_LINK,
     AVATAR_LINK_CLASS,
     AVATAR_SRC,
+    BACKGROUND_PRESETS,
+    BACKGROUND_ROW_CLASS,
     DEFAULT_NAV_PANE,
     HEADER_CLASS,
     HERO_BOTTOM_CLASS,
@@ -236,6 +238,20 @@ describe('首页骨架:五个标签页窗格', () => {
         }
     });
 
+    it('交回的背景行就是 .bgrow 那一个元素(页面透明度滑块往里追加)', () => {
+        /*
+          背景行不是空宿主:骨架建完它里面已经有 BACKGROUND_PRESETS 那么多个缩略图,
+          页面透明度滑块(src/common/page_opacity.ts)是 main.ts 挂载时往它里面
+          **追加**的第三条参数行.这里钉住"交回的确实是文档里那一行",骨架本身
+          不建滑块(标记归模块).
+        */
+        const shell = setupShell();
+        expect(classes(shell.backgroundRow)).toEqual([BACKGROUND_ROW_CLASS]);
+        expect(shell.backgroundRow.parentElement?.className).toBe('ui-panel-body');
+        expect(shell.backgroundRow).toBe(document.querySelector(`.${BACKGROUND_ROW_CLASS}`));
+        expect(shell.backgroundRow.children).toHaveLength(BACKGROUND_PRESETS.length);
+    });
+
     it('SETTING 窗格是"整页一张面板",标题在 .ui-panel-header', () => {
         const shell = setupShell();
         const setting = shell.panes.setting;
@@ -260,6 +276,7 @@ describe('首页骨架:五个标签页窗格', () => {
         // 背景区只交出一行按钮(div),后两个是车窗的宿主(宿主仍在面板体里,组件照旧长进去)
         expect([...(body?.children ?? [])].map((child) => child.tagName))
             .toEqual(['DIV', 'DIV', 'DIV']);
+        expect(body?.firstElementChild).toBe(shell.backgroundRow);
         expect(body?.lastElementChild).toBe(shell.metroUploads);
         expect(body?.children[1]).toBe(shell.metroPanel);
         expect(setting.querySelector(`#${SITE_HOST_IDS.metroPanel}`)).toBe(shell.metroPanel);

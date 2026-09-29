@@ -361,7 +361,8 @@ main {
 
 /*
  * 切换时的淡入:`.active` 立刻上屏(display: block),`.show` 由切换逻辑在下一帧补上,
- * 透明度从 0 过渡到 1.少了 `opacity: 0` 那条,新窗格会直接跳出来.
+ * 透明度从 0 过渡到 `--tab-pane-opacity`(下面那条).少了 `opacity: 0` 那条,
+ * 新窗格会直接跳出来.
  */
 .tab-pane.fade {
     transition: opacity var(--transition-tab-fade);
@@ -369,6 +370,20 @@ main {
 
 .tab-pane.fade:not(.show) {
     opacity: 0;
+}
+
+/*
+ * 窗格自身的透明度 = 令牌 `--tab-pane-opacity`(默认 0.9,见 tokens.css).
+ * SETTING 里那条"页面透明度"滑块用 `documentElement.style.setProperty()` 改写它
+ * (src/common/page_opacity.ts),所以整站的标签页内容一起变淡.
+ *
+ * 这条写的是 (0,1,0),**故意低于**上面那条隐藏态的 (0,3,0):窗格藏起来时必须是
+ * 真透明,否则切走的窗格会以"半透明"留在页面上.同理,滑块绝不能改成往窗格上写
+ * 内联 opacity -- 内联样式压得过 `.fade:not(.show)`,切走的窗格就再也藏不住
+ * (display: none 还在时看不出来,一旦布局变了就是一处查不出的重影).
+ */
+.tab-pane {
+    opacity: var(--tab-pane-opacity);
 }
 
 /* 尊重系统的"减少动态效果"偏好 */
@@ -529,7 +544,9 @@ canvas#pixelCanvas {
 
 .bgrow {
     /*
-     * 只有两颗按钮,用 flex 并排摆开.行本身不是控件,只是排布容器.
+     * 两颗背景缩略图 + 一条"页面透明度"滑块(见下面的 .opacity-field),用 flex 并排
+     * 摆开.行本身不是控件,只是排布容器:滑块由 src/common/page_opacity.ts 在挂载时
+     * append 进来,不写在这一行的标记里.
      *
      * 这里不再需要"让容器包住子项"那一步:缩略图按钮原是浮动的 tile,浮动项不参与
      * 父容器的高度计算,所以老写法要在列表上补 `display: flow-root` 建 BFC,否则行高
@@ -548,6 +565,13 @@ canvas#pixelCanvas {
     gap: var(--setting-row-gap);
     /* 两块 tile 各自按内容定高,不被 flex 的默认 stretch 拉平 */
     align-items: flex-start;
+    /*
+     * 窄窗口里允许换行:行里除了两颗缩略图还有一条定宽的"页面透明度"滑块
+     * (见下面的 .opacity-field),三块并排的宽度是固定的.不许换行的话,窗口一窄
+     * 滑块右半边(数值框与 reset)就会被 body 的 overflow-x: hidden 裁掉 -- 裁掉的
+     * 部分点不到.允许换行之后,放不下的那一块整体落到下一行,自己仍然完整.
+     */
+    flex-wrap: wrap;
 }
 
 /*
@@ -577,6 +601,24 @@ canvas#pixelCanvas {
     /* 圆角用 miko_ui 主题的小圆角(库默认 0px);指针样式不在这里:
        cursor: pointer 由按钮基线给(整块 tile 都可点) */
     border-radius: var(--radius-sm);
+}
+
+/*
+ * 背景行里那条"页面透明度"滑块:整条参数行(名称 + 滑杆 + 数值框 + reset)由库的
+ * `createSlider` 生成(类名 `.slider-field*`,见库 styles/widgets.css),本站只加
+ * 这一个作用域类,写两件事 -- 它在行里占多宽,以及数值框要多宽.
+ *
+ * 为什么要固定宽度:`.bgrow` 是 shrink-to-fit 的 flex 行,库的 `.slider-field` 宽度
+ * 跟着内容走;不定宽的话,数值框文本从 "0.90" 变成 "1.00" 这类抖动都会让整行的
+ * 宽度跳一下(右边两颗缩略图跟着动).
+ *
+ * 数值框宽度走库留的出口 `--slider-field-value-width`(默认 76px):这里最长只有
+ * "0.90" 四个字符,收窄一点名字就不会被挤到换行.
+ */
+.opacity-field {
+    flex: 0 0 auto;
+    width: var(--setting-opacity-field-width);
+    --slider-field-value-width: 56px;
 }
 
 /* LED clock */

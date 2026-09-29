@@ -367,12 +367,18 @@ const report = await cdp.eval(`(() => {
             // 隐藏子树里量不到布局:先点亮 SETTING,量完立刻撤(同一次同步执行,不出帧)
             pane.classList.add('active');
             const tiles = qa('.bgrow .bgbtn');
+            // 行里第三块是"页面透明度"滑块(库的 .slider-field,见 common/page_opacity.ts):
+            // 它也是行的内容,宽度必须算进去,否则下面那条"行盒贴着内容"会假失败
+            const opacityField = q('.bgrow .opacity-field');
             const gap = parseFloat(getComputedStyle(bgRow).columnGap) || 0;
+            const children = [...bgRow.children];
             const measured = {
                 height: bgRow.offsetHeight,
-                // 行盒应该正好是"两块 tile + 一道 gap":多出来的宽度就是行上的死区
+                // 行盒应该正好是"所有子项 + 子项之间的 gap":多出来的宽度就是行上的死区
                 width: bgRow.offsetWidth,
-                contentWidth: gap + tiles.reduce((sum, tile) => sum + tile.offsetWidth, 0),
+                contentWidth: tiles.reduce((sum, tile) => sum + tile.offsetWidth, 0) +
+                    (opacityField ? opacityField.offsetWidth : 0) +
+                    gap * Math.max(0, children.length - 1),
                 tiles: tiles.map((tile) => ({
                     width: tile.offsetWidth,
                     height: tile.offsetHeight,
@@ -385,7 +391,7 @@ const report = await cdp.eval(`(() => {
         const bgTilesSideBySide = bgLayout !== null && bgLayout.tiles.length === 2 &&
             bgLayout.tiles.every((tile) => tile.width > 0 && tile.height > 0) &&
             bgLayout.tiles[1].left >= bgLayout.tiles[0].left + bgLayout.tiles[0].width;
-        ok('背景缩略图行真的摊开且被两块 tile 撑出高度(.bgrow 的 flex + gap 生效)',
+        ok('背景缩略图行真的摊开且被两块 tile(与行里那条滑块)撑出高度(.bgrow 的 flex + gap 生效)',
             bgRow !== null && getComputedStyle(bgRow).display === 'flex' &&
             getComputedStyle(bgRow).columnGap ===
                 getComputedStyle(document.documentElement).getPropertyValue('--setting-row-gap').trim() &&
@@ -507,9 +513,71 @@ const report = await cdp.eval(`(() => {
         const shown = panes.filter((id) => getComputedStyle(q('#' + id)).display !== 'none');
         ok('五个窗格里只有一个可见(窗格显隐规则生效)',
             shown.length === 1 && shown[0] === 'home', '可见: ' + JSON.stringify(shown));
-        ok('可见窗格是不透明的(.fade:not(.show) 的 opacity: 0 没有误伤当前项)',
-            getComputedStyle(q('#home')).opacity === '1',
-            getComputedStyle(q('#home')).opacity);
+        /*
+          窗格的不透明档位不再是写死的 1:它由令牌 --tab-pane-opacity(默认 0.9)给,
+          可见窗格必须正好落在这一档上 -- 既不能停在 0(.fade:not(.show) 误伤当前项),
+          也不能被内联样式顶掉令牌.
+        */
+        const paneOpacityToken = () => Number(
+            getComputedStyle(document.documentElement).getPropertyValue('--tab-pane-opacity'));
+        ok('可见窗格的 opacity 就是令牌 --tab-pane-opacity(.fade:not(.show) 的 opacity: 0 没有误伤当前项)',
+            Math.abs(Number(getComputedStyle(q('#home')).opacity) - paneOpacityToken()) < 1e-6,
+            getComputedStyle(q('#home')).opacity + ' / 令牌 ' + paneOpacityToken());
+        /*
+          页面透明度滑块(SETTING 背景行里那条):拖它写文档根的 --tab-pane-opacity 令牌,
+          窗格的规则消费它.这两件事都只有真级联才算数 -- 进程内 DOM 不解析 var(),
+          令牌名写错的表现是"拖了没反应".量完点重置回到声明值,后面标签页交互那几条
+          断言还读 opacity.
+        */
+        const opacitySlider = q('.bgrow .opacity-field input[type=range]');
+        const opacityPane = q('#home');
+        /*
+          滑块那一格是定宽的(.opacity-field 的 --setting-opacity-field-width):本站
+          给的宽度够不够放下"名称 + 数值框 + reset"要看真布局,所以顺手量一次溢出 --
+          scrollWidth 大过 clientWidth 就是名字/按钮被挤出格子了(窗口窄时会换行 / 叠字,
+          但不会报错).
+        */
+        const opacityFieldEl = q('.bgrow .opacity-field');
+        const opacityMetaEl = q('.bgrow .opacity-field .slider-field-meta');
+        const opacityFits = opacityFieldEl !== null && opacityMetaEl !== null &&
+            opacityFieldEl.scrollWidth <= opacityFieldEl.clientWidth + 1 &&
+            opacityMetaEl.scrollWidth <= opacityMetaEl.clientWidth + 1;
+        /*
+          窗格的 opacity 挂着 150ms 的过渡(标签页切换的淡入,见 index.css 的
+          .tab-pane.fade):不关掉它,改完令牌读到的还是过渡起点.这里临时内联一条
+          transition: none 把过渡停掉(压过类里的那条),量完撤掉 -- 不动类名契约,
+          也不给用户看见(整段在浏览器里同步跑完,中间没有渲染帧).
+          注:这段代码坐在一个模板字符串里,注释里不能出现反引号.
+        */
+        opacityPane.style.transition = 'none';
+        const opacityBefore = getComputedStyle(opacityPane).opacity;
+        const tokenBefore = paneOpacityToken();
+        /*
+          拖到区间中点而不是写死 0.5:区间(0.5 ~ 1.0)是声明里的可调参数,写死的数
+          在区间改了之后会变成"越界值",这条断言就会以看不懂的方式红掉.
+        */
+        const opacityTarget = opacitySlider
+            ? ((Number(opacitySlider.min) + Number(opacitySlider.max)) / 2).toFixed(2)
+            : null;
+        if (opacitySlider) {
+            opacitySlider.value = opacityTarget;
+            opacitySlider.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        const tokenDragged = paneOpacityToken();
+        const opacityDragged = getComputedStyle(opacityPane).opacity;
+        q('.bgrow .opacity-field .slider-field-reset')?.click();
+        const opacityReset = getComputedStyle(opacityPane).opacity;
+        opacityPane.style.transition = '';
+        ok('背景行里那条滑块改的是窗格透明度(--tab-pane-opacity 被 .tab-pane 吃到:默认档 -> 拖到区间中点 -> 重置回默认档)',
+            opacitySlider !== null && opacityFits &&
+            getComputedStyle(q('.bgrow .opacity-field')).width !== '0px' &&
+            opacityDragged === opacityTarget &&
+            Math.abs(Number(opacityReset) - paneOpacityToken()) < 1e-6,
+            'width:' + (opacityFieldEl ? getComputedStyle(opacityFieldEl).width : '没有滑块') +
+            ' 溢出:' + (opacityFieldEl ? opacityFieldEl.scrollWidth - opacityFieldEl.clientWidth : '?') +
+            '/' + (opacityMetaEl ? opacityMetaEl.scrollWidth - opacityMetaEl.clientWidth : '?') +
+            'px 令牌:' + tokenBefore + ' -> ' + tokenDragged +
+            ' pane:' + opacityBefore + ' -> ' + opacityDragged + ' -> ' + opacityReset);
         // 标签是自定义观感的链接:不能还带着浏览器默认的下划线
         ok('标签栏的链接没有下划线(文档基线里的 a 规则接住了)',
             getComputedStyle(q('a.nav-link')).textDecorationLine === 'none',
@@ -683,16 +751,20 @@ for (const item of report) {
 // 总数是数出来的, 而不是把条数写死.
 let adHocTotal = 0;
 const adHoc = (pass) => { adHocTotal++; if (!pass) failed++; };
-// 切过去的窗格必须真的"上屏且不透明",切走的必须真的 display: none --
+// 窗格的不透明档位由令牌 --tab-pane-opacity 给(SETTING 里那条滑块可改它,默认 0.9),
+// 所以这里按**数**比, 不能写死 '1': 前者是"窗格真的落在令牌那一档",后者早已不是契约.
+const paneOpacity = Number(await cdp.eval(
+    `getComputedStyle(document.documentElement).getPropertyValue('--tab-pane-opacity')`));
+// 切过去的窗格必须真的"上屏且落在令牌那一档",切走的必须真的 display: none --
 // 只对类名就会漏掉"类名对了但 CSS 掉了,五个窗格一起堆叠"这种最坏的静默失效.
 const shownOk = (pane) => pane?.active === true && pane?.show === true &&
-    pane?.display === 'block' && pane?.opacity === '1';
+    pane?.display === 'block' && Math.abs(Number(pane?.opacity) - paneOpacity) < 1e-6;
 const hiddenOk = (pane) => pane?.active === false && pane?.show === false && pane?.display === 'none';
 const tabOk = shownOk(tabSwitch?.afterOled?.oled) && tabSwitch?.afterOled?.link === true &&
     hiddenOk(tabSwitch?.afterOled?.home) &&
     shownOk(tabSwitch?.afterHome?.home) && hiddenOk(tabSwitch?.afterHome?.oled);
 console.log(`${tabOk ? '  ok  ' : ' FAIL '} 点标签页能切窗格(站点自己的控制器认下这排触发器,` +
-    `切过去的 window 真的 display: block + opacity: 1,切走的 display: none)`);
+    `切过去的 window 真的 display: block + opacity 落在 --tab-pane-opacity 那一档,切走的 display: none)`);
 adHoc(tabOk);
 // OLED 数据区:一颗编辑器 + 真 textarea;折叠态 = 150px(也是最小高度),
 // 点一下"展开编辑器"变 1366px(70 行,算式见 public/css/tokens.css),再点一下回到 150px;

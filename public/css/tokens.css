@@ -72,6 +72,18 @@
     /* 标签页切换时的淡入时长(src/common/tabs.ts 的显示切换读它) */
     --transition-tab-fade: 150ms linear;
 
+    /* ---------- 标签页窗格 ---------- */
+    /*
+     * 窗格透明度的初值,由 SETTING 里那条"页面透明度"滑块改写
+     * (src/common/page_opacity.ts 写到文档根的内联样式上,内联值覆盖这里的声明).
+     * 消费方只有 index.css 的 `.tab-pane` 一条规则.
+     *
+     * 这个数**必须**与 site.config.ts 的 PAGE_OPACITY_DEFAULT 相等:它是 CSS 与
+     * TS 的跨语言契约,两边不一致的表现是"刚打开时 0.9,拖一下滑块跳成另一个初值"
+     * 这种不报错的静默失配.
+     */
+    --tab-pane-opacity: 0.9;
+
     /* ---------- 层级(z-index) ---------- */
     --z-pixel-indicator: 9999;
 
@@ -190,6 +202,14 @@
     /* 背景缩略图自身的宽高 */
     --setting-thumb-width: 80px;
     --setting-thumb-height: 50px;
+    /*
+     * 背景行里那条"页面透明度"滑块占的宽度.
+     * 库的 `.slider-field` 只管内部排布(它自己的宽度是"跟着内容走"),**一条滑块
+     * 在一排里占多宽是本站的口径**,所以这个数只出现在 index.css 的 `.opacity-field`
+     * 上.它的下限是"名称 + 数值框 + reset 那一行放得下"(太窄会被挤到换行),
+     * 上限是别把行撑得比相邻的缩略图还宽太多.
+     */
+    --setting-opacity-field-width: 220px;
 
     /* ---------- 红黑树 ---------- */
     /* 表达式输入框的字体绿 / 背景黑 */

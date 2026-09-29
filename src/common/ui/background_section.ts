@@ -17,6 +17,10 @@ BACKGROUND_PRESETS 里声明,标记由这里生成.
 
 注意本模块**只有标记没有行为**:点击切换是文档级事件委托(见 common/background.ts),
 所以增删缩略图不会掉监听,也不需要把元素引用传出去.
+
+这一行**不是本模块独占的**:页面透明度滑块(common/page_opacity.ts)在挂载时往同一个
+`.bgrow` 里 append 第三条参数行,所以这里的"行"只是"背景缩略图 + 那条滑块排在一起"的
+flex 容器.本模块按自己的清单生成缩略图,不替滑块留位,也不管它排在哪儿.
 */
 
 import { createButton, create_element } from 'miko_ui';

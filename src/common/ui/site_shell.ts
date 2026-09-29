@@ -71,6 +71,12 @@ export interface SiteShell {
     readonly metroStyles: HTMLElement;
     readonly metroPanel: HTMLElement;
     readonly metroUploads: HTMLElement;
+    /**
+     * 背景缩略图那一行(`.bgrow`,SETTING 面板体的第一个子节点).
+     * 它**已经有两颗缩略图**,不是空宿主:页面透明度滑块
+     * (src/common/page_opacity.ts)往它里面 append 第三条参数行.
+     */
+    readonly backgroundRow: HTMLElement;
     /** 五个标签页窗格:OLED / RBT / IEEE754 直接把窗格当面板宿主 */
     readonly panes: Readonly<Record<NavPaneId, HTMLElement>>;
 }
@@ -160,10 +166,13 @@ export function mountSiteShell(): SiteShell {
     // (`section.ui-panel`),面板体里依次是背景缩略图 + 车窗控制台宿主 + 上传面板宿主
     // (标题"设置"在 `.ui-panel-header`).
     panes.home.append(hero);
+    // 背景行先建好并留个引用:页面透明度滑块要往这一行里追加
+    // (见 main.ts 的 mountPageOpacity).
+    const backgroundRow = createBackgroundSection();
     panes.setting.append(
         createPanel({
             title: SETTING_PANEL_TITLE,
-            body: [createBackgroundSection(), metroPanel, metroUploads],
+            body: [backgroundRow, metroPanel, metroUploads],
         }).element,
     );
 
@@ -191,6 +200,7 @@ export function mountSiteShell(): SiteShell {
         metroStyles,
         metroPanel,
         metroUploads,
+        backgroundRow,
         panes,
     };
 }

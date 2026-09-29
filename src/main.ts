@@ -48,6 +48,7 @@ import { mountOLED } from '@/oled/oled';
 import { mountIEEE754 } from '@/ieee754/ieee754';
 import { mountMetroWindow } from '@/metro_window/src/metro_window';
 import { mountBackgroundSwitcher } from '@/common/background';
+import { mountPageOpacity } from '@/common/page_opacity';
 import { mountHeaderState } from '@/common/header_state';
 import { mountTabs } from '@/common/tabs';
 import { mountSiteShell } from '@/common/ui/site_shell';
@@ -68,6 +69,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // 背景切换:把 SETTING 标签页缩略图的 URL 写进 --bg-image-active 令牌
     // (点的是骨架生成的缩略图,行为走文档级委托,所以顺序无关)
     mountBackgroundSwitcher();
+
+    // 页面透明度:往背景行(.bgrow)里追加那条滑块,拖它写 --tab-pane-opacity 令牌.
+    // 宿主不是空容器(里面已经有两颗背景缩略图),所以这个挂载是 append 不是接管.
+    mountPageOpacity(shell.backgroundRow);
 
     // 导航条:压在首屏画面上时隐形(只有文字),滚过去/切走标签页变实底
     mountHeaderState({ header: shell.header, hero: shell.hero });

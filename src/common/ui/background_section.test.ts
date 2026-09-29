@@ -48,6 +48,11 @@ describe('SETTING:背景切换区', () => {
     });
 
     it('行里的直接子节点就是各颗按钮(没有列表项夹在中间)', () => {
+        /*
+          这里断言的是**本函数交出的那一份**:整行的运行时子节点会多一条"页面透明度"
+          滑块(common/page_opacity.ts 用 append 加进去的),那是 main.ts 挂载时的事,
+          本模块不替它留位(见 site_shell.test.ts 与 page_opacity.test.ts).
+        */
         const container = render();
         const children = [...row(container).children];
         expect(children).toHaveLength(BACKGROUND_PRESETS.length);
