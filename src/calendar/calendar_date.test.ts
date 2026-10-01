@@ -37,8 +37,15 @@ describe('日历:三套历法的格式化', () => {
 
     it('格里高利历:日期行 + 星期副行(locale 不带 -u-ca-,默认就是 gregory)', () => {
         const gregorian = readingOf(SAMPLE, 'gregorian');
-        expect(gregorian.primary).toBe('2026年1月15日');
+        expect(gregorian.primary).toBe('2026年01月15日');
         expect(gregorian.secondary).toBe('星期四');
+    });
+
+    it('格里高利历:月 / 日补零成两位(不是 Intl 选项给的,是 formatToParts 之后补的)', () => {
+        // 1 月 5 日:两位月与两位日都要 0 补齐;`month: '2-digit'` 那条路会切成 `2026/01/05`
+        expect(readingOf(new Date(2026, 0, 5), 'gregorian').primary).toBe('2026年01月05日');
+        // 已经是两位数的不动
+        expect(readingOf(new Date(2026, 10, 15), 'gregorian').primary).toBe('2026年11月15日');
     });
 
     it('农历:干支年 + 月 + 日,且裁掉 ICU 配对的格里高利历年(relatedYear)', () => {

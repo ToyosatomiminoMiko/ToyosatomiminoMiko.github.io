@@ -257,10 +257,13 @@ const report = await cdp.eval(`(() => {
         ok('LED 时钟真的画了点阵', clockPixels > 10, clockPixels + ' 个亮点');
 
         /*
-          日历页:三张卡的主日期行由 Intl 的历法扩展算出,挂载时就填好.这里量三件事 --
+          日历页:三张卡的主日期行由 Intl 的历法扩展算出,挂载时就填好.这里量四件事 --
           三行都非空;农历那行没有阿拉伯数字(ICU 配对的格里高利历年已裁掉,只剩干支年 + 月 + 日);
-          希伯来历那行按 RTL 渲染(元素上的 dir="auto" 必须让位图文字的标点落在正确一侧).
-          注:这段代码坐在一个模板字符串里,注释里不能出现反引号.
+          格里高利历那行是"年 + 两位月 + 两位日"(补零在 formatToParts 之后做,防的是引擎之间
+          ICU 骨架不同);希伯来历那行按 RTL 渲染(元素上的 dir="auto" 必须让位图文字的标点
+          落在正确一侧).
+          注:这段代码坐在一个模板字符串里,注释里不能出现反引号,正则里不能出现反斜杠
+          (会被模板字符串吃掉),所以数字类用 [0-9] 写,不写简写形式.
         */
         const calendarDates = qa('#calendar .calendar-item__date');
         const hebrewDate = calendarDates[2];
@@ -270,6 +273,10 @@ const report = await cdp.eval(`(() => {
         ok('农历行只剩干支年 + 月 + 日(ICU 配对的格里高利历年被裁掉了)',
             calendarDates[1] !== undefined && !/[0-9]/.test(calendarDates[1].textContent || ''),
             calendarDates[1] ? calendarDates[1].textContent : '没有第二行');
+        ok('格里高利历主行是"年 + 两位月 + 两位日"(月 / 日 0 补齐)',
+            calendarDates[0] !== undefined
+                && /^[0-9]{4}年[0-9]{2}月[0-9]{2}日$/.test((calendarDates[0].textContent || '').trim()),
+            calendarDates[0] ? calendarDates[0].textContent : '没有第一行');
         ok('希伯来历那行按 RTL 渲染(dir="auto" 跟着希伯来文走)',
             hebrewDate !== undefined && getComputedStyle(hebrewDate).direction === 'rtl',
             hebrewDate === undefined ? '没有第三行' : getComputedStyle(hebrewDate).direction);

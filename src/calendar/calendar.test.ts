@@ -82,11 +82,11 @@ describe('日历页:挂载', () => {
         const host = setupHost();
         mountCalendar(host);
         expect(lineOf(host, 'gregorian', `.${CALENDAR_DATE_CLASS}`).textContent)
-            .toBe('2026年1月15日');
+            .toBe('2026年01月15日');
         // 假定时器推进:走到 mountCalendar 安排的那次跨日刷新(延时 = 到下个零点 + 宽限)
         vi.advanceTimersByTime(msUntilNextLocalMidnight(SAMPLE) + CALENDAR_MIDNIGHT_GRACE_MS);
         expect(lineOf(host, 'gregorian', `.${CALENDAR_DATE_CLASS}`).textContent)
-            .toBe('2026年1月16日');
+            .toBe('2026年01月16日');
         expect(lineOf(host, 'chinese', `.${CALENDAR_DATE_CLASS}`).textContent)
             .toBe(readCalendars(new Date(2026, 0, 16, 0, 0, 1)).find(
                 (reading) => reading.key === 'chinese',

@@ -63,6 +63,12 @@ $there$ $is$ $nothing$ $to$ $do.$
   [`src/calendar/config.ts`](src/calendar/config.ts) 的 `CALENDAR_SPECS`).
   自己维护农历的闰月表或希伯来历的闰年规则,错了是**静默**的(日期差一天,不报错),
   而 ICU 的表由平台维护.
+- **格里高利历两行,月 / 日补零成两位**:主行 `2026年01月05日`,副行 `星期四`.
+  补零不是 Intl 选项给的:`zh-CN` 下 `month: '2-digit'` + `day: '2-digit'` 会让 ICU 切到
+  **短日期骨架**,输出变成 `2026/01/05`(分隔符换成了斜杠);能保住"年 / 月 / 日"骨架的
+  `month: 'long' + day: 'numeric'` 又只给一位数.所以补零放在
+  [`src/calendar/calendar_date.ts`](src/calendar/calendar_date.ts) 的 `formatToParts`
+  之后,开关是 [`src/calendar/config.ts`](src/calendar/config.ts) 的 `padMonthDay`.
 - **农历裁掉 ICU 配对的格里高利历年**:`dateStyle: 'long'` 的中国农历输出是
   `2026丙午年八月廿一`,那个 2026 是格里高利历年(与同一张卡的格里高利历行重复);
   [`src/calendar/calendar_date.ts`](src/calendar/calendar_date.ts) 去掉
@@ -205,7 +211,7 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 | 页面透明度(滑块 / 初值 / 区间) | `src/setting/config.ts` 的 `PAGE_OPACITY_*`(初值必须与 `public/css/tokens.css` 的 `--tab-pane-opacity` 相等,`config.test.ts` 会核对),滑块在 `src/setting/page_opacity.ts`,消费方是 `public/css/index.css` 的 `.tab-pane` 规则 |
 | 设置组框体 / 组里控件的观感 | `src/setting/setting.css`(作用域 `.setting-group`:框体 + 组里每条滑块的配色与字体);取值来自 `--metro-*`(`src/metro_window/src/tokens.css`)与 `--setting-*`(`src/setting/tokens.css`) |
 | LED 时钟的画布尺寸 / 时间戳格式 | `src/clock/config.ts`;标记在 `src/clock/ui/clock_display.ts`;绘制在 `src/clock/clock.ts`.时钟挂在 Calendario 标签页顶部,宿主 `#app_led_clock` 由 `src/calendar/ui/calendar_panel.ts` 生成(骨架不再建它) |
-| 日历页的三套历法 / 卡片文案 / 配色 | `src/calendar/config.ts`(`CALENDAR_SPECS`:中文名 + `-u-ca-` 历法 + Intl 选项),标记在 `src/calendar/ui/calendar_panel.ts`,格式化与跨日调度在 `src/calendar/calendar_date.ts`,样式令牌 `--calendar-*` 在 `public/css/tokens.css` |
+| 日历页的三套历法 / 卡片文案 / 配色 | `src/calendar/config.ts`(`CALENDAR_SPECS`:中文名 + `-u-ca-` 历法 + Intl 选项 + Intl 表达不了的收尾开关 `dropRelatedYear` / `padMonthDay`),标记在 `src/calendar/ui/calendar_panel.ts`,格式化与跨日调度在 `src/calendar/calendar_date.ts`,样式令牌 `--calendar-*` 在 `public/css/tokens.css` |
 | OLED 画板的按钮 / 文案 / 提示 | `src/oled/config.ts`,面板标记在 `src/oled/ui/oled_panel.ts` |
 | 红黑树的提示文案 / 画布尺寸 / 占位符 / 性质清单 | `src/rbt/config.ts`(`RBT_PROPERTIES` 是性质清单,清单顺序 = 检查顺序),面板标记在 `src/rbt/ui/rbt_panel.ts`,解析与性质检查在 `src/rbt/rbt_tree.ts`,绘制与挂载在 `src/rbt/rbt.ts` |
 | IEEE 754 的标签 / 精度菜单项 / 初值 | `src/ieee754/config.ts`,面板标记在 `src/ieee754/ui/ieee754_panel.ts` |

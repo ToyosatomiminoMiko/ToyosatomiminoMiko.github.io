@@ -39,6 +39,15 @@ export interface CalendarSpec {
      * (干支年 + 月 + 日),这正是农历该有的写法 -- 详见 calendar_date.ts 的同名处理.
      */
     readonly dropRelatedYear?: boolean;
+    /**
+     * 把整数月 / 日补成两位(`2026年01月05日`).
+     *
+     * 为什么不用 `month: '2-digit'` 交给 Intl:zh-CN 里只要同时要求两位月与两位日,
+     * ICU 就切到**短日期骨架**,输出变成 `2026/01/05`(分隔符从"年/月/日"换成了"/");
+     * 保住中文骨架的写法是 `month: 'long' + day: 'numeric'`,它给的月 / 日是一位数,
+     * 补零只能自己做 -- 见 calendar_date.ts 的 padMonthDayPart().
+     */
+    readonly padMonthDay?: boolean;
 }
 
 /** 格里高利历的语言标记(zh-CN 不带 -u-ca-,默认就是 gregory) */
@@ -59,8 +68,10 @@ export const CALENDAR_HEBREW_LATIN_LOCALE = 'en-US-u-ca-hebrew';
 /**
  * 三张日历卡,顺序即显示顺序(格里高利历 / 农历 / 希伯来历).
  *
- * 值都是 `Intl.DateTimeFormat` 的选项,所以格式的取舍写在数据里而不是代码里:
- * 格里高利历拆成"日期 + 星期"两行(合在一起是 `2026年1月15日星期四`,星期会黏在日期后面);
+ * 值都是 `Intl.DateTimeFormat` 的选项,所以格式的取舍写在数据里而不是代码里.
+ * Intl 选项表达不了的两处收尾用布尔开关标在同一张卡上:农历裁格里高利历年
+ * (`dropRelatedYear`),格里高利历的月 / 日补零(`padMonthDay`).
+ * 格里高利历拆成"日期 + 星期"两行(合在一起是 `2026年01月15日星期四`,星期会黏在日期后面);
  * 农历只要干支年 + 月 + 日;希伯来历主行原文,副行转写.
  *
  * 标成 `readonly CalendarSpec[]`(而不是 `as const`):每一项的字段并不完全一样
@@ -72,7 +83,9 @@ export const CALENDAR_SPECS: readonly CalendarSpec[] = [
         key: 'gregorian',
         label: '格里高利历',
         locale: CALENDAR_GREGORIAN_LOCALE,
+        // `month: 'long'` 才是中文的"年/月/日"骨架(两位月会切到 `/` 那套,见 padMonthDay)
         options: { year: 'numeric', month: 'long', day: 'numeric' },
+        padMonthDay: true,
         secondaryLocale: CALENDAR_GREGORIAN_LOCALE,
         secondaryOptions: { weekday: 'long' },
     },
