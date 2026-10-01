@@ -245,17 +245,17 @@ export interface RbtPropertySpec {
 export const RBT_PROPERTIES: readonly RbtPropertySpec[] = [
     {
         id: 'root-black',
-        label: '根节点是黑色',
+        label: '根节点为黑色',
         failDetail: RBT_ROOT_RED_DETAIL,
     },
     {
         id: 'red-no-red-child',
-        label: '红节点的孩子是黑色',
+        label: '红色节点不可相邻',
         failDetail: RBT_RED_CHILD_DETAIL,
     },
     {
         id: 'black-height',
-        label: '各路径黑节点数相同',
+        label: '各路径黑色节点数量相同',
         failDetail: RBT_BLACK_HEIGHT_DETAIL,
     },
     {
