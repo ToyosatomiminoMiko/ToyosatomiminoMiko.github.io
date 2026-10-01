@@ -6,9 +6,10 @@ index.html 只留一个空位 `#site-root`,骨架的全部结构由这里按 sit
 宿主页因此不出现任何标记,也没有第二处 id 需要同步.
 
 宿主只提供空位:结构里的每个宿主 div 都是空的,标记由对应模块的挂载函数生成.
-OLED / RBT / IEEE754 / SETTING 四个模块直接把整个标签页窗格当宿主,所以骨架给它们
-建的就是窗格本身(SETTING 页的整张面板由 src/setting/setting_page.ts 长进窗格).
-组装出的完整结构(导航条 / 首屏 / 五个窗格)见 README.md 的"首屏与导航条"一节.
+OLED / RBT / IEEE754 三个模块直接把整个标签页窗格当宿主,所以骨架给它们
+建的就是窗格本身(Calendario 页的时钟 + 三张日历卡由 src/calendar/ 长进窗格,
+SETTING 页的整张面板由 src/setting/setting_page.ts 长进窗格).
+组装出的完整结构(导航条 / 首屏 / 六个窗格)见 README.md 的"首屏与导航条"一节.
 
 头像与标签栏平级,排在 header 末尾,而不是当标签栏的最后一项:标签栏是横向滚动
 容器(窄窗口时标签横向滑动),滚动容器的 padding box 就是裁剪区,头像放进去 hover
@@ -62,12 +63,10 @@ export interface SiteShell {
     readonly navList: HTMLElement;
     /** 标签栏里的触发器,顺序与 NAV_ITEMS 一致 -> mountTabs() */
     readonly navLinks: readonly HTMLAnchorElement[];
-    /** LED 时钟宿主 -> mountClock() */
-    readonly clockHost: HTMLElement;
     /** 地铁车窗首屏的两块宿主(舞台 / 风格按钮) -> mountMetroWindow() */
     readonly metroStage: HTMLElement;
     readonly metroStyles: HTMLElement;
-    /** 五个标签页窗格:OLED / RBT / IEEE754 / SETTING 直接把窗格当面板宿主 */
+    /** 六个标签页窗格:OLED / RBT / IEEE754 / Calendario / SETTING 直接把窗格当面板宿主 */
     readonly panes: Readonly<Record<NavPaneId, HTMLElement>>;
 }
 
@@ -106,7 +105,6 @@ export function mountSiteShell(): SiteShell {
     }
 
     // --- 各模块的空宿主:先建好,生成完一起交回 ---
-    const clockHost = create_element({ tag: 'div' }, { id: SITE_HOST_IDS.clock });
     const metroStage = create_element({ tag: 'div' }, { id: SITE_HOST_IDS.metroStage });
     const metroStyles = create_element({ tag: 'div' }, { id: SITE_HOST_IDS.metroStyles });
 
@@ -142,17 +140,17 @@ export function mountSiteShell(): SiteShell {
         { class: HERO_CLASS, id: HERO_ID },
         create_element({ tag: 'div' }, { class: HERO_STAGE_CLASS }, metroStage),
         create_element({ tag: 'div' }, { class: HERO_SCRIM_CLASS }),
-        create_element({ tag: 'div' }, { class: HERO_BOTTOM_CLASS }, clockHost, metroStyles),
+        create_element({ tag: 'div' }, { class: HERO_BOTTOM_CLASS }, metroStyles),
     );
 
-    // --- 五个标签页窗格 ---
+    // --- 六个标签页窗格 ---
     const panes = {} as Record<NavPaneId, HTMLElement>;
     for (const item of NAV_ITEMS) {
         panes[item.pane] = createTabPane(item);
     }
-    // 首屏在 HOME 窗格里.其余四个窗格都留空:OLED / RBT / IEEE754 的整块面板由各自的
-    // 模块长进去,SETTING 页同理(整张 `section.ui-panel` + 三块设置组由
-    // src/setting/setting_page.ts 生成),骨架不替任何一页记结构.
+    // 首屏在 HOME 窗格里.其余窗格都留空:OLED / RBT / IEEE754 的整块面板由各自的
+    // 模块长进去,Calendario 页(时钟 + 三张日历卡)与 SETTING 页(整张
+    // `section.ui-panel` + 三块设置组)同理 -- 骨架不替任何一页记结构.
     panes.home.append(hero);
 
     root.replaceChildren(
@@ -174,7 +172,6 @@ export function mountSiteShell(): SiteShell {
         hero,
         navList,
         navLinks,
-        clockHost,
         metroStage,
         metroStyles,
         panes,

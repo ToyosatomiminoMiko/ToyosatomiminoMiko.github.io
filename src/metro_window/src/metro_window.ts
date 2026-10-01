@@ -267,7 +267,7 @@ export function mountMetroWindow(points: MetroMountPoints): void {
     // stage_content.ts 生成时用它,这里取值时也用它,两边不会各写一份.
     const canvas = mustFind<HTMLCanvasElement>(stage, ELEMENT_IDS.canvas);
 
-    // 风格按钮行:站点给了宿主就挂到首屏底部(与 LED 时钟同排),否则留在控制台里.
+    // 风格按钮行:站点给了宿主就挂到首屏底部,否则留在控制台里.
     // 行本身只建一次,挂到哪由这里决定,所以不会出现两份.
     const styles = createStyleRow();
     const styleButtons = styles.buttons;

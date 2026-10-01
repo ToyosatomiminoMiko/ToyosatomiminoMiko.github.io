@@ -2,9 +2,10 @@
 // 站点入口:生成骨架,再把各模块挂到骨架交回的空宿主上.
 //
 // 顺序有讲究:
-//   1. `mountSiteShell()` 先生成整页骨架(导航条 / 首屏 / 五个空窗格 / 首屏那几个
+//   1. `mountSiteShell()` 先生成整页骨架(导航条 / 首屏 / 六个空窗格 / 首屏那两颗
 //      空宿主),并交回元素引用 -- 后面的模块全都靠这些引用,不按 id 查 DOM;
 //   2. 各模块把标记长进骨架给的宿主(每个模块的挂载函数只认宿主,不认页面);
+//      其中 Calendario 页自己长面板,再把面板顶部的时钟宿主转交给时钟模块;
 //   3. SETTING 页自己建整张面板与三块设置组(src/setting/setting_page.ts),
 //      再把交回的那三块组分给背景区与地铁车窗;
 //   4. 最后挂行为:标签页切换,背景切换,导航条状态,地铁车窗(wasm 启动).
@@ -44,6 +45,7 @@ import 'miko_ui/styles/editor.css';
 import 'miko_ui/styles/scrollbar.css';
 
 // --- 导入 JS 依赖 ---
+import { mountCalendar } from '@/calendar/calendar';
 import { mountClock } from '@/clock/clock';
 import { mountRBT } from '@/rbt/rbt';
 import { mountOLED } from '@/oled/oled';
@@ -62,7 +64,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const shell = mountSiteShell();
 
     // 2) 各模块:只往骨架给的宿主里长标记
-    mountClock(shell.clockHost);
+    //    Calendario 页整页(顶部时钟宿主 + 三张日历卡)由它自己长出来,再把时钟宿主
+    //    转交给时钟模块 -- LED 时钟从 HOME 首屏搬到了这一页顶部,但时钟的标记与
+    //    行为仍然只在 src/clock/ 里(挂载函数只认宿主,不认页面).
+    const calendar = mountCalendar(shell.panes.calendar);
+    mountClock(calendar.clockHost);
     mountOLED(shell.panes.oled);
     mountRBT(shell.panes.rbt);
     mountIEEE754(shell.panes.ieee754);

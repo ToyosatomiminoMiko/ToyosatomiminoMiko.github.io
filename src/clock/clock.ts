@@ -1,8 +1,9 @@
 /*
 2025.12.10.23:20:00
-LED 时钟:把点阵画到骨架交回的画布上,并按秒重绘.
+LED 时钟:把点阵画到调用方交回的画布上,并按秒重绘.
 
-宿主是骨架建好的空容器(见 config.ts 的 CLOCK_HOST_ID),标记由
+宿主是 Calendario 标签页顶部那颗空容器(见 config.ts 的 CLOCK_HOST_ID,由
+src/calendar/ui/calendar_panel.ts 生成后交给 main.ts 转交),标记由
 ui/clock_display.ts 生成.本文件只做行为:接收 createClockDisplay() 交回的
 画布引用直接绘制,不按 id 去 DOM 里找元素.
 */

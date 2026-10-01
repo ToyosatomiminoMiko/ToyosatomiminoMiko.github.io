@@ -208,7 +208,11 @@ code {
     pointer-events: none;
 }
 
-/* 首屏底部:LED 时钟(风格按钮与下滑指示后面再加) */
+/*
+ * 首屏底部:地铁车窗的风格按钮,靠右下.
+ * 原来是"时钟在左 + 风格按钮在右"两端对齐;LED 时钟搬到 Calendario 标签页顶部后
+ * 只剩一颗,所以改成整行靠右(flex-end)-- 少了这条,按钮会跑到左下角.
+ */
 .hero__bottom {
     position: absolute;
     left: 0;
@@ -216,7 +220,7 @@ code {
     bottom: 0;
     display: flex;
     align-items: flex-end;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: var(--chrome-gap);
     padding: var(--chrome-padding-x);
 }
@@ -585,6 +589,67 @@ canvas#pixelCanvas {
     */
     image-rendering: pixelated;
     height: var(--clock-canvas-height);
+}
+
+/* ================================================================
+ * Calendario 标签页(格里高利历 / 农历 / 希伯来历)
+ *
+ * 结构与文案见 src/calendar/:面板由库的 createPanel 建(`section.ui-panel.
+ * calendar-pane`),正文顶部是 LED 时钟宿主 `#app_led_clock`(时钟从 HOME 首屏
+ * 底部搬来,它自己的外观规则在上面那条),下面 `.calendar-list` 里三张卡.
+ *
+ * 可调数值全部走 tokens.css 的 --calendar-*(选择器里不写死色值与尺寸).
+ * ================================================================ */
+.calendar-pane {
+    width: var(--calendar-panel-width);
+    /* 卡片是窄条,正文给一条宽度上限并居中;窄窗口时按 100% 收缩 */
+    margin-left: auto;
+    margin-right: auto;
+    max-width: var(--calendar-content-width);
+}
+
+.calendar-list {
+    display: grid;
+    gap: var(--calendar-gap);
+    /* 与时钟之间的间距:时钟自己带内边距与辉光,再给一整条间距会显得两头都空 */
+    margin-top: var(--calendar-gap);
+}
+
+.calendar-item {
+    background: var(--calendar-item-bg);
+    border: var(--calendar-item-border);
+    border-radius: var(--calendar-item-radius);
+    padding: var(--calendar-item-padding);
+}
+
+.calendar-item__label {
+    color: var(--calendar-label-color);
+    font-size: var(--calendar-label-font-size);
+}
+
+.calendar-item__date {
+    color: var(--calendar-date-color);
+    font-size: var(--calendar-date-font-size);
+    /*
+     * 三张卡的日期行统一左对齐.希伯来历那行是 RTL(元素带 dir="auto",让希伯来文
+     * 的字符顺序正确),而 direction: rtl 默认把行盒也摆到右边 -- 不写这条,那一行
+     * 会贴着卡片右缘,跟左对齐的历法名 / 副行错开,看着像排版事故.
+     * 只改行盒的位置,不改文字方向:希伯来文的读序仍由 dir 决定.
+     */
+    text-align: left;
+}
+
+.calendar-item__latin {
+    color: var(--calendar-latin-color);
+    font-size: var(--calendar-latin-font-size);
+}
+
+/*
+ * 没有副行的日历(农历)把副行元素填成空串,这里整行收掉 -- 留着它会在卡片底部
+ * 多一条与行高同高的空白,三张卡的高度就对不齐了.
+ */
+.calendar-item__latin:empty {
+    display: none;
 }
 
 #treeInput {

@@ -10,9 +10,11 @@
 // ---------- DOM 契约(声明式模型) ----------
 
 /**
- * 时钟宿主的 id:HOME 首屏底部左侧的空 div.骨架(src/common/ui/site_shell.ts)
- * 按 src/common/site.config.ts 的 SITE_HOST_IDS.clock 建好它,引用经 main.ts
- * 交给 mountClock(),所以挂载时不做 DOM 查询;这个 id 只供 CSS
+ * 时钟宿主的 id:Calendario 标签页顶部那颗空 div.
+ *
+ * 宿主由 Calendario 页自己的面板生成器建(src/calendar/ui/calendar_panel.ts 把
+ * 它排在三张日历卡之上),引用随面板组件一起交回,再经 main.ts 交给
+ * mountClock(),所以挂载时不做 DOM 查询;这个 id 只供 CSS
  * (public/css/index.css 的 `#app_led_clock`)使用.
  */
 export const CLOCK_HOST_ID = 'app_led_clock';
@@ -40,7 +42,7 @@ export const REFRESH_INTERVAL_MS = 1000;
 export const PIXEL_COLOR = '#00ffff';
 
 /** 画布背景色(黑,不透明) */
-export const BACKGROUND_COLOR = '#000';
+export const BACKGROUND_COLOR = '#000000';
 
 // ---------- 像素与字形几何(单位:像素) ----------
 

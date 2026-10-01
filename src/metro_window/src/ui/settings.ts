@@ -64,7 +64,7 @@ export interface SliderControl {
 
 /**
  * 风格按钮行:三颗 `data-style` 按钮 + 承载它们的 `<div class="style-row">`.
- * 它**不**由面板独占 -- 站点把风格按钮放在首屏底部(与 LED 时钟同排)时,
+ * 它**不**由面板独占 -- 站点把风格按钮放在首屏底部时,
  * 面板里就不该再出现第二份,所以这里把它拆成独立组件,由挂载函数决定放哪.
  */
 interface StyleRow {

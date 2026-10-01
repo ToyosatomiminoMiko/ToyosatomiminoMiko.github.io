@@ -41,6 +41,7 @@ import {
     TAB_PANE_ACTIVE_CLASS,
     TAB_PANE_CLASS,
 } from '@/common/site.config';
+import { CLOCK_HOST_ID } from '@/clock/config';
 import { mountSiteShell, type SiteShell } from '@/common/ui/site_shell';
 
 /** 建好骨架宿主(#site-root)并生成一次骨架 */
@@ -198,17 +199,19 @@ describe('首页骨架:首屏', () => {
         expect(stageHost?.className).toBe('');
     });
 
-    it('时钟与风格按钮并排在首屏底部', () => {
+    it('风格按钮在首屏底部,LED 时钟已不在这里(它长在 Calendario 窗格里)', () => {
         const shell = setupShell();
         const bottom = shell.hero.querySelector(`.${HERO_BOTTOM_CLASS}`);
+        // 首屏底部只剩地铁车窗的风格按钮宿主;时钟宿主由 Calendario 页自己建
+        // (见 src/calendar/),骨架的这一处不再有第二个子节点.
         expect([...(bottom?.children ?? [])].map((child) => child.id))
-            .toEqual([SITE_HOST_IDS.clock, SITE_HOST_IDS.metroStyles]);
-        expect(shell.clockHost.id).toBe(SITE_HOST_IDS.clock);
+            .toEqual([SITE_HOST_IDS.metroStyles]);
         expect(shell.metroStyles.id).toBe(SITE_HOST_IDS.metroStyles);
+        expect(shell.hero.querySelector(`#${CLOCK_HOST_ID}`)).toBeNull();
     });
 });
 
-describe('首页骨架:五个标签页窗格', () => {
+describe('首页骨架:六个标签页窗格', () => {
     it('每个导航项都有一个同 id 的窗格,类名是 tab-pane fade', () => {
         const shell = setupShell();
         for (const item of NAV_ITEMS) {
@@ -220,7 +223,7 @@ describe('首页骨架:五个标签页窗格', () => {
         }
     });
 
-    it('只有默认窗格是 show active,其余四个都不带', () => {
+    it('只有默认窗格是 show active,其余五个都不带', () => {
         setupShell();
         for (const item of NAV_ITEMS) {
             const pane = document.getElementById(item.pane);
@@ -244,6 +247,16 @@ describe('首页骨架:五个标签页窗格', () => {
         const shell = setupShell();
         expect(shell.panes.setting.children).toHaveLength(0);
     });
+
+    it('Calendario 窗格同样是空的:面板与顶部那颗时钟宿主由日历页自己长', () => {
+        /*
+          时钟从首屏搬进这一页之后,它的宿主也跟着搬进了这一页的标记里(见
+          src/calendar/ui/calendar_panel.ts):骨架只管给一颗空窗格,不然"时钟宿主"
+          会同时出现在骨架与日历页两处,改一处漏一处.
+        */
+        const shell = setupShell();
+        expect(shell.panes.calendar.children).toHaveLength(0);
+    });
 });
 
 describe('首页骨架:交回的引用与文档里的元素一一对应', () => {
@@ -254,7 +267,6 @@ describe('首页骨架:交回的引用与文档里的元素一一对应', () => 
     */
     it('每个宿主引用都等于按同一个 id 查到的元素', () => {
         const shell = setupShell();
-        expect(shell.clockHost).toBe(document.getElementById(SITE_HOST_IDS.clock));
         expect(shell.metroStage).toBe(document.getElementById(SITE_HOST_IDS.metroStage));
         expect(shell.metroStyles).toBe(document.getElementById(SITE_HOST_IDS.metroStyles));
         expect(shell.header).toBe(document.querySelector(`header.${HEADER_CLASS}`));
@@ -281,7 +293,7 @@ describe('首页骨架:交回的引用与文档里的元素一一对应', () => 
 
     it('宿主 id 与窗格 id 不撞车(撞了就会把标记长到别人的容器里)', () => {
         const shell = setupShell();
-        const hostIds = [shell.clockHost.id, shell.metroStage.id, shell.metroStyles.id];
+        const hostIds = [shell.metroStage.id, shell.metroStyles.id];
         expect(new Set(hostIds).size).toBe(hostIds.length);
         for (const id of hostIds) {
             expect(NAV_ITEMS.some((item) => item.pane === id), id).toBe(false);

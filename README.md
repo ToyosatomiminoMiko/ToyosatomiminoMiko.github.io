@@ -44,13 +44,52 @@ $there$ $is$ $nothing$ $to$ $do.$
 
 浮点数位串 / 十进制互转与公式展开.
 
+## 日历(Calendario)
+
+格里高利历 / 农历 / 希伯来历三套历法各一行,顶部是**从 HOME 首屏搬来的 LED 时钟**
+(时钟的画布与绘制仍在 `src/clock/`,日历页只负责在窗格顶部留一颗宿主,并把引用
+转交给 `mountClock()`).
+
+- **原理:`Intl` 只负责翻译,历法算在 ICU 里**.BCP-47 里的 `-u-ca-` 扩展
+  (`zh-CN-u-ca-chinese` 中的 `ca=chinese`)是 "用哪套日历" 的开关;真正把一个时间点
+  换算成农历 / 希伯来历的年月日,是 ICU 里那套日历实现 -- 中国农历按定朔(真实
+  新月时刻)+ 闰月规则推,希伯来历按 molad(平朔)+ 十九年七闰的算术规则推.
+  CLDR 只提供月名 / 数字系统 / 排版模式;农历没有"一个年号"这种单一字段,所以 ICU
+  把它拆成两个 part:`relatedYear`(配对的格里高利历年)与 `yearName`(干支).
+  本站因此一行历法规则都不写,只写下"用哪套历法,怎么排版";代价是结果跟着平台的
+  ICU 数据走(引擎之间会差 -- 见下面希伯来历那条).
+- **历法不自己算**:三套历法全部交给 `Intl.DateTimeFormat()` 的 `-u-ca-` 扩展
+  (`zh-CN` / `zh-CN-u-ca-chinese` / `he-IL-u-ca-hebrew`,清单见
+  [`src/calendar/config.ts`](src/calendar/config.ts) 的 `CALENDAR_SPECS`).
+  自己维护农历的闰月表或希伯来历的闰年规则,错了是**静默**的(日期差一天,不报错),
+  而 ICU 的表由平台维护.
+- **农历裁掉 ICU 配对的格里高利历年**:`dateStyle: 'long'` 的中国农历输出是
+  `2026丙午年八月廿一`,那个 2026 是格里高利历年(与同一张卡的格里高利历行重复);
+  [`src/calendar/calendar_date.ts`](src/calendar/calendar_date.ts) 去掉
+  `relatedYear` 这一段,只留干支年 + 月 + 日.
+- **希伯来历逐字段给选项,不用 `dateStyle`**:Chromium 里 `he-IL-u-ca-hebrew` +
+  `dateStyle`(四个档位都一样)输出的是 `57870120 10:36 PM` -- `formatToParts`
+  显示它拿到 year / month / day + hour / minute / dayPeriod,也就是一份"日期 + 时间"
+  模式,月成了数字 `01`,日时段还是英文 `PM`;逐字段的 `{year, month, day}` 则给出
+  `20 בתשרי 5787`,Chromium 与 Node 一致.边界是 **(he 语言标记 × hebrew 历法)**
+  这一对,不是"非公历历法"这一类:同一台 Chromium 上 `en-US-u-ca-hebrew`,
+  `ar-SA-u-ca-islamic-umalqura`,`zh-CN-u-ca-chinese`,`ja-JP-u-ca-japanese` 的
+  `dateStyle` 都正常,`he-IL` 走默认 gregory 也正常;只有这一对取不到可用的
+  dateStyle 模式,ICU 便回退到根(英文)那套默认骨架.Node 的完整 ICU 两种写法都对,
+  所以这个坑只在真浏览器里现形,由 `npm run smoke:home` 的"日历页"那几条挡住.
+- **跨日刷新不轮询**:日期一天只变一次,`mountCalendar()` 算到下个**本地**零点
+  再醒一次(`msUntilNextLocalMidnight()` 用 `new Date(y, m, d + 1)` 归一化,跨月 /
+  跨年 / 夏令时都对).LED 时钟是另一条路 -- 它显示到秒,所以仍然 1Hz 重绘.
+- **时区**按浏览器本地时区算(与时钟一致),这一页不做时区选择.
+
 ## 地铁车窗
 
 Rust + WASM + WebGPU 实时渲染的地铁车窗玻璃效果(窗外城市多层视差 + 玻璃污渍 +
 冷凝雾气 + 车厢灯光与倒影,外加三套风格调色),拆成"舞台"与"控制台"两块,
 **四块宿主分两处给**:首屏那两块由站点骨架建 -- 画布挂 `#metro-window`
 (HOME 首屏,铺满整屏,id 见 `src/metro_window/src/config.ts` 的 `MOUNT_IDS`),
-三颗风格按钮挂 `#metro-styles`(首屏底部,与 LED 时钟同排);SETTING 页那两块由
+三颗风格按钮挂 `#metro-styles`(首屏底部靠右;LED 时钟原先也在这一排,现在搬到了
+Calendario 标签页顶部);SETTING 页那两块由
 **设置页**建 -- 实时参数控制台挂 `#metro-params`,图层贴图上传面板挂它正下方的
 `#metro-uploads`,两颗都是带框体的设置组 `fieldset.setting-group`
 (见 [`src/setting/`](src/setting/)).挂载见 `src/main.ts`,源码在
@@ -111,11 +150,12 @@ HOME 标签页的最上面是一块**首屏**(`.hero`,由 `src/common/ui/site_sh
   `box-shadow` 跟着 `border-radius` 画,才是圆的.两条都在 `public/css/index.css`
   (`.head` / `.head-link`),结构那半有回归断言
   (`src/common/ui/site_shell.test.ts`).
-- **首屏的结构与首屏那几颗宿主都在 `src/common/site.config.ts` 里声明**
+- **首屏的结构与首屏那两颗宿主都在 `src/common/site.config.ts` 里声明**
   (`HERO_ID` / `HERO_*_CLASS` / `SITE_HOST_IDS`),由 `src/common/ui/site_shell.ts`
   生成并把元素引用交回 `src/main.ts`.要动首屏布局就改这两处 -- `index.html` 里
   只有骨架宿主,没有第二处标记可改(见[「UI 在哪里」](#ui-在哪里)).
-  SETTING 页的三颗设置组不在这一份声明里:它们由 `src/setting/setting_page.ts` 建.
+  SETTING 页的三颗设置组不在这一份声明里:它们由 `src/setting/setting_page.ts` 建;
+  同理 LED 时钟的宿主也不在(它在 Calendario 窗格内部,由 `src/calendar/` 建).
 - 画布怎么"覆盖"整屏由组件负责:挂载函数给舞台宿主加
   `.metro-window--stage`(absolute 铺满父层),画布再用 `object-fit: cover`
   缩放进这个盒子.注意这条修饰类的选择器把类名写了两遍
@@ -144,7 +184,7 @@ HOME 标签页的最上面是一块**首屏**(`.hero`,由 `src/common/ui/site_sh
 
 ## UI 在哪里
 
-首页的整套 UI(导航条 / 首屏 / 五个标签页 / 各模块面板)**没有一行写在
+首页的整套 UI(导航条 / 首屏 / 六个标签页 / 各模块面板)**没有一行写在
 `index.html` 里**:HTML 只有骨架宿主 `<div id="site-root"></div>`.
 这条约定是从地铁车窗控制台推广开来的,现在全站统一:
 
@@ -152,7 +192,7 @@ HOME 标签页的最上面是一块**首屏**(`.hero`,由 `src/common/ui/site_sh
 config.ts        声明式模型:文案 / 类名 / DOM 契约 id / 几何 / 清单(纯数据,无副作用)
 ui/*.ts          纯函数组件:模型 -> 元素,并交回行为代码要用的元素引用
 <模块>.ts         挂载函数 mount<模块>(host):插进宿主 + 绑事件,不回头查 DOM
-site_shell.ts    先生成整页骨架(导航条 / 首屏 / 五个空窗格 / 首屏那几个宿主),把引用交回
+site_shell.ts    先生成整页骨架(导航条 / 首屏 / 六个空窗格 / 首屏那两颗宿主),把引用交回
 setting/         再生成 SETTING 页自己的面板与三块设置组,把三颗组交回
 main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 ```
@@ -164,7 +204,8 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 | 背景缩略图(加一张图 / 换名字) | `src/setting/config.ts` 的 `BACKGROUND_PRESETS` 与 `BACKGROUND_GROUP_LEGEND`,标记在 `src/setting/background_section.ts` 的 `mountBackgroundSection()`(宿主是设置页建的那颗带 legend 的 `#setting-bg` 设置组,里面一条 `.bgrow` flex 行;每颗 tile 都是库的按钮,缩略图在按钮里面) |
 | 页面透明度(滑块 / 初值 / 区间) | `src/setting/config.ts` 的 `PAGE_OPACITY_*`(初值必须与 `public/css/tokens.css` 的 `--tab-pane-opacity` 相等,`config.test.ts` 会核对),滑块在 `src/setting/page_opacity.ts`,消费方是 `public/css/index.css` 的 `.tab-pane` 规则 |
 | 设置组框体 / 组里控件的观感 | `src/setting/setting.css`(作用域 `.setting-group`:框体 + 组里每条滑块的配色与字体);取值来自 `--metro-*`(`src/metro_window/src/tokens.css`)与 `--setting-*`(`src/setting/tokens.css`) |
-| LED 时钟的画布尺寸 / 时间戳格式 | `src/clock/config.ts`;标记在 `src/clock/ui/clock_display.ts`;绘制在 `src/clock/clock.ts` |
+| LED 时钟的画布尺寸 / 时间戳格式 | `src/clock/config.ts`;标记在 `src/clock/ui/clock_display.ts`;绘制在 `src/clock/clock.ts`.时钟挂在 Calendario 标签页顶部,宿主 `#app_led_clock` 由 `src/calendar/ui/calendar_panel.ts` 生成(骨架不再建它) |
+| 日历页的三套历法 / 卡片文案 / 配色 | `src/calendar/config.ts`(`CALENDAR_SPECS`:中文名 + `-u-ca-` 历法 + Intl 选项),标记在 `src/calendar/ui/calendar_panel.ts`,格式化与跨日调度在 `src/calendar/calendar_date.ts`,样式令牌 `--calendar-*` 在 `public/css/tokens.css` |
 | OLED 画板的按钮 / 文案 / 提示 | `src/oled/config.ts`,面板标记在 `src/oled/ui/oled_panel.ts` |
 | 红黑树的提示文案 / 画布尺寸 / 占位符 / 性质清单 | `src/rbt/config.ts`(`RBT_PROPERTIES` 是性质清单,清单顺序 = 检查顺序),面板标记在 `src/rbt/ui/rbt_panel.ts`,解析与性质检查在 `src/rbt/rbt_tree.ts`,绘制与挂载在 `src/rbt/rbt.ts` |
 | IEEE 754 的标签 / 精度菜单项 / 初值 | `src/ieee754/config.ts`,面板标记在 `src/ieee754/ui/ieee754_panel.ts` |
@@ -183,7 +224,7 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 - **宿主只提供空位**:每个模块的宿主都是空容器,标记全部由组件生成.
   宿主页不出现任何面板标记,所以"改了 HTML 但忘了改组件"这种失配不存在.
   挂载函数对**自己独占**的宿主用 `replaceChildren` 整体接管(重复挂载不会插两份,
-  OLED / RBT / IEEE754 / 时钟 / 背景设置组都是这样);地铁车窗例外 -- 它往调用方
+  OLED / RBT / IEEE754 / 日历页 / 时钟 / 背景设置组都是这样);地铁车窗例外 -- 它往调用方
   给的设置组里长内容,并**整体接管**那颗 fieldset 的内容(参数组与上传组是两颗,
   各接管各的);省略上传宿主时上传面板落进参数组内部,所以那一步是 `append`.
   这条也管**结构**:SETTING 面板体的直接子节点因此正好是三颗
@@ -209,7 +250,7 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 | 层 | 跑什么 | 在哪 |
 | --- | --- | --- |
 | 标记契约 + 行为(进程内) | 生成的标签 / 类名 / id / 文案与 CSS 是否对得上;标签页的点击 / 方向键 / 显隐状态迁移对不对 | `src/**/*.test.ts`,文件头 `@vitest-environment happy-dom`,进 `npm test`(不需要 build,CI 里也跑) |
-| 真浏览器验收 | canvas 真的画出来了吗,五个窗格真的只有一个可见吗,布局与 CSS 级联对不对,导航条隐形/实底的翻转对不对,宿主与车窗组件接上了吗 | `npm run smoke:home`(要 `dist/` 与 chromium,见[「构建」](#构建)) |
+| 真浏览器验收 | canvas 真的画出来了吗,六个窗格真的只有一个可见吗,布局与 CSS 级联对不对,导航条隐形/实底的翻转对不对,宿主与车窗组件接上了吗 | `npm run smoke:home`(要 `dist/` 与 chromium,见[「构建」](#构建)) |
 
 加/改 UI 之后:`npm test` 跑第一层;涉及渲染/交互/样式的改动再跑一次 `smoke:home`.
 
@@ -223,7 +264,7 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 ## 约定
 
 - **`src/` 下按域分目录,不散放在根上**:每个控件/子项目一个目录
-  (`clock/`,`oled/`,`rbt/`,`ieee754/`,`4xx_page/`,`setting/`,`metro_window/`),
+  (`clock/`,`calendar/`,`oled/`,`rbt/`,`ieee754/`,`4xx_page/`,`setting/`,`metro_window/`),
   跨域复用的公共函数与站点级常量放 `src/common/`;根上只留
   `main.ts`(入口)与 `vite_env.d.ts`(Vite 全局模块声明).
   每个目录里 `config.ts` 是**声明式模型 + 可调常量**(或 `*_tokens.css`),
@@ -259,8 +300,8 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 | 作用域 | 配置文件 | 放什么 |
 | --- | --- | --- |
 | 主站样式 | `public/css/tokens.css` | 站点设计令牌(`:root`):字体栈,调色板,尺寸,圆角,间距,`z-index`,过渡;首屏(`--hero-*`)与固定导航条(`--chrome-*`).SETTING 页自己的令牌不在这一份里,见下面那行 |
-| 主站脚本 | `src/clock/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,OLED 画板尺寸/通道/文案,红黑树布局与配色 + 性质清单(四条性质的名字与出错文案都在 `RBT_PROPERTIES`),IEEE 754 精度格式与掩码,站点级声明式模型(导航项 / 首屏结构 / 首屏那几颗宿主 id / `is-over-hero` 类名 / `--nav-height` 令牌名) |
-| 首页骨架 | `src/common/ui/site_shell.ts` | 骨架:导航条 / 首屏 / 五个**空**窗格 / 首屏那几颗宿主(标记用库的 `create_element`;SETTING 页的结构不在这里,骨架只给它一个空窗格) |
+| 主站脚本 | `src/clock/config.ts`,`src/calendar/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,日历三套历法的清单与 Intl 选项,OLED 画板尺寸/通道/文案,红黑树布局与配色 + 性质清单(四条性质的名字与出错文案都在 `RBT_PROPERTIES`),IEEE 754 精度格式与掩码,站点级声明式模型(导航项 / 首屏结构 / 首屏那两颗宿主 id / `is-over-hero` 类名 / `--nav-height` 令牌名) |
+| 首页骨架 | `src/common/ui/site_shell.ts` | 骨架:导航条 / 首屏 / 六个**空**窗格 / 首屏那两颗宿主(标记用库的 `create_element`;SETTING 页与 Calendario 页的结构不在这里,骨架只给它们空窗格) |
 | SETTING 页 | `src/setting/config.ts`,`src/setting/tokens.css`,`src/setting/setting.css`,`src/setting/setting_page.ts` | 那一页的全部声明与外观:三块设置组的 id·类名·面板标题,背景缩略图清单,页面透明度滑块的初值·区间·令牌名(纯数据);`--setting-*` 令牌;设置组框体与**组里每条控件的观感**(滑块配色 / 字体,作用域 `.setting-group`);整页面板 + 三颗空设置组的生成者 |
 | 主站行为 | `src/main.ts`,`src/common/header_state.ts`,`src/setting/background.ts`,`src/setting/page_opacity.ts` | 挂载顺序(骨架 -> 设置页 -> 各模块 -> 行为),导航条"隐形 / 实底"状态(首屏还压在它下面时,以及任何标签页停在页面顶端时),背景切换令牌写入,页面透明度滑块(库的 `createSlider`)往背景组里那条 `.bgrow` 追加并写 `--tab-pane-opacity` 令牌 |
 | 4xx 页面样式 | `src/4xx_page/418/418_tokens.css`,`src/4xx_page/451/451_tokens.css`;`404/404.css` 与 `shared/icon.css` 顶部的 `:root` 块 | 各彩蛋页的设计令牌(颜色 / 几何 / 阴影 / 时长 / 字体) |
@@ -353,7 +394,7 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
   / `--radius-*`),不引 `--metro-color-*`;圆角也全部走库主题(库默认 0px),
   本站不再自己存圆角尺寸,也不再用 bootstrap 的圆角工具类(背景缩略图原来的
   `.rounded` 已撤,圆角写在 `.bgimg` 里引 `--radius-sm`).
-- **面板框体归 miko_ui**:OLED / RBT / IEEE754 三块面板与 SETTING 整页都用库的
+- **面板框体归 miko_ui**:OLED / RBT / IEEE754 / Calendario 四块面板与 SETTING 整页都用库的
   `createPanel`(`section.ui-panel > header.ui-panel-header > span.ui-panel-title`
   + `div.ui-panel-body`),外观在库的 `styles/widgets.css`;桌面窗口复用同一组
   `.ui-panel*` 基类(`window = panel + 几何/拖动`),两边不会各写一份框体.
@@ -390,7 +431,7 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
   窗格的 `display: none / block` + 淡入(原先是 bootstrap 的 `.nav` / `.tab-content`
   规则给的).
 
-  这些规则**必须留着**,而且少一条都是**静默**的版式崩坏(五个窗格同时堆叠,
+  这些规则**必须留着**,而且少一条都是**静默**的版式崩坏(六个窗格同时堆叠,
   导航栏塌成竖排带项目符号的列表,全站盒模型反转,整页露出白底),不会有任何报错.
   两条踩过的坑记在这里:
   `body` 的字号必须写成**绝对长度**(`1rem`)-- 否则 Chrome 会对通用等宽族
@@ -445,8 +486,8 @@ lint:rs -> clean -> build:wasm -> test(vitest) -> test:rs(cargo) -> build:app
 **`npm run smoke:home` 不在流水线里**:它要 `dist/` 与一个 `chromium-browser`,
 做法是起静态服务器 + headless Chromium,只验那些**进程内 DOM 做不到**的事
 (canvas 真的点出像素 / 树真的画出红节点 / 点标签页真的切窗格 / 时钟真的每秒
-重绘 / 精度菜单真的能开合 / `getComputedStyle` 下的布局 / 骨架交回的宿主真的
-被地铁车窗组件接上).
+重绘 / 日历三套历法真的算出了日期且希伯来历那行按 RTL 渲染 / 精度菜单真的能开合 /
+`getComputedStyle` 下的布局 / 骨架交回的宿主真的被地铁车窗组件接上).
 类名,id,`data-*`,文案这些**结构契约**已经搬进 `npm test` 的 happy-dom 单测,
 所以这条命令只需在动到渲染,交互,样式时跑.第一次跑它就抓到过 `data-*` 属性
 写法不合规范,导致整个骨架挂不上这类问题.用法与边界见脚本头部注释.

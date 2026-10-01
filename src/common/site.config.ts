@@ -2,7 +2,7 @@
  * 站点级(main.ts / common)的声明式配置.
  *
  * 首页整套骨架都在这里声明,由 src/common/ui/site_shell.ts 生成:导航条(站名 +
- * 标签 + 头像),首屏(舞台 / 压暗层 / 底部一排),五个标签页,以及首屏那几个
+ * 标签 + 头像),首屏(舞台 / 压暗层 / 底部一排),六个标签页,以及首屏那两个
  * 模块空宿主;各模块的挂载函数只往宿主里长标记.宿主页 index.html 里没有任何标记,
  * 只留一个空位 `#site-root`.
  *
@@ -14,7 +14,6 @@
  * 所以不能散在各文件里.
  */
 
-import { CLOCK_HOST_ID } from '@/clock/config';
 import { MOUNT_IDS } from '@/metro_window/src/config';
 
 // ---------- 页面骨架 ----------
@@ -78,16 +77,22 @@ export interface NavItemSpec {
     readonly label: string;
 }
 
-/** 导航项,顺序即界面顺序;第一项是默认激活的标签页 */
+/**
+ * 导航项,顺序即界面顺序;第一项是默认激活的标签页.
+ *
+ * Calendario 紧跟 HOME:它承接了原来长在 HOME 首屏底部的 LED 时钟(见
+ * src/calendar/),放在第一项旁边才不至于"时钟搬走之后没人找得到".
+ */
 export const NAV_ITEMS = [
     { pane: 'home', label: 'HOME' },
+    { pane: 'calendar', label: 'Calendario' },
     { pane: 'oled', label: 'OLED' },
     { pane: 'rbt', label: 'RBT' },
     { pane: 'ieee754', label: 'IEEE754' },
     { pane: 'setting', label: 'SETTING' },
 ] as const satisfies readonly NavItemSpec[];
 
-/** 标签页 id 的字面量联合('home' | 'oled' | 'rbt' | 'ieee754' | 'setting') */
+/** 标签页 id 的字面量联合('home' | 'calendar' | 'oled' | 'rbt' | 'ieee754' | 'setting') */
 export type NavPaneId = (typeof NAV_ITEMS)[number]['pane'];
 
 /** 默认激活的标签页(取声明里的第一项,不另写一份字面量) */
@@ -105,7 +110,11 @@ export const HERO_CLASS = 'hero';
 export const HERO_STAGE_CLASS = 'hero__stage';
 /** 顶部渐变压暗:导航文字压在画面上时的可读性来源 */
 export const HERO_SCRIM_CLASS = 'hero__scrim';
-/** 首屏底部一排:LED 时钟(左) + 风格按钮(右) */
+/**
+ * 首屏底部一排.现在只剩地铁车窗的风格按钮(靠右,见 index.css 的
+ * `justify-content: flex-end`):LED 时钟原本在这里,已经搬到 Calendario 标签页
+ * 顶部(src/calendar/ 的窗格自己在顶部留一颗时钟宿主).
+ */
 export const HERO_BOTTOM_CLASS = 'hero__bottom';
 
 // ---------- 标签页 ----------
@@ -147,18 +156,17 @@ export const NAV_HEIGHT_FALLBACK = 42;
 // ---------- 各模块的空宿主 id(集中成一张表,便于核对"骨架长在哪") ----------
 
 /**
- * **骨架**里给各模块留的空宿主 id(首屏那两颗 + 时钟).
+ * **骨架**里给各模块留的空宿主 id(首屏那两颗).
  *
  * 每个 id 的**所有权**在对应模块的 config.ts 里(改 id 时改那边),这里只是
  * 把它们汇总成一张表:site_shell.ts 按这张表建宿主,并交回元素引用.
  *
  * SETTING 页的三块设置组不在这张表里:它们由设置页自己建(见
  * `@/setting/setting_page.ts` 与 `@/setting/config.ts` 的 SETTING_GROUP_IDS),
- * 骨架不替那一页记结构.
+ * 骨架不替那一页记结构.同理,**LED 时钟宿主也不在这张表里**了:它现在长在
+ * Calendario 窗格内部,由那一页自己的面板生成器建(见 `@/calendar/`).
  */
 export const SITE_HOST_IDS = {
-    /** LED 时钟(HOME 首屏底部左侧) */
-    clock: CLOCK_HOST_ID,
     /** 地铁车窗:舞台(首屏画布层)/ 风格按钮(首屏底部右侧) */
     metroStage: MOUNT_IDS.stage,
     metroStyles: MOUNT_IDS.styles,

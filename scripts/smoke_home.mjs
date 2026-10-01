@@ -160,8 +160,19 @@ const report = await cdp.eval(`(() => {
           这样真出问题时是一条"没挂上",而不是下面十几条连带的看不懂的报错.
         */
         ok('骨架挂上了(header + main)', q('header.site-header') !== null && q('main .tab-content') !== null);
-        ok('五个标签页窗格都在', ['home','oled','rbt','ieee754','setting'].every((id) => q('#' + id)));
-        ok('首屏与首屏底部的两个宿主都在', q('#hero .hero__bottom > #app_led_clock') !== null && q('#hero .hero__bottom > #metro-styles') !== null);
+        ok('六个标签页窗格都在', ['home','calendar','oled','rbt','ieee754','setting'].every((id) => q('#' + id)));
+        /*
+          LED 时钟从 HOME 首屏底部搬到了 Calendario 标签页顶部:首屏底部只剩风格按钮宿主,
+          时钟宿主必须长在日历页的正文里,而且是正文的第一个子节点(见 src/calendar/).
+        */
+        ok('首屏底部只剩风格按钮宿主(时钟已搬走)',
+            q('#hero .hero__bottom > #metro-styles') !== null &&
+            q('#hero .hero__bottom > #app_led_clock') === null &&
+            q('#hero #app_led_clock') === null);
+        const calendarBody = q('#calendar .ui-panel-body');
+        ok('LED 时钟宿主在日历页顶部(.ui-panel-body 的第一个子节点)',
+            calendarBody !== null && calendarBody.firstElementChild === q('#app_led_clock'),
+            calendarBody === null ? '没有 .ui-panel-body' : calendarBody.firstElementChild?.id);
 
         /*
           ---- 第 1 组:宿主交回 + 组件接管(真集成) ----
@@ -214,7 +225,7 @@ const report = await cdp.eval(`(() => {
             toggledTransport.back === '暂停',
             toggledTransport.before + ' -> ' + toggledTransport.after + ' -> ' + toggledTransport.back);
         /*
-          全站可见文本里不允许出现 emoji(导航 / 首屏 / 五个窗格的全部文本节点;
+          全站可见文本里不允许出现 emoji(导航 / 首屏 / 六个窗格的全部文本节点;
           隐藏窗格也在 DOM 里,一并过一遍).这条守着"不用图标做提示"的约定 --
           以后谁再往按钮或提示里塞 emoji,真机验收会当场失败.
         */
@@ -244,6 +255,37 @@ const report = await cdp.eval(`(() => {
             clockPixels = n;
         } catch (e) { clockPixels = -1; }
         ok('LED 时钟真的画了点阵', clockPixels > 10, clockPixels + ' 个亮点');
+
+        /*
+          日历页:三张卡的主日期行由 Intl 的历法扩展算出,挂载时就填好.这里量三件事 --
+          三行都非空;农历那行没有阿拉伯数字(ICU 配对的格里高利历年已裁掉,只剩干支年 + 月 + 日);
+          希伯来历那行按 RTL 渲染(元素上的 dir="auto" 必须让位图文字的标点落在正确一侧).
+          注:这段代码坐在一个模板字符串里,注释里不能出现反引号.
+        */
+        const calendarDates = qa('#calendar .calendar-item__date');
+        const hebrewDate = calendarDates[2];
+        ok('日历页三张卡的主日期行都有内容(格里高利历 / 农历 / 希伯来历)',
+            calendarDates.length === 3 && calendarDates.every((el) => (el.textContent || '').trim().length > 0),
+            calendarDates.map((el) => (el.textContent || '').trim().slice(0, 20)).join(' | '));
+        ok('农历行只剩干支年 + 月 + 日(ICU 配对的格里高利历年被裁掉了)',
+            calendarDates[1] !== undefined && !/[0-9]/.test(calendarDates[1].textContent || ''),
+            calendarDates[1] ? calendarDates[1].textContent : '没有第二行');
+        ok('希伯来历那行按 RTL 渲染(dir="auto" 跟着希伯来文走)',
+            hebrewDate !== undefined && getComputedStyle(hebrewDate).direction === 'rtl',
+            hebrewDate === undefined ? '没有第三行' : getComputedStyle(hebrewDate).direction);
+
+        /*
+          可见文案契约:这一页的导航项叫 Calendario,三张卡的名字里第一张是"格里高利历"
+          (不写"公历").文案是界面本身,只能在真页面里量.
+          注:这段代码坐在一个模板字符串里,注释里不能出现反引号.
+        */
+        const navLabels = qa('.site-header .nav-tabs .nav-link').map((a) => (a.textContent || '').trim());
+        ok('导航项文案是 HOME / Calendario / OLED / RBT / IEEE754 / SETTING',
+            navLabels.join(' / ') === 'HOME / Calendario / OLED / RBT / IEEE754 / SETTING',
+            navLabels.join(' / '));
+        const cardLabels = qa('#calendar .calendar-item__label').map((el) => (el.textContent || '').trim());
+        ok('三张卡的名字是 格里高利历 / 农历 / 希伯来历',
+            cardLabels.join(' / ') === '格里高利历 / 农历 / 希伯来历', cardLabels.join(' / '));
 
         // OLED:构造时把画布铺成"未亮起"的中性灰 #333(证明 OLEDCanvas 真的建起来了)
         // 期望的 0x33 与 src/oled/config.ts 的 OLED_COLOR_UNLIT 同值(本脚本在浏览器里,读不到 TS 常量)
@@ -535,7 +577,7 @@ const report = await cdp.eval(`(() => {
         /*
           ---- 第 4 组:index.css 的**文档基线** ----
           这几条全是元素级规则,特异性高过站点的 '*' 重置,所以只有它们能盖住重置.
-          它们**不会**以任何形式报错,只会静默地让版式变样(五个窗格堆叠 /
+          它们**不会**以任何形式报错,只会静默地让版式变样(六个窗格堆叠 /
           导航栏竖排 / 盒模型反转 / 整页露白底),所以只能靠真浏览器里的
           computed style 与几何把它们钉住.
         */
@@ -570,14 +612,14 @@ const report = await cdp.eval(`(() => {
             getComputedStyle(q('a.nav-link')).paddingTop);
         /*
           窗格显隐:**最容易被静默改坏的一条**.'.tab-content > .tab-pane' 的
-          display:none 与 '> .active' 的 display:block 是五个窗格"一次只显示一个"
-          的全部依据,少了它们五个会同时纵向堆叠在首屏下面(页面还是"能打开"的).
-          这里逐个数一遍:除当前项外,其余四个窗口的 display 必须是 none.
+          display:none 与 '> .active' 的 display:block 是六个窗格"一次只显示一个"
+          的全部依据,少了它们六个会同时纵向堆叠在首屏下面(页面还是"能打开"的).
+          这里逐个数一遍:除当前项外,其余五个窗口的 display 必须是 none.
           注:这段代码本身坐在一个模板字符串里,注释里不能出现反引号.
         */
-        const panes = ['home', 'oled', 'rbt', 'ieee754', 'setting'];
+        const panes = ['home', 'calendar', 'oled', 'rbt', 'ieee754', 'setting'];
         const shown = panes.filter((id) => getComputedStyle(q('#' + id)).display !== 'none');
-        ok('五个窗格里只有一个可见(窗格显隐规则生效)',
+        ok('六个窗格里只有一个可见(窗格显隐规则生效)',
             shown.length === 1 && shown[0] === 'home', '可见: ' + JSON.stringify(shown));
         /*
           窗格的不透明档位不再是写死的 1:它由令牌 --tab-pane-opacity(默认 0.9)给,
@@ -822,7 +864,7 @@ const adHoc = (pass) => { adHocTotal++; if (!pass) failed++; };
 const paneOpacity = Number(await cdp.eval(
     `getComputedStyle(document.documentElement).getPropertyValue('--tab-pane-opacity')`));
 // 切过去的窗格必须真的"上屏且落在令牌那一档",切走的必须真的 display: none --
-// 只对类名就会漏掉"类名对了但 CSS 掉了,五个窗格一起堆叠"这种最坏的静默失效.
+// 只对类名就会漏掉"类名对了但 CSS 掉了,六个窗格一起堆叠"这种最坏的静默失效.
 const shownOk = (pane) => pane?.active === true && pane?.show === true &&
     pane?.display === 'block' && Math.abs(Number(pane?.opacity) - paneOpacity) < 1e-6;
 const hiddenOk = (pane) => pane?.active === false && pane?.show === false && pane?.display === 'none';
