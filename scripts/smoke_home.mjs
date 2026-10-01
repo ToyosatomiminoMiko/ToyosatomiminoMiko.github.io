@@ -257,11 +257,12 @@ const report = await cdp.eval(`(() => {
         ok('LED 时钟真的画了点阵', clockPixels > 10, clockPixels + ' 个亮点');
 
         /*
-          日历页:三张卡的主日期行由 Intl 的历法扩展算出,挂载时就填好.这里量四件事 --
+          日历页:三张卡的主日期行由 Intl 的历法扩展算出,挂载时就填好.这里量五件事 --
           三行都非空;农历那行没有阿拉伯数字(ICU 配对的格里高利历年已裁掉,只剩干支年 + 月 + 日);
           格里高利历那行是"年 + 两位月 + 两位日"(补零在 formatToParts 之后做,防的是引擎之间
           ICU 骨架不同);希伯来历那行按 RTL 渲染(元素上的 dir="auto" 必须让位图文字的标点
-          落在正确一侧).
+          落在正确一侧);它的副行是"转写; 汉语"(汉语月名查的是本站的表,所以要挡住
+          "真浏览器里 ICU 的月名转写跟 Node 不一样 -> 查不到 -> 悄悄只剩转写").
           注:这段代码坐在一个模板字符串里,注释里不能出现反引号,正则里不能出现反斜杠
           (会被模板字符串吃掉),所以数字类用 [0-9] 写,不写简写形式.
         */
@@ -280,6 +281,11 @@ const report = await cdp.eval(`(() => {
         ok('希伯来历那行按 RTL 渲染(dir="auto" 跟着希伯来文走)',
             hebrewDate !== undefined && getComputedStyle(hebrewDate).direction === 'rtl',
             hebrewDate === undefined ? '没有第三行' : getComputedStyle(hebrewDate).direction);
+        const hebrewLatin = qa('#calendar .calendar-item__latin')[2];
+        ok('希伯来历副行是"转写; 汉语"(真浏览器里月名也查得到汉译,日补零)',
+            hebrewLatin !== undefined
+                && /^[0-9]+ [A-Za-z].*; [0-9]+年.*月[0-9]{2}日$/.test((hebrewLatin.textContent || '').trim()),
+            hebrewLatin ? hebrewLatin.textContent : '没有第三行的副行');
 
         /*
           可见文案契约:这一页的导航项叫 Calendario,三张卡的名字里第一张是"格里高利历"

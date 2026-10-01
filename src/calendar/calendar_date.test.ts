@@ -13,7 +13,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { readCalendars, msUntilNextLocalMidnight } from '@/calendar/calendar_date';
-import { CALENDAR_SPECS, type CalendarKey } from '@/calendar/config';
+import {
+    CALENDAR_HEBREW_LATIN_LOCALE,
+    CALENDAR_HEBREW_MONTHS_ZH,
+    CALENDAR_SPECS,
+    type CalendarKey,
+} from '@/calendar/config';
 
 /** 固定的取样时刻:2026-01-15(周四)13:45:30 本地时间 */
 const SAMPLE = new Date(2026, 0, 15, 13, 45, 30);
@@ -62,7 +67,7 @@ describe('日历:三套历法的格式化', () => {
         expect(readingOf(new Date(2025, 6, 25), 'chinese').primary).toBe('乙巳年闰六月初一');
     });
 
-    it('希伯来历:月份用希伯来文,日 / 年是可读数字;副行是拉丁转写', () => {
+    it('希伯来历:月份用希伯来文,日 / 年是可读数字;副行是拉丁转写 + 汉语', () => {
         const hebrew = readingOf(SAMPLE, 'hebrew');
         expect(hebrew.primary).toContain('בטבת'); // 提别月(Tevet),希伯来文
         expect(hebrew.primary).toContain('5786'); // 希伯来历年份
@@ -70,7 +75,38 @@ describe('日历:三套历法的格式化', () => {
         // 是这条断言要挡住的那种"看着有内容,其实是乱码"
         expect(hebrew.primary).toMatch(/[\u0590-\u05FF]/);
         expect(hebrew.primary).not.toContain(':');
-        expect(hebrew.secondary).toBe('26 Tevet 5786');
+        // 副行 = 转写 + `; ` + 汉语(年 / 日复用的是转写那一行的数字)
+        expect(hebrew.secondary).toBe('26 Tevet 5786; 5786年提别月26日');
+    });
+
+    it('希伯来历:闰年的 Adar I / Adar II 在汉语里分得开(亚达月一 / 亚达月二),日补零', () => {
+        // 5784 是闰年:2024-02-10 落在一个亚达月,2024-03-11 落在另一个;两处都是"1 日",
+        // 汉译要写成 `01日`(月名自带一个"一",后面直接跟 `1` 会读不断句)
+        expect(readingOf(new Date(2024, 1, 10), 'hebrew').secondary)
+            .toBe('1 Adar I 5784; 5784年亚达月一01日');
+        expect(readingOf(new Date(2024, 2, 11), 'hebrew').secondary)
+            .toBe('1 Adar II 5784; 5784年亚达月二01日');
+    });
+
+    it('希伯来历:ICU 在近四年里吐出来的每个英文月名,汉译表里都有', () => {
+        /*
+          这条是月名表的**契约**:表是手抄的,ICU 换一版 CLDR 可能改转写(比如
+          Tammuz / Tamuz).扫一遍真实输出,表里缺谁就红,免得线上静默退回纯转写.
+          顺带要求扫到的月名够多(闰年才会出现的 Adar I / II 必须在),否则这条断言
+          可能因为扫描区间太短而形同虚设.
+        */
+        const formatter = new Intl.DateTimeFormat(CALENDAR_HEBREW_LATIN_LOCALE, {
+            year: 'numeric', month: 'long', day: 'numeric',
+        });
+        const monthNames = new Set<string>();
+        for (let day = new Date(2023, 0, 1); day < new Date(2027, 0, 1);
+            day = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1)) {
+            const month = formatter.formatToParts(day).find((part) => part.type === 'month');
+            if (month) monthNames.add(month.value);
+        }
+        expect(monthNames.size).toBeGreaterThanOrEqual(14); // 12 个月 + 闰年的 Adar I / II
+        expect([...monthNames].filter((name) => CALENDAR_HEBREW_MONTHS_ZH[name] === undefined))
+            .toEqual([]);
     });
 
     it('同一天读两次结果相同(格式化器被复用,不掺随机状态)', () => {

@@ -83,6 +83,16 @@ $there$ $is$ $nothing$ $to$ $do.$
   `dateStyle` 都正常,`he-IL` 走默认 gregory 也正常;只有这一对取不到可用的
   dateStyle 模式,ICU 便回退到根(英文)那套默认骨架.Node 的完整 ICU 两种写法都对,
   所以这个坑只在真浏览器里现形,由 `npm run smoke:home` 的"日历页"那几条挡住.
+- **希伯来历副行再补一段汉语**:主行 `20 בתשרי 5787`(原文),副行
+  `20 Tishri 5787; 5787年提斯利月20日`(转写 + 汉译,`; ` 分隔;汉译里的日按本站的
+  两位数写法补零,闰年是 `1 Adar I 5784; 5784年亚达月一01日` -- 不补的话"亚达月一"
+  后面直接粘一个 `1`,月份名和日子断不开).汉语月名**问不到** ICU:
+  `zh-CN-u-ca-hebrew` 只会给 `希伯来历5787年01月20日`(月份退化成数字,还多一个
+  era),所以本站自带一张 14 条的表 -- [`src/calendar/config.ts`](src/calendar/config.ts)
+  的 `CALENDAR_HEBREW_MONTHS_ZH`(含闰年的 `Adar I` / `Adar II`,以及 Tishri / Tishrei
+  这类转写变体),只翻译名字,历法本身仍然问 ICU;月名查不到就**退回纯转写**,
+  不猜一个错的月名.[`src/calendar/calendar_date.test.ts`](src/calendar/calendar_date.test.ts)
+  会扫一遍 ICU 真实吐出的月名,表里缺哪个就变红.
 - **跨日刷新不轮询**:日期一天只变一次,`mountCalendar()` 算到下个**本地**零点
   再醒一次(`msUntilNextLocalMidnight()` 用 `new Date(y, m, d + 1)` 归一化,跨月 /
   跨年 / 夏令时都对).LED 时钟是另一条路 -- 它显示到秒,所以仍然 1Hz 重绘.
@@ -306,7 +316,7 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 | 作用域 | 配置文件 | 放什么 |
 | --- | --- | --- |
 | 主站样式 | `public/css/tokens.css` | 站点设计令牌(`:root`):字体栈,调色板,尺寸,圆角,间距,`z-index`,过渡;首屏(`--hero-*`)与固定导航条(`--chrome-*`).SETTING 页自己的令牌不在这一份里,见下面那行 |
-| 主站脚本 | `src/clock/config.ts`,`src/calendar/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,日历三套历法的清单与 Intl 选项,OLED 画板尺寸/通道/文案,红黑树布局与配色 + 性质清单(四条性质的名字与出错文案都在 `RBT_PROPERTIES`),IEEE 754 精度格式与掩码,站点级声明式模型(导航项 / 首屏结构 / 首屏那两颗宿主 id / `is-over-hero` 类名 / `--nav-height` 令牌名) |
+| 主站脚本 | `src/clock/config.ts`,`src/calendar/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,日历三套历法的清单 / Intl 选项 / 希伯来历月名汉译表,OLED 画板尺寸/通道/文案,红黑树布局与配色 + 性质清单(四条性质的名字与出错文案都在 `RBT_PROPERTIES`),IEEE 754 精度格式与掩码,站点级声明式模型(导航项 / 首屏结构 / 首屏那两颗宿主 id / `is-over-hero` 类名 / `--nav-height` 令牌名) |
 | 首页骨架 | `src/common/ui/site_shell.ts` | 骨架:导航条 / 首屏 / 六个**空**窗格 / 首屏那两颗宿主(标记用库的 `create_element`;SETTING 页与 Calendario 页的结构不在这里,骨架只给它们空窗格) |
 | SETTING 页 | `src/setting/config.ts`,`src/setting/tokens.css`,`src/setting/setting.css`,`src/setting/setting_page.ts` | 那一页的全部声明与外观:三块设置组的 id·类名·面板标题,背景缩略图清单,页面透明度滑块的初值·区间·令牌名(纯数据);`--setting-*` 令牌;设置组框体与**组里每条控件的观感**(滑块配色 / 字体,作用域 `.setting-group`);整页面板 + 三颗空设置组的生成者 |
 | 主站行为 | `src/main.ts`,`src/common/header_state.ts`,`src/setting/background.ts`,`src/setting/page_opacity.ts` | 挂载顺序(骨架 -> 设置页 -> 各模块 -> 行为),导航条"隐形 / 实底"状态(首屏还压在它下面时,以及任何标签页停在页面顶端时),背景切换令牌写入,页面透明度滑块(库的 `createSlider`)往背景组里那条 `.bgrow` 追加并写 `--tab-pane-opacity` 令牌 |

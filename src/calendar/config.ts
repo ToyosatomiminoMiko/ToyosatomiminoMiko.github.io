@@ -31,6 +31,14 @@ export interface CalendarSpec {
     readonly secondaryLocale?: string;
     readonly secondaryOptions?: Intl.DateTimeFormatOptions;
     /**
+     * 副行:在拉丁转写之后再用汉语写一遍(`; ` 分隔),月名查 {@link CALENDAR_HEBREW_MONTHS_ZH}.
+     *
+     * 希伯来历专用:它的主行是希伯来文原文(`20 בתשרי 5787`),副行是转写
+     * (`20 Tishri 5787`),对不看这两套文字的人仍然只是"一串字母 + 数字";
+     * 补上汉语才知道那是几月几日.拼法见 calendar_date.ts 的 formatSecondary().
+     */
+    readonly secondaryChinese?: boolean;
+    /**
      * 去掉 ICU 结果里的 `relatedYear`(农历专用).
      *
      * ICU 给中国农历配对了一个格里高利历年,`dateStyle: 'long'` 于是输出
@@ -66,13 +74,50 @@ export const CALENDAR_HEBREW_LOCALE = 'he-IL-u-ca-hebrew';
 export const CALENDAR_HEBREW_LATIN_LOCALE = 'en-US-u-ca-hebrew';
 
 /**
+ * 希伯来历的月名:ICU 的英文转写 -> 汉译.
+ *
+ * 为什么需要这张表:CLDR 的 zh 里**没有**希伯来历的月名 -- `zh-CN-u-ca-hebrew` 给出的是
+ * `希伯来历5787年01月20日`(月份退化成数字,还多一个没用的"希伯来历"era),所以汉语
+ * 月名只能自己带一张表;历法本身(今天是哪个月)仍然问 ICU,这里只做"名字翻译".
+ *
+ * 键是 `en-US-u-ca-hebrew` 下 `formatToParts()` 的 month part(见 calendar_date.ts
+ * 的 formatSecondary).同一个月名在不同 ICU 版本里转写可能不一样(Tishri / Tishrei,
+ * Heshvan / Cheshvan,Tamuz / Tammuz),所以变体都收进来当别名;
+ * calendar_date.test.ts 会扫一遍 ICU 真实吐出来的月名,表里缺哪个就变红.
+ *
+ * 闰年有 13 个月,ICU 用 `Adar I` / `Adar II` 区分,所以表里是 14 条 + 3 条别名.
+ * 查不到时**不猜**:副行退回纯转写(见 calendar_date.ts),宁可少一段汉语,
+ * 也不要写一个错的月名.
+ */
+export const CALENDAR_HEBREW_MONTHS_ZH: Readonly<Record<string, string>> = {
+    Tishri: '提斯利月',
+    Tishrei: '提斯利月',
+    Heshvan: '玛西班月',
+    Cheshvan: '玛西班月',
+    Kislev: '基斯流月',
+    Tevet: '提别月',
+    Shevat: '细罢特月',
+    Adar: '亚达月',
+    'Adar I': '亚达月一',
+    'Adar II': '亚达月二',
+    Nisan: '尼散月',
+    Iyar: '以珥月',
+    Sivan: '西弯月',
+    Tamuz: '搭模斯月',
+    Tammuz: '搭模斯月',
+    Av: '埃波月',
+    Elul: '以禄月',
+};
+
+/**
  * 三张日历卡,顺序即显示顺序(格里高利历 / 农历 / 希伯来历).
  *
  * 值都是 `Intl.DateTimeFormat` 的选项,所以格式的取舍写在数据里而不是代码里.
- * Intl 选项表达不了的两处收尾用布尔开关标在同一张卡上:农历裁格里高利历年
- * (`dropRelatedYear`),格里高利历的月 / 日补零(`padMonthDay`).
+ * Intl 选项表达不了的三处收尾用布尔开关标在同一张卡上:农历裁格里高利历年
+ * (`dropRelatedYear`),格里高利历的月 / 日补零(`padMonthDay`),希伯来历副行补汉语
+ * (`secondaryChinese`).
  * 格里高利历拆成"日期 + 星期"两行(合在一起是 `2026年01月15日星期四`,星期会黏在日期后面);
- * 农历只要干支年 + 月 + 日;希伯来历主行原文,副行转写.
+ * 农历只要干支年 + 月 + 日;希伯来历主行原文,副行转写 + 汉译.
  *
  * 标成 `readonly CalendarSpec[]`(而不是 `as const`):每一项的字段并不完全一样
  * (只有农历裁 relatedYear,只有希伯来历有副行),统一成声明的接口类型,消费方
@@ -123,6 +168,8 @@ export const CALENDAR_SPECS: readonly CalendarSpec[] = [
         options: { year: 'numeric', month: 'long', day: 'numeric' },
         secondaryLocale: CALENDAR_HEBREW_LATIN_LOCALE,
         secondaryOptions: { year: 'numeric', month: 'long', day: 'numeric' },
+        // 转写后面补汉语:`20 Tishri 5787; 5787年提斯利月20日`
+        secondaryChinese: true,
     },
 ];
 
