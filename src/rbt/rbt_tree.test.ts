@@ -11,7 +11,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { RBT_COMPARISON_TOLERANCE, RBT_PROPERTIES } from '@/rbt/config';
+import { RBT_COMPARISON_TOLERANCE, RBT_PROPERTIES, RBT_TREE_EXAMPLE } from '@/rbt/config';
 import {
     buildTreeFromExpression,
     checkTreeProperties,
@@ -71,6 +71,18 @@ describe('红黑树:表达式解析(格式检查)', () => {
         expect(() => buildTreeFromExpression('5B(1B,2B')).toThrow(/括号不匹配/);
         expect(() => buildTreeFromExpression('5B(1B 2B)')).toThrow(/缺少逗号/);
     });
+
+    it('配平右括号之后还有内容 -> 抛错,不静默丢弃', () => {
+        // 括号配平只说明"这一段对上了",不说明整串就是这一个表达式;
+        // 少这条检查的话下面三种写法都会被当成合法的 5B 树.
+        expect(() => buildTreeFromExpression('5B(1B,2B)junk')).toThrow(/多余内容/);
+        expect(() => buildTreeFromExpression('5B(1B,2B))')).toThrow(/多余内容/);
+        expect(() => buildTreeFromExpression('5B(1B,2B)(3B,4B)')).toThrow(/多余内容/);
+        // 子树里也一样:左子树收尾之后多出来的字符同样要报错
+        expect(() => buildTreeFromExpression('5B(1B(2B,3B)x,4B)')).toThrow(/多余内容/);
+        // 前后空白是允许的(parseNode 先 trim)
+        expect(buildTreeFromExpression('  5B(1B,2B)  ')?.value).toBe('5');
+    });
 });
 
 describe('红黑树:性质检查', () => {
@@ -87,15 +99,13 @@ describe('红黑树:性质检查', () => {
         expect(ids).not.toContain('nil-leaf-black');
     });
 
-    it('合法红黑树(默认示例)四条全过,节点数对得上', () => {
-        const report = check(
-            '15B(7R(3B(1R(0B,2B),5R(4B,6B)),11B(9R(8B,10B),13R(12B,14B))),' +
-            '23R(19B(17R(16B,18B),21R(20B,22B)),27B(25R(24B,26B),29R(28B,30B))))',
-        );
+    it('合法红黑树(站点默认示例)四条全过', () => {
+        // 用的就是挂载时灌进输入框的那一份(config 的 RBT_TREE_EXAMPLE),
+        // 不再在测试里手抄一遍字符串:常量改了这里跟着变.
+        const report = check(RBT_TREE_EXAMPLE);
         expect(report.results.map((result) => result.pass)).toEqual([true, true, true, true]);
         expect(report.failedCount).toBe(0);
         expect(report.total).toBe(RBT_PROPERTIES.length);
-        expect(report.nodeCount).toBe(31);
     });
 
     it('合法的非满树也全过(含单侧链条 n 层,黑高一致)', () => {
@@ -105,10 +115,10 @@ describe('红黑树:性质检查', () => {
         expect(check('10B(5R(1B,7B),20R(15B,30B))').failedCount).toBe(0);
     });
 
-    it('空树是合法红黑树:四条都 PASS,节点数为 0', () => {
+    it('空树是合法红黑树:四条都 PASS', () => {
         const report = checkTreeProperties(null);
         expect(report.failedCount).toBe(0);
-        expect(report.nodeCount).toBe(0);
+        expect(report.results.every((result) => result.pass)).toBe(true);
     });
 
     it('第 1 条:根是红色 -> 根黑 FAIL,并指出是哪个节点', () => {

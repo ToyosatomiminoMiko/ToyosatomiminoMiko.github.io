@@ -18,7 +18,7 @@ import { CALENDAR_MIDNIGHT_GRACE_MS } from './config';
 import { createCalendarPanel } from './ui/calendar_panel';
 
 /** 挂载后交回的元素引用(骨架只给空窗格,面板由本模块长出来) */
-export interface CalendarPane {
+interface CalendarPane {
     /** 整块面板(`section.ui-panel.calendar-pane`) */
     readonly root: HTMLElement;
     /** 顶部时钟宿主 -> `mountClock()` */

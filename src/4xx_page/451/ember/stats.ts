@@ -23,7 +23,7 @@ import {
     STATS_STEPS_DIGITS,
 } from './stats.config';
 
-export interface FrameSample {
+interface FrameSample {
     /** 距上一帧的 rAF 间隔(ms); 首帧(<= 0)会被忽略 */
     interval: number;
     /** 本帧主线程耗时(ms) */
@@ -42,7 +42,7 @@ export interface GpuPassTimings {
     total: number;
 }
 
-export interface Distribution {
+interface Distribution {
     avg: number;
     p50: number;
     p95: number;

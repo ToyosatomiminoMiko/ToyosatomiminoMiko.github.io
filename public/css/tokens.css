@@ -19,7 +19,6 @@
  *   --tab-*       标签页窗格(SETTING 页自己的令牌见 src/setting/tokens.css)
  *   --hero-*      首屏(hero)
  *   --chrome-*    固定导航条(站名 / 导航项 / 隐形↔实底)
- *   --tab-*       标签页窗格
  *   --radius-*    圆角(**由 miko_ui 主题提供,本站只引用**)
  *   --z-*         层级
  *   --transition-* 过渡

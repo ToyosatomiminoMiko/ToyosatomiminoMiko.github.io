@@ -24,7 +24,7 @@ import {
 } from './config';
 
 /** 一次读取的结果:某套历法在该时刻的两行文案 */
-export interface CalendarReading {
+interface CalendarReading {
     /** 与 CALENDAR_SPECS 的 key 一一对应(行为代码按它写回元素) */
     readonly key: CalendarKey;
     /** 主日期行(永不为空) */
@@ -89,10 +89,14 @@ export function readCalendars(date: Date): readonly CalendarReading[] {
 function formatSecondary(entry: PreparedCalendar, date: Date): string {
     if (entry.secondary === null) return '';
 
-    const translit = entry.secondary.format(date);
+    /*
+      只调一次 formatToParts:`parts` 的值依次相接就等于 format()(分隔符也是 part),
+      所以转写串与年 / 月 / 日的查表都复用同一份结果,不再为同一个日期格式化两次.
+    */
+    const parts = entry.secondary.formatToParts(date);
+    const translit = parts.map((part) => part.value).join('');
     if (!entry.secondaryChinese) return translit;
 
-    const parts = entry.secondary.formatToParts(date);
     const partValue = (type: string): string =>
         parts.find((part) => partType(part) === type)?.value ?? '';
 

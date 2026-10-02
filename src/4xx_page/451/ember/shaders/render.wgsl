@@ -54,7 +54,10 @@ fn vs_main(@builtin(vertex_index) vi : u32,
     let haloScale = select(1.0, 1.7, p.size > 3.0); // 大颗粒多一圈光晕
 
     let radius = size * haloScale;
-    let pixelDelta = corner * radius * sim.dpr;
+    // radius 已经是逻辑(CSS)像素, 而 NDC 是相对画布本身的: 下面的换算用的是
+    // sim.width / sim.height(同样是逻辑像素), 所以这里不乘 dpr.
+    // 乘了会变成 radius * dpr 的 CSS 像素(即 dpr^2 物理像素), 粒子整体放大 dpr 倍.
+    let pixelDelta = corner * radius;
 
     // 逻辑像素 -> NDC (y 轴翻转, 屏幕坐标原点在左上)
     let logical = p.pos + pixelDelta;

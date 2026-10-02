@@ -8,6 +8,7 @@ mod app;
 mod app_params;
 mod boot_config;
 mod glass_params;
+mod gpu_resources;
 mod pipelines;
 mod random;
 mod random_params;
@@ -22,9 +23,12 @@ mod test_fixtures;
 // 对外暴露的 API 全部服务于原生示例(examples/):
 //   - validate_wgsl 要 shader_source():与管线编译时**逐字一致**的完整 WGSL
 //     源码(含 Rust 生成的 GlassParams 声明);
-//   - preview 要下面这一组:它自己搭一遍设备 / 纹理 / 管线,离线渲染一帧.
+//   - preview 要下面这一组:它自己搭一遍设备 / 纹理 / 管线,离线渲染一帧;
+//     其中 gpu_resources 的三个构造函数就是"运行时与预览必须建得一模一样"的
+//     那几样资源(采样器 / 全屏四边形缓冲 / 三张程序化材质贴图).
 pub use app_params::write_param;
 pub use glass_params::GlassParams;
+pub use gpu_resources::{create_material_sampler, create_quad_buffers, generate_material_textures};
 pub use pipelines::{create_metro_pipelines, shader_source, MetroTextures};
 pub use render_params::{
     FULLSCREEN_QUAD_INDICES, FULLSCREEN_QUAD_VERTICES, QUAD_INDEX_FORMAT, RENDER_TARGET_FORMAT,
@@ -152,7 +156,9 @@ pub fn reset() {
 
 /// 用前端上传的图片像素替换某个材质槽位的贴图.
 ///
-/// - `layer`:材质槽位号,当前只放开城市背景四层(见 app_params::UPLOADABLE_LAYERS);
+/// - `layer`:材质槽位号,当前只放开城市背景四层(白名单是启动配置里的
+///   `boot.layers` / `app_params::upload_slot`,层清单来自前端 `config.ts`
+///   的 `UPLOAD_LAYERS`,数量由 boot_config.rs 的启动校验把关);
 /// - `rgba` :已经解码好的 RGBA8 像素,长度必须恰好 `width * height * 4`.
 ///
 /// 解码放在前端做(createImageBitmap + canvas):浏览器本来就支持 PNG/JPEG/WebP,

@@ -156,10 +156,11 @@ export const RBT_ERROR_HINT_COLOR = '#e11d48';
 // 性质有**先后**之分:前一条 FAIL 时,后面的往往也在报同一处错(一棵根为红的树
 // 通常还伴随红红相接),所以清单按下面这个顺序排,第一条不过就先看第一条.
 
-/** 清单容器的类名 */
-export const RBT_DIAGNOSTICS_CLASS = 'tree-properties';
-
-/** 单条性质的类名(行为代码每渲染一次清单就整批重建这些节点) */
+/**
+ * 单条性质的类名(行为代码每渲染一次清单就整批重建这些节点).
+ * 消费方是 scripts/smoke_home.mjs:它在真浏览器里按 `#treeProperties .tree-property`
+ * 数行数,所以这个类名是**跨语言契约**,不能只按"CSS 里没用到"就删.
+ */
 export const RBT_DIAGNOSTICS_ROW_CLASS = 'tree-property';
 
 /** 单条性质里"结论"那一段的类名(状态色挂在它上面) */
@@ -206,17 +207,10 @@ export const RBT_BST_ORDER_DETAIL = '以 {node} 为根的子树不满足左小�
 
 /** 性质定义(清单顺序 = 检查顺序 = 界面顺序) */
 export interface RbtPropertySpec {
-    /** 稳定 id(测试与行为代码按它取某一条的结论) */
+    /** 稳定 id,行为代码按它取对应的检查函数(见 rbt_tree.ts 的 PROPERTY_CHECKS) */
     readonly id: string;
     /** 界面上的性质名(可见文本) */
     readonly label: string;
-    /**
-     * FAIL 时的出错位置模板(可见文本).
-     *
-     * 约定:`{node}` 换成出错节点的"值+颜色"(如 `11R`) -- 节点值只存在表达式里,
-     * 不给位置读者对不上是哪个节点;其余占位符是该条性质自己的量(见上面各条).
-     */
-    readonly failDetail: string;
 }
 
 /**
@@ -241,29 +235,17 @@ export interface RbtPropertySpec {
  *   (`5B(1B,2B)`),单孩子写法 `5B(1B)` 在解析阶段就报"缺少逗号",到不了性质检查.
  * 列一条永远 PASS 的条目只会让清单看着更长,所以不列;哪天支持了单孩子写法,
  * 再把那条加回来.
+ *
+ * `as const` 让 id 收窄成字面量联合:`rbt_tree.ts` 的 PROPERTY_CHECKS 用
+ * `Record<id 联合, 检查函数>` 收口,清单增删一条而检查函数没跟上会**编译报错**,
+ * 而不是等到某个输入把它变成 undefined 调用.
  */
-export const RBT_PROPERTIES: readonly RbtPropertySpec[] = [
-    {
-        id: 'root-black',
-        label: '根节点为黑色',
-        failDetail: RBT_ROOT_RED_DETAIL,
-    },
-    {
-        id: 'red-no-red-child',
-        label: '红色节点不可相邻',
-        failDetail: RBT_RED_CHILD_DETAIL,
-    },
-    {
-        id: 'black-height',
-        label: '各路径黑色节点数量相同',
-        failDetail: RBT_BLACK_HEIGHT_DETAIL,
-    },
-    {
-        id: 'bst-order',
-        label: '二叉搜索树有序',
-        failDetail: RBT_BST_ORDER_DETAIL,
-    },
-];
+export const RBT_PROPERTIES = [
+    { id: 'root-black', label: '根节点为黑色' },
+    { id: 'red-no-red-child', label: '红色节点不可相邻' },
+    { id: 'black-height', label: '各路径黑色节点数量相同' },
+    { id: 'bst-order', label: '二叉搜索树有序' },
+] as const satisfies readonly RbtPropertySpec[];
 
 /**
  * 二叉搜索树有序性的比较容差.
@@ -351,6 +333,14 @@ export const RBT_ERR_COLOR_MARK = '颜色标记必须是 R 或 B, 错误部分: 
 
 /** 括号不匹配时的错误文案前缀 */
 export const RBT_ERR_UNBALANCED = '括号不匹配: ';
+
+/**
+ * 括号表达式配平之后还有多余字符时的错误文案前缀.
+ *
+ * 为什么要单列一条:括号配平只说明"这一段括号对上了",不说明"整串就是这一个
+ * 表达式".少了这条检查,`5B(1B,2B)junk` 会被当成合法的 5B 树,多余输入静默丢弃.
+ */
+export const RBT_ERR_TRAILING = '表达式末尾有多余内容: ';
 
 /** 缺少逗号时的错误文案前缀 */
 export const RBT_ERR_NO_COMMA = '子树格式错误: 缺少逗号分隔左右子树, 内部: ';

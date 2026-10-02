@@ -544,13 +544,20 @@ canvas#pixelCanvas {
 }
 
 /*
- * 行号槽永不滚动:整个编辑器只有 textarea 一个滚动容器,行号栏内容超高时也是
- * 裁掉,不给它自己加滑条.槽宽本身由 ui/oled_panel.ts 钉成常量(库按字体量的
- * 内联值被 `!important` 压住,见那里的说明和 config.ts 的常量).
- * `overflow: hidden` 与库的 `styles/editor.css` 一致,写在这里是让"行号栏不滚"
- * 这条要求在本站样式表里也一眼可见.
+ * 行号槽:永不滚动 + 槽宽钉死.
+ *
+ * 永不滚动:整个编辑器只有 textarea 一个滚动容器,行号栏内容超高时也是裁掉,
+ * 不给它自己加滑条(`overflow: hidden` 与库的 `styles/editor.css` 一致,写在这里
+ * 是让"行号栏不滚"这条要求在本站样式表里也一眼可见).
+ *
+ * 槽宽:库(EditorLineNumbers)在行号位数进位时按当前字体重量一次,把结果写成 gutter
+ * 上一条**不带 priority** 的内联自定义属性;内联的普通声明压得过任何不带 `!important`
+ * 的作者声明,所以钉住它的只能是这里的作者 `!important` -- 内联那份反而会被库随后的
+ * 普通写入连 priority 一起替换掉.位数再多(超过 48px)的部分由上面的 `overflow: hidden`
+ * 裁掉,而不是给行号栏加滑条;取值理由见 src/oled/config.ts 的同名常量.
  */
 .oled-card .code-editor-gutter {
+    --code-gutter-width: 48px !important;
     overflow: hidden;
 }
 

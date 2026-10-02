@@ -13,7 +13,7 @@
         </div>
         <textarea id="treeInput" spellcheck="false" placeholder="..."></textarea>
         <div id="treeError" hidden></div>
-        <div id="treeProperties" class="tree-properties" hidden></div>
+        <div id="treeProperties" hidden></div>
         <canvas id="rbCanvas" width="1200" height="640"></canvas>
       </div>
     </section>
@@ -34,7 +34,6 @@ import { create_element, createPanel } from 'miko_ui';
 import {
     RBT_CANVAS_HEIGHT,
     RBT_CANVAS_WIDTH,
-    RBT_DIAGNOSTICS_CLASS,
     RBT_DOM,
     RBT_HINT_COLOR_LEGEND,
     RBT_HINT_SHORTHAND,
@@ -44,7 +43,7 @@ import {
 } from '@/rbt/config';
 
 /** 红黑树面板:根元素 + 行为代码要用的元素引用 */
-export interface RbtPanel {
+interface RbtPanel {
     /** 面板根:库的 `createPanel` 建的 `section.ui-panel`(插进 shell.panes.rbt) */
     readonly root: HTMLElement;
     /** 表达式输入框 #treeInput */
@@ -71,10 +70,12 @@ export function createRbtPanel(): RbtPanel {
     // 初始必须隐藏:错误提示只在该出声时由 rbt.ts 显隐
     const error = create_element({ tag: 'div' }, { id: RBT_DOM.errorId, hidden: 'hidden' });
 
-    // 性质检查清单:初始同样隐藏(输入为空或解析失败时都没有"性质"可列)
+    // 性质检查清单:初始同样隐藏(输入为空或解析失败时都没有"性质"可列).
+    // 容器只认 id(`#treeProperties` 是 CSS 与冒烟脚本的定位契约),不再挂一个没人
+    // 消费的类名:清单里的行 / 结论 / 抬头各有自己的类,样式也只认它们.
     const diagnostics = create_element(
         { tag: 'div' },
-        { id: RBT_DOM.diagnosticsId, class: RBT_DIAGNOSTICS_CLASS, hidden: 'hidden' },
+        { id: RBT_DOM.diagnosticsId, hidden: 'hidden' },
     );
 
     const canvas = create_element(

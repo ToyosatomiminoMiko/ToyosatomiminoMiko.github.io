@@ -21,10 +21,10 @@ fi
 
 hook_staged=0
 
-# 找出本次已暂存的文本文件. --diff-filter=ACM 留下的只有新增(A)/复制(C)/
-# 修改(M): 重命名(R)与类型变化(T)会被一并丢掉 -- 一个"重命名后又改过"的文件
-# 不会过标点修正, 却仍会被下面的 git add 重新加回暂存区. 要连这类文件一起管,
-# 得把过滤器放宽到 ACMRT.
+# 找出本次已暂存的文本文件. 用 ACMRT(新增/复制/修改/重命名/类型变化)而不是 ACM:
+# 一个"重命名后又改过"的文件同样要过标点修正, 否则它带着全角标点进仓库而没人报警.
+# 循环里 `git add -- "$f"` 用的是 --name-only 给出的**新路径**, 重命名也照常生效;
+# 改名前的旧路径不会出现在列表里, 所以不会被误加.
 while IFS= read -r -d '' f; do
   # 正在运行的 hook 不能当场改写自己: bash 是边读边执行脚本的,执行途中重写
   # 自身可能让后面的语句读错. 先记下来,等循环结束,脚本读完之后再处理.
@@ -35,7 +35,7 @@ while IFS= read -r -d '' f; do
   fi
   python3 "$root/scripts/autorun.py" "$f"
   git add -- "$f"
-done < <(git diff --cached --name-only -z --diff-filter=ACM)
+done < <(git diff --cached --name-only -z --diff-filter=ACMRT)
 
 # 补上本 hook 自身(它也在修正范围内,只是必须延后到脚本读完)
 if [ "$hook_staged" = 1 ]; then

@@ -5,14 +5,14 @@
  * 所以"主线程 ScriptDuration 只有 18ms"这种结论根本回答不了"机箱为什么烫".
  * 这里补上 GPU 侧的那一半观测.
  *
- * 只有适配器支持 'timestamp-query' 时才建得起来(软件适配器 / 部分驱动没有),
- * 因此整块是可选的: 不支持就返回 null, 调用方不需要额外分支.
+ * 是否启用由调用方决定: acquireGpuContext() 已经把"设备有没有 timestamp-query"
+ * 算成 GpuContext.timestampQuery 带出来了, 这里只负责在支持时把计时器建起来,
+ * 不再自己 probe 一遍设备特性.
  *
  * 每帧打 4 个点 = 3 段:
  *   t0 计算之前 -> t1 计算之后 -> t2 粒子绘制之后 -> t3 合成之后
  */
 import type { GpuPassTimings } from './stats';
-import { TIMESTAMP_QUERY_FEATURE } from './capabilities.config';
 import {
     BYTES_PER_TIMESTAMP,
     MARKS_PER_FRAME,
@@ -25,12 +25,9 @@ import {
     ZERO_READS_BEFORE_GIVING_UP,
 } from './gpu_timing.config';
 
-function isGpuTimingSupported(device: GPUDevice): boolean {
-    return device.features.has(TIMESTAMP_QUERY_FEATURE);
-}
-
-export function createGpuTimer(device: GPUDevice): GpuTimer | null {
-    return isGpuTimingSupported(device) ? new GpuTimer(device) : null;
+/** 前提: 设备已带上 timestamp-query(调用方按 GpuContext.timestampQuery 判断) */
+export function createGpuTimer(device: GPUDevice): GpuTimer {
+    return new GpuTimer(device);
 }
 
 export class GpuTimer {
@@ -39,6 +36,8 @@ export class GpuTimer {
     private readonly readBuffer: GPUBuffer;
     private frameIndex = 0;
     private reading = false;
+    /** 已录进命令缓冲,等提交后读回的偏移;null = 这一帧没有待读的拷贝 */
+    private pendingReadOffset: number | null = null;
     private zeroReads = 0;
     private gaveUp = false;
     private last: GpuPassTimings | null = null;
@@ -80,27 +79,42 @@ export class GpuTimer {
     }
 
     /**
-     * 录制收尾: resolve 本帧 4 个点,拷进读回缓冲, 再异步 mapAsync 读回.
+     * 录制收尾: resolve 本帧 4 个点, 并把它们拷进读回缓冲.
      *
-     * resolveQuerySet / copyBufferToBuffer 是无条件执行的(只要还没 gaveUp),
-     * 所以上一帧的 mapAsync 没结束也照样会提交本帧的拷贝; 被跳过的只是本帧的
-     * mapAsync -- 等上一帧的 finally 把 reading 清掉.
+     * **不在这里 mapAsync**: mapAsync 要在命令缓冲**提交之后**调用(见 afterSubmit).
+     * 反过来的话, 这次拷贝还没提交, mapAsync 立刻就能把缓冲 map 上, 紧接着的
+     * submit 就会撞上 GPU 校验错误 `[Buffer "..."] used in submit while mapped`.
+     *
+     * 上一帧的读回还没结束(reading)时整帧跳过:读回缓冲此刻仍是 mapped, 再录一次
+     * 写它的拷贝同样非法; 那一帧的读数本来也交不回来.
      */
     endFrame(encoder: GPUCommandEncoder, base: number): void {
         if (this.gaveUp) return;
+        if (this.reading) return;
 
         encoder.resolveQuerySet(this.querySet, base, MARKS_PER_FRAME, this.resolveBuffer, 0);
+        const offset = base * BYTES_PER_TIMESTAMP;
         encoder.copyBufferToBuffer(
             this.resolveBuffer,
             0,
             this.readBuffer,
-            base * BYTES_PER_TIMESTAMP,
+            offset,
             MARKS_PER_FRAME * BYTES_PER_TIMESTAMP
         );
+        this.pendingReadOffset = offset;
+    }
 
-        if (this.reading) return;
+    /**
+     * 命令缓冲提交之后调:把刚拷进读回缓冲的 4 个点读回 CPU.
+     *
+     * 时机是硬约束, 不是风格问题 -- 见 endFrame 的说明.
+     */
+    afterSubmit(): void {
+        const offset = this.pendingReadOffset;
+        this.pendingReadOffset = null;
+        if (this.gaveUp || this.reading || offset === null) return;
+
         this.reading = true;
-        const offset = base * BYTES_PER_TIMESTAMP;
         this.readBuffer
             .mapAsync(GPUMapMode.READ, offset, MARKS_PER_FRAME * BYTES_PER_TIMESTAMP)
             .then(() => {

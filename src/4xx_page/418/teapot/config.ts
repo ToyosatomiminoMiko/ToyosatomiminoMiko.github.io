@@ -1,8 +1,8 @@
 /**
  * 418 茶壶交互(teapot/index.ts)的可调常量.
  *
- * 覆盖: DOM id / 选择器 / 类名 / sprite 图标 id 与内联样式 /
- * 各类时长(ms) / 表情与面板的临时样式值 / 幽默文案.
+ * 覆盖: DOM id / 选择器 / 类名 / sprite 图标 id / 各类时长(ms) /
+ * 表情与面板的临时样式值 / 幽默文案.
  * 这些值直接决定交互表现, 改动会改变行为, 不是纯重构.
  */
 
@@ -39,6 +39,19 @@ export const SELECTOR = {
 /** 晃动时临时挂上的类名(动画见 418.css 的 .teapot.wobble) */
 export const CLASS_WOBBLE = 'wobble';
 
+/**
+ * toast 图标的样式变体类名(规则见 418.css).
+ * 挂在 #actionToast 这个容器上, 由后代选择器命中它里面的 .icon --
+ * 这样图标样式留在 CSS(消费 418_tokens.css 的令牌), TS 不再拼行内 style.
+ */
+export const CLASS_TOAST_TEA = 'is-tea';
+
+/** 拒绝咖啡 toast: 图标用警示红(令牌 --teapot-ban-icon-alert-color) */
+export const CLASS_TOAST_COFFEE = 'is-coffee';
+
+/** 计数面板闪烁态(规则见 418.css 的 .counter-panel.is-flash) */
+export const CLASS_PANEL_FLASH = 'is-flash';
+
 /** sprite 图标 id(定义在 418.html 的 <symbol>) */
 export const ICON_ID = {
     /** 茶杯 */
@@ -49,14 +62,6 @@ export const ICON_ID = {
     faceSmileWink: 'i-face-smile-wink',
     /** 和平手势 */
     handPeace: 'i-hand-peace',
-} as const;
-
-/** 图标内联样式片段 */
-export const ICON_STYLE = {
-    /** 图标与相邻文字的间距(418_tokens.css 的 --teapot-icon-gap 是 8px, 与本值不一致) */
-    marginRight: 'margin-right:6px;',
-    /** 警示红; 镜像 418_tokens.css 的 --teapot-ban-icon-alert-color */
-    alert: 'color:#b34e4e;',
 } as const;
 
 /** 初始拒绝次数(经典 42 梗) */
@@ -71,7 +76,7 @@ export const TOAST_OPACITY_VISIBLE = '1';
 /** 茶壶晃动动画时长(ms); 镜像 418_tokens.css 的 --teapot-wobble-duration(0.4s) */
 export const WOBBLE_MS = 400;
 
-/** 蒸汽增强后恢复默认时长的延迟(ms) */
+/** 蒸汽增强持续的时长(ms); 到点后清掉行内 animation-duration, 回到 CSS 令牌的 2.5s */
 export const STEAM_BOOST_MS = 2000;
 
 /** 泡茶时"斜眼看茶"的瞳孔位移保持时间(ms) */
@@ -86,7 +91,7 @@ export const MESSAGE_COFFEE_HOLD_MS = 2800;
 /** 拒绝咖啡后表情恢复的延迟(ms) */
 export const FACE_RESTORE_MS = 800;
 
-/** 计数面板闪一下的保持时间(ms) */
+/** 计数面板闪一下的保持时间(ms); 背景色与过渡由 418.css 的 .counter-panel.is-flash 给 */
 export const PANEL_FLASH_MS = 200;
 
 /** 页面加载完成后欢迎语的延迟(ms) */
@@ -95,11 +100,13 @@ export const WELCOME_DELAY_MS = 300;
 /** 左眼在 .pupil NodeList 里的下标(0 = 左, 1 = 右) */
 export const EYE_LEFT_INDEX = 0;
 
-/** 蒸汽增强时的动画(更快) */
-export const STEAM_ANIMATION_BOOST = 'steamFloat 1.8s infinite ease-in-out';
-
-/** 蒸汽默认动画; 镜像 418_tokens.css 的 --teapot-steam-animation */
-export const STEAM_ANIMATION_NORMAL = 'steamFloat 2.5s infinite ease-in-out';
+/**
+ * 蒸汽增强时的动画时长.
+ * 只覆盖 animation-duration 这一个长属性: 动画名/缓动/循环次数/延迟仍由 CSS 令牌
+ * (418_tokens.css 的 --teapot-steam-animation 与 .steam span:nth-child 的 delay)决定,
+ * 写 animation 简写会把 nth-child 的延迟一并重置成 0s, 三根蒸汽柱从此同步.
+ */
+export const STEAM_BOOST_DURATION = '1.8s';
 
 /** 泡茶: 瞳孔斜眼看茶 */
 export const PUPIL_LOOK_AWAY = 'translateX(2px) translateY(-1px)';
@@ -126,15 +133,6 @@ export const MOUTH_REST = {
     height: '16px',
     transform: 'translateX(-50%)',
 } as const;
-
-/** 计数面板闪烁的过渡时长; 镜像 418_tokens.css 的 --teapot-duration-fast(0.2s) */
-export const PANEL_FLASH_TRANSITION = '0.2s';
-
-/** 计数面板闪烁时的背景色 */
-export const PANEL_FLASH_BG = '#f0cdb0';
-
-/** 计数面板恢复后的背景色; 镜像 418_tokens.css 的 --teapot-counter-bg */
-export const PANEL_REST_BG = '#eedbcb';
 
 /** 可选茶叶(随机抽一种) */
 export const TEAS: readonly string[] = ['大吉岭', '伯爵茶', '乌龙茶', '薄荷茶', '洋甘菊', '普洱'];

@@ -9,18 +9,16 @@ use crate::app_params::{
 };
 use crate::boot_config::BootConfig;
 use crate::glass_params::GlassParams;
+use crate::gpu_resources::{
+    create_material_sampler, create_quad_buffers, generate_material_textures,
+};
 use crate::performance_now;
 use crate::pipelines::{create_metro_pipelines, create_render_bind_group, MetroTextures};
 use crate::render_params::{
-    ADAPTER_POWER_PREFERENCE, CLEAR_COLOR, FULLSCREEN_QUAD_INDICES, FULLSCREEN_QUAD_VERTICES,
-    MIN_TEXTURE_DIMENSION, QUAD_INDEX_FORMAT, SAMPLER_ADDRESS_MODE_CLAMP,
-    SAMPLER_ADDRESS_MODE_REPEAT, SAMPLER_FILTER_MODE, SURFACE_MAX_FRAME_LATENCY,
-    SURFACE_PRESENT_MODE, TEXTURE_LAYER_COUNT,
+    ADAPTER_POWER_PREFERENCE, CLEAR_COLOR, FULLSCREEN_QUAD_INDICES, MIN_TEXTURE_DIMENSION,
+    QUAD_INDEX_FORMAT, SURFACE_MAX_FRAME_LATENCY, SURFACE_PRESENT_MODE, TEXTURE_LAYER_COUNT,
 };
-use crate::texture_params::{DIRT_TEXTURE_SIZE, FOG_TEXTURE_SIZE, INTERIOR_TEXTURE_SIZE};
-use crate::textures::{
-    create_png_texture, create_texture, generate_dirt, generate_fog, generate_interior,
-};
+use crate::textures::{create_png_texture, create_texture};
 use crate::uniforms::Uniforms;
 use web_sys::{console, HtmlCanvasElement, HtmlElement};
 use wgpu::util::DeviceExt;
@@ -52,8 +50,9 @@ pub(crate) struct App {
     /// 所以"恢复默认"只是把视图换回去,不需要重新联网 fetch.
     pub(crate) material_views: [wgpu::TextureView; TEXTURE_LAYER_COUNT as usize],
     /// 站点自带的默认材质贴图,下标与 [`App::material_views`] 一一对应.
-    /// 前 `SHADER_CITY_LAYER_COUNT` 项是前端清单里的城市图层(顺序 = 槽位号),
-    /// 之后是程序化生成的污渍 / 雾气 / 车厢倒影.
+    /// 前 `boot.layers.len()` 项是前端清单里的城市图层(顺序 = 槽位号,启动校验
+    /// 保证该数量等于 `SHADER_CITY_LAYER_COUNT`),之后是程序化生成的污渍 / 雾气 /
+    /// 车厢倒影.
     pub(crate) default_material_textures: [wgpu::Texture; TEXTURE_LAYER_COUNT as usize],
     pub(crate) sampler: wgpu::Sampler,
     pub(crate) vertex_buffer: wgpu::Buffer,
@@ -181,59 +180,20 @@ impl App {
         }
 
         set_status(&status, "正在生成玻璃材质纹理...");
-        let (dw, dh, dirt_data) = generate_dirt(DIRT_TEXTURE_SIZE.0, DIRT_TEXTURE_SIZE.1);
-        let dirt = create_texture(&device, &queue, "glass_dirt", dw, dh, &dirt_data, false);
-        let (fw, fh, fog_data) = generate_fog(FOG_TEXTURE_SIZE.0, FOG_TEXTURE_SIZE.1);
-        let fog = create_texture(
+        // 采样器 / 全屏四边形缓冲 / 三张程序化贴图的构造与离线预览共用
+        // (见 gpu_resources.rs):参数只有一处,调试标签在各调用处保留原样.
+        let sampler = create_material_sampler(&device, "metro-sampler");
+        let (vertex_buffer, index_buffer) = create_quad_buffers(
+            &device,
+            "fullscreen-quad-vertices",
+            "fullscreen-quad-indices",
+        );
+        // 顺序固定为 [污渍 dirt, 雾气 fog, 车厢倒影 interior].
+        let [dirt, fog, interior] = generate_material_textures(
             &device,
             &queue,
-            "condensation_fog",
-            fw,
-            fh,
-            &fog_data,
-            false,
+            ["glass_dirt", "condensation_fog", "interior_reflection"],
         );
-        let (iw, ih, interior_data) =
-            generate_interior(INTERIOR_TEXTURE_SIZE.0, INTERIOR_TEXTURE_SIZE.1);
-        let interior = create_texture(
-            &device,
-            &queue,
-            "interior_reflection",
-            iw,
-            ih,
-            &interior_data,
-            false,
-        );
-
-        // 采样器约定:u = Repeat(城市层要靠它循环滚动),v = ClampToEdge.
-        // 喂给它的"程序化生成"贴图(雾,污渍)因此必须双向可平铺:
-        //   - u 越界由 Repeat 折回(左右边对不上 => 贯穿画面的竖缝);
-        //   - v 越界由 ClampToEdge 把最后一行拉满整段
-        //     (污渍 uv*2 => 下半屏,雾气 uv*1.3 => 77% 以下被水平拉伸),
-        //   所以着色器里对这两层的坐标先 fract 折回 [0,1)(见 shaders.wgsl).
-        // 周期在 textures.rs 的 value_noise/fbm/scratch_mask 里保证.
-        // 城市 PNG 是美术素材,左右边缘本来就有差异,不适用这条(实测跳变很弱).
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("metro-sampler"),
-            address_mode_u: SAMPLER_ADDRESS_MODE_REPEAT,
-            address_mode_v: SAMPLER_ADDRESS_MODE_CLAMP,
-            address_mode_w: SAMPLER_ADDRESS_MODE_CLAMP,
-            mag_filter: SAMPLER_FILTER_MODE,
-            min_filter: SAMPLER_FILTER_MODE,
-            mipmap_filter: SAMPLER_FILTER_MODE,
-            ..Default::default()
-        });
-
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("fullscreen-quad-vertices"),
-            contents: bytemuck::cast_slice(&FULLSCREEN_QUAD_VERTICES),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("fullscreen-quad-indices"),
-            contents: bytemuck::cast_slice(&FULLSCREEN_QUAD_INDICES),
-            usage: wgpu::BufferUsages::INDEX,
-        });
 
         let uniforms = Uniforms::new(INITIAL_TIME_SECONDS, style);
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -253,21 +213,17 @@ impl App {
         // 前端上传替换掉某一层后,"恢复默认"要能原样换回来(见 App::reset_layer_texture),
         // 所以原图必须一直活着.
         //
-        // 前 SHADER_CITY_LAYER_COUNT 项来自前端清单(顺序 = 槽位号 0..3),
-        // 之后接程序化生成的三层(污渍 / 雾气 / 车厢倒影,渲染实现,不在清单里).
-        // 数量由 boot_config 的启动校验保证,这里的 `expect` 只是把"校验漏了"
-        // 变成一句清楚的 panic 而不是越界.
-        let mut city = city_textures.into_iter();
-        let mut next_city = || city.next().expect("启动配置校验保证城市层数与着色器一致");
-        let default_material_textures: [wgpu::Texture; TEXTURE_LAYER_COUNT as usize] = [
-            next_city(),
-            next_city(),
-            next_city(),
-            next_city(),
-            dirt,
-            fog,
-            interior,
-        ];
+        // 前 `boot.layers.len()` 项来自前端清单(顺序 = 槽位号),之后接程序化生成的
+        // 三层(污渍 / 雾气 / 车厢倒影,渲染实现,不在清单里).城市层数这里**不写死**:
+        // 它由 boot_config 的启动校验与 SHADER_CITY_LAYER_COUNT 对齐,写死会在改
+        // 常量时静默丢贴图或直接 panic.
+        let mut textures: Vec<Texture> = Vec::with_capacity(TEXTURE_LAYER_COUNT as usize);
+        textures.extend(city_textures);
+        textures.extend([dirt, fog, interior]);
+        let default_material_textures: [wgpu::Texture; TEXTURE_LAYER_COUNT as usize] =
+            textures.try_into().unwrap_or_else(|_| {
+                panic!("启动校验保证 城市层数 + 3 程序化层 == TEXTURE_LAYER_COUNT")
+            });
         // 视图从上面那份纹理派生:上传替换只改这个数组,不动默认纹理.
         let material_views: [wgpu::TextureView; TEXTURE_LAYER_COUNT as usize] =
             std::array::from_fn(|i| default_material_textures[i].create_view(&Default::default()));
@@ -303,7 +259,9 @@ impl App {
             uniform_buffer,
             glass_params_buffer,
             glass_params,
-            time: 0.0,
+            // 动画时钟从 INITIAL_TIME_SECONDS 开始:上面 uniform_buffer 的初值也用它,
+            // 两处共用同一个常量,不会出现"初始缓冲区与 self.time 各说各话".
+            time: INITIAL_TIME_SECONDS,
             last: performance_now(),
             frame_accumulator: 0.0,
             running: true,
@@ -428,15 +386,21 @@ impl App {
     pub(crate) fn frame(&mut self) {
         let now: f64 = performance_now();
         let elapsed_ms: f64 = now - self.last;
+        // 无论这一帧渲不渲染都要推进 last:否则暂停期间累积的间隔会在恢复的第一帧
+        // 被当成"刚过去的时间"(虽然会被 MAX_FRAME_DELTA_SECONDS 截断,仍是一次跳变).
         self.last = now;
-        // performance.now() 单位是毫秒,按 MS_PER_SECOND 换算成秒再交给着色器;
-        // 再用 MAX_FRAME_DELTA_SECONDS 截断掉帧造成的超大时间步.
-        let delta: f32 = ((elapsed_ms as f32) / MS_PER_SECOND).min(MAX_FRAME_DELTA_SECONDS);
-        self.time += delta;
 
         if !self.running {
             return;
         }
+
+        // performance.now() 单位是毫秒,按 MS_PER_SECOND 换算成秒再交给着色器;
+        // 再用 MAX_FRAME_DELTA_SECONDS 截断掉帧造成的超大时间步.
+        //
+        // 累加放在 running 检查**之后**:setRunning(false) 同时代表"用户暂停"与
+        // "标签页不可见",暂停期间动画时钟必须停住,否则恢复时相位会一次跳很远.
+        let delta: f32 = ((elapsed_ms as f32) / MS_PER_SECOND).min(MAX_FRAME_DELTA_SECONDS);
+        self.time += delta;
 
         // 限帧:累计真实流逝时间达到 FRAME_INTERVAL_MS 才真正渲染一帧
         self.frame_accumulator += elapsed_ms;

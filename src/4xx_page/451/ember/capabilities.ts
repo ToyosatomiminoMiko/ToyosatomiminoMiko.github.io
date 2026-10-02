@@ -8,12 +8,19 @@ import {
     FALLBACK_TEXTURE_FORMAT,
     OPTIONAL_DEVICE_FEATURES,
     PREFERRED_TEXTURE_FORMATS,
+    TIMESTAMP_QUERY_FEATURE,
 } from './capabilities.config';
 
-export interface GpuContext {
+/** acquireGpuContext() 的产物: 设备 + 可选特性协商的结果 */
+interface GpuContext {
     device: GPUDevice;
-    /** 适配器信息; 仓库内没有读取方, 保留给控制台通过 window.__ember 查看 */
-    adapterInfo: GPUAdapterInfo | null;
+    /**
+     * 设备是否真的带上了 timestamp-query.
+     * 为什么在这里算: requestDevice 返回的 device.features 恰好等于本次申请的
+     * requiredFeatures, 所以"设备有没有这个特性"在这一处就已知, GPU 计时器
+     * 不必再拿 device 去 probe 一遍.
+     */
+    timestampQuery: boolean;
 }
 
 /** 极少数实现上 getTextureFormatCapabilities 还没有进入 lib.dom */
@@ -39,13 +46,10 @@ export async function acquireGpuContext(): Promise<GpuContext | null> {
     }
 
     const requiredFeatures = OPTIONAL_DEVICE_FEATURES.filter((feature) => adapter.features.has(feature));
+    // requestDevice() 拿不到设备时是 reject(由调用方兜住), 不存在返回 null 的分支
     const device = await adapter.requestDevice({ requiredFeatures });
-    if (!device) {
-        log('requestDevice() 返回 null, 放弃绘制');
-        return null;
-    }
 
-    return { device, adapterInfo: adapter.info ?? null };
+    return { device, timestampQuery: requiredFeatures.includes(TIMESTAMP_QUERY_FEATURE) };
 }
 
 /** 挑一个当渲染目标时不报 not-renderable 的离屏格式; 查询接口缺失就直接用兜底 */

@@ -38,15 +38,16 @@ npm run preview    # 预览 dist/ 里的产物
 | Font Awesome 6 CDN(约 100KB CSS + 一整套 webfont) | 页面内联的 SVG sprite(`<symbol>` + `<use href="#i-xxx">`),依赖被彻底去掉 |
 | 浏览器全局的 WebGPU 类型 | TypeScript 7 的 `lib.dom` 已经带了全部 WebGPU 接口,只差 5 个常量对象,见 `webgpu_constants.d.ts`;因此不需要 `@webgpu/types` |
 
-字重与原来 `<link>` 里请求的完全一致,没有增删:
+字重按各页令牌实际引用到的取,不多不少(451 原先跟着 Google Fonts 请求的 800 没有
+任何令牌引用,已换成 `.tagline` 在用的 500):
 
 - 418:Comic Neue 400/700 + Quicksand 400/600/700
-- 451:Inter 300/400/600/800/900 + Space Mono 400/700
+- 451:Inter 300/400/500/600/900 + Space Mono 400/700
 
 只取了 `latin` 子集 -- 这几款字体都没有 CJK 字形,页面里的中文本来就落回系统字体.
 
 > 图标 sprite 的图形取自 Font Awesome Free 7.3.1(Icons: CC BY 4.0,
-> <https://fontawesome.com/license/free>),只保留了页面实际用到的 17 个.
+> <https://fontawesome.com/license/free>),只保留了页面实际用到的 10 个.
 > 顺带修掉一个老问题:原来的 `fa-mug-tea` 在页面加载的 Font Awesome 6.0.0-beta3
 > 里并不存在,一直是渲染空白,现在统一用 `mug-saucer`.
 

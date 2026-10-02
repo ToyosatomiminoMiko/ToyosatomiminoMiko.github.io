@@ -20,6 +20,8 @@ import { describe, expect, it } from 'vitest';
 import {
     FLOAT32,
     FLOAT64,
+    IEEE754_FORMATS,
+    IEEE754_FORMAT_CHOICES,
     IEEE754_SPECIAL_VALUES,
     exponentFieldAllOnes,
     exponentFieldMaxFinite,
@@ -56,10 +58,13 @@ describe('IEEE754:全 1 位域阈值', () => {
 
 describe('IEEE754:特殊值表的位域自洽', () => {
     it('每一行的指数域 / 尾数域都在本精度的位宽内', () => {
-        for (const format of [FLOAT32, FLOAT64]) {
+        // 遍历声明清单(而不是 [FLOAT32, FLOAT64]):诊断里用菜单项的 label / value
+        // 指出是哪一档精度,格式定义本身统一从 IEEE754_FORMATS 取
+        for (const choice of IEEE754_FORMAT_CHOICES) {
+            const format = IEEE754_FORMATS[choice.value];
             for (const spec of IEEE754_SPECIAL_VALUES) {
                 const b = spec.bits(format);
-                const where = `${format.name} / ${spec.name}`;
+                const where = `${choice.label} (${choice.value}) / ${spec.name}`;
                 expect(b.sign, where).toBeGreaterThanOrEqual(0);
                 expect(b.sign, where).toBeLessThanOrEqual(1);
                 expect(b.exponentField, where).toBeLessThanOrEqual(exponentFieldAllOnes(format));

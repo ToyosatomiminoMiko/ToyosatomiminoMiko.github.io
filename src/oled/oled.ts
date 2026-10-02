@@ -368,10 +368,10 @@ export class OLEDCanvas {
             const buffer = new Uint8Array(hexValues.map(v => parseInt(v, OLED_HEX_RADIX)));
             // 更新画布数据
             this.updateCanvasFromBuffer(buffer);
-            return { success: true, message: OLED_IMPORT_SUCCESS_MESSAGE };
+            return { message: OLED_IMPORT_SUCCESS_MESSAGE };
         } catch (e) {
             const err = e as Error;
-            return { success: false, message: `${OLED_IMPORT_FAILED_PREFIX}${err.message}` };
+            return { message: `${OLED_IMPORT_FAILED_PREFIX}${err.message}` };
         }
     }
 

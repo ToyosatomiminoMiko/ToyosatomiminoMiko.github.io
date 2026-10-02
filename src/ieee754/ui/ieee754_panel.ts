@@ -157,7 +157,9 @@ export function createIeee754Panel(): Ieee754Panel {
     // 面板自身由库建(`.menu-panel.menu-popover`,role="menu"),插在锚点里等它定位.
     // 菜单项的小字(`hint`)是汉语名词,由库排在行右端(弱的 `.menu-item-hint`).
     const initialFormat = IEEE754_DEFAULT_FORMAT_CHOICE;
-    const formatTrigger = createButton({ text: formatTriggerText(initialFormat.value) }).element;
+    // 文案只写一次:先在建按钮时留空,再由下面的 setFormatTriggerText 排成
+    // `<code>标签</code>` -- 两处都写的话,建按钮那次的结果立刻被覆盖(纯白做).
+    const formatTrigger = createButton({ text: '' }).element;
     formatTrigger.id = IEEE754_DOM.formatId;
     const formatMenu = createMenu<string>({
         groups: [{

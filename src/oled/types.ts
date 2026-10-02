@@ -37,8 +37,6 @@ export type PixelColorMode = 'dark' | 'light';
 
 /** OLED 画板初始化配置 */
 export interface OLEDConfig {
-    /** canvas 元素的 id,默认 'pixelCanvas' */
-    canvasId: string;
     /** 物理像素宽度,默认 128 */
     width: number;
     /** 物理像素高度,默认 64 */
@@ -49,9 +47,8 @@ export interface OLEDConfig {
     previewOpacity: number;
 }
 
-/** 导入数据的解析结果 */
+/** 导入数据的解析结果(成功 / 失败都只靠 message 表达,CSS / 按钮文案同源) */
 export interface ImportResult {
-    success: boolean;
     message: string;
 }
 

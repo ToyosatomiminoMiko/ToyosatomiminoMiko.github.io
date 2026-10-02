@@ -14,7 +14,7 @@ import {
 } from './config';
 
 /** canvas 这类元素只需要这两个属性 */
-export interface SizedElement {
+interface SizedElement {
     clientWidth: number;
     clientHeight: number;
 }

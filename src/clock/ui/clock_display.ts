@@ -13,7 +13,7 @@ import { CLOCK_CANVAS_HEIGHT, CLOCK_CANVAS_ID, CLOCK_CANVAS_WIDTH } from '@/cloc
 import { create_element } from 'miko_ui';
 
 /** 时钟的标记:行为代码需要别的元素时加在这里,与画布一起交回 */
-export interface ClockDisplay {
+interface ClockDisplay {
     /** 点阵画布:width/height 是逻辑分辨率,显示高度由 CSS 的 --clock-canvas-height 决定 */
     readonly canvas: HTMLCanvasElement;
 }

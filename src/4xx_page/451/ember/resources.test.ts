@@ -1,5 +1,16 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 import { PARTICLE_FIELD, PARTICLE_STRIDE } from './config';
+import {
+    SEED_RISE_MIN,
+    SEED_RISE_SPAN,
+    SEED_SIZE_MIN,
+    SEED_SIZE_SPAN,
+    SEED_VEL_X_SPAN,
+    SEED_VEL_Y_FACTOR_MIN,
+    SEED_VEL_Y_FACTOR_SPAN,
+} from './resources.config';
 
 /**
  * Particle 结构的布局守卫.
@@ -79,5 +90,63 @@ describe('Particle 结构布局', () => {
             expect(offset).toBeGreaterThanOrEqual(0);
             expect(offset).toBeLessThan(floats);
         }
+    });
+});
+
+/**
+ * CPU 播种(resources.config.ts / resources.ts)与 WGSL respawn()(common.wgsl)共用同一套
+ * 随机范围: 只改一边, 首帧与稳态的观感就会分叉 -- 这里已经漂移过一次
+ * (rise 46~96 vs 60~140). 所以直接把 common.wgsl 从磁盘读出来, 逐条钉住共享的数值.
+ *
+ * 为什么只钉这几个: 水平速度 / 垂直倍率 / 尺寸的公式两边逐位相同;
+ * 寿命(life)是刻意的近似 -- respawn() 里是 span(按屏高换算) / rise + 1.2, 随分辨率变化,
+ * 所以这里不钉.
+ */
+const COMMON_WGSL = readFileSync(new URL('./shaders/common.wgsl', import.meta.url), 'utf8')
+    // WGSL 的对齐空格 / 换行会变, 比较前先归一化成一格空格
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/** TS 数值 -> WGSL f32 字面量: 整数补 .0(96 -> "96.0"), 小数原样(1.5 -> "1.5") */
+function wgslFloat(value: number): string {
+    return Number.isInteger(value) ? `${value}.0` : String(value);
+}
+
+/**
+ * 断言 common.wgsl 里出现某段表达式; 失败信息里点明是哪个 TS 常量漂了,
+ * 否则只会看到一句 "expected false to be true".
+ */
+function expectSharedInWgsl(expression: string, source: string): void {
+    expect(
+        COMMON_WGSL.includes(expression),
+        `${source} 与 common.wgsl 不一致: WGSL 里找不到 "${expression}", 请同步改这两处`
+    ).toBe(true);
+}
+
+describe('CPU 播种与 WGSL respawn() 的共享参数', () => {
+    it('巡航上升速度范围两边一致', () => {
+        expectSharedInWgsl(`const RISE_MIN : f32 = ${wgslFloat(SEED_RISE_MIN)};`, 'SEED_RISE_MIN');
+        expectSharedInWgsl(
+            `const RISE_MAX : f32 = ${wgslFloat(SEED_RISE_MIN + SEED_RISE_SPAN)};`,
+            'SEED_RISE_MIN + SEED_RISE_SPAN'
+        );
+    });
+
+    it('水平初速度半宽与 SEED_VEL_X_SPAN 一致', () => {
+        expectSharedInWgsl(`(r3 - 0.5) * ${wgslFloat(SEED_VEL_X_SPAN)}`, 'SEED_VEL_X_SPAN');
+    });
+
+    it('垂直初速度倍率与 SEED_VEL_Y_FACTOR_* 一致', () => {
+        expectSharedInWgsl(
+            `${wgslFloat(SEED_VEL_Y_FACTOR_MIN)} + r5 * ${wgslFloat(SEED_VEL_Y_FACTOR_SPAN)}`,
+            'SEED_VEL_Y_FACTOR_MIN / SEED_VEL_Y_FACTOR_SPAN'
+        );
+    });
+
+    it('尺寸范围与 SEED_SIZE_MIN / SEED_SIZE_SPAN 一致', () => {
+        expectSharedInWgsl(
+            `${wgslFloat(SEED_SIZE_MIN)} + r5 * ${wgslFloat(SEED_SIZE_SPAN)}`,
+            'SEED_SIZE_MIN / SEED_SIZE_SPAN'
+        );
     });
 });

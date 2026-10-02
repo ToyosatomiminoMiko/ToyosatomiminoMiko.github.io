@@ -3,7 +3,7 @@ import compute from './shaders/compute.wgsl?raw';
 import render from './shaders/render.wgsl?raw';
 import composite from './shaders/composite.wgsl?raw';
 
-export interface ShaderSources {
+interface ShaderSources {
     /** 公共结构体与工具函数,会拼在各 pass 前面 */
     readonly common: string;
     readonly compute: string;

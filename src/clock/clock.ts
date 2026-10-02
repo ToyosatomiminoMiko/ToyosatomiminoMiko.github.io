@@ -28,6 +28,16 @@ import {
     ROW_BIT_BASE,
 } from './config';
 
+/**
+ * 点亮一颗像素.
+ *
+ * 只管位置:颜色由调用方在整幅绘制前设一次(见 drawDisplay),这里不再每颗
+ * 都写一遍 `fillStyle` -- 同一串赋值写进双重循环里是纯粹的重复.
+ */
+function plot(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+    ctx.fillRect(x, y, PIXEL_SIZE, PIXEL_SIZE);
+}
+
 /** 把 digit 的 3×5 点阵画到 x 处:逐列读表,列内位 4-0 自高到低对应第 0-4 行 */
 function drawDigit(ctx: CanvasRenderingContext2D, digit: number, x: number): void {
     const base = digit * DIGIT_COLUMNS;
@@ -36,8 +46,7 @@ function drawDigit(ctx: CanvasRenderingContext2D, digit: number, x: number): voi
         for (let row = 0; row < DIGIT_ROWS; row++) {
             const pixel = (columnData >> (ROW_BIT_BASE - row)) & 1;
             if (pixel) {
-                ctx.fillStyle = PIXEL_COLOR;
-                ctx.fillRect(x + col, row + GLYPH_TOP_OFFSET, PIXEL_SIZE, PIXEL_SIZE);
+                plot(ctx, x + col, row + GLYPH_TOP_OFFSET);
             }
         }
     }
@@ -47,8 +56,7 @@ function drawDigit(ctx: CanvasRenderingContext2D, digit: number, x: number): voi
 function drawColumn(ctx: CanvasRenderingContext2D, segments: Uint8Array, x: number): void {
     for (let row = 0; row < DIGIT_ROWS; row++) {
         if (segments[row]) {
-            ctx.fillStyle = PIXEL_COLOR;
-            ctx.fillRect(x, row + GLYPH_TOP_OFFSET, PIXEL_SIZE, PIXEL_SIZE);
+            plot(ctx, x, row + GLYPH_TOP_OFFSET);
         }
     }
 }
@@ -72,6 +80,8 @@ export function mountClock(host: HTMLElement): void {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = BACKGROUND_COLOR;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // 点亮的像素颜色只在这里设一次,drawDigit / drawColumn 只负责位置
+        ctx.fillStyle = PIXEL_COLOR;
 
         const formattedTime = fmt_time(new Date());
 

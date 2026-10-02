@@ -252,6 +252,7 @@
     --teapot-counter-font-size: 0.9rem;
     --teapot-counter-color: #5b4637;
     --teapot-counter-bg: #eedbcb;
+    --teapot-counter-flash-bg: #f0cdb0;
     --teapot-counter-padding: 0.6rem 1.2rem;
     --teapot-counter-border: 1px solid #cdad8f;
     --teapot-counter-shadow: inset 0 1px 6px #ddc5b1;

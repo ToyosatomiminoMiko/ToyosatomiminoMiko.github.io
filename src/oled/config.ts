@@ -14,13 +14,11 @@ import type { DrawTool, OledRgb } from './types';
  * 画布尺寸 / 预览色 / 透明度都只在这里定义一次,其余代码统一引用本对象,
  * 保证"同一个值只有一处定义".
  *
- * 注:`canvasId` 是**标记契约**(元素 id),与绘制参数同居一处是因为它属于
- * 同一份默认配置;真正生成画布时由 ui/oled_panel.ts 读它写 id,
- * 行为代码只拿元素引用,不按 id 查元素.
+ * 注:画布的元素 id 是**标记契约**,不放这里 -- 它在下面的 OLED_DOM 表里与其余
+ * 元素 id 同居一处,由 ui/oled_panel.ts 生成画布时写上;行为代码只拿元素引用,
+ * 不按 id 查元素.
  */
 export const OLED_DEFAULT_CONFIG = {
-    /** canvas 元素的 id,默认 'pixelCanvas' */
-    canvasId: 'pixelCanvas',
     /** 物理像素宽度,默认 128 */
     width: 128,
     /** 物理像素高度,默认 64 */
@@ -168,8 +166,10 @@ export const OLED_BYTE_ORDER_TEXT = {
 
 // ---------- DOM 契约(id / class,public/css/index.css 按它命中) ----------
 
-/** OLED 控件用到的 DOM 元素 id(主画布 id 见 OLED_DEFAULT_CONFIG.canvasId) */
+/** OLED 控件用到的 DOM 元素 id(所有 id 契约都在这一张表里) */
 export const OLED_DOM = {
+    /** 主画布 canvas 的 id(128x64 物理像素由 oled.ts 写到 width/height 上) */
+    canvasId: 'pixelCanvas',
     /** 鼠标位置指示器(红框)的 id */
     indicatorId: 'pixelIndicator',
     /** 坐标文本显示的 id */
@@ -286,10 +286,15 @@ export const OLED_PANEL_ROW_CLASS = 'area-data';
  * 而库默认按"最大行号位数 × 当前字体的数字宽"自己量,量出来的宽度会在
  * 1 位行号(刚粘贴)与 2 位行号(导出的 67 行)之间跳(实测 32px / 35px),同一颗
  * 框在"粘贴一小段"与"导出整份"之间就会忽宽忽窄.所以这里钉一个常量:既作为库的
- * `gutterMinWidth`,也由 ui/oled_panel.ts 以内联 `!important` 压住库随后写上的
- * 内联值.取值按"3 位数 + 槽内边距 / 边框"留量(实测 3 位需约 45px).
- * 位数再多(例如把 1024 个字节一行一个粘进来)会被 `overflow: hidden` 裁掉,
- * 而不是给行号栏加一条自己的滑条 -- 这是刻意的,见 index.css 的说明.
+ * `gutterMinWidth`,也由 public/css/index.css 的 `.oled-card .code-editor-gutter`
+ * 声明成 `--code-gutter-width: 48px !important`.
+ * 为什么必须落在作者样式表里:库在位数进位时会按字体重量,并把结果写成 gutter 上
+ * 一条**不带 priority** 的内联自定义属性;内联的普通声明压得过任何不带 `!important`
+ * 的作者声明,只有作者 `!important` 钉得住它.反过来说,把 `!important` 写成内联是
+ * 无效的 -- CSSOM 里对同一条内联属性做不带 priority 的写入,会连 priority 一起替换掉.
+ * 取值按"3 位数 + 槽内边距 / 边框"留量(实测 3 位需约 45px).
+ * 位数再多(例如把 1024 个字节一行一个粘进来)会被同一条规则里的 `overflow: hidden`
+ * 裁掉,而不是给行号栏加一条自己的滑条 -- 这是刻意的,见 index.css 的说明.
  */
 export const OLED_PANEL_EDITOR_GUTTER_WIDTH = 48;
 
@@ -322,7 +327,7 @@ export const OLED_PANEL_EDITOR_EXPAND_TEXT = '展开编辑器';
 export const OLED_PANEL_EDITOR_COLLAPSE_TEXT = '折叠编辑器';
 
 /** 一个绘图工具选项的声明(value 即 DrawTool,label 是按钮上的文字) */
-export interface OledToolOption {
+interface OledToolOption {
     /** 选项值(DrawTool 取值) */
     readonly value: DrawTool;
     /** 按钮上的可见文字 */

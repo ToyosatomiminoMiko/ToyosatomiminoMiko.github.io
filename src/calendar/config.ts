@@ -15,7 +15,7 @@
 export type CalendarKey = 'gregorian' | 'chinese' | 'hebrew';
 
 /** 一套历法的声明:怎么称呼它(中文名)+ 用哪个语言标记与格式选项渲染 */
-export interface CalendarSpec {
+interface CalendarSpec {
     /** 稳定键,见 CalendarKey */
     readonly key: CalendarKey;
     /** 卡片上的中文名(可见文本,全站不用 emoji) */
@@ -59,13 +59,13 @@ export interface CalendarSpec {
 }
 
 /** 格里高利历的语言标记(zh-CN 不带 -u-ca-,默认就是 gregory) */
-export const CALENDAR_GREGORIAN_LOCALE = 'zh-CN';
+const CALENDAR_GREGORIAN_LOCALE = 'zh-CN';
 
 /** 中国农历的语言标记(`-u-ca-chinese`) */
-export const CALENDAR_CHINESE_LOCALE = 'zh-CN-u-ca-chinese';
+const CALENDAR_CHINESE_LOCALE = 'zh-CN-u-ca-chinese';
 
 /** 希伯来历的语言标记(`-u-ca-hebrew`).主行用希伯来文写月份(见下面 dateStyle 那条注释) */
-export const CALENDAR_HEBREW_LOCALE = 'he-IL-u-ca-hebrew';
+const CALENDAR_HEBREW_LOCALE = 'he-IL-u-ca-hebrew';
 
 /**
  * 希伯来历副行的语言标记:拉丁字母转写 + 阿拉伯数字.

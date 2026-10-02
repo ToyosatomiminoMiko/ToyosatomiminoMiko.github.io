@@ -45,9 +45,8 @@ export function createParticleStore(
     const seedData = new Float32Array(particleCount * FLOATS_PER_PARTICLE);
     for (let i = 0; i < particleCount; i++) {
         const o = i * FLOATS_PER_PARTICLE;
-        // 首帧播种的上升速度 = SEED_RISE_MIN..+SEED_RISE_SPAN, 即 46~96 px/s,
-        // 与 WGSL respawn 的 RISE_MIN/MAX(60~140 px/s)并不相等:
-        // CPU 播种只求首帧不空, 之后的巡航速度由着色器重新给出
+        // 首帧播种的上升速度 = SEED_RISE_MIN..+SEED_RISE_SPAN, 即 60~140 px/s,
+        // 与 WGSL respawn 的 RISE_MIN/RISE_MAX 同源(两边的一致性由 resources.test.ts 钉住)
         const rise = SEED_RISE_MIN + Math.random() * SEED_RISE_SPAN;
         const warm = Math.random();
 
@@ -80,8 +79,10 @@ export function createParticleStore(
 
 /**
  * 把粒子挪到画面下方的重生带(窗口尺寸变化后调用).
- * 位置在屏幕外 + age 归零, 于是下一帧 compute 就会判定越界并走一遍 respawn(),
- * 位置/颜色/寿命随之全部由着色器重新给出.
+ * 位置落在画面下方 10~90px(RESEED_BELOW_*), 同时把 age 归零.
+ * 为什么不会触发 respawn: compute 的下边界阈值是 h + 140, 而重生带最高只到 h + 90,
+ * 不满足越界条件; 粒子是从画面外自然升进来的, 颜色 / 寿命等字段保持原值.
+ * age 归零则让它们重新累积寿命, 不至于刚重铺就熄灭.
  */
 export function reseedParticleStore(
     device: GPUDevice,

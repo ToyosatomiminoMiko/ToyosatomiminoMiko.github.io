@@ -12,7 +12,8 @@ OLED 像素画板的**标记组件**(声明式).
 (`OLED_HEX_BYTE_PATTERN`)原样能解析回来,所以"导出 -> 改 / 粘 -> 导入"共用一个
 缓冲即可;复制 / 导入两颗按钮与"展开 / 折叠编辑器"一起挂在 `.tools`(后者切
 `is-expanded` 类,两种高度见 config.ts 与 index.css).编辑器 id 按下面的契约写上;
-本站样式表只给编辑器补两种高度,以及最小高度与可纵向拖动.
+本站样式表另给编辑器补两种高度,最小高度与可纵向拖动,并把行号槽宽钉成常量
+(`.oled-card .code-editor-gutter` 的 `--code-gutter-width`,见 config.ts 的同名常量).
 
     section.ui-panel.oled-card                    面板框体(库的 createPanel)
       header.ui-panel-header > span.ui-panel-title   'OLED Canvas'
@@ -51,7 +52,6 @@ import {
     OLED_COPY_BUTTON_TEXT,
     OLED_DEFAULT_BYTE_ORDER,
     OLED_DEFAULT_COLOR_MODE,
-    OLED_DEFAULT_CONFIG,
     OLED_DEFAULT_TOOL,
     OLED_DOM,
     OLED_PANEL_COORDS_CLASS,
@@ -170,7 +170,10 @@ function highlightSource(source: string): string {
  * 库给的是 `div.code-editor`(行号槽 + 真 textarea + 高亮层 + 滚动/尺寸同步),
  * 结构 / 交互 / 外观都归库的 `styles/editor.css`;本站只补四件事:
  *   - **id**:CSS 与测试的定位契约(库的选项里没有 id,句柄拿到外框后补上);
- *   - **槽宽**:钉成常量,不让它随行数变(见下面与 config.ts 的同名常量);
+ *   - **槽宽下限**:把常量交给库的 `gutterMinWidth`;真正钉死槽宽的是
+ *     public/css/index.css 的 `--code-gutter-width: 48px !important`
+ *     (库在位数进位时会写普通内联值,只有作者样式表的 `!important` 压得住,
+ *     见 config.ts 的同名常量);
  *   - **高亮注入**:库不认识本站放的是什么语言(见上面的 highlightSource);
  *   - **滚动条**:唯一会滚的 textarea 挂上库的 `.ui-scrollbar`.
  * 句柄整颗交回:行为代码用 `textarea` 读写值,程序化写值后调 `refresh()`
@@ -183,15 +186,6 @@ function createDataEditor(id: string): CodeEditorHandle {
         highlight: highlightSource,
     });
     editor.element.id = id;
-    // 行号槽宽度钉死:库在构造时与"最大行号位数进位"时都会按当前字体重量一遍,
-    // 再把结果写成 gutter 的内联 `--code-gutter-width`(实测在 32px / 35px 之间
-    // 跳).内联 `!important` 压得住库随后的内联普通值,行号槽于是永不忽宽忽窄;
-    // 行号栏自己不滚动(overflow: hidden,见 index.css).
-    editor.gutter.style.setProperty(
-        '--code-gutter-width',
-        `${OLED_PANEL_EDITOR_GUTTER_WIDTH}px`,
-        'important',
-    );
     // 编辑器里唯一该滚的地方是 textarea(固定高度下竖着滚导出的 C 源码,长行
     // 横着滚):挂上库的滚动条规定(`styles/scrollbar.css`,由 main.ts 引入).
     editor.textarea.classList.add('ui-scrollbar');
@@ -223,7 +217,7 @@ export function createOledPanel(): OledPanel {
         { class: OLED_PANEL_COORDS_CLASS, id: OLED_DOM.coordsDisplayId },
         OLED_PANEL_COORDS_TEXT,
     );
-    const canvas = create_element({ tag: 'canvas' }, { id: OLED_DEFAULT_CONFIG.canvasId });
+    const canvas = create_element({ tag: 'canvas' }, { id: OLED_DOM.canvasId });
     const indicator = create_element(
         { tag: 'div' },
         { class: OLED_PANEL_INDICATOR_CLASS, id: OLED_DOM.indicatorId },

@@ -383,11 +383,21 @@ body {
     margin-right: auto;
 }
 
-/* 静态标记里图标与相邻文字的间距; 动态生成的 toast 图标不走这里,
-   它们由 teapot/config.ts 的 ICON_STYLE.marginRight 写行内 6px */
+/* 静态标记里图标与相邻文字的间距(8px);
+   动态生成的 toast 图标不走这里, 它们由下面的 .toast-message.is-tea / .is-coffee 给样式 */
 .teapot-badge .icon,
 .rfc-quote .icon {
     margin-right: var(--teapot-icon-gap);
+}
+
+/* 泡茶 toast 的茶杯图标: 与相邻文字 6px, 与计数器图标同用一个令牌 */
+.toast-message.is-tea .icon {
+    margin-right: var(--teapot-counter-icon-gap);
+}
+
+/* 拒绝咖啡 toast 的图标: 警示红 */
+.toast-message.is-coffee .icon {
+    color: var(--teapot-ban-icon-alert-color);
 }
 
 .button-group {
@@ -452,6 +462,14 @@ body {
     display: inline-block;
     border: var(--teapot-counter-border);
     box-shadow: var(--teapot-counter-shadow);
+    /* 过渡必须常驻在这里而不是只写进 .is-flash:
+       去类那一帧若连 transition 一起消失, 背景回退会变成瞬切(规范只认后一状态里的 transition-property) */
+    transition: background-color var(--teapot-duration-fast);
+}
+
+/* 拒绝咖啡时面板闪一下; JS 只加/去这个类, 去类后背景回到上面的 --teapot-counter-bg */
+.counter-panel.is-flash {
+    background: var(--teapot-counter-flash-bg);
 }
 
 .counter-panel .icon {

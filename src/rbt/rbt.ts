@@ -290,6 +290,7 @@ export function mountRBT(host: HTMLElement): void {
         const rows = RBT_PROPERTIES.map((spec, index) => {
             const result = report.results[index];
             const row = document.createElement('div');
+            // 这个类名是冒烟脚本数行数的锚点(见 config.ts 的同名常量)
             row.className = RBT_DIAGNOSTICS_ROW_CLASS;
             row.append(document.createTextNode(`${spec.label}: `));
             const state = document.createElement('span');

@@ -5,6 +5,8 @@
 - **这里没有产品默认值**:风格编号,滑块区间,图层清单,资源路径,上传上限
   都由前端 config.ts 声明,经 `startApp` 传入(见 boot_config.rs 的模块说明).
   本模块只保留两类东西:纯渲染内部调参(帧率 / 时间步长),以及实现性质的分发.
+  滑块初值同样由前端 config.ts 的 `SLIDER_GROUPS[].value` 决定;glass_params.rs 的
+  `GlassParams::DEFAULT` 只是"JS 推入之前"的占位值(取值镜像那份清单),不是产品默认值.
 - 纯 GPU 管线参数见 render_params.rs,程序化贴图参数见 texture_params.rs,
   车窗玻璃参数见 glass_params.rs.
 */
@@ -29,7 +31,10 @@ pub(crate) const MS_PER_SECOND: f32 = 1000.0;
 /// 标签页切回 / 断点暂停后两帧间隔会非常大,截断它避免动画时钟一次跳很远.
 pub(crate) const MAX_FRAME_DELTA_SECONDS: f32 = 0.1;
 
-/// 启动时写入 Uniforms 的时间(秒);取非 0 相当于跳过开头一段动画.
+/// 启动时的动画时钟初值(秒):App 的 `time` 字段就是从这里开始的.
+///
+/// 取非 0 相当于跳过开头一段动画.它同时是"一帧都还没渲染"(例如启动即暂停)时
+/// uniform 缓冲区里的时间,两处共用同一个常量,不会各写一个数.
 pub(crate) const INITIAL_TIME_SECONDS: f32 = 0.0;
 
 // ---------- 滑块参数:名字 -> GlassParams 字段 ----------

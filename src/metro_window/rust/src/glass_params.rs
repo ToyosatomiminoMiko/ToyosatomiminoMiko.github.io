@@ -6,6 +6,11 @@
   因此两边不会出现各自手写,逐步漂移的问题.
 - 所有字段均为 f32,结构体大小保持 16 字节倍数以满足 WGSL uniform 布局要求
   (由单元测试约束;末尾的 `_padding` 就是为对齐留下的).
+- 下面 `define_glass_params!` 里的取值镜像前端 `SLIDER_GROUPS[].value`
+  (src/metro_window/src/config.ts):它是"JS 推入之前"的占位值,也是离线预览
+  (examples/preview.rs 直接读 `GlassParams::DEFAULT`)的取值.线上的初值仍以前端
+  config.ts 为准(挂载时通过 setParam 推一遍),所以**改一边要同时改另一边**,
+  否则离线预览会与线上画面不一致.
 */
 
 macro_rules! define_glass_params {
@@ -17,7 +22,11 @@ macro_rules! define_glass_params {
         }
 
         impl GlassParams {
-            /// 默认参数,也是 WGSL 与 Rust 共用的唯一取值来源.
+            /// JS 推入之前的占位值,同时是离线预览的默认值.
+            ///
+            /// 取值镜像前端 config.ts 的 `SLIDER_GROUPS[].value`(线上初值的唯一来源):
+            /// wasm 启动后前端会立刻用 setParam 推一遍,真正生效的是那份;这里只在
+            /// "还没收到推送"以及不跑前端的原生预览里起作用.改一边必须同时改另一边.
             pub const DEFAULT: Self = Self {
                 $($field: $value,)*
             };
@@ -45,7 +54,9 @@ define_glass_params! {
     // vehicle_speed:车速倍率,驱动城市四层的视差滚动;
     // far_distance / mid_distance / near_distance:三层背景的"距离"系数,
     //   距离越大滚动越慢(视差速度 = 基础速度 / 距离).
-    vehicle_speed = 1.0;
+    //
+    // 取值镜像 config.ts 的 SLIDER_GROUPS[].value(见文件头说明),不要只改这里.
+    vehicle_speed = 3.0;
     far_distance = 1.0;
     mid_distance = 1.0;
     near_distance = 1.0;
@@ -53,9 +64,10 @@ define_glass_params! {
     // ===== 玻璃材质浓度(实时滑块) =====
     // dirt_opacity / fog_opacity / interior_opacity:
     // 污渍,雾气,车厢灯光反射的混合强度.
+    // 同上:取值镜像 config.ts 的 SLIDER_GROUPS[].value.
     dirt_opacity = 0.55;
     fog_opacity = 0.30;
-    interior_opacity = 0.55;
+    interior_opacity = 1.0;
 
     // ===== 对齐填充 =====
     // WGSL uniform 结构体大小必须是 16 字节的倍数:上面 7 个 f32 = 28 字节,

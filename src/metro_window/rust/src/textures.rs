@@ -5,7 +5,7 @@
 - value_noise / fbm:基于 random::hash01 的噪声工具(含 PPM 可视化测试)
 
 ===== 玻璃材质贴图的约定(改动前先读这一段)=====
-1) 采样器约定(app.rs 的 metro-sampler):
+1) 采样器约定(见 gpu_resources.rs 的 create_material_sampler):
    u = Repeat,v = ClampToEdge.程序化贴图都是"放大若干倍 + 随时间漂移"地采样,
    坐标一旦越过 [0,1]:u 会被 Repeat 折回(贴图左右边对不上就是一条竖缝),
    v 会被 ClampToEdge 把最后一行拉满整段(污渍 uv*2 => 下半屏被水平拉成竖条纹).
@@ -516,7 +516,7 @@ mod tests {
     use super::{fbm, generate_dirt, scratch_mask, value_noise, write_ppm};
     use crate::render_params::RGBA_BYTES_PER_PIXEL;
     use crate::test_fixtures::PPM_CHANNELS;
-    use crate::texture_params::CHANNEL_MAX;
+    use crate::texture_params::{dirt, fog, CHANNEL_MAX};
 
     // 像素的 RGBA 分量数:与生成缓冲区 / 上传格式的步长同源.
     const RGBA_COMPONENTS: usize = RGBA_BYTES_PER_PIXEL as usize;
@@ -573,7 +573,12 @@ mod tests {
     fn noise_tiles_seamlessly() {
         // 覆盖三种实际用到的 (period, seed, octaves) 组合:
         // 雾气主层 / 雾气细节层 / 污渍 smudge.
-        const TILE_TEST_CASES: [(u32, u32, u32); 3] = [(3, 42, 5), (7, 43, 3), (5, 11, 4)];
+        // 直接取 texture_params 的常量:参数一改这里跟着改,不会再出现手抄一份而对不上.
+        const TILE_TEST_CASES: [(u32, u32, u32); 3] = [
+            (fog::BASE_PERIOD, fog::BASE_SEED, fog::BASE_OCTAVES),
+            (fog::DETAIL_PERIOD, fog::DETAIL_SEED, fog::DETAIL_OCTAVES),
+            (dirt::SMUDGE_PERIOD, dirt::SMUDGE_SEED, dirt::SMUDGE_OCTAVES),
+        ];
         // x 方向把一个周期均分成的取样点数.
         const SAMPLES: u32 = 16;
         // 采样点相对周期起点的偏移(避开晶格边界).
@@ -660,21 +665,25 @@ mod tests {
     }
 
     /*
-    seed=0 且采样点都落在整数晶格顶点上(tx = ty = 0),插值在这里不生效:
-    512x512 输出就是 hash01(x, y) 本身,只是把同一张噪声看得更清楚.
+    把 value_noise 在放大采样下的图案导出成灰度 PPM(test_output/value_noise_512x512.ppm):
+    采样点落在晶格内部,能看到双线性插值的过渡,而不是 hash01 白噪声.
     */
     #[test]
     fn dump_value_noise_smooth_ppm() {
         // 放大分辨率看得更清楚.
         const TEST_SIZE: u32 = 512;
+        // 把 0..512 映射到 0..8 的浮点数范围的除数(与 dump_fbm_smooth_ppm 同一尺度):
+        // 采样点必须落在晶格内部,插值系数才不为 0 -- 整数坐标处 tx=ty=0,
+        // 输出会退化成 hash01(x, y) 本身,这张图就不再是"插值后的值噪声".
+        const SAMPLE_SCALE: f32 = 64.0;
         const TEST_PPM_NAME: &str = "value_noise_512x512.ppm";
 
         let mut pixels: Vec<u8> =
             Vec::with_capacity((TEST_SIZE * TEST_SIZE * PPM_CHANNELS) as usize);
         for y in 0..TEST_SIZE {
             for x in 0..TEST_SIZE {
-                let fx: f32 = x as f32;
-                let fy: f32 = y as f32;
+                let fx: f32 = x as f32 / SAMPLE_SCALE; // 范围 0.0 ~ 7.98
+                let fy: f32 = y as f32 / SAMPLE_SCALE; // 范围 0.0 ~ 7.98
                 let v: u8 = (value_noise(fx, fy, 0, 0) * CHANNEL_MAX).round() as u8;
                 pixels.extend_from_slice(&[v, v, v]);
             }

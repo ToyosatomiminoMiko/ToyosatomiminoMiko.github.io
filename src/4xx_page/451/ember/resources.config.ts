@@ -2,10 +2,10 @@
  * 粒子缓冲 CPU 侧播种(random seed)的常量: 暖色端点 / 各字段随机范围 / 重铺偏移.
  * 单位为逻辑像素(px)或秒(s), 见每条注释.
  */
-import { OPAQUE_BLACK, PARTICLE_STRIDE } from './config';
+import { FLOAT_BYTES, OPAQUE_BLACK, PARTICLE_STRIDE } from './config';
 
-/** PARTICLE_STRIDE 里有几个 f32(4 字节一个) */
-export const FLOATS_PER_PARTICLE = PARTICLE_STRIDE / 4;
+/** PARTICLE_STRIDE 里有几个 f32(FLOAT_BYTES = 4 字节一个,与 config.ts 同源) */
+export const FLOATS_PER_PARTICLE = PARTICLE_STRIDE / FLOAT_BYTES;
 
 /** 首帧用的近似暖色 #ff7e3a(r,g,b, 0..1), 着色器重生时会覆盖 */
 export const SEED_COLOR_WARM: readonly [number, number, number] = [1.0, 0.494, 0.227];
@@ -13,11 +13,11 @@ export const SEED_COLOR_WARM: readonly [number, number, number] = [1.0, 0.494, 0
 /** 首帧用的近似深色 #c04110(r,g,b, 0..1) */
 export const SEED_COLOR_DEEP: readonly [number, number, number] = [0.753, 0.255, 0.063];
 
-/** 初始上升速度下限(px/s) */
-export const SEED_RISE_MIN = 46;
+/** 初始上升速度下限(px/s): 与 common.wgsl 的 RISE_MIN 同源, 由 resources.test.ts 钉住 */
+export const SEED_RISE_MIN = 60;
 
-/** 初始上升速度额外随机跨度(px/s) */
-export const SEED_RISE_SPAN = 50;
+/** 初始上升速度额外随机跨度(px/s): 上限 = SEED_RISE_MIN + 它, 即与 WGSL 的 RISE_MAX(140)一致 */
+export const SEED_RISE_SPAN = 80;
 
 /** 水平初速度随机半宽(px/s): (random - 0.5) * span */
 export const SEED_VEL_X_SPAN = 96;
@@ -58,5 +58,5 @@ export const PARTICLE_BUFFER_LABEL = '451-particles';
 /** 历史纹理调试标签前缀(后面接 0/1) */
 export const HISTORY_TEXTURE_LABEL_PREFIX = '451-history-';
 
-/** 离屏纹理首帧清屏色: 不透明黑, 避免采样到垃圾数据; 与 COMPOSITE_CLEAR_VALUE 共用 OPAQUE_BLACK */
+/** 离屏纹理首帧清屏色: 不透明黑(OPAQUE_BLACK), 避免采样到垃圾数据 */
 export const HISTORY_CLEAR_VALUE = OPAQUE_BLACK;

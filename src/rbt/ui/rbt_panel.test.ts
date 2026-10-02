@@ -12,7 +12,6 @@ import { describe, expect, it } from 'vitest';
 import {
     RBT_CANVAS_HEIGHT,
     RBT_CANVAS_WIDTH,
-    RBT_DIAGNOSTICS_CLASS,
     RBT_DOM,
     RBT_HINT_COLOR_LEGEND,
     RBT_HINT_SHORTHAND,
@@ -73,7 +72,8 @@ describe('红黑树:输入与画布', () => {
     it('性质检查清单初始隐藏且是空的(内容由 rbt.ts 逐条重建)', () => {
         const panel = renderPanel(createRbtPanel);
         expect(document.getElementById(RBT_DOM.diagnosticsId)).toBe(panel.diagnostics);
-        expect(panel.diagnostics.className).toBe(RBT_DIAGNOSTICS_CLASS);
+        // 容器只认 id(#treeProperties):不再挂没人消费的类名(类名契约只剩行 / 结论 / 抬头)
+        expect(panel.diagnostics.className).toBe('');
         expect(panel.diagnostics.hidden).toBe(true);
         expect(panel.diagnostics.hasAttribute('hidden')).toBe(true);
         // 标记里不带性质条目:条数与文案都来自 config,由行为代码渲染

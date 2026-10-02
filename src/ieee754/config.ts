@@ -14,7 +14,6 @@ import type {
 // ============================================================
 
 export const FLOAT32: IEEE754Format = {
-    name: '单精度 float32',
     totalBits: 32,
     exponentBits: 8,
     fractionBits: 23,
@@ -22,7 +21,6 @@ export const FLOAT32: IEEE754Format = {
 };
 
 export const FLOAT64: IEEE754Format = {
-    name: '双精度 float64',
     totalBits: 64,
     exponentBits: 11,
     fractionBits: 52,
@@ -135,7 +133,7 @@ export const IEEE754_NAN_TEXT = 'nan';
 // ============================================================
 
 /** 特殊值的原始位域(不含隐含位 / 未减 bias) */
-export interface IEEE754SpecialBits {
+interface IEEE754SpecialBits {
     /** 符号位:0(正)或 1(负) */
     readonly sign: number;
     /** 指数域原始值(未减 bias) */
@@ -145,7 +143,7 @@ export interface IEEE754SpecialBits {
 }
 
 /** 特殊值一行:展示名 + 由精度格式算出原始位域(纯函数) */
-export interface IEEE754SpecialSpec {
+interface IEEE754SpecialSpec {
     /** 表格"名称"列文案 */
     readonly name: string;
     /** 由精度格式计算该值的 [S, E, M] 原始位域 */
@@ -276,9 +274,9 @@ export const IEEE754_FORMULA_TITLE = '公式 (KaTeX)';
 
 export const IEEE754_SPECIAL_TITLE = '特殊值参考 (点击载入)';
 
-export interface IEEE754FormatChoiceSpec {
+interface IEEE754FormatChoiceSpec {
     /** 菜单项 value(类型契约,与 FLOAT32_KEY / FLOAT64_KEY 一致) */
-    readonly value: string;
+    readonly value: IEEE754FormatKey;
     /** 菜单项可见文案(也是当前精度显示在触发按钮上的文案) */
     readonly label: string;
     /** 菜单项右侧小字(库的 `.menu-item-hint`) */
@@ -297,7 +295,17 @@ export const IEEE754_FORMAT_CHOICES = [
 export const IEEE754_DEFAULT_FORMAT_CHOICE: IEEE754FormatChoiceSpec =
     IEEE754_FORMAT_CHOICES.find((choice) => choice.active) ?? IEEE754_FORMAT_CHOICES[0];
 
-export const IEEE754_DEFAULT_FORMAT_VALUE: string = IEEE754_DEFAULT_FORMAT_CHOICE.value;
+export const IEEE754_DEFAULT_FORMAT_VALUE: IEEE754FormatKey = IEEE754_DEFAULT_FORMAT_CHOICE.value;
+
+/**
+ * 默认精度对应的格式定义(单精度 / 双精度).
+ *
+ * 唯一来源是 IEEE754_FORMATS 这张表 + 上面 active 那条的 value:图例的位数提示与
+ * 挂载时的首次刷新都从这里取,不另写 FLOAT64 -- 把 active 改成 f32 时,图例与特殊值
+ * 表会一起跟着换,而不是停在 float64 直到用户点一次菜单(那是静默失配).
+ */
+export const IEEE754_DEFAULT_FORMAT: IEEE754Format =
+    IEEE754_FORMATS[IEEE754_DEFAULT_FORMAT_VALUE];
 
 /** 指数位数提示的 data-role(组件据此生成 `<b data-role="exp-bits">`) */
 export const IEEE754_EXP_BITS_ROLE = 'exp-bits';
@@ -315,20 +323,20 @@ export type IEEE754LegendPart =
     | { readonly bitsRole: string; readonly bits: number };
 
 /** 图例项:类名(决定颜色)+ 内容片段(顺序即标记顺序) */
-export interface IEEE754LegendSpec {
+interface IEEE754LegendSpec {
     /** ieee754.css 按 `.ieee-legend .ieee-s / -e / -m` 上色 */
     readonly className: string;
     readonly parts: readonly IEEE754LegendPart[];
 }
 
-/** 图例三项(顺序即界面顺序;位数是默认精度 float64 的 11 / 52,行为代码随精度改写) */
+/** 图例三项(顺序即界面顺序;位数取默认精度 IEEE754_DEFAULT_FORMAT,行为代码随精度改写) */
 export const IEEE754_LEGENDS = [
     { className: 'ieee-s', parts: [{ text: 'S 符号' }] },
     {
         className: 'ieee-e',
         parts: [
             { text: 'E 指数(' },
-            { bitsRole: IEEE754_EXP_BITS_ROLE, bits: FLOAT64.exponentBits },
+            { bitsRole: IEEE754_EXP_BITS_ROLE, bits: IEEE754_DEFAULT_FORMAT.exponentBits },
             { text: ' bit)' },
         ],
     },
@@ -336,7 +344,7 @@ export const IEEE754_LEGENDS = [
         className: 'ieee-m',
         parts: [
             { text: 'M 尾数(' },
-            { bitsRole: IEEE754_FRAC_BITS_ROLE, bits: FLOAT64.fractionBits },
+            { bitsRole: IEEE754_FRAC_BITS_ROLE, bits: IEEE754_DEFAULT_FORMAT.fractionBits },
             { text: ' bit)' },
         ],
     },

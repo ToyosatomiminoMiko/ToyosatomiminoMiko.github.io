@@ -19,14 +19,17 @@
  * 环境要求(Linux): chromium 可执行文件 + 能用的软件 Vulkan(swiftshader / lavapipe).
  * 没有真实 GPU 也能跑 -- 页面上层全是 CSS 与合成, 归因依然成立, 只是绝对值偏大.
  */
-import { spawn } from 'node:child_process';
-import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
 import { existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { extname, join, normalize, dirname } from 'node:path';
+import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
+
+/*
+  静态服务器 / chromium 启动 / CDP 客户端与 scripts/smoke_home.mjs 共用一份,
+  见 scripts/lib/browser_harness.mjs(那边写着为什么这条链路不能各写一遍).
+*/
+import { Cdp, launchChromium, startStaticServer } from '../lib/browser_harness.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..', '..');
@@ -46,13 +49,6 @@ const TRACE_MS = 3000;
 const [WIN_W, WIN_H] = (process.env.WIN ?? '800,600').split(',').map(Number);
 const PAGE_URL = `http://127.0.0.1:${PORT}/4xx_page/451.html`;
 
-const MIME = {
-  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
-  '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png',
-  '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2',
-  '.ttf': 'font/ttf', '.txt': 'text/plain; charset=utf-8',
-};
 
 /** 场景 = 在页面里再注入一段 JS(用来成对地关掉某个嫌疑项, 做 A/B) */
 const SCENARIOS = {
@@ -89,31 +85,6 @@ const SCENARIOS = {
   blank: { desc: 'about:blank(噪声地板)', url: 'about:blank', js: `return 'n/a';` },
 };
 
-function serve() {
-  const srv = createServer(async (req, res) => {
-    try {
-      let p = decodeURIComponent((req.url ?? '/').split('?')[0]);
-      if (p.endsWith('/')) p += 'index.html';
-      const file = join(DIST, normalize(p).replace(/^(\.\.[/\\])+/, ''));
-      let ok = existsSync(file);
-      if (ok) {
-        // 目录不能直接 readFile
-        try { readFileSync(file); } catch { ok = false; }
-      }
-      if (!ok) {
-        if (!res.headersSent) res.writeHead(404).end('not found');
-        return;
-      }
-      const body = await readFile(file);
-      if (res.headersSent) return;
-      res.writeHead(200, { 'content-type': MIME[extname(file)] ?? 'application/octet-stream' });
-      res.end(body);
-    } catch {
-      if (!res.headersSent) { try { res.writeHead(500).end('error'); } catch { /* ignore */ } }
-    }
-  });
-  return new Promise((r) => srv.listen(PORT, '127.0.0.1', () => r(srv)));
-}
 
 // ------------------------------------------------------- 进程树 CPU 采样
 function chromePids() {
@@ -141,51 +112,6 @@ function cpuSeconds(pids) {
   return ticks / 100; // USER_HZ
 }
 
-class Cdp {
-  constructor(ws) {
-    this.ws = ws; this.id = 0; this.pending = new Map(); this.waiters = new Map(); this.onLog = null;
-    ws.addEventListener('message', (ev) => {
-      const msg = JSON.parse(ev.data);
-      if (msg.id && this.pending.has(msg.id)) { this.pending.get(msg.id)(msg); this.pending.delete(msg.id); }
-      else if (msg.method) {
-        if (this.onLog && msg.method === 'Runtime.consoleAPICalled') {
-          this.onLog(`console: ${msg.params.args.map((x) => x.value ?? x.description ?? x.type).join(' ')}`);
-        }
-        const w = this.waiters.get(msg.method);
-        if (w?.length) w.shift()(msg.params);
-      }
-    });
-  }
-  once(method) {
-    return new Promise((res) => {
-      if (!this.waiters.has(method)) this.waiters.set(method, []);
-      this.waiters.get(method).push(res);
-    });
-  }
-  send(method, params = {}) {
-    return new Promise((res) => {
-      const id = ++this.id;
-      this.pending.set(id, res);
-      this.ws.send(JSON.stringify({ id, method, params }));
-    });
-  }
-  async eval(expression) {
-    const r = await this.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
-    if (r.result?.exceptionDetails) return `ERR:${r.result.exceptionDetails.text}`;
-    return r.result?.result?.value;
-  }
-}
-
-async function connect(port) {
-  for (let i = 0; i < 80; i++) {
-    try { await (await fetch(`http://127.0.0.1:${port}/json/version`)).json(); break; } catch { await sleep(250); }
-  }
-  const list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
-  const page = list.find((t) => t.type === 'page');
-  const ws = new WebSocket(page.webSocketDebuggerUrl);
-  await new Promise((r) => ws.addEventListener('open', r));
-  return new Cdp(ws);
-}
 
 /** 按 (pid,tid) 先算事件自耗时(= dur - 子事件 dur 之和), 再按 进程名 x 事件名 聚合 */
 function selfTimes(events) {
@@ -255,17 +181,20 @@ if (!existsSync(join(DIST, '4xx_page', '451.html'))) {
   process.exit(1);
 }
 
-const srv = await serve();
+const srv = await startStaticServer({ dist: DIST, port: PORT });
 rmSync(PROFILE, { recursive: true, force: true });
-const chrome = spawn('chromium-browser', [
-  '--headless=new', `--remote-debugging-port=${CDP_PORT}`, '--remote-allow-origins=*',
-  '--no-sandbox', '--disable-dev-shm-usage', `--user-data-dir=${PROFILE}`, '--no-first-run',
-  '--disable-gpu-sandbox', '--enable-unsafe-webgpu', '--enable-features=Vulkan',
-  '--use-angle=vulkan', '--use-vulkan=swiftshader',
-  `--window-size=${WIN_W},${WIN_H}`, '--force-device-scale-factor=1', 'about:blank',
-], { stdio: ['ignore', 'ignore', 'ignore'] });
+const chrome = launchChromium({
+  cdpPort: CDP_PORT,
+  profile: PROFILE,
+  windowSize: `${WIN_W},${WIN_H}`,
+  // headless 里没有真 GPU:靠软件 Vulkan(swiftshader)把 WebGPU 跑起来
+  extraArgs: [
+    '--disable-gpu-sandbox', '--enable-unsafe-webgpu', '--enable-features=Vulkan',
+    '--use-angle=vulkan', '--use-vulkan=swiftshader',
+  ],
+});
 
-const cdp = await connect(CDP_PORT);
+const cdp = await Cdp.connect(CDP_PORT);
 await cdp.send('Page.enable');
 await cdp.send('Runtime.enable');
 await cdp.send('Performance.enable');
@@ -276,7 +205,7 @@ async function loadAndWait(url) {
   await sleep(1200);
   let status = 'n/a';
   for (let i = 0; i < 120; i++) {
-    status = await cdp.eval(`document.documentElement.dataset.ember ?? 'n/a'`);
+    status = await cdp.evalOrError(`document.documentElement.dataset.ember ?? 'n/a'`);
     if (status !== 'n/a') break;
     await sleep(500);
   }
@@ -302,9 +231,9 @@ for (const name of scenarios) {
   console.log(`\n===== ${name} (${sc.desc}) =====`);
   console.log('data-ember:', status, '| 页面日志:', logs.slice(0, 3).join(' / ') || '(无)');
 
-  console.log('注入:', await cdp.eval(`(() => { ${sc.js} })()`));
+  console.log('注入:', await cdp.evalOrError(`(() => { ${sc.js} })()`));
   await sleep(1000);
-  await cdp.eval(`
+  await cdp.evalOrError(`
     window.__probe = { frames: [], last: performance.now(), longTasks: [] };
     try {
       new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__probe.longTasks.push(e.duration); })
@@ -327,7 +256,7 @@ for (const name of scenarios) {
   const m1 = (await cdp.send('Performance.getMetrics')).result.metrics;
   const cpu1 = cpuSeconds(pids);
 
-  const stats = await cdp.eval(`(() => {
+  const stats = await cdp.evalOrError(`(() => {
     cancelAnimationFrame(window.__probe.id);
     const f = window.__probe.frames.slice(3);
     if (!f.length) return { fps: 0, frames: 0 };

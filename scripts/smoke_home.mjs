@@ -24,14 +24,17 @@
  * 的回退分支,所以这里只断言"它的四个宿主接上了,面板长出来了",不断言车窗画面.
  * 与 `scripts/perf/451.mjs` 一样,它不参与 `build:all`(需要浏览器,不适合塞进构建流水线).
  */
-import { spawn } from 'node:child_process';
-import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
 import { existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { extname, join, normalize, dirname } from 'node:path';
+import { join, normalize, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
+
+/*
+  静态服务器 / chromium 启动 / CDP 客户端与 scripts/perf/451.mjs 共用一份,
+  见 scripts/lib/browser_harness.mjs(那边写着为什么这条链路不能各写一遍).
+*/
+import { Cdp, launchChromium, startStaticServer } from './lib/browser_harness.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = normalize(join(HERE, '..'));
@@ -48,76 +51,13 @@ const CDP_PORT = 9712;
  */
 const PROFILE = join(tmpdir(), 'toyosatomimino-home-smoke-profile');
 
-const MIME = {
-    '.html': 'text/html; charset=utf-8',
-    '.js': 'text/javascript; charset=utf-8',
-    '.css': 'text/css; charset=utf-8',
-    '.json': 'application/json',
-    '.wasm': 'application/wasm',
-    '.png': 'image/png',
-    '.gif': 'image/gif',
-    '.ico': 'image/x-icon',
-    '.svg': 'image/svg+xml',
-    '.woff': 'font/woff',
-    '.woff2': 'font/woff2',
-    '.ttf': 'font/ttf',
-};
-
-/** 起一个只服务 dist/ 的静态服务器(与线上 URL 同构) */
-function serve() {
-    const srv = createServer(async (req, res) => {
-        try {
-            const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
-            const rel = normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[/\\])+/, '');
-            const file = join(DIST, rel === '/' ? 'index.html' : rel);
-            if (!file.startsWith(DIST)) { res.writeHead(403).end('forbidden'); return; }
-            const body = await readFile(file);
-            res.writeHead(200, { 'content-type': MIME[extname(file)] ?? 'application/octet-stream' });
-            res.end(body);
-        } catch {
-            if (!res.headersSent) { try { res.writeHead(404).end('not found'); } catch { /* ignore */ } }
-        }
-    });
-    return new Promise((r) => srv.listen(PORT, '127.0.0.1', () => r(srv)));
-}
-
-/** 极简 CDP 客户端(与 scripts/perf/451.mjs 同一套路,只用 node 自带的 WebSocket) */
-class Cdp {
-    constructor(ws) { this.ws = ws; this.id = 0; this.pending = new Map(); this.logs = []; this.errors = []; }
-    static async connect(port) {
-        for (let i = 0; i < 80; i++) {
-            try { await (await fetch(`http://127.0.0.1:${port}/json/version`)).json(); break; } catch { await sleep(250); }
-        }
-        const list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
-        const page = list.find((t) => t.type === 'page');
-        const ws = new WebSocket(page.webSocketDebuggerUrl);
-        await new Promise((r) => ws.addEventListener('open', r));
-        const cdp = new Cdp(ws);
-        ws.addEventListener('message', (ev) => {
-            const msg = JSON.parse(ev.data);
-            if (msg.id && cdp.pending.has(msg.id)) { cdp.pending.get(msg.id)(msg); cdp.pending.delete(msg.id); return; }
-            if (msg.method === 'Runtime.consoleAPICalled') {
-                cdp.logs.push(`${msg.params.type}: ${msg.params.args.map((a) => a.value ?? a.description ?? a.type).join(' ')}`);
-            }
-            if (msg.method === 'Runtime.exceptionThrown') {
-                cdp.errors.push(msg.params.exceptionDetails.text + ' :: ' +
-                    (msg.params.exceptionDetails.exception?.description ?? ''));
-            }
-        });
-        return cdp;
-    }
-    send(method, params = {}) {
-        return new Promise((res) => { const id = ++this.id; this.pending.set(id, res); this.ws.send(JSON.stringify({ id, method, params })); });
-    }
-    async eval(expression) {
-        const r = await this.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
-        const ex = r.result?.exceptionDetails;
-        if (ex) {
-            return { __err: ex.text, description: ex.exception?.description ?? '' };
-        }
-        return r.result?.result?.value;
-    }
-}
+/**
+ * OLED 未点亮像素的期望值(#333333),与 src/oled/config.ts 的 OLED_COLOR_UNLIT 同值.
+ * 本脚本在浏览器里跑,读不到 TS 常量,所以只能在这里留一份并注明来源;
+ * 改了 TS 那个常量,下面两条断言会直接变红(而不是静默放过).
+ */
+const OLED_UNLIT_RGB = [0x33, 0x33, 0x33];
+const OLED_UNLIT_HEX = '#333';
 
 // 先确认有构建产物:没有 dist 时打开的一定是 404 页面,断言会以"看不到元素"的形式
 // 一次失败十几条,那种报错完全没指向"你忘了先 build".
@@ -126,13 +66,15 @@ if (!existsSync(join(DIST, 'index.html'))) {
     process.exit(1);
 }
 
-const srv = await serve();
+const srv = await startStaticServer({ dist: DIST, port: PORT });
 rmSync(PROFILE, { recursive: true, force: true });
-const chrome = spawn('chromium-browser', [
-    '--headless=new', `--remote-debugging-port=${CDP_PORT}`, '--remote-allow-origins=*',
-    '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', `--user-data-dir=${PROFILE}`,
-    '--no-first-run', '--window-size=1280,900', '--force-device-scale-factor=1', 'about:blank',
-], { stdio: ['ignore', 'ignore', 'ignore'] });
+const chrome = launchChromium({
+    cdpPort: CDP_PORT,
+    profile: PROFILE,
+    windowSize: '1280,900',
+    // 首页验收不需要 GPU:没有 WebGPU 时车窗走 data-state="unavailable" 回退分支
+    extraArgs: ['--disable-gpu'],
+});
 
 const cdp = await Cdp.connect(CDP_PORT);
 await cdp.send('Page.enable');
@@ -142,13 +84,13 @@ await cdp.send('Page.navigate', { url: `http://127.0.0.1:${PORT}/` });
 // 等骨架挂上(挂载发生在 DOMContentLoaded)
 let mounted = false;
 for (let i = 0; i < 60; i++) {
-    mounted = await cdp.eval(`document.querySelector('#site-root')?.childElementCount > 0`);
+    mounted = await cdp.evalValue(`document.querySelector('#site-root')?.childElementCount > 0`);
     if (mounted === true) break;
     await sleep(250);
 }
 await sleep(700); // 让"每帧 / 每秒"的东西跑一轮(时钟,初始渲染)
 
-const report = await cdp.eval(`(() => {
+const report = await cdp.evalValue(`(() => {
     const out = [];
     const ok = (name, pass, extra) => out.push({ name, pass: !!pass, extra: extra === undefined ? '' : String(extra) });
     const q = (s) => document.querySelector(s);
@@ -301,15 +243,15 @@ const report = await cdp.eval(`(() => {
             cardLabels.join(' / ') === '格里高利历 / 农历 / 希伯来历', cardLabels.join(' / '));
 
         // OLED:构造时把画布铺成"未亮起"的中性灰 #333(证明 OLEDCanvas 真的建起来了)
-        // 期望的 0x33 与 src/oled/config.ts 的 OLED_COLOR_UNLIT 同值(本脚本在浏览器里,读不到 TS 常量)
+        // 期望值与 src/oled/config.ts 的 OLED_COLOR_UNLIT 同源,见文件顶部的 OLED_UNLIT_RGB
         let oledPixel = '未读到';
         let oledUnlit = false;
         try {
             const d = q('#pixelCanvas').getContext('2d').getImageData(0, 0, 1, 1).data;
             oledPixel = 'rgb(' + d[0] + ',' + d[1] + ',' + d[2] + ')';
-            oledUnlit = d[0] === 0x33 && d[1] === 0x33 && d[2] === 0x33;
+            oledUnlit = d[0] === ${OLED_UNLIT_RGB[0]} && d[1] === ${OLED_UNLIT_RGB[1]} && d[2] === ${OLED_UNLIT_RGB[2]};
         } catch (e) { oledPixel = '读取失败'; }
-        ok('OLED 画布已初始化(左上角未亮的中性灰 #333)', oledUnlit, oledPixel);
+        ok('OLED 画布已初始化(左上角未亮的中性灰 ${OLED_UNLIT_HEX})', oledUnlit, oledPixel);
 
         // 红黑树:示例树真的被解析并画出了红节点
         const tree = q('#rbCanvas');
@@ -725,7 +667,7 @@ if (!Array.isArray(report) || (report && report.__err)) {
 // ---- 交互:站点自己的标签页控制器认不认这排触发器(点一次再切回来) ----
 // 这里读的是**计算样式**,不只是类名:窗格的 display 由站点的"文档基线"提供,
 // 类名对了而 CSS 掉了的话,面板会全部堆叠 -- 那正是这一条要抓的.
-const tabSwitch = await cdp.eval(`(async () => {
+const tabSwitch = await cdp.evalValue(`(async () => {
     const click = (href) => document.querySelector('a[href="' + href + '"]').click();
     // 等淡入走完(.show 是下一帧才补上的),否则读到 opacity 还停在 0
     const settle = () => new Promise((r) => setTimeout(() => requestAnimationFrame(() => r()), 350));
@@ -777,6 +719,10 @@ const tabSwitch = await cdp.eval(`(async () => {
         expandedAria,
         collapsedText: toggle.textContent,
         collapsedAria: toggle.getAttribute('aria-expanded'),
+        // 两个高度口径的唯一来源是 CSS 令牌(public/css/tokens.css);脚本在浏览器里量到的
+        // computed height 必须等于它,而不是脚本里再抄一份 150px / 1366px
+        tokenCollapsed: getComputedStyle(document.documentElement).getPropertyValue('--oled-editor-height').trim(),
+        tokenExpanded: getComputedStyle(document.documentElement).getPropertyValue('--oled-editor-expanded-height').trim(),
       };
     };
 
@@ -801,9 +747,9 @@ const tabSwitch = await cdp.eval(`(async () => {
     2. 指针不动只滚滚轮时,红框要跟着画布回到**同一颗像素**上去,而不是留在旧坐标上
        冻住(它写的是视口坐标,页面一滚画布就走了).
 */
-await cdp.eval(`document.querySelector('a[href="#oled"]').click()`);
+await cdp.evalValue(`document.querySelector('a[href="#oled"]').click()`);
 await sleep(400);
-const cursorProbeSetup = await cdp.eval(`(() => {
+const cursorProbeSetup = await cdp.evalValue(`(() => {
     const canvas = document.querySelector('canvas#pixelCanvas');
     canvas.scrollIntoView({ block: 'center', behavior: 'instant' });
     const rect = canvas.getBoundingClientRect();
@@ -844,21 +790,21 @@ const cursorProbeRead = `(() => {
       boxTop: box.top,
     };
 })()`;
-const cursorHover = await cdp.eval(cursorProbeRead);
+const cursorHover = await cdp.evalValue(cursorProbeRead);
 // 指针停在原地,只滚滚轮:画布在视口里挪了位,红框得跟着落回同一颗像素
 await cdp.send('Input.dispatchMouseEvent', {
     type: 'mouseWheel',
     x: cursorProbeSetup.x, y: cursorProbeSetup.y, deltaX: 0, deltaY: 240,
 });
 await sleep(300);
-const cursorScrolled = await cdp.eval(cursorProbeRead);
+const cursorScrolled = await cdp.evalValue(cursorProbeRead);
 
 /*
   上面两条用的是合成 MouseEvent(只为把 clientX/clientY 摆准).这里再走一次**真指针
   事件**:命中测试,坐标换算,UI 更新整条路都过一遍,并把红框压到画布右下角那颗像素上 --
   那里是"1px 描边口径错"累积得最多的一头.
 */
-const cursorCornerSetup = await cdp.eval(`(() => {
+const cursorCornerSetup = await cdp.evalValue(`(() => {
     const canvas = document.querySelector('canvas#pixelCanvas');
     const rect = canvas.getBoundingClientRect();
     const px = canvas.clientWidth / canvas.width;
@@ -870,12 +816,12 @@ await cdp.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved', x: cursorCornerSetup.x, y: cursorCornerSetup.y, button: 'none', buttons: 0,
 });
 await sleep(120);
-const cursorCorner = await cdp.eval(cursorProbeRead);
+const cursorCorner = await cdp.evalValue(cursorProbeRead);
 
 // ---- 交互:导航条的"隐形 / 实底"(非 HOME 顶端隐形,滚动后实底;HOME 顶端隐形) ----
 // 类的加减是进程内单测抓不到的那一半:IO 的 rootMargin,scroll 事件,以及"切标签页后
 // 首屏隐藏,由 scrollY 那条判据接管"都只有在真引擎里跑一遍才算数.
-const headerState = await cdp.eval(`(async () => {
+const headerState = await cdp.evalValue(`(async () => {
     const header = document.querySelector('header.site-header');
     const click = (href) => document.querySelector('a[href="' + href + '"]').click();
     // 等两帧:class 的切换发生在 IO 回调 / scroll 回调里,写进去之后要等一次重绘
@@ -901,7 +847,7 @@ const headerState = await cdp.eval(`(async () => {
 // ---- 交互:IEEE754 的精度菜单(库的折叠菜单,不再是 <select>) ----
 // 开合靠库的 Popover(类名 + display 两条都要真渲染),选中要能改当前项 / 触发按钮
 // 文案 / 位图位数,点外部要能收起来 -- 这几件事进程内 DOM 都验不了.
-const formatMenu = await cdp.eval(`(async () => {
+const formatMenu = await cdp.evalValue(`(async () => {
     const nextFrame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const click = (href) => document.querySelector('a[href="' + href + '"]').click();
     click('#ieee754');
@@ -938,7 +884,7 @@ const formatMenu = await cdp.eval(`(async () => {
 })()`);
 
 // ---- 时钟是不是真的在走(每秒重绘) ----
-const clockTick = await cdp.eval(`(async () => {
+const clockTick = await cdp.evalValue(`(async () => {
     const c = document.querySelector('#time_canvas');
     const snap = () => c.toDataURL();
     const a = snap();
@@ -957,7 +903,7 @@ let adHocTotal = 0;
 const adHoc = (pass) => { adHocTotal++; if (!pass) failed++; };
 // 窗格的不透明档位由令牌 --tab-pane-opacity 给(SETTING 里那条滑块可改它,默认 0.9),
 // 所以这里按**数**比, 不能写死 '1': 前者是"窗格真的落在令牌那一档",后者早已不是契约.
-const paneOpacity = Number(await cdp.eval(
+const paneOpacity = Number(await cdp.evalValue(
     `getComputedStyle(document.documentElement).getPropertyValue('--tab-pane-opacity')`));
 // 切过去的窗格必须真的"上屏且落在令牌那一档",切走的必须真的 display: none --
 // 只对类名就会漏掉"类名对了但 CSS 掉了,六个窗格一起堆叠"这种最坏的静默失效.
@@ -1001,13 +947,18 @@ const oledData = tabSwitch?.afterOled?.data;
 const oledDataOk = oledData?.editors === 1 && oledData?.textareas === 1 &&
     oledData?.copyInTools === true && oledData?.importInTools === true &&
     oledData?.toggleInTools === true &&
-    oledData?.collapsed?.height === '150px' && oledData?.collapsed?.minHeight === '150px' &&
-    oledData?.expanded?.height === '1366px' && oledData?.expanded?.lines === 70 &&
-    oledData?.backToCollapsed?.height === '150px' &&
+    // 高度不再在脚本里写死:量到的值必须等于同名 CSS 令牌(读不到令牌时是空串,
+    // 而空串不等于任何 px 值,所以这条会显式失败而不是假通过)
+    oledData?.tokenCollapsed !== '' && oledData?.collapsed?.height === oledData?.tokenCollapsed &&
+    oledData?.collapsed?.minHeight === oledData?.tokenCollapsed &&
+    oledData?.tokenExpanded !== '' && oledData?.expanded?.height === oledData?.tokenExpanded &&
+    // 70 行是 --oled-editor-expanded-height 的语义(见 tokens.css 的算式),不是另一个可调值
+    oledData?.expanded?.lines === 70 &&
+    oledData?.backToCollapsed?.height === oledData?.tokenCollapsed &&
     oledData?.expandedText === '折叠编辑器' && oledData?.expandedAria === 'true' &&
     oledData?.collapsedText === '展开编辑器' && oledData?.collapsedAria === 'false';
 console.log(`${oledDataOk ? '  ok  ' : ' FAIL '} OLED 数据区只有一颗编辑器,可折叠 / 展开` +
-    `(折叠 150px(含 min-height)= 展开 1366px / 70 行,按钮文案与 aria-expanded 跟着切;` +
+    `(折叠 ${oledData?.tokenCollapsed}(含 min-height)= 展开 ${oledData?.tokenExpanded} / 70 行,按钮文案与 aria-expanded 跟着切;` +
     `实得 ${JSON.stringify(oledData)})`);
 adHoc(oledDataOk);
 const headerOk = headerState?.settingTop === true && headerState?.settingScrolled === false &&

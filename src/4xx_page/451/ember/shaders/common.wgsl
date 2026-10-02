@@ -8,7 +8,10 @@ struct SimUniforms {
     dt          : f32,   // 仿真步长(秒)
     width       : f32,   // 逻辑宽度(CSS 像素)
     height      : f32,   // 逻辑高度(CSS 像素)
-    dpr         : f32,   // 设备像素比(渲染时换算物理像素)
+    // 为什么留这一格: uniform 地址空间里的 struct 大小必须是 16 字节的倍数,
+    // 8 x f32 = 32 字节才合法. 它没有任何读取方, CPU 侧也从不写(见 config.ts
+    // 的 UNIFORM_FLOAT_COUNT / index.ts 的 writeUniforms), 保持 0 即可.
+    _pad        : f32,
     pointerX    : f32,   // 指针位置(用于风向扰动)
     pointerY    : f32,
     windScale   : f32,   // 指针影响强度(0 = 无交互)

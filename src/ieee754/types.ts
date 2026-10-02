@@ -7,8 +7,6 @@ export type IEEE754Class = 'zero' | 'subnormal' | 'normal' | 'infinity' | 'nan';
 
 /** IEEE 754 精度格式描述(单精度 float32 / 双精度 float64) */
 export interface IEEE754Format {
-    /** 精度名(展示用) */
-    readonly name: string;
     /** 总位数:32 或 64 */
     readonly totalBits: number;
     /** 指数(阶码)位数 */

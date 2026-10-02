@@ -12,10 +12,8 @@
 // ============================================================
 
 import {
-    COMPOSITE_CLEAR_VALUE,
     COMPOSITE_VERTEX_COUNT,
     FIXED_DT,
-    FLOAT_BYTES,
     FRAME_JITTER_MS,
     MAX_FPS,
     PARTICLE_CLEAR_VALUE,
@@ -84,11 +82,6 @@ export class EmberWebGPU {
     disposed = false;
     /** 离屏纹理格式,初始化成功后才有意义 */
     textureFormat: GPUTextureFormat = FALLBACK_TEXTURE_FORMAT;
-    /** 适配器信息; 仓库内没有读取方, 保留给控制台通过 window.__ember 查看 */
-    adapterInfo: GPUAdapterInfo | null = null;
-    /** 最近一次解析出的物理像素尺寸(与 canvas.width/height 一致); 仓库内没有读取方, 供控制台调试 */
-    physWidth = 0;
-    physHeight = 0;
 
     // ---- 打点: 帧间隔 / 主线程耗时 / GPU pass 耗时 ----
     /** 帧统计窗口 */
@@ -124,7 +117,7 @@ export class EmberWebGPU {
     private readonly clock = new FixedStepClock();
     private readonly wind = new PointerWind();
 
-    private readonly uniformData = new Float32Array(UNIFORM_STRIDE / FLOAT_BYTES);
+    private readonly uniformData = new Float32Array(UNIFORM_FLOAT_COUNT);
 
     // init() 成功后才会全部就位
     private pipelines: EmberPipelines | null = null;
@@ -159,11 +152,14 @@ export class EmberWebGPU {
     async init(): Promise<boolean> {
         try {
             const gpu = await acquireGpuContext();
+            // 为什么: init() 是异步的, 启动超时后 boot.ts 会先 dispose(); 必须在这里
+            // 立刻退出, 否则下面新建的粒子缓冲 / 历史纹理 / bind group 全部建在一个
+            // 已经 disposed 的引擎上, 而 dispose() 早已跑完, 没有任何人去销毁它们.
+            if (this.disposed) return false;
             if (!gpu) return false;
 
             const { device } = gpu;
             this.device = device;
-            this.adapterInfo = gpu.adapterInfo;
 
             // lib.dom 的 getContext 重载表里还没有 'webgpu', 这里补一个窄化断言
             const context = this.canvas.getContext('webgpu') as GPUCanvasContext | null;
@@ -182,9 +178,12 @@ export class EmberWebGPU {
             this.contextConfigured = true;
 
             this.pipelines = await buildPipelines(device, this.textureFormat);
+            // 同上: buildPipelines() 内部还有 await, 期间仍可能被超时 dispose().
+            // 这之后 init() 不再有 await, 所以再往后就是一段不会被交错的同步代码.
+            if (this.disposed) return false;
 
-            // GPU 计时是可选的: 拿不到就少一项观测,不影响绘制
-            this.gpuTimer = createGpuTimer(device);
+            // GPU 计时是可选的: 设备没拿到 timestamp-query 就少一项观测, 不影响绘制
+            this.gpuTimer = gpu.timestampQuery ? createGpuTimer(device) : null;
             log(this.gpuTimer ? 'GPU 计时已启用 (timestamp-query)' : 'GPU 计时不可用 (无 timestamp-query)');
 
             const viewport = this.measureViewport();
@@ -208,9 +207,8 @@ export class EmberWebGPU {
                 log('GPU 未捕获错误:', gpuError?.message ?? gpuError);
             });
 
-            // 若外部已经因启动超时 dispose() 过, 这里就不要再注册监听:
-            // init() 是异步的, 超时后它仍可能跑完, 不拦的话监听会留在页面上.
-            if (this.disposed) return false;
+            // 上面最后一个 await 之后, init() 是纯同步的: 这里返回 true 时不会再被
+            // 超时 dispose() 交错, 注册监听与绑定输入都是安全的.
             this.bindInput();
             return true;
         } catch (error) {
@@ -243,8 +241,6 @@ export class EmberWebGPU {
         const first = this.viewport === null;
 
         this.viewport = viewport;
-        this.physWidth = viewport.physWidth;
-        this.physHeight = viewport.physHeight;
         this.canvas.width = viewport.physWidth;
         this.canvas.height = viewport.physHeight;
 
@@ -411,13 +407,6 @@ export class EmberWebGPU {
         return this.stats.snapshot();
     }
 
-    /** 清空统计窗口(改完参数想重新量一段时用) */
-    resetStats(): void {
-        this.stats.reset();
-        this.framesSinceReport = 0;
-        this.lastRafTime = 0;
-    }
-
     /** 一行摘要, 直接 console.log 用 */
     reportStats(): string {
         return this.stats.format();
@@ -445,7 +434,8 @@ export class EmberWebGPU {
         u[1] = dt;                   // 仿真步长(秒)
         u[2] = viewport.cssWidth;    // 逻辑宽度
         u[3] = viewport.cssHeight;   // 逻辑高度
-        u[4] = viewport.dpr;         // 设备像素比
+        // u[4] 是 WGSL SimUniforms._pad 的占位(只为 16 字节对齐), 不写;
+        // Float32Array 初值就是 0, 保持它不动即可
         u[5] = this.wind.x;          // 指针位置
         u[6] = this.wind.y;
         u[7] = this.wind.strength;   // 指针影响强度(0 = 无交互)
@@ -500,13 +490,15 @@ export class EmberWebGPU {
         if (timer) timer.mark(encoder, slot + 2);
 
         // ---- 3) 合成 -> 画布 (采样上一帧写入的那张离屏纹理) ----
+        // loadOp: 'load' 而不是 clear:这个 pass 画的是一个覆盖整块 NDC 的大三角形,
+        // 每个像素都会被片元写满(见 composite.wgsl),清屏结果 100% 被覆盖,
+        // 所以既没有 clearValue,也不需要为它留一个具名常量.
         const compositePass = encoder.beginRenderPass({
             label: '451-composite-pass',
             colorAttachments: [
                 {
                     view: context.getCurrentTexture().createView(),
-                    loadOp: 'clear',
-                    clearValue: COMPOSITE_CLEAR_VALUE,
+                    loadOp: 'load',
                     storeOp: 'store',
                 },
             ],
@@ -531,6 +523,9 @@ export class EmberWebGPU {
         if (!encoder || !device) return;
         device.queue.submit([encoder.finish()]);
         this.pendingEncoder = null;
+        // 计时读回必须在提交之后:mapAsync 提前调用会让缓冲在拷贝还没提交时就被
+        // map 上,随后的 submit 触发 "used in submit while mapped"(见 gpu_timing.ts)
+        this.gpuTimer?.afterSubmit();
     }
 
     // ---------------------------------------------------------

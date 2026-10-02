@@ -42,17 +42,13 @@ export const PARTICLE_FIELD = {
 /**
  * 初始播种用的寿命范围(秒).
  * CPU 播种只是为了让首帧不是空的; 这些粒子会在一个寿命周期内自然重生,
- * 之后完全由 GPU 接管, 所以不必和 respawn() 的公式逐位一致.
+ * 之后完全由 GPU 接管.
+ * 为什么这里不与 respawn() 逐位一致: 那里的寿命是 span(按屏高换算) / rise + 1.2
+ * 反推出来的, 随分辨率变化; 这里只是"首帧够用"的近似值, 所以 resources.test.ts
+ * 只钉共享的随机范围, 不钉寿命.
  */
 export const SEED_LIFE_MIN = 9;
 export const SEED_LIFE_MAX = 20;
-
-/**
- * SimUniforms uniform buffer 的字节长度: 48 字节 = 12 x f32.
- * 但 WGSL 里的 SimUniforms 只有 8 个 f32(32 字节), 每帧也只写前 8 个
- * (见 UNIFORM_FLOAT_COUNT), 因此尾部 16 字节是多余的分配, 从未被读写.
- */
-export const UNIFORM_STRIDE = 48;
 
 /** 固定仿真步长: dt 恒定,120Hz 屏与 60Hz 屏看到的余烬速度一致 */
 export const FIXED_DT = 1 / 60;
@@ -101,8 +97,15 @@ export const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 /** 引擎日志前缀, 控制台按它筛选 451 的输出 */
 export const LOG_PREFIX = '[451/ember]';
 
-/** SimUniforms 每帧实际写入的 f32 个数(前 8 个字段) */
+/** SimUniforms 每帧实际写入的 f32 个数(前 8 个字段, 与 WGSL 的 struct 一一对应) */
 export const UNIFORM_FLOAT_COUNT = 8;
+
+/**
+ * SimUniforms uniform buffer 的字节长度 = UNIFORM_FLOAT_COUNT x FLOAT_BYTES = 32 字节.
+ * 与 WGSL 里 8 x f32 的 SimUniforms 严丝合缝: 多分配的部分没有任何读取方,
+ * 只是白占显存, 所以这里由 f32 个数推导而不是写死字面量.
+ */
+export const UNIFORM_STRIDE = UNIFORM_FLOAT_COUNT * FLOAT_BYTES;
 
 /** 一个粒子实例的顶点数(一个四边形拆两个三角形) */
 export const PARTICLE_VERTEX_COUNT = 6;
@@ -111,19 +114,15 @@ export const PARTICLE_VERTEX_COUNT = 6;
 export const COMPOSITE_VERTEX_COUNT = 3;
 
 /**
- * 不透明黑. 两处 loadOp:clear 都要"黑且不透明", 但用途不同, 所以各留一个具名常量:
- *   - HISTORY_CLEAR_VALUE(resources.config.ts): 离屏历史纹理首帧清屏,
- *     免得合成 pass 采样到未初始化内容
- *   - COMPOSITE_CLEAR_VALUE: 合成 pass 的画布底色
- * 两者字面量必须一致, 因此共用这一个来源.
+ * 不透明黑:离屏历史纹理首帧的清屏色(resources.config.ts 的 HISTORY_CLEAR_VALUE).
+ *
+ * 合成 pass 不再需要清屏色:它的全屏三角形覆盖整块 NDC,每个像素都会被片元写满,
+ * 所以那边用 loadOp: 'load',连 clear 都不做.
  */
 export const OPAQUE_BLACK = { r: 0, g: 0, b: 0, a: 1 } as const;
 
 /** 粒子 pass 的 loadOp:clear 颜色(全透明黑, 每帧都把目标纹理清空) */
 export const PARTICLE_CLEAR_VALUE = { r: 0, g: 0, b: 0, a: 0 } as const;
-
-/** 合成 pass 的 loadOp:clear 颜色(不透明黑 = 画布底色, 字面量见 OPAQUE_BLACK) */
-export const COMPOSITE_CLEAR_VALUE = OPAQUE_BLACK;
 
 /** 指针风场: 停手多久后开始衰减(ms) */
 export const POINTER_IDLE_AFTER_MS = 140;

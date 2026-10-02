@@ -11,11 +11,9 @@
   直接按写的数值用(离线调试要的就是"所见即所填").
 */
 use metro_window::{
-    create_metro_pipelines, create_texture, decode_png, generate_dirt, generate_fog,
-    generate_interior, write_param, GlassParams, MetroTextures, Uniforms, DIRT_TEXTURE_SIZE,
-    FOG_TEXTURE_SIZE, FULLSCREEN_QUAD_INDICES, FULLSCREEN_QUAD_VERTICES, INTERIOR_TEXTURE_SIZE,
-    QUAD_INDEX_FORMAT, RENDER_TARGET_FORMAT, RGBA_BYTES_PER_PIXEL, SAMPLER_ADDRESS_MODE_CLAMP,
-    SAMPLER_ADDRESS_MODE_REPEAT, SAMPLER_FILTER_MODE,
+    create_material_sampler, create_metro_pipelines, create_quad_buffers, create_texture,
+    decode_png, generate_material_textures, write_param, GlassParams, MetroTextures, Uniforms,
+    FULLSCREEN_QUAD_INDICES, QUAD_INDEX_FORMAT, RENDER_TARGET_FORMAT, RGBA_BYTES_PER_PIXEL,
 };
 use wgpu::util::DeviceExt;
 
@@ -50,7 +48,8 @@ const PREVIEW_WIDTH: u32 = 1024;
 const PREVIEW_HEIGHT: u32 = 576;
 /// 写入 Uniforms 的时间(秒),取非 0 让动画处于推进状态.
 const PREVIEW_TIME_SECONDS: f32 = 2.0;
-/// 写入 Uniforms 的样式编号(1 = 第二种样式,便于与默认样式区分).
+/// 写入 Uniforms 的样式编号(1 = 站点默认风格"赛博朋克",与 config.ts 的
+/// `DEFAULT_STYLE_INDEX` 一致;这里显式写出来是为了让预览用哪套分支一目了然).
 const PREVIEW_STYLE_ID: u32 = 1;
 /// 城市贴图在仓库里的位置(相对站点 `public/`;与运行时的 /metro_window/resource 是同一批文件).
 ///
@@ -149,36 +148,16 @@ fn main() {
         let far = load_png(&device, &queue, &preview_city_png(PREVIEW_LEVEL_2), true);
         let mid = load_png(&device, &queue, &preview_city_png(PREVIEW_LEVEL_1), true);
         let near = load_png(&device, &queue, &preview_city_png(PREVIEW_LEVEL_0), true);
-        let (dw, dh, dirt_data) = generate_dirt(DIRT_TEXTURE_SIZE.0, DIRT_TEXTURE_SIZE.1);
-        let dirt = create_texture(&device, &queue, "dirt", dw, dh, &dirt_data, false);
-        let (fw, fh, fog_data) = generate_fog(FOG_TEXTURE_SIZE.0, FOG_TEXTURE_SIZE.1);
-        let fog = create_texture(&device, &queue, "fog", fw, fh, &fog_data, false);
-        let (iw, ih, interior_data) =
-            generate_interior(INTERIOR_TEXTURE_SIZE.0, INTERIOR_TEXTURE_SIZE.1);
-        let interior = create_texture(&device, &queue, "interior", iw, ih, &interior_data, false);
+        // 三张程序化材质贴图与运行时**共用同一份构造**(gpu_resources.rs):
+        // 尺寸与噪声参数都取自 texture_params.rs,所以预览图能代表线上画面.
+        // 返回顺序固定为 [污渍, 雾气, 车厢倒影];标签按预览侧的原样给.
+        let [dirt, fog, interior] =
+            generate_material_textures(&device, &queue, ["dirt", "fog", "interior"]);
 
-        // 与运行时同一套采样器约定:u = Repeat(城市层横向滚动),v = ClampToEdge.
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("preview-sampler"),
-            address_mode_u: SAMPLER_ADDRESS_MODE_REPEAT,
-            address_mode_v: SAMPLER_ADDRESS_MODE_CLAMP,
-            address_mode_w: SAMPLER_ADDRESS_MODE_CLAMP,
-            mag_filter: SAMPLER_FILTER_MODE,
-            min_filter: SAMPLER_FILTER_MODE,
-            mipmap_filter: SAMPLER_FILTER_MODE,
-            ..Default::default()
-        });
+        // 与运行时同一套采样器约定(见 gpu_resources.rs 的 create_material_sampler).
+        let sampler = create_material_sampler(&device, "preview-sampler");
 
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("vertices"),
-            contents: bytemuck::cast_slice(&FULLSCREEN_QUAD_VERTICES),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("indices"),
-            contents: bytemuck::cast_slice(&FULLSCREEN_QUAD_INDICES),
-            usage: wgpu::BufferUsages::INDEX,
-        });
+        let (vertex_buffer, index_buffer) = create_quad_buffers(&device, "vertices", "indices");
 
         let uniforms = Uniforms::new(PREVIEW_TIME_SECONDS, PREVIEW_STYLE_ID);
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {

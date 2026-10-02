@@ -5,12 +5,14 @@
  */
 import { icon } from '@/4xx_page/shared/icon';
 import {
+    CLASS_PANEL_FLASH,
+    CLASS_TOAST_COFFEE,
+    CLASS_TOAST_TEA,
     CLASS_WOBBLE,
     DOM_ID,
     EYE_LEFT_INDEX,
     FACE_RESTORE_MS,
     ICON_ID,
-    ICON_STYLE,
     INITIAL_REJECT_COUNT,
     MESSAGE_COFFEE,
     MESSAGE_COFFEE_HOLD_MS,
@@ -21,18 +23,14 @@ import {
     MESSAGE_WELCOME,
     MOUTH_ANGRY,
     MOUTH_REST,
-    PANEL_FLASH_BG,
     PANEL_FLASH_MS,
-    PANEL_FLASH_TRANSITION,
-    PANEL_REST_BG,
     PUPIL_LOOK_AWAY,
     PUPIL_SQUINT_LEFT,
     PUPIL_SQUINT_RIGHT,
     PUPIL_TEA_HOLD_MS,
     REJECT_COUNT_STEP,
     SELECTOR,
-    STEAM_ANIMATION_BOOST,
-    STEAM_ANIMATION_NORMAL,
+    STEAM_BOOST_DURATION,
     STEAM_BOOST_MS,
     TEAS,
     TOAST_COFFEE_MESSAGE,
@@ -60,19 +58,25 @@ function updateCounterDisplay(): void {
     if (rejectSpan) rejectSpan.textContent = String(rejectCounter);
 }
 
-function setToastMessage(html: string): void {
+// toast 上出现过的图标样式变体类; 换消息时先全部清掉, 免得跟上一条的样式串味.
+const TOAST_VARIANT_CLASSES = [CLASS_TOAST_TEA, CLASS_TOAST_COFFEE];
+
+function setToastMessage(html: string, iconVariant = ''): void {
     if (toastDiv) {
         toastDiv.innerHTML = html;
+        toastDiv.classList.remove(...TOAST_VARIANT_CLASSES);
+        if (iconVariant) toastDiv.classList.add(iconVariant);
         toastDiv.style.opacity = TOAST_OPACITY_VISIBLE;
     }
 }
 
 // 图标一行,文案一行; 泡茶与拒绝咖啡两种临时提示共用同一套换行与缩进.
-function setToastWithIcon(iconMarkup: string, text: string): void {
+// iconVariant 决定图标样式(见 418.css 的 .toast-message.is-tea / .is-coffee).
+function setToastWithIcon(iconMarkup: string, text: string, iconVariant = ''): void {
     setToastMessage(`
                 ${iconMarkup}
                 ${text}
-            `);
+            `, iconVariant);
 }
 
 function wobbleTeapot(): void {
@@ -86,15 +90,20 @@ function wobbleTeapot(): void {
 
 function triggerSteamBoost(): void {
     steamSpans.forEach(span => {
-        span.style.animation = 'none';
-        // 先读一次布局属性强制重排, 否则重新赋值 animation 不会重启动画.
+        // 只动 animation-name / animation-duration 两个长属性.
+        // 坑: 写 animation 简写会把 .steam span:nth-child(2|3) 的 animation-delay 重置成 0s,
+        // 第一次点按之后三根蒸汽柱就永远同步了; 简写里那份 2.5s 也与 CSS 令牌重复.
+        span.style.animationName = 'none';
+        // 先读一次布局属性强制重排, 让"停"这一帧落地; 否则同一帧内改回名字不会重启动画.
         void span.offsetHeight;
-        span.style.animation = STEAM_ANIMATION_BOOST;
+        // 名字交回 CSS 令牌(steamFloat), 延迟/缓动/循环都不受影响.
+        span.style.animationName = '';
+        span.style.animationDuration = STEAM_BOOST_DURATION;
     });
-    // 增强只持续 STEAM_BOOST_MS, 之后换回与 CSS 令牌一致的默认动画.
+    // 到点只撤掉时长覆盖, 一切交回 CSS 令牌 --teapot-steam-animation, 即点击前的状态.
     setTimeout(() => {
         steamSpans.forEach(span => {
-            span.style.animation = STEAM_ANIMATION_NORMAL;
+            span.style.animationDuration = '';
         });
     }, STEAM_BOOST_MS);
 }
@@ -137,8 +146,9 @@ function handleMakeTea(): void {
     const randomTea = TEAS[Math.floor(Math.random() * TEAS.length)];
 
     setToastWithIcon(
-        icon(ICON_ID.mugSaucer, ICON_STYLE.marginRight),
+        icon(ICON_ID.mugSaucer),
         `${TOAST_TEA_PREFIX}${randomTea}${TOAST_TEA_SUFFIX}`,
+        CLASS_TOAST_TEA,
     );
 
     // 斜眼看茶: 瞳孔整体偏移, 稍后由 resetPupils() 归位.
@@ -166,7 +176,7 @@ function handleCoffeeRequest(): void {
     const mouth = document.querySelector<HTMLElement>(SELECTOR.mouth);
     if (mouth) applyMouthStyle(mouth, MOUTH_ANGRY);
 
-    setToastWithIcon(icon(ICON_ID.circleExclamation, ICON_STYLE.alert), TOAST_COFFEE_MESSAGE);
+    setToastWithIcon(icon(ICON_ID.circleExclamation), TOAST_COFFEE_MESSAGE, CLASS_TOAST_COFFEE);
 
     // 只替换 .message 与 .sub-message 的文案, 大标题 .status-code 不参与.
     const msgEl = document.querySelector<HTMLElement>(SELECTOR.message);
@@ -181,9 +191,10 @@ function handleCoffeeRequest(): void {
 
     const panel = document.querySelector<HTMLElement>(SELECTOR.counterPanel);
     if (panel) {
-        panel.style.transition = PANEL_FLASH_TRANSITION;
-        panel.style.background = PANEL_FLASH_BG;
-        setTimeout(() => { panel.style.background = PANEL_REST_BG; }, PANEL_FLASH_MS);
+        // 闪一下只切类: 背景色与过渡都在 418.css(.counter-panel / .counter-panel.is-flash),
+        // 去类后背景自动回到令牌 --teapot-counter-bg, 与原来写行内 #eedbcb 的终态一致.
+        panel.classList.add(CLASS_PANEL_FLASH);
+        setTimeout(() => { panel.classList.remove(CLASS_PANEL_FLASH); }, PANEL_FLASH_MS);
     }
 }
 

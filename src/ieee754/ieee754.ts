@@ -59,6 +59,7 @@ import {
     IEEE754_BITSTRING_PATTERN,
     IEEE754_BIT_CLASS,
     IEEE754_BIT_GROUP_CLASS,
+    IEEE754_DEFAULT_FORMAT,
     IEEE754_DEFAULT_FORMAT_VALUE,
     IEEE754_ERROR_UI_PREFIX,
     IEEE754_ERR_EMPTY_INPUT,
@@ -621,7 +622,8 @@ export function mountIEEE754(host: HTMLElement): void {
             showError(`${IEEE754_ERR_UNPARSABLE_PREFIX}${t}${IEEE754_ERR_UNPARSABLE_SUFFIX}`);
             return;
         }
-        const fmt = formatValue === FLOAT32_KEY ? FLOAT32 : FLOAT64;
+        // 当前精度 -> 格式定义:走 IEEE754_FORMATS 这张唯一的表(键是菜单项 value)
+        const fmt = IEEE754_FORMATS[formatValue as IEEE754FormatKey];
         current = computeIEEE754(num, fmt);
         renderAll(current);
     };
@@ -664,8 +666,10 @@ export function mountIEEE754(host: HTMLElement): void {
         renderSpecialTable(specialEl, fmt, onPickSpecial);
     };
 
-    refreshLabels(FLOAT64);
-    refreshSpecial(FLOAT64);
+    // 图例位数与特殊值表按**默认精度**初始化:唯一来源是 config.ts 里 active 那条
+    // (IEEE754_DEFAULT_FORMAT),改精度声明时这里会跟着换,不会停在 float64.
+    refreshLabels(IEEE754_DEFAULT_FORMAT);
+    refreshSpecial(IEEE754_DEFAULT_FORMAT);
 
     // 初始渲染:用输入框初值(3.14)作一次种子生成,后续用户键入一律由"转换"触发.
     applyInput(input.value);

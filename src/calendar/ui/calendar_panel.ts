@@ -37,7 +37,7 @@ import {
 } from '@/calendar/config';
 
 /** Calendario 页的标记:行为代码要用的元素都在这里交回,不去 DOM 里查 */
-export interface CalendarPaneDisplay {
+interface CalendarPaneDisplay {
     /** 整块面板:库的 `createPanel` 建的 `section.ui-panel.calendar-pane`(插进窗格的那一个) */
     readonly root: HTMLElement;
     /** 顶部时钟宿主:转交给 `mountClock()` */

@@ -15,7 +15,7 @@
  *
  * @vitest-environment happy-dom
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
     OLED_BYTE_ORDER_TEXT,
@@ -74,7 +74,7 @@ describe('OLED:状态区与画布', () => {
 
     it('画布用 canvas#pixelCanvas 这个 CSS 契约,物理分辨率由行为代码写', () => {
         const panel = renderPanel(createOledPanel);
-        expect(document.querySelector(`canvas#${OLED_DEFAULT_CONFIG.canvasId}`)).toBe(panel.canvas);
+        expect(document.querySelector(`canvas#${OLED_DOM.canvasId}`)).toBe(panel.canvas);
         // 标记里不带 width/height:构造 OLEDCanvas 时才写 config 的 128×64
         expect(panel.canvas.hasAttribute('width')).toBe(false);
         expect(panel.canvas.hasAttribute('height')).toBe(false);
@@ -182,12 +182,9 @@ describe('OLED:数据区', () => {
         expect(editor.textarea.nextElementSibling, id).toBe(editor.highlightScroller);
         // 高亮层已就位:脚本跑通后库才加这个开关(文字透明 + 高亮层显示)
         expect(editor.textarea.classList.contains('is-highlighted'), id).toBe(true);
-        // 行号槽宽度钉成常量:库按字体量的内联值被 !important 压住,
-        // 行数变化前后槽宽不变,行号栏自己不滚
-        expect(editor.gutter.style.getPropertyValue('--code-gutter-width'), id)
-            .toBe(`${OLED_PANEL_EDITOR_GUTTER_WIDTH}px`);
-        expect(editor.gutter.style.getPropertyPriority('--code-gutter-width'), id)
-            .toBe('important');
+        // 槽宽不在标记里钉:面板只把常量交给库的 `gutterMinWidth`,真正生效的是
+        // public/css/index.css 的 `--code-gutter-width: 48px !important`
+        // (库随后写的普通内联值压不过它;由下面"行数进位"那条测试守着)
         // 唯一会滚的 textarea 挂库的滚动条规定(见 main.ts 引的 scrollbar.css)
         expect(editor.textarea.classList.contains('ui-scrollbar'), id).toBe(true);
         // 数据区只有这一行,且行内只有编辑器:按钮全在工具区(四颗数据按钮相邻)
@@ -226,13 +223,56 @@ describe('OLED:数据区', () => {
         expect(panel.dataEditor.highlightCode.textContent).toBe('<a>\n<b>');
     });
 
-    it('行数进位也改不动行号槽宽度(库重量后仍是我们钉的常量)', () => {
+    it('行数进位也改不动槽宽:库写的内联值无 !important,压不过样式表的 48px !important', async () => {
+        /*
+          库量槽宽要一块 2D context(happy-dom 默认给 null,库拿不到就早退,一条
+          内联值都不写).这里补一块假 context 把真实度量路径走通 -- 少了这个桩,
+          整条测试就是空测:断言的目标根本不会被写出来.
+        */
+        const measureText = vi.fn((text: string) => ({ width: text.length * 12 } as TextMetrics));
+        vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+            font: '',
+            measureText,
+        } as unknown as CanvasRenderingContext2D);
+
         const panel = renderPanel(createOledPanel);
-        // 三位行号:库会重量一次并写内联值,但压不过我们带 !important 的那一份
+        // 三位行号:位数进位是库重量槽宽的触发条件(见库的 update())
         panel.dataEditor.textarea.value = Array.from({ length: 120 }, (_, i) => `line ${i}`).join('\n');
         panel.dataEditor.refresh();
-        expect(panel.dataEditor.gutter.style.getPropertyValue('--code-gutter-width'))
-            .toBe(`${OLED_PANEL_EDITOR_GUTTER_WIDTH}px`);
-        expect(panel.dataEditor.gutter.style.getPropertyPriority('--code-gutter-width')).toBe('important');
+
+        // (a) 桩生效了:库真的量过,并把结果写成了内联值(不是我们写的)
+        expect(measureText).toHaveBeenCalled();
+        const inlineWidth = panel.dataEditor.gutter.style.getPropertyValue('--code-gutter-width');
+        expect(inlineWidth, '库没写内联槽宽,说明度量桩没走通').not.toBe('');
+        // 3 位数字 × 12px + 15px 内边距 = 51px:确实是库量出来的,而不是我们钉的 48px
+        expect(inlineWidth).toBe('51px');
+        // (b) 库写的是**不带 priority** 的普通内联声明:只有作者样式表的 !important 压得住
+        expect(panel.dataEditor.gutter.style.getPropertyPriority('--code-gutter-width')).toBe('');
+        // (c) 样式表里真的钉着 48px !important(TS 与 CSS 的跨语言契约,静默失配的防线)
+        const { readFile } = await import('node:fs/promises');
+        /*
+          用 `node:url` 的 URL 而不是全局 URL:happy-dom 环境把全局 URL 换成浏览器
+          语义,`file:` 会被它改写成 `http://localhost/@fs/...`,node:fs 不认这种 scheme
+          (报 "The URL must be of scheme file").这里要的是 Node 的 file: 解析.
+        */
+        const { URL: NodeURL } = await import('node:url');
+        const css = await readFile(
+            new NodeURL('../../../public/css/index.css', import.meta.url),
+            'utf8',
+        );
+        const rule = css.match(/\.oled-card\s+\.code-editor-gutter\s*\{([^}]*)\}/);
+        expect(rule?.[1], 'public/css/index.css 里没有 .oled-card .code-editor-gutter 规则')
+            .toBeDefined();
+        // 去掉注释再断言:把这条声明整行注释掉也算"钉住了"的话,这条测试就白写了
+        const declarations = (rule?.[1] ?? '').replace(/\/\*[\s\S]*?\*\//g, '');
+        expect(declarations).toMatch(
+            new RegExp(`--code-gutter-width:\\s*${OLED_PANEL_EDITOR_GUTTER_WIDTH}px\\s*!important`),
+        );
     });
+});
+
+// 度量桩装在整个 HTMLCanvasElement 原型上:无论上面哪条断言先失败都要还原,
+// 否则同文件后面的用例会跟着"能拿到 2D context"(静默改变它们的运行环境).
+afterEach(() => {
+    vi.restoreAllMocks();
 });

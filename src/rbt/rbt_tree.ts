@@ -13,7 +13,8 @@
   这条性质结构上不会违反,不列进清单,理由见 config 的 RBT_PROPERTIES).
 
 性质检查的两条约定:
-- 检查顺序 = config 里 RBT_PROPERTIES 的顺序,清单也按这个顺序渲染;
+- 顺序 = config 里 RBT_PROPERTIES 的顺序,清单也按这个顺序渲染;每条对应的检查
+  函数按 id 从 PROPERTY_CHECKS 里取(清单增删而这里没跟上会编译报错);
 - `detail` 里的 `{node}` 占位符由这里填成"值+颜色"(如 `11R`),因为节点值只存在
   表达式里,只给"第几层"读者对不上是哪个节点.
 */
@@ -32,6 +33,7 @@ import {
     RBT_ERR_SHORTHAND_NO_COLOR,
     RBT_ERR_SHORTHAND_TOO_SHORT,
     RBT_ERR_SHORTHAND_TOO_SHORT_SUFFIX,
+    RBT_ERR_TRAILING,
     RBT_ERR_UNBALANCED,
     RBT_LEAF_SUFFIX,
     RBT_LEFT_PAREN,
@@ -49,7 +51,7 @@ import {
 // ============================================================
 
 /** 节点颜色:nil 叶子用 `null` 节点表示,颜色恒为黑,不占这个类型 */
-export type RbtColor = 'R' | 'B';
+type RbtColor = 'R' | 'B';
 
 /** 一个节点(值按字符串存,颜色 R/B,左右子树为 null 表示 nil 叶子) */
 export interface RbtNode {
@@ -109,6 +111,12 @@ function parseNode(str: string): RbtNode | null {
     if (balance !== 0) {
         throw new Error(`${RBT_ERR_UNBALANCED}${s}`);
     }
+    // 括号配平还不够:整串必须**只有**这一个表达式.不比对长度的话,
+    // `5B(1B,2B)junk` / `5B(1B,2B))` 都会被当成合法的 5B 树 -- 多余的输入
+    // 落在配对右括号之后,会被静默丢掉(不报错,但用户写的东西没被检查).
+    if (rightParenIdx !== s.length) {
+        throw new Error(`${RBT_ERR_TRAILING}${s.substring(rightParenIdx)}`);
+    }
     const inside = s.substring(leftParenIdx + 1, rightParenIdx - 1);
     let commaIdx = -1;
     let depth = 0;
@@ -165,7 +173,7 @@ export function buildTreeFromExpression(expr: string): RbtNode | null {
 // ============================================================
 
 /** 单条性质的结论 */
-export interface RbtPropertyResult {
+interface RbtPropertyResult {
     /** 对应 RbtPropertySpec.id */
     readonly id: string;
     /** 是否 PASS */
@@ -182,11 +190,6 @@ export interface RbtPropertyReport {
     readonly failedCount: number;
     /** 总条数(= RBT_PROPERTIES.length) */
     readonly total: number;
-    /**
-     * 检查了多少个节点(不含 nil 叶子).
-     * 空树是合法的红黑树,此时是 0,所有条目照样 PASS(每条性质在空树上都是空真).
-     */
-    readonly nodeCount: number;
 }
 
 /** 节点在提示里的写法:值 + 颜色(如 `11R`) */
@@ -288,11 +291,26 @@ function scanNodes(node: RbtNode, find: (node: RbtNode) => string | null): strin
     return null;
 }
 
-/** 数的节点个数(不含 nil 叶子) */
-function countNodes(node: RbtNode): number {
-    return 1 + (node.left === null ? 0 : countNodes(node.left)) +
-        (node.right === null ? 0 : countNodes(node.right));
-}
+/** RBT_PROPERTIES 的 id 联合('root-black' | 'red-no-red-child' | 'black-height' | 'bst-order') */
+type RbtPropertyId = (typeof RBT_PROPERTIES)[number]['id'];
+
+/**
+ * 性质 id -> 检查函数.
+ *
+ * 用 `Record<RbtPropertyId, ...>` 而不是"按下标取第 i 个检查":`RBT_PROPERTIES`
+ * 增删一条而这里没跟上会**编译报错**(缺键 / 多键),而不是等到某个输入触发
+ * `undefined` 调用(checkBlackHeight 那条还要包一层,因为它返回的是黑高数字).
+ * 检查与渲染的顺序仍由 `RBT_PROPERTIES` 的顺序决定,所以"清单顺序 = 检查顺序".
+ */
+const PROPERTY_CHECKS: Readonly<Record<RbtPropertyId, (node: RbtNode) => string | null>> = {
+    'root-black': checkRootIsBlack,
+    'red-no-red-child': checkRedChildrenAreBlack,
+    'black-height': (node) => {
+        const height = checkBlackHeight(node);
+        return typeof height === 'string' ? height : null;
+    },
+    'bst-order': checkBstOrder,
+};
 
 /**
  * 跑完四条性质,交回逐条结论.
@@ -303,18 +321,8 @@ function countNodes(node: RbtNode): number {
  * 破坏了.空树走另一条路:四条在空树上都是空真(见 checkTreeProperties 的 root === null).
  */
 export function checkTreeProperties(root: RbtNode | null): RbtPropertyReport {
-    const checks: readonly ((node: RbtNode) => string | null)[] = [
-        checkRootIsBlack,
-        checkRedChildrenAreBlack,
-        (node) => {
-            const height = checkBlackHeight(node);
-            return typeof height === 'string' ? height : null;
-        },
-        checkBstOrder,
-    ];
-
-    const results: RbtPropertyResult[] = RBT_PROPERTIES.map((spec, index) => {
-        const detail = root === null ? null : checks[index](root);
+    const results: RbtPropertyResult[] = RBT_PROPERTIES.map((spec) => {
+        const detail = root === null ? null : PROPERTY_CHECKS[spec.id](root);
         return { id: spec.id, pass: detail === null, detail: detail ?? '' };
     });
 
@@ -322,7 +330,6 @@ export function checkTreeProperties(root: RbtNode | null): RbtPropertyReport {
         results,
         failedCount: results.filter((result) => !result.pass).length,
         total: results.length,
-        nodeCount: root === null ? 0 : countNodes(root),
     };
 }
 

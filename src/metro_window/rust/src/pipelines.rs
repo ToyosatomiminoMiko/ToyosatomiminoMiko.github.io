@@ -40,6 +40,23 @@ pub struct MetroTextures<'a> {
     pub texture_views: [&'a wgpu::TextureView; TEXTURE_LAYER_COUNT as usize],
 }
 
+/// 建一个 uniform 缓冲用的绑定组布局条目.
+///
+/// Uniforms 与 GlassParams 两个条目只有 `binding` 不同,其余(可见阶段 / 缓冲类型 /
+/// 无动态偏移)必须完全一致:抽成函数后,要改就一起改,不会再出现两个手写块漂移.
+fn uniform_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
+    wgpu::BindGroupLayoutEntry {
+        binding,
+        visibility: wgpu::ShaderStages::FRAGMENT,
+        ty: wgpu::BindingType::Buffer {
+            ty: wgpu::BufferBindingType::Uniform,
+            has_dynamic_offset: false,
+            min_binding_size: None,
+        },
+        count: None,
+    }
+}
+
 pub fn create_metro_pipelines(
     device: &wgpu::Device,
     format: wgpu::TextureFormat,
@@ -58,26 +75,8 @@ pub fn create_metro_pipelines(
 
     let mut render_entries: Vec<wgpu::BindGroupLayoutEntry> =
         Vec::with_capacity(BIND_ENTRY_CAPACITY);
-    render_entries.push(wgpu::BindGroupLayoutEntry {
-        binding: BINDING_UNIFORMS,
-        visibility: wgpu::ShaderStages::FRAGMENT,
-        ty: wgpu::BindingType::Buffer {
-            ty: wgpu::BufferBindingType::Uniform,
-            has_dynamic_offset: false,
-            min_binding_size: None,
-        },
-        count: None,
-    });
-    render_entries.push(wgpu::BindGroupLayoutEntry {
-        binding: BINDING_GLASS_PARAMS,
-        visibility: wgpu::ShaderStages::FRAGMENT,
-        ty: wgpu::BindingType::Buffer {
-            ty: wgpu::BufferBindingType::Uniform,
-            has_dynamic_offset: false,
-            min_binding_size: None,
-        },
-        count: None,
-    });
+    render_entries.push(uniform_entry(BINDING_UNIFORMS));
+    render_entries.push(uniform_entry(BINDING_GLASS_PARAMS));
     render_entries.push(wgpu::BindGroupLayoutEntry {
         binding: BINDING_SAMPLER,
         visibility: wgpu::ShaderStages::FRAGMENT,
