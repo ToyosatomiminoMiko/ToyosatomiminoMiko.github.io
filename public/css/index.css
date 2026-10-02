@@ -687,6 +687,29 @@ canvas#pixelCanvas {
 }
 
 /*
+ * 空输入 / 空树提示与解析错误提示(都在输入框下面,同一块地方轮流出声).
+ *
+ * 这两块文案过去画在 canvas 上,现在归 HTML:画布只画树,文字走页面元素才能让颜色 /
+ * 字号 / 折行受 CSS(含主题令牌)管,截图与选中复制也正常.两者排版一致(等宽,与
+ * 输入框里的表达式对齐),只差颜色:#treeHint 是中性说明(与清单抬头同色),
+ *#treeError 是出错(与性质 FAIL 同色).
+ */
+#treeHint,
+#treeError {
+    font-family: var(--font-code);
+    line-height: 1.4;
+    margin-bottom: var(--rbt-diag-margin);
+}
+
+#treeHint {
+    color: var(--rbt-hint-color);
+}
+
+#treeError {
+    color: var(--rbt-error-color);
+}
+
+/*
  * 性质检查清单(输入框下面那块,由 rbt.ts 逐条重建 #treeProperties 的子节点).
  *
  * 布局用 gap 而不是给每行 margin:行数是 config 里 RBT_PROPERTIES 的长度,加一条

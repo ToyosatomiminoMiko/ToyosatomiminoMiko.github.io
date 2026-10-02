@@ -3,13 +3,17 @@
 红黑树工具:画布绘制 + 挂载
 
 解析与性质检查在 rbt_tree.ts(纯逻辑,可单测);本文件只剩两件事:
-- TreeDrawer:区间递归分配布局 + 画节点 / 连线 / 文本;
+- TreeDrawer:区间递归分配布局 + 画节点 / 连线(画布**只画树**:节点值,连线,
+  底色,不写任何提示或错误文案);
 - mountRBT:接管宿主,把"格式检查 -> 性质检查 -> 重绘"接到输入框的 input 事件上.
 
+文案全部走 HTML 元素(#treeHint / #treeError / #treeProperties),这样颜色 / 字号 /
+折行由 CSS 决定,截图与选中复制也都正常;画布上一旦写字,这些就都做不了.
+
 三步的先后是死的(见 renderTree):
-1. 解析(格式检查)不过 -> 只出 #treeError,画布画错误文案,清单隐藏;
+1. 解析(格式检查)不过 -> 只出 #treeError,画布清空,清单隐藏;
 2. 解析过了 -> 画树,性质检查的结论写进输入框下面的 HTML 清单;
-3. 输入为空 -> 画布出提示文案,错误与清单都隐藏.
+3. 输入为空 / 解析成空树 -> 只出 #treeHint,错误与清单都隐藏.
 */
 import {
     RBT_BLACK_NODE_FILL,
@@ -24,14 +28,8 @@ import {
     RBT_DIAGNOSTICS_SUMMARY_CLASS,
     RBT_EDGE_COLOR,
     RBT_EDGE_LINE_WIDTH,
-    RBT_EMPTY_HINT_COLOR,
-    RBT_EMPTY_HINT_FONT,
     RBT_EMPTY_HINT_TEXT,
-    RBT_EMPTY_TEXT,
-    RBT_ERROR_HINT_COLOR,
-    RBT_ERROR_HINT_FONT,
-    RBT_ERROR_PREFIX,
-    RBT_ERROR_TEXT_MAX,
+    RBT_EMPTY_TREE_HINT_TEXT,
     RBT_ERROR_UI_PREFIX,
     RBT_MIN_CHILD_WIDTH_FACTOR,
     RBT_MIN_HORIZONTAL_GAP,
@@ -68,6 +66,9 @@ import { createRbtPanel } from './ui/rbt_panel';
 // ============================================================
 // 画布绘制器 -- 区间递归分配法:每个节点占据一段水平区间并居中,左右子树
 // 各分得父节点两侧的子区间;区间不够时先压到最小间距,再由位置钳制兜底
+//
+// 落笔只有三类:底色,节点圆与节点值,父子连线.提示 / 错误 / 性质结论一概不画
+// (它们归 HTML 元素),所以除了 drawNode 里的节点值以外没有任何 fillText.
 // ============================================================
 class TreeDrawer {
     ctx: CanvasRenderingContext2D;
@@ -225,16 +226,14 @@ class TreeDrawer {
         this.ctx.fillRect(0, 0, this.canvasWidth, this.canvasHeight);
     }
 
-    render(root: RbtNode | null): void {
+    /**
+     * 画一棵树:先铺底色,再连线,最后画节点(节点盖在线上).
+     *
+     * 只接非空根:没有树可画时调用方走 clearCanvas(),画布上不会出现任何文字 --
+     * 空树提示与错误提示都在 HTML 里(见 renderTree).
+     */
+    render(root: RbtNode): void {
         this.clearCanvas();
-        if (!root) {
-            this.ctx.font = RBT_EMPTY_HINT_FONT;
-            this.ctx.fillStyle = RBT_EMPTY_HINT_COLOR;
-            this.ctx.textAlign = RBT_TEXT_ALIGN;
-            this.ctx.fillText(RBT_EMPTY_HINT_TEXT, this.canvasWidth / 2, this.canvasHeight / 2);
-            return;
-        }
-
         this.layoutTree(root);
         this.drawLines(root);
         this.drawAllNodes(root);
@@ -257,6 +256,7 @@ export function mountRBT(host: HTMLElement): void {
     host.replaceChildren(panel.root);
 
     const input = panel.input;
+    const hintEl = panel.hint;
     const errorEl = panel.error;
     const diagnosticsEl = panel.diagnostics;
     const canvas = panel.canvas;
@@ -310,49 +310,59 @@ export function mountRBT(host: HTMLElement): void {
         diagnosticsEl.hidden = false;
     };
 
+    /**
+     * 两块文案槽的**唯一写入口**:同一时刻只让一块出声.
+     *
+     * - `'hint'`  -> 亮 #treeHint(中性说明,如"还没输入""是空树");
+     * - `'error'` -> 亮 #treeError(玫红,自动带上 RBT_ERROR_UI_PREFIX);
+     * - `null`    -> 两块都收起来(有树可画时).
+     *
+     * 之所以不写成 setHint / setError 两个函数:那样"两块互斥"要靠每个分支自己记得
+     * 把另一块清掉,少写一句就留着一块旧文案(看起来像当前状态,其实是上一轮的).
+     * 收进一个函数后互斥是结构上的,分支只要说"我现在要展示哪一种".
+     *
+     * 两者都只写 HTML:画布上写字的话,颜色 / 字号 / 折行就归 canvas 管,
+     * CSS 管不到,语义上也和"画布画树"这条分工打架(见文件头部注释).
+     */
+    const showMessage = (kind: 'hint' | 'error' | null, msg = ''): void => {
+        hintEl.textContent = kind === 'hint' ? msg : '';
+        hintEl.hidden = kind !== 'hint';
+        errorEl.textContent = kind === 'error' ? `${RBT_ERROR_UI_PREFIX}${msg}` : '';
+        errorEl.hidden = kind !== 'error';
+    };
+
     const renderTree = (): void => {
         const activeDrawer = ensureDrawer();
         const expr = input.value.trim();
 
-        const setError = (msg: string): void => {
-            errorEl.textContent = msg ? `${RBT_ERROR_UI_PREFIX}${msg}` : RBT_EMPTY_TEXT;
-            errorEl.hidden = msg === RBT_EMPTY_TEXT;
-        };
-
-        if (expr === RBT_EMPTY_TEXT) {
-            setError(RBT_EMPTY_TEXT);
+        if (expr === '') {
+            // 没输入:说清画布为什么是空的,错误与清单都收起来
+            showMessage('hint', RBT_EMPTY_HINT_TEXT);
             renderDiagnostics(null);
-            activeDrawer.render(null);
+            activeDrawer.clearCanvas();
             return;
         }
 
         try {
             // 第 1 步:格式检查(解析).过了才有树可查性质
             const rootNode = buildTreeFromExpression(expr);
-            setError(RBT_EMPTY_TEXT);
             if (rootNode === null) {
-                // 表达式非空但解析成 nil:画布出空树提示,没有性质可查
+                // 表达式非空但解析成空树(nil):没有节点可画,也没有性质可查
+                showMessage('hint', RBT_EMPTY_TREE_HINT_TEXT);
                 renderDiagnostics(null);
-                activeDrawer.render(null);
+                activeDrawer.clearCanvas();
                 return;
             }
-            // 第 2 步:性质检查(结果只进 HTML 清单,不往画布上画)
+            // 第 2 步:性质检查写进 HTML 清单,画布只画这棵树
+            showMessage(null);
             renderDiagnostics(checkTreeProperties(rootNode));
             activeDrawer.render(rootNode);
         } catch (err) {
-            // 格式检查没过:只出错误框,清单隐藏(性质检查的输入都还没有)
-            const msg = (err as Error).message;
-            setError(msg);
+            // 格式检查没过:只出 #treeError,清单隐藏(性质检查的输入都还没有);
+            // 画布清空而不写错误文案 -- 文案一律归 HTML
+            showMessage('error', (err as Error).message);
             renderDiagnostics(null);
             activeDrawer.clearCanvas();
-            activeDrawer.ctx.font = RBT_ERROR_HINT_FONT;
-            activeDrawer.ctx.fillStyle = RBT_ERROR_HINT_COLOR;
-            activeDrawer.ctx.textAlign = RBT_TEXT_ALIGN;
-            activeDrawer.ctx.fillText(
-                `${RBT_ERROR_PREFIX}${msg.slice(0, RBT_ERROR_TEXT_MAX)}`,
-                activeDrawer.canvasWidth / 2,
-                activeDrawer.canvasHeight / 2
-            );
         }
     };
 

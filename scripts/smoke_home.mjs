@@ -339,6 +339,54 @@ const report = await cdp.evalValue(`(() => {
             qa('#treeProperties .tree-property-state.is-fail').length === 0 &&
             qa('#treeProperties .tree-property-state.is-pass').length === 4);
 
+        /*
+          文案归 HTML,画布只画树(rbt/rbt.ts 的分工).这里在真浏览器里验三件事:
+          三种状态各亮哪一块,#treeHint / #treeError 的色值真的来自令牌(令牌只在
+          CSS 级联之后才算得出来),以及"没有树"时画布上一个字都没留下.
+          画布底色是纯白(RBT_CANVAS_BACKGROUND),所以判据很硬:没有树时整块画布
+          必须只有白像素 -- 过去画在中央的错误提示会立刻在这里露馅.
+        */
+        const treeCanvas = q('#rbCanvas');
+        const canvasIsPlainWhite = () => {
+            const d = treeCanvas.getContext('2d').getImageData(0, 0, treeCanvas.width, treeCanvas.height).data;
+            for (let i = 0; i < d.length; i += 4) {
+                if (d[i] !== 255 || d[i + 1] !== 255 || d[i + 2] !== 255) return false;
+            }
+            return true;
+        };
+        const treeHint = q('#treeHint');
+        const treeError = q('#treeError');
+        ok('合法树时两块文案都收起来(#treeHint / #treeError 都 hidden)',
+            treeHint !== null && treeError !== null &&
+            treeHint.hidden === true && treeError.hidden === true);
+        if (treeInput) {
+            treeInput.value = '';
+            treeInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        ok('清空输入:提示落在 #treeHint(颜色走令牌),画布只剩底色',
+            treeInput !== null && treeHint.hidden === false && treeError.hidden === true &&
+            (treeHint.textContent || '').indexOf('请输入红黑树表达式') !== -1 &&
+            getComputedStyle(treeHint).color === toRgb(readColorToken('--rbt-hint-color')) &&
+            canvasIsPlainWhite(),
+            (treeHint.textContent || '') + ' / 画布纯底色');
+        if (treeInput) {
+            treeInput.value = '5B(1B 2B)';
+            treeInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        ok('格式错误:错误落在 #treeError(颜色走令牌),画布依旧只剩底色',
+            treeError.hidden === false && treeHint.hidden === true &&
+            (treeError.textContent || '').indexOf('错误: ') === 0 &&
+            getComputedStyle(treeError).color === toRgb(readColorToken('--rbt-error-color')) &&
+            canvasIsPlainWhite(),
+            (treeError.textContent || ''));
+        // 还原成一条合法红黑树,免得后面几条"页面状态"的断言读到被改过的输入
+        if (treeInput) {
+            treeInput.value = '15B(7R(3B,11B),23R(19B,27B))';
+            treeInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        ok('还原合法树:文案收起且画布重新画上树',
+            treeHint.hidden === true && treeError.hidden === true && !canvasIsPlainWhite());
+
         // IEEE754:初始那次渲染真的跑完了(位图 64 格 + KaTeX 公式 + 特殊值表)
         ok('IEEE754 初始渲染跑完(位图 64 格 + KaTeX + 特殊值表)',
             qa('#ieee-bits .ieee-bit').length === 64 && q('#ieee-formula .katex') !== null &&

@@ -11,11 +11,13 @@
  * 红黑树控件用到的 DOM 元素 id.
  * 标记由 src/rbt/ui/rbt_panel.ts 按本文件的声明生成(id 写入元素再由组件
  * 交回引用);这些常量同时给样式(public/css/index.css 的 `#treeInput` /
- * `#treeError` / `#rbCanvas`)与组件共用.
+ * `#treeHint` / `#treeError` / `#treeProperties`)与组件共用.
  */
 export const RBT_DOM = {
     /** 表达式输入 textarea 的 id */
     inputId: 'treeInput',
+    /** 空输入 / 空树提示容器的 id(画布不再画任何文案,提示改由这里出) */
+    hintId: 'treeHint',
     /** 错误提示容器的 id */
     errorId: 'treeError',
     /** 性质检查(诊断)清单的 id */
@@ -95,12 +97,6 @@ export const RBT_NODE_FONT_MIN_SIZE = 13;
 /** 节点文字字号相对半径的比例(× 半径,向下取整) */
 export const RBT_NODE_FONT_RADIUS_FACTOR = 0.75;
 
-/** 空树提示文字的字体(简写形式,字号 14px 等宽) */
-export const RBT_EMPTY_HINT_FONT = '14px monospace';
-
-/** 解析错误提示文字的字体(简写形式,字号 13px 等宽) */
-export const RBT_ERROR_HINT_FONT = '13px monospace';
-
 // ---------- 配色 ----------
 
 /** 画布底色(白) */
@@ -141,12 +137,6 @@ export const RBT_BLACK_NODE_LINE_WIDTH = 1.6;
 
 /** 黑色节点文字颜色(浅灰) */
 export const RBT_BLACK_NODE_TEXT = '#f1f5f9';
-
-/** 空树提示文字颜色(与连线同色) */
-export const RBT_EMPTY_HINT_COLOR = RBT_EDGE_COLOR;
-
-/** 解析错误提示文字颜色(玫红) */
-export const RBT_ERROR_HINT_COLOR = '#e11d48';
 
 // ---------- 性质检查(诊断清单) ----------
 //
@@ -258,29 +248,26 @@ export const RBT_COMPARISON_TOLERANCE = 1e-9;
 
 // ---------- 文本对齐与占位 ----------
 
-/** canvas 2D 文本的水平对齐方式 */
+/** canvas 2D 文本的水平对齐方式(只给节点值用,画布不画别的文字) */
 export const RBT_TEXT_ALIGN = 'center';
 
-/** canvas 2D 文本的垂直基线 */
+/** canvas 2D 文本的垂直基线(只给节点值用) */
 export const RBT_TEXT_BASELINE = 'middle';
 
-/** 空树提示文案(可见文本,全站不用 emoji) */
+/** 空输入时的提示文案(可见文本,全站不用 emoji;渲染进 #treeHint) */
 export const RBT_EMPTY_HINT_TEXT =
     '请输入红黑树表达式 (例如: 13B(8R(1B,11R),17R(15B,25B)))';
 
-/** 解析错误提示前缀(可见文本) */
-export const RBT_ERROR_PREFIX = '解析错误: ';
+/**
+ * 表达式解析成空树(`nil`)时的提示文案(渲染进 #treeHint).
+ *
+ * 与"没输入"分开一条:用户确实敲了东西(`nil` 是合法空树),再回一句
+ * "请输入红黑树表达式"会答非所问;画布上那时是空的,得说清为什么空.
+ */
+export const RBT_EMPTY_TREE_HINT_TEXT = '表达式是空树 (nil),画布上没有节点';
 
 /** 错误提示在 UI 上显示时的前缀(不用符号 / 表情,直接用字说明) */
 export const RBT_ERROR_UI_PREFIX = '错误: ';
-
-/**
- * 错误文案截断上限(字符数),防止长表达式把画布上的提示撑出界.
- */
-export const RBT_ERROR_TEXT_MAX = 88;
-
-/** 输入内容为空时清空错误提示的哨兵值 */
-export const RBT_EMPTY_TEXT = '';
 
 // ---------- 默认示例 ----------
 

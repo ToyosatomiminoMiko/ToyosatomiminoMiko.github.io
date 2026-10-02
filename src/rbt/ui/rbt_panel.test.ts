@@ -69,6 +69,16 @@ describe('红黑树:输入与画布', () => {
         expect(panel.error.textContent).toBe('');
     });
 
+    it('空树提示初始隐藏且是空的(与错误提示分两个元素)', () => {
+        const panel = renderPanel(createRbtPanel);
+        expect(document.getElementById(RBT_DOM.hintId)).toBe(panel.hint);
+        expect(panel.error).not.toBe(panel.hint);
+        expect(panel.hint.className).toBe('');
+        expect(panel.hint.hidden).toBe(true);
+        expect(panel.hint.hasAttribute('hidden')).toBe(true);
+        expect(panel.hint.textContent).toBe('');
+    });
+
     it('性质检查清单初始隐藏且是空的(内容由 rbt.ts 逐条重建)', () => {
         const panel = renderPanel(createRbtPanel);
         expect(document.getElementById(RBT_DOM.diagnosticsId)).toBe(panel.diagnostics);
@@ -88,11 +98,18 @@ describe('红黑树:输入与画布', () => {
         expect(panel.canvas.getAttribute('height')).toBe(String(RBT_CANVAS_HEIGHT));
     });
 
-    it('提示区与各件都在 .ui-panel-body 里,顺序是 提示 -> 输入框 -> 错误提示 -> 性质清单 -> 画布', () => {
+    it('提示区与各件都在 .ui-panel-body 里,顺序是 提示 -> 输入框 -> 空树提示 -> 错误提示 -> 性质清单 -> 画布', () => {
         const panel = renderPanel(createRbtPanel);
         const body = panel.root.querySelector('.ui-panel-body');
         expect([...(body?.children ?? [])].map((child) => child.id))
-            .toEqual(['', RBT_DOM.inputId, RBT_DOM.errorId, RBT_DOM.diagnosticsId, RBT_DOM.canvasId]);
+            .toEqual([
+                '',
+                RBT_DOM.inputId,
+                RBT_DOM.hintId,
+                RBT_DOM.errorId,
+                RBT_DOM.diagnosticsId,
+                RBT_DOM.canvasId,
+            ]);
     });
 
     it('文档里没有重复 id', () => {

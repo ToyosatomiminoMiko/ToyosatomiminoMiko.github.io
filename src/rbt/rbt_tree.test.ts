@@ -5,7 +5,7 @@
  * 拿表达式当输入(与用户实际敲的是同一条路径),用 findPropertyResult 只断言那一条,
  * 免得"根是红的"顺带把红红相接也弄红了,断言写成 `failedCount === 1` 就很难维护.
  *
- * 画布上那几行结论的绘制在 rbt.ts(要真 canvas);清单的标记在 rbt_panel.test.ts.
+ * 挂载与画布(画布只画树,文案归 HTML)在 rbt.test.ts;清单的标记在 rbt_panel.test.ts.
  *
  * @vitest-environment happy-dom
  */

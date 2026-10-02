@@ -12,18 +12,24 @@
           <span>R 红色 &nbsp;|&nbsp; B 黒色</span><br>
         </div>
         <textarea id="treeInput" spellcheck="false" placeholder="..."></textarea>
+        <div id="treeHint" hidden></div>
         <div id="treeError" hidden></div>
         <div id="treeProperties" hidden></div>
         <canvas id="rbCanvas" width="1200" height="640"></canvas>
       </div>
     </section>
 
-正文顺序(提示区 -> 输入框 -> 错误提示 -> 性质检查清单 -> 画布)由下面 createPanel
-的 body 实参决定,不能调换:public/css/index.css 与 rbt_panel.test.ts 都按这个顺序定位.
+正文顺序(提示区 -> 输入框 -> 空树提示 -> 错误提示 -> 性质检查清单 -> 画布)由下面
+createPanel 的 body 实参决定,不能调换:rbt_panel.test.ts 按这个顺序定位
+(index.css 只按 id 命中,与先后无关;顺序管的是视觉堆叠与测试).
+
+画布只画树:一切文案(空输入 / 空树提示,解析错误,性质结论)都排成 HTML 元素,
+颜色 / 字号 / 折行交给 CSS,截图与选中复制也才正常.三块文案区按"什么时候出声"分开
+(#treeHint 中性,#treeError 玫红,#treeProperties 清单):没有可说的就整块 hidden,
+所以这里只交出容器,内容与显隐全由 rbt.ts 每次输入时重写.
 
 清单排在输入框**下面**而不是画布下面:改表达式时眼睛在输入框上,结论就贴在它下面,
-不用把视线挪到画布再挪回来;清单的**内容**由 rbt.ts 逐条重建(空清单时整块 hidden),
-这里只交出容器这一个节点.
+不用把视线挪到画布再挪回来.
 
 本模块是纯函数:不读页面,不改全局,不绑事件,只把"描述"变成元素并把行为
 代码要用的引用一起交回;插进宿主与绑事件都是 rbt.ts 的事
@@ -48,7 +54,9 @@ interface RbtPanel {
     readonly root: HTMLElement;
     /** 表达式输入框 #treeInput */
     readonly input: HTMLTextAreaElement;
-    /** 解析错误提示 #treeError(初始 hidden,由 rbt.ts 按需显隐) */
+    /** 空输入 / 空树提示 #treeHint(初始 hidden,由 rbt.ts 写文案与显隐) */
+    readonly hint: HTMLElement;
+    /** 解析错误提示 #treeError(初始 hidden,由 rbt.ts 写文案与显隐) */
     readonly error: HTMLElement;
     /** 性质检查清单 #treeProperties(初始 hidden,内容由 rbt.ts 逐条重建) */
     readonly diagnostics: HTMLElement;
@@ -66,6 +74,11 @@ export function createRbtPanel(): RbtPanel {
             placeholder: RBT_INPUT_PLACEHOLDER,
         },
     );
+
+    // 空输入 / 空树提示:初始隐藏,只在"没有树可画"时由 rbt.ts 露出.
+    // 与 #treeError 分两个元素:前者是中性说明,后者是出错,颜色与语义都不同
+    // (与 ieee754 面板的 .ieee-hint / .ieee-error 同一分工).
+    const hint = create_element({ tag: 'div' }, { id: RBT_DOM.hintId, hidden: 'hidden' });
 
     // 初始必须隐藏:错误提示只在该出声时由 rbt.ts 显隐
     const error = create_element({ tag: 'div' }, { id: RBT_DOM.errorId, hidden: 'hidden' });
@@ -97,11 +110,12 @@ export function createRbtPanel(): RbtPanel {
         create_element({ tag: 'br' }),
     );
 
-    // 框体(标题栏 / 正文容器)归库;正文顺序:提示区 -> 输入框 -> 错误提示 -> 性质检查清单 -> 画布
+    // 框体(标题栏 / 正文容器)归库;正文顺序:
+    // 提示区 -> 输入框 -> 空树提示 -> 错误提示 -> 性质检查清单 -> 画布
     const root = createPanel({
         title: RBT_PANEL_TITLE,
-        body: [hints, input, error, diagnostics, canvas],
+        body: [hints, input, hint, error, diagnostics, canvas],
     }).element;
 
-    return { root, input, error, diagnostics, canvas };
+    return { root, input, hint, error, diagnostics, canvas };
 }
