@@ -69,7 +69,6 @@
      * (main.ts 引了库的 tokens.css,库默认全站直角 0px).本站只是**引用**,
      * 要改圆角就改库主题,不在下游另存一份尺寸.
      */
-    --transition-indicator: 10ms linear;
     /* 标签页切换时的淡入时长(src/common/tabs.ts 的显示切换读它) */
     --transition-tab-fade: 150ms linear;
 

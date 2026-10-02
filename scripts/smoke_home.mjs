@@ -789,6 +789,89 @@ const tabSwitch = await cdp.eval(`(async () => {
     return { afterOled, afterHome };
 })()`);
 
+/*
+  ---- 交互:OLED 红框光标(自由绘制那颗"光标")的像素级对齐 ----
+  进程内 DOM 没有布局,红框的落点只有真引擎里成立 -- 而这里要抓的正是"红框与画面
+  差着一条像素缝"这类只在真像素下看得见的错.两条:
+    1. 红框左上角 = 画布**内容盒**原点 + 像素下标 × 每像素显示尺寸,尺寸正好一颗像素,
+       且红框上没有任何 transition(读数类定位不能做过渡:每次换格插值一帧,鼠标快速
+       划过时红框永远落在指针后面).
+       口径必须是内容盒:画布有 1px 描边,用 getBoundingClientRect 的边框盒算,越往
+       右下偏得越多(旧实现右下角偏差 3px 以上).
+    2. 指针不动只滚滚轮时,红框要跟着画布回到**同一颗像素**上去,而不是留在旧坐标上
+       冻住(它写的是视口坐标,页面一滚画布就走了).
+*/
+await cdp.eval(`document.querySelector('a[href="#oled"]').click()`);
+await sleep(400);
+const cursorProbeSetup = await cdp.eval(`(() => {
+    const canvas = document.querySelector('canvas#pixelCanvas');
+    canvas.scrollIntoView({ block: 'center', behavior: 'instant' });
+    const rect = canvas.getBoundingClientRect();
+    const pxw = canvas.clientWidth / canvas.width;
+    const pxh = canvas.clientHeight / canvas.height;
+    // 指针压在第 40 列第 20 行那颗像素的中心
+    const x = rect.left + canvas.clientLeft + 40.5 * pxw;
+    const y = rect.top + canvas.clientTop + 20.5 * pxh;
+    canvas.dispatchEvent(new MouseEvent('mouseenter', { clientX: x, clientY: y }));
+    canvas.dispatchEvent(new MouseEvent('mousemove', { clientX: x, clientY: y, bubbles: true }));
+    return { x, y, scrollY: window.scrollY };
+})()`);
+await sleep(120);
+const cursorProbeRead = `(() => {
+    const canvas = document.querySelector('canvas#pixelCanvas');
+    const indicator = document.querySelector('#pixelIndicator');
+    const box = indicator.getBoundingClientRect();
+    const rect = canvas.getBoundingClientRect();
+    const originLeft = rect.left + canvas.clientLeft;
+    const originTop = rect.top + canvas.clientTop;
+    const px = canvas.clientWidth / canvas.width;
+    const py = canvas.clientHeight / canvas.height;
+    /* 红框落点换算成"第几颗像素":整数说明正好压在像素界上,偏差就是错位量 */
+    const stepLeft = (box.left - originLeft) / px;
+    const stepTop = (box.top - originTop) / py;
+    const cs = getComputedStyle(indicator);
+    return {
+      stepLeft, stepTop,
+      stepError: Math.max(Math.abs(stepLeft - Math.round(stepLeft)), Math.abs(stepTop - Math.round(stepTop))),
+      sizeError: Math.max(Math.abs(box.width - px), Math.abs(box.height - py)),
+      size: box.width + 'x' + box.height,
+      pixelSize: px.toFixed(5) + 'x' + py.toFixed(5),
+      transitionDuration: cs.transitionDuration,
+      display: cs.display,
+      coords: document.querySelector('#coordsDisplay').textContent,
+      scrollY: window.scrollY,
+      canvasTop: rect.top,
+      boxTop: box.top,
+    };
+})()`;
+const cursorHover = await cdp.eval(cursorProbeRead);
+// 指针停在原地,只滚滚轮:画布在视口里挪了位,红框得跟着落回同一颗像素
+await cdp.send('Input.dispatchMouseEvent', {
+    type: 'mouseWheel',
+    x: cursorProbeSetup.x, y: cursorProbeSetup.y, deltaX: 0, deltaY: 240,
+});
+await sleep(300);
+const cursorScrolled = await cdp.eval(cursorProbeRead);
+
+/*
+  上面两条用的是合成 MouseEvent(只为把 clientX/clientY 摆准).这里再走一次**真指针
+  事件**:命中测试,坐标换算,UI 更新整条路都过一遍,并把红框压到画布右下角那颗像素上 --
+  那里是"1px 描边口径错"累积得最多的一头.
+*/
+const cursorCornerSetup = await cdp.eval(`(() => {
+    const canvas = document.querySelector('canvas#pixelCanvas');
+    const rect = canvas.getBoundingClientRect();
+    const px = canvas.clientWidth / canvas.width;
+    const py = canvas.clientHeight / canvas.height;
+    return { x: rect.left + canvas.clientLeft + 127.5 * px,
+             y: rect.top + canvas.clientTop + 63.5 * py, px, py };
+})()`);
+await cdp.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved', x: cursorCornerSetup.x, y: cursorCornerSetup.y, button: 'none', buttons: 0,
+});
+await sleep(120);
+const cursorCorner = await cdp.eval(cursorProbeRead);
+
 // ---- 交互:导航条的"隐形 / 实底"(非 HOME 顶端隐形,滚动后实底;HOME 顶端隐形) ----
 // 类的加减是进程内单测抓不到的那一半:IO 的 rootMargin,scroll 事件,以及"切标签页后
 // 首屏隐藏,由 scrollY 那条判据接管"都只有在真引擎里跑一遍才算数.
@@ -890,6 +973,30 @@ adHoc(tabOk);
 // OLED 数据区:一颗编辑器 + 真 textarea;折叠态 = 150px(也是最小高度),
 // 点一下"展开编辑器"变 1366px(70 行,算式见 public/css/tokens.css),再点一下回到 150px;
 // 复制 / 导入 / 折叠三颗按钮都在 .tools 里
+const cursorOk = cursorHover?.display === 'block' &&
+    cursorHover?.coords === 'coordinate:(X:40,Y:20)' &&
+    cursorHover?.stepError < 0.02 &&
+    cursorHover?.sizeError < 0.02 &&
+    cursorHover?.transitionDuration === '0s';
+console.log(`${cursorOk ? '  ok  ' : ' FAIL '} OLED 红框光标压在指针那颗像素上` +
+    `(内容盒口径落点换算回"第几颗像素"偏差 < 0.02,尺寸 = 一颗像素,transition 为 0;` +
+    `实得 ${JSON.stringify(cursorHover)})`);
+adHoc(cursorOk);
+const cursorScrollOk = cursorScrolled?.display === 'block' &&
+    cursorScrolled?.coords === 'coordinate:(X:40,Y:20)' &&
+    cursorScrolled?.canvasTop !== cursorHover?.canvasTop &&
+    cursorScrolled?.stepError < 0.02;
+console.log(`${cursorScrollOk ? '  ok  ' : ' FAIL '} 指针不动滚滚轮,OLED 红框跟着画布回到同一颗像素` +
+    `(画布在视口里从 y=${cursorHover?.canvasTop} 挪到 y=${cursorScrolled?.canvasTop};` +
+    `实得 ${JSON.stringify(cursorScrolled)})`);
+adHoc(cursorScrollOk);
+const cursorCornerOk = cursorCorner?.display === 'block' &&
+    cursorCorner?.coords === 'coordinate:(X:127,Y:63)' &&
+    cursorCorner?.stepError < 0.02 &&
+    cursorCorner?.sizeError < 0.02;
+console.log(`${cursorCornerOk ? '  ok  ' : ' FAIL '} 真指针事件移到画布右下角,OLED 红框仍压在那一颗像素上` +
+    `(旧口径在这一头差 3px 以上;实得 ${JSON.stringify(cursorCorner)})`);
+adHoc(cursorCornerOk);
 const oledData = tabSwitch?.afterOled?.data;
 const oledDataOk = oledData?.editors === 1 && oledData?.textareas === 1 &&
     oledData?.copyInTools === true && oledData?.importInTools === true &&

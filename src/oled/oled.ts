@@ -69,6 +69,36 @@ import {
 // ---------- 默认配置 ----------
 // OLED_DEFAULT_CONFIG 集中定义于 oled/config.ts,保证画布尺寸/预览色只有一处定义.
 
+/**
+ * 画布**内容盒**在视口中的位置与放大率(换算坐标与红框位置唯一依赖的那份几何).
+ *
+ * 为什么不能直接用 `getBoundingClientRect()` 的结果:那是**边框盒**.本站画布有
+ * 1px 描边(见 public/css/index.css 的 `canvas#pixelCanvas`),于是
+ *   1024 / 128 = 8.000 才是"每像素显示宽",
+ *   1026 / 128 = 8.016 是拿边框盒量出来的错值.
+ * 错值沿画布累积,右下角能差到 3px 以上;再加上红框是从边框盒外沿起算,左上角固定
+ * 偏出 1px -- 合起来就是红框与画面差着一条像素缝.改成内容盒口径后,描边多宽都不
+ * 影响像素格,样式表改 border 这里不用跟.
+ */
+interface CanvasMetrics {
+    /** 内容盒左上角在视口中的 X(边框盒 left + 左边框宽) */
+    readonly left: number;
+    /** 内容盒左上角在视口中的 Y(边框盒 top + 上边框宽) */
+    readonly top: number;
+    /** 一个画布像素在屏幕上的显示宽(CSS px) */
+    readonly pixelWidth: number;
+    /** 一个画布像素在屏幕上的显示高(CSS px) */
+    readonly pixelHeight: number;
+}
+
+/** 建一块与画布同物理尺寸的离屏画布(预览用;不进文档,故直接用 document.createElement) */
+function createOffscreenCanvas(width: number, height: number): HTMLCanvasElement {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    return canvas;
+}
+
 export class OLEDCanvas {
     // ---- DOM 引用(全部由面板交回,构造函数里一次接好) ----
     private readonly canvas: HTMLCanvasElement;
@@ -108,13 +138,33 @@ export class OLEDCanvas {
     // 存储预览前的画布
     private previewImageData: ImageData | null = null;
 
+    /**
+     * 预览用的离屏画布(每帧要"擦干净再叠回主画布"的那一层,见 drawPreviewLayer).
+     * 在构造函数里建**一块**反复用:曾经是每次预览都 document.createElement 一块新的,
+     * 鼠标一动就新建一张 canvas + 一个 2D 上下文,拖一条直线能建出上百块 -- 白扔分配,
+     * 白给 GC 压力.擦除用 clearRect,与新建一块全透明画布等价.
+     */
+    private readonly previewCanvas: HTMLCanvasElement;
+
+    /** 上面那块离屏画布的 2D 上下文(与它一起在构造函数里取好,预览每帧直接用) */
+    private readonly previewCtx: CanvasRenderingContext2D;
+
     // 初始化画布(未绘制处 = 屏幕未亮起的中性灰,见 OLED_COLOR_UNLIT)
     private imageData: ImageData;
 
-    // 坐标转换系统:画布在视口中的边界矩形.由构造函数末尾的 updateCanvasRect()
-    // 首次写入,之后鼠标进入 / 滚动 / 窗口 resize 时重测(见 updateCanvasRect);
-    // 字段用 definite assignment 断言,是因为写入发生在方法里.
-    private canvasRect!: DOMRect;
+    /**
+     * 坐标换算的唯一几何来源(见 CanvasMetrics).构造函数末尾量一次,之后
+     * 鼠标移动 / 滚动 / 窗口 resize 时重测;字段用 definite assignment 断言,
+     * 是因为写入发生在方法里.
+     */
+    private metrics!: CanvasMetrics;
+
+    /**
+     * 红框当前所在的画布像素(未进入画布 / 已隐藏时为 null).
+     * 留着它是为了"窗口 resize / 页面滚动之后,指针没动也能把红框摆回同一颗像素",
+     * 而不是让红框停在旧坐标上(见 onScroll / onResize).
+     */
+    private indicatorPos: PixelPos | null = null;
 
     // 窗口事件监听
     private resizeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -149,6 +199,10 @@ export class OLEDCanvas {
         this.canvas.width = this.config.width;
         this.canvas.height = this.config.height;
 
+        // 预览用的离屏画布:一块反复用(见字段说明),初始全透明
+        this.previewCanvas = createOffscreenCanvas(this.config.width, this.config.height);
+        this.previewCtx = this.previewCanvas.getContext('2d')!;
+
         // 初始化画布:未绘制处铺成"屏幕未亮起"的中性灰
         this.imageData = this.ctx.createImageData(this.canvas.width, this.canvas.height);
         // 填充未亮起的底色(RGBA格式)
@@ -162,9 +216,9 @@ export class OLEDCanvas {
         // 颜色按钮一开始就显示当前模式(默认 light)的文案,不必等第一次点击
         this.applyColorMode();
 
-        // 绑定事件,并量一次画布在视口中的位置(后续滚动 / resize / 鼠标进入时重测)
+        // 绑定事件,并量一次画布内容盒(后续滚动 / resize / 鼠标移动时重测)
         this.bindEvents();
-        this.updateCanvasRect();
+        this.updateCanvasMetrics();
     }
 
     // ======================
@@ -193,7 +247,7 @@ export class OLEDCanvas {
         // ======================
         // 右键菜单关闭
         this.canvas.oncontextmenu = (e) => e.preventDefault();
-        // 鼠标进入事件
+        // 鼠标进入事件:什么都不用做 -- 红框由紧随其后的 mousemove 定位
         this.canvas.addEventListener('mouseenter', this.onMouseEnter);
         // 鼠标退出事件
         this.canvas.addEventListener('mouseleave', this.onMouseLeave);
@@ -213,6 +267,10 @@ export class OLEDCanvas {
         // ======================
         window.addEventListener('scroll', this.onScroll, { passive: true, capture: true });
         window.addEventListener('resize', this.onResize);
+        // 指针退出**窗口**(不是退出画布):鼠标在卡片下方离开窗口时 mouseleave 也会
+        // 到画布上,但指针直接移出窗口上沿 / 左沿,或切到别的窗口时不一定到 --
+        // 红框会留在画面上变成一枚假光标.这里兜住这一半.
+        document.addEventListener('mouseleave', this.onWindowMouseLeave);
     }
 
     // ======================
@@ -405,19 +463,16 @@ export class OLEDCanvas {
 
     /**
      * 在离屏画布上画一层预览,再整层叠回主画布.
-     * 离屏画布初始全透明,回调画下的记号盖到主画布上,透明处不覆盖 -- 所以主画布
-     * 必须先恢复成"鼠标刚按下"时的干净快照(由调用方 putImageData).
-     * 离屏 canvas 只作临时缓冲,不进文档也不是站点元素,故直接用
-     * document.createElement,不走 miko_ui 的 create_element.
+     * 离屏画布每帧先整体擦成透明(clearRect),回调画下的记号盖到主画布上,透明处
+     * 不覆盖 -- 所以主画布必须先恢复成"鼠标刚按下"时的干净快照(由调用方 putImageData).
+     * 离屏画布是构造函数里留好的那一块(见 previewCanvas 字段),不在此处新建.
      */
     private drawPreviewLayer(draw: (ctx: CanvasRenderingContext2D) => void): void {
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = this.canvas.width;
-        tempCanvas.height = this.canvas.height;
-        const tempCtx = tempCanvas.getContext('2d')!;
+        const tempCtx = this.previewCtx;
+        tempCtx.clearRect(0, 0, this.previewCanvas.width, this.previewCanvas.height);
         tempCtx.imageSmoothingEnabled = false;
         draw(tempCtx);
-        this.ctx.drawImage(tempCanvas, 0, 0);
+        this.ctx.drawImage(this.previewCanvas, 0, 0);
     }
 
     /**
@@ -560,9 +615,21 @@ export class OLEDCanvas {
     // 鼠标 / 键盘 / 窗口 事件处理
     // ======================
 
-    // 重新测量画布在视口中的边界矩形(构造 / 鼠标进入 / 滚动 / 窗口 resize 时调用)
-    private updateCanvasRect(): void {
-        this.canvasRect = this.canvas.getBoundingClientRect();
+    // 重新测量画布内容盒在视口中的位置与放大率(构造 / 滚动 / 窗口 resize / 鼠标移动
+    // 时调用).鼠标移动时也测一次,是为了兜住"没有 scroll / resize 事件但画布挪了位"
+    // 的情形:手动拖高 / 拖矮数据编辑器,或点"展开编辑器"把画布顶下去,卡片会当场重新
+    // 排布,缓存的几何就过期了 -- 那时红框会照着旧坐标摆,与画面错开.
+    private updateCanvasMetrics(): void {
+        const rect = this.canvas.getBoundingClientRect();
+        // 边框盒 -> 内容盒:clientLeft / clientTop 就是左边框 / 上边框的宽度
+        // (见 public/css/index.css 里画布那 1px 描边).除以 clientWidth 而不是
+        // rect.width,才是一个画布像素真实的显示宽.
+        this.metrics = {
+            left: rect.left + this.canvas.clientLeft,
+            top: rect.top + this.canvas.clientTop,
+            pixelWidth: this.canvas.clientWidth / this.canvas.width,
+            pixelHeight: this.canvas.clientHeight / this.canvas.height,
+        };
     }
 
     /**
@@ -578,39 +645,62 @@ export class OLEDCanvas {
                 this.canvas.width - 1,
                 Math.max(
                     0,
-                    Math.floor(
-                        ((event.clientX - this.canvasRect.left) / this.canvasRect.width) * this.canvas.width
-                    )
+                    Math.floor((event.clientX - this.metrics.left) / this.metrics.pixelWidth)
                 )
             ),
             y: Math.min(
                 this.canvas.height - 1,
                 Math.max(
                     0,
-                    Math.floor(
-                        ((event.clientY - this.canvasRect.top) / this.canvasRect.height) * this.canvas.height
-                    )
+                    Math.floor((event.clientY - this.metrics.top) / this.metrics.pixelHeight)
                 )
             ),
         };
     }
 
-    // 更新指示器位置(pos 已由 getPixelPosition 夹进画布范围)
+    /**
+     * 更新指示器(红框)的位置 / 尺寸.
+     *
+     * 对齐规则只有一条:**红框左上角 = 内容盒原点 + 像素下标 × 每像素显示尺寸**,
+     * 与 getPixelPosition 用的是同一份 metrics,所以"红框盖住的那颗像素"与"坐标读数 /
+     * 落笔的那颗像素"必然一致.
+     *
+     * 尺寸取**原样的**每像素显示尺寸,不要四舍五入:红框要正好盖住一颗像素.取整看着
+     * 只是零点几像素,但"尺寸"和"位置"用的是两套取整口径时,每列会攒下一点误差 --
+     * 画布一旦不是整数倍放大(例如窄屏下 128 颗像素挤进 400px,每颗 3.125px),四舍五入
+     * 成 3px 会让红框越往右越窄,最后整颗露在框外.原样用 3.125px 则永远严丝合缝.
+     *
+     * pos 已由 getPixelPosition 夹进画布范围;但画布被隐藏 / 还没上屏时内容盒尺寸是 0
+     * (切到别的标签页那一瞬),这时只藏不摆,免得写出一串 Inf/NaN 坐标.
+     */
     private updateIndicator(pos: PixelPos): void {
-        const pixelWidth = this.canvasRect.width / this.canvas.width;
-        const pixelHeight = this.canvasRect.height / this.canvas.height;
+        this.indicatorPos = pos;
+        const { left, top, pixelWidth, pixelHeight } = this.metrics;
+        if (!(pixelWidth > 0) || !(pixelHeight > 0)) {
+            this.hideIndicator();
+            return;
+        }
 
-        // 精确对齐像素边界
-        this.indicator.style.left = `${this.canvasRect.left + pos.x * pixelWidth}px`;
-        this.indicator.style.top = `${this.canvasRect.top + pos.y * pixelHeight}px`;
-
-        // 动态调整指示器尺寸
-        this.indicator.style.width = `${Math.ceil(pixelWidth)}px`;
-        this.indicator.style.height = `${Math.ceil(pixelHeight)}px`;
+        this.indicator.style.left = `${left + pos.x * pixelWidth}px`;
+        this.indicator.style.top = `${top + pos.y * pixelHeight}px`;
+        this.indicator.style.width = `${pixelWidth}px`;
+        this.indicator.style.height = `${pixelHeight}px`;
 
         // 保持可见性
         this.indicator.style.display = OLED_DISPLAY_VISIBLE;
         this.coordsDisplay.style.display = OLED_DISPLAY_VISIBLE;
+    }
+
+    /**
+     * 藏起红框并忘掉它所在的那颗像素(指针离开画布 / 离开窗口 / 画布被隐藏时调用).
+     *
+     * 两个都要做:只写 `display: none` 而留着 indicatorPos,下一次 resize / scroll
+     * 就会把红框按旧像素又摆出来(指针根本不在画布上).坐标条也跟着清空 / 归位.
+     */
+    private hideIndicator(): void {
+        this.indicatorPos = null;
+        this.indicator.style.display = OLED_DISPLAY_HIDDEN;
+        this.coordsDisplay.textContent = OLED_COORDS_EMPTY;
     }
 
     // ======================
@@ -626,15 +716,27 @@ export class OLEDCanvas {
 
     // ---- 事件回调(箭头函数保持 this 指向) ----
 
+    /**
+     * 指针进入画布:这里只量一次几何.
+     * 红框不在这里摆 -- 摆它需要"指针在哪颗像素上",那个只有 mousemove 事件里有;
+     * mouseenter 之后紧接着必有一次 mousemove(同一个指针位置),红框由它定位.
+     */
     private onMouseEnter = (): void => {
-        this.updateCanvasRect();
+        this.updateCanvasMetrics();
     };
 
     private onMouseLeave = (): void => {
-        // 隐藏画笔
-        this.indicator.style.display = OLED_DISPLAY_HIDDEN;
-        // 重置坐标指示
-        this.coordsDisplay.textContent = OLED_COORDS_EMPTY;
+        // 藏红框 + 归位坐标条(见 hideIndicator)
+        this.hideIndicator();
+        // 丢掉自由绘制的接续点:指针离开画面时正在拖笔,再从画布另一头回来,
+        // lastPos 还留着离开前那颗像素,下一次 mousemove 会补一条横贯画面的直线.
+        this.lastPos = null;
+    };
+
+    /** 指针移出窗口(不是移出画布):同上,免得红框留在画面上变成一枚假光标 */
+    private onWindowMouseLeave = (): void => {
+        this.hideIndicator();
+        this.lastPos = null;
     };
 
     private onMouseDown = (e: MouseEvent): void => {
@@ -673,6 +775,11 @@ export class OLEDCanvas {
     };
 
     private onMouseMove = (e: MouseEvent): void => {
+        // 先重量一次几何:卡片在两次 mousemove 之间可能重新排布(手动拖编辑器高度,
+        // 或点了"展开编辑器"),那不会派发 scroll / resize,缓存的几何就过期了.
+        // 这里量的是已经算好的布局,不触发重新布局.
+        this.updateCanvasMetrics();
+
         const pos = this.getPixelPosition(e);
         this.updateCoordsDisplay(pos);
         this.updateIndicator(pos);
@@ -717,13 +824,25 @@ export class OLEDCanvas {
         }
     };
 
+    /**
+     * 页面 / 任意祖先滚动:画布在视口里的位置变了,几何要重量.
+     *
+     * 指针停在原地用滚轮滚页面时不会派发 mousemove,红框会留在旧坐标上(它读的是
+     * 视口坐标,而画布已经滚走了)-- 所以这里量完还要把红框按**刚才那颗像素**摆回去
+     * (indicatorPos 就是为这一刻留的).指针不在画布上时 indicatorPos 是 null,不摆.
+     */
     private onScroll = (): void => {
-        this.updateCanvasRect();
+        this.updateCanvasMetrics();
+        if (this.indicatorPos) this.updateIndicator(this.indicatorPos);
     };
 
     private onResize = (): void => {
         if (this.resizeTimer) clearTimeout(this.resizeTimer);
-        this.resizeTimer = setTimeout(() => this.updateCanvasRect(), OLED_RESIZE_DEBOUNCE_MS);
+        this.resizeTimer = setTimeout(() => {
+            this.updateCanvasMetrics();
+            // 同 onScroll:窗口尺寸变了,画布位置和放大率都变了,红框要跟着落到同一颗像素
+            if (this.indicatorPos) this.updateIndicator(this.indicatorPos);
+        }, OLED_RESIZE_DEBOUNCE_MS);
     };
 }
 

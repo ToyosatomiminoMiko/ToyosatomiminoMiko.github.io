@@ -484,16 +484,28 @@ canvas#pixelCanvas {
     margin-top: var(--oled-coords-margin-top);
 }
 
-/* 优化指示器样式 */
+/*
+ * 鼠标像素指示器(红框 = 自由绘制那颗"光标").
+ *
+ * `position: fixed`:行为代码写进来的是**视口坐标**(getBoundingClientRect 那一套),
+ * 所以这一层不能跟着祖先滚动 -- 否则红框会随页面滚走,与画面错开.本站画布是
+ * 立即滚动到顶层的元素,祖先上没有 transform / filter,不会给它造包含块.
+ *
+ * **这里刻意没有 transition**(曾经是 `transition: all 10ms linear`,还有一条配套
+ * 令牌 `--transition-indicator`).红框是"指针落在哪颗像素上"的读数,不是动画:
+ * 指针一动它就该在那一格上.加过渡之后每次换格都会从旧位置插值一帧,鼠标快速划过
+ * 时红框永远落在指针后面(真引擎实测同一帧内能落后 900px 以上),停下还有一小段
+ * "追上来"的余动 -- 这正是长期观感里那点抖.读数类定位一律不做过渡,一条对齐规则
+ * 就够:红框左上角 = 画布内容盒原点 + 像素下标 × 每像素显示尺寸(见 oled.ts).
+ *
+ * 没有圆角:红框要正好盖住一颗方块像素,库的主题圆角会让四角露出画面.
+ * `display: none` 是初始态,指针进画面后由行为代码改成 block.
+ */
 .pixel-indicator {
-    /* 改为fixed定位 */
     position: fixed;
     z-index: var(--z-pixel-indicator);
     background: var(--oled-indicator-bg);
-    /* 添加平滑移动效果 */
-    transition: all var(--transition-indicator);
     pointer-events: none;
-    /* 初始隐藏 */
     display: none;
 }
 
