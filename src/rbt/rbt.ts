@@ -7,13 +7,15 @@
   底色,不写任何提示或错误文案);
 - mountRBT:接管宿主,把"格式检查 -> 性质检查 -> 重绘"接到输入框的 input 事件上.
 
-文案全部走 HTML 元素(#treeHint / #treeError / #treeProperties),这样颜色 / 字号 /
-折行由 CSS 决定,截图与选中复制也都正常;画布上一旦写字,这些就都做不了.
+文案全部写进 HTML 的唯一输出区 #treeOutput(提示 / 错误 / 性质清单共用它),
+这样颜色 / 字号 / 折行由 CSS 决定,截图与选中复制也都正常;画布上一旦写字,
+这些就都做不了.
 
-三步的先后是死的(见 renderTree):
-1. 解析(格式检查)不过 -> 只出 #treeError,画布清空,清单隐藏;
-2. 解析过了 -> 画树,性质检查的结论写进输入框下面的 HTML 清单;
-3. 输入为空 / 解析成空树 -> 只出 #treeHint,错误与清单都隐藏.
+每轮 input 的结果是四选一(见 renderTree):
+1. 没输入 -> 输出区一行提示(#treeOutput .tree-hint),画布清空;
+2. 解析成空树(nil) -> 输出区一行提示(同上),画布清空;
+3. 格式检查不过 -> 输出区一行错误(#treeOutput .tree-error),画布清空;
+4. 解析成功 -> 输出区性质清单 + 画布画树.
 */
 import {
     RBT_BLACK_NODE_FILL,
@@ -39,6 +41,8 @@ import {
     RBT_NODE_RADIUS,
     RBT_NODE_SHADOW_BLUR,
     RBT_NODE_SHADOW_COLOR,
+    RBT_OUTPUT_ERROR_CLASS,
+    RBT_OUTPUT_HINT_CLASS,
     RBT_PROPERTIES,
     RBT_PROPERTY_STATE_FAIL,
     RBT_PROPERTY_STATE_PASS,
@@ -256,9 +260,7 @@ export function mountRBT(host: HTMLElement): void {
     host.replaceChildren(panel.root);
 
     const input = panel.input;
-    const hintEl = panel.hint;
-    const errorEl = panel.error;
-    const diagnosticsEl = panel.diagnostics;
+    const outputEl = panel.output;
     const canvas = panel.canvas;
 
     const ctx = canvas.getContext('2d');
@@ -274,19 +276,32 @@ export function mountRBT(host: HTMLElement): void {
     };
 
     /**
-     * 把清单渲染成"每条一行":抬头 + 四条性质,每条是
+     * 输出区的写入口:整批替换 #treeOutput 的子节点,空数组就整块 hidden.
+     *
+     * 提示行 / 错误行 / 性质清单都走这一条路 -- 它们只是"这一轮要显示的内容",
+     * 没有 stdout 与 stderr 那种必须分流的语义;整批替换也让"上一轮的东西残留"
+     * 变成不可能(行数很少,不是性能路径).
+     */
+    const renderOutput = (children: readonly HTMLElement[]): void => {
+        outputEl.replaceChildren(...children);
+        outputEl.hidden = children.length === 0;
+    };
+
+    /** 输出区里的一行纯文本(提示 / 错误),类名决定颜色 */
+    const textLine = (className: string, text: string): HTMLElement => {
+        const line = document.createElement('div');
+        line.className = className;
+        line.textContent = text;
+        return line;
+    };
+
+    /**
+     * 性质清单:抬头 + 四条,每条是
      * `<div class="tree-property">性质名: <span class="tree-property-state">PASS / FAIL</span> 出错位置</div>`.
      *
-     * 整批重建而不是逐条更新:条数与文案都由 config 的 RBT_PROPERTIES 决定,
-     * 重建最省事也很难写错;这一块每次输入都会重建,但只有"抬头 + 四条"这么几个
-     * 节点,不是性能路径.
+     * 条数与文案都由 config 的 RBT_PROPERTIES 决定,逐条建完交给 renderOutput 整批换掉.
      */
-    const renderDiagnostics = (report: RbtPropertyReport | null): void => {
-        if (report === null) {
-            diagnosticsEl.replaceChildren();
-            diagnosticsEl.hidden = true;
-            return;
-        }
+    const propertyLines = (report: RbtPropertyReport): HTMLElement[] => {
         const rows = RBT_PROPERTIES.map((spec, index) => {
             const result = report.results[index];
             const row = document.createElement('div');
@@ -303,32 +318,8 @@ export function mountRBT(host: HTMLElement): void {
             }
             return row;
         });
-        const summary = document.createElement('div');
-        summary.className = RBT_DIAGNOSTICS_SUMMARY_CLASS;
-        summary.textContent = formatPropertySummary(report);
-        diagnosticsEl.replaceChildren(summary, ...rows);
-        diagnosticsEl.hidden = false;
-    };
-
-    /**
-     * 两块文案槽的**唯一写入口**:同一时刻只让一块出声.
-     *
-     * - `'hint'`  -> 亮 #treeHint(中性说明,如"还没输入""是空树");
-     * - `'error'` -> 亮 #treeError(玫红,自动带上 RBT_ERROR_UI_PREFIX);
-     * - `null`    -> 两块都收起来(有树可画时).
-     *
-     * 之所以不写成 setHint / setError 两个函数:那样"两块互斥"要靠每个分支自己记得
-     * 把另一块清掉,少写一句就留着一块旧文案(看起来像当前状态,其实是上一轮的).
-     * 收进一个函数后互斥是结构上的,分支只要说"我现在要展示哪一种".
-     *
-     * 两者都只写 HTML:画布上写字的话,颜色 / 字号 / 折行就归 canvas 管,
-     * CSS 管不到,语义上也和"画布画树"这条分工打架(见文件头部注释).
-     */
-    const showMessage = (kind: 'hint' | 'error' | null, msg = ''): void => {
-        hintEl.textContent = kind === 'hint' ? msg : '';
-        hintEl.hidden = kind !== 'hint';
-        errorEl.textContent = kind === 'error' ? `${RBT_ERROR_UI_PREFIX}${msg}` : '';
-        errorEl.hidden = kind !== 'error';
+        const summary = textLine(RBT_DIAGNOSTICS_SUMMARY_CLASS, formatPropertySummary(report));
+        return [summary, ...rows];
     };
 
     const renderTree = (): void => {
@@ -336,9 +327,8 @@ export function mountRBT(host: HTMLElement): void {
         const expr = input.value.trim();
 
         if (expr === '') {
-            // 没输入:说清画布为什么是空的,错误与清单都收起来
-            showMessage('hint', RBT_EMPTY_HINT_TEXT);
-            renderDiagnostics(null);
+            // 没输入:说清画布为什么是空的
+            renderOutput([textLine(RBT_OUTPUT_HINT_CLASS, RBT_EMPTY_HINT_TEXT)]);
             activeDrawer.clearCanvas();
             return;
         }
@@ -348,20 +338,19 @@ export function mountRBT(host: HTMLElement): void {
             const rootNode = buildTreeFromExpression(expr);
             if (rootNode === null) {
                 // 表达式非空但解析成空树(nil):没有节点可画,也没有性质可查
-                showMessage('hint', RBT_EMPTY_TREE_HINT_TEXT);
-                renderDiagnostics(null);
+                renderOutput([textLine(RBT_OUTPUT_HINT_CLASS, RBT_EMPTY_TREE_HINT_TEXT)]);
                 activeDrawer.clearCanvas();
                 return;
             }
-            // 第 2 步:性质检查写进 HTML 清单,画布只画这棵树
-            showMessage(null);
-            renderDiagnostics(checkTreeProperties(rootNode));
+            // 第 2 步:性质检查写进输出区,画布只画这棵树
+            renderOutput(propertyLines(checkTreeProperties(rootNode)));
             activeDrawer.render(rootNode);
         } catch (err) {
-            // 格式检查没过:只出 #treeError,清单隐藏(性质检查的输入都还没有);
+            // 格式检查没过:输出区出一行错误(性质检查的输入都还没有);
             // 画布清空而不写错误文案 -- 文案一律归 HTML
-            showMessage('error', (err as Error).message);
-            renderDiagnostics(null);
+            renderOutput([
+                textLine(RBT_OUTPUT_ERROR_CLASS, `${RBT_ERROR_UI_PREFIX}${(err as Error).message}`),
+            ]);
             activeDrawer.clearCanvas();
         }
     };

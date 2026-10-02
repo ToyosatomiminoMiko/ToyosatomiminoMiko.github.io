@@ -687,36 +687,22 @@ canvas#pixelCanvas {
 }
 
 /*
- * 空输入 / 空树提示与解析错误提示(都在输入框下面,同一块地方轮流出声).
+ * 唯一输出区(输入框下面那块,由 rbt.ts 每轮整批重建 #treeOutput 的子节点).
  *
- * 这两块文案过去画在 canvas 上,现在归 HTML:画布只画树,文字走页面元素才能让颜色 /
- * 字号 / 折行受 CSS(含主题令牌)管,截图与选中复制也正常.两者排版一致(等宽,与
- * 输入框里的表达式对齐),只差颜色:#treeHint 是中性说明(与清单抬头同色),
- *#treeError 是出错(与性质 FAIL 同色).
- */
-#treeHint,
-#treeError {
-    font-family: var(--font-code);
-    line-height: 1.4;
-    margin-bottom: var(--rbt-diag-margin);
-}
-
-#treeHint {
-    color: var(--rbt-hint-color);
-}
-
-#treeError {
-    color: var(--rbt-error-color);
-}
-
-/*
- * 性质检查清单(输入框下面那块,由 rbt.ts 逐条重建 #treeProperties 的子节点).
+ * 提示 / 错误 / 性质检查清单都写进这一个元素:它们只是"这一轮要显示的内容",
+ * 没有 stdout 与 stderr 那种必须分流的语义.过去提示与错误是画在 canvas 上的,
+ * 现在归 HTML -- 文字走页面元素才能让颜色 / 字号 / 折行受 CSS(含主题令牌)管,
+ * 截图与选中复制也正常.
  *
- * 布局用 gap 而不是给每行 margin:行数是 config 里 RBT_PROPERTIES 的长度,加一条
- * 就多一行,行距只该写一处.每条一行,等宽字体(与输入框里的表达式对齐),状态色
- * 挂在 `.tree-property-state` 上,抬头弱化:一眼扫过去先看有没有红的.
+ * 排版(等宽,与输入框里的表达式对齐)写在容器上,颜色写在每一行自己的类上:
+ * .tree-hint 中性说明,.tree-error 解析失败,清单抬头弱化,状态色挂 .tree-property-state.
+ * 布局用 gap 而不是给每行 margin:行数是 config 里 RBT_PROPERTIES 的长度,加一条就多
+ * 一行,行距只该写一处.
+ *
+ * [hidden] 必须显式再写一遍:容器是 display:flex,作者规则会盖过 UA 的
+ * [hidden] { display: none },不补这句的话 rbt.ts 置的 hidden 收不起来.
  */
-#treeProperties {
+#treeOutput {
     display: flex;
     flex-direction: column;
     gap: var(--rbt-diag-margin);
@@ -725,15 +711,29 @@ canvas#pixelCanvas {
     line-height: 1.4;
 }
 
-#treeProperties .tree-property-summary {
+#treeOutput[hidden] {
+    display: none;
+}
+
+/* 提示行:中性说明(与清单抬头同色) */
+#treeOutput .tree-hint {
+    color: var(--rbt-hint-color);
+}
+
+/* 错误行:解析失败(与性质 FAIL 同色,都是"这棵树不对") */
+#treeOutput .tree-error {
+    color: var(--rbt-error-color);
+}
+
+#treeOutput .tree-property-summary {
     color: var(--rbt-diag-summary-color);
 }
 
 /* PASS/FAIL:颜色只认令牌(见 tokens.css 的 --rbt-pass-color / --rbt-fail-color) */
-#treeProperties .tree-property-state.is-pass {
+#treeOutput .tree-property-state.is-pass {
     color: var(--rbt-pass-color);
 }
 
-#treeProperties .tree-property-state.is-fail {
+#treeOutput .tree-property-state.is-fail {
     color: var(--rbt-fail-color);
 }

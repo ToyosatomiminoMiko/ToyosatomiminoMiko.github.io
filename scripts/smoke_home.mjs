@@ -277,14 +277,14 @@ const report = await cdp.evalValue(`(() => {
           "不是 PROPERTY_PASS 的那个"就是失败文案;这样脚本对文案本身完全免疫.
         */
         const collectStateTexts = () =>
-            [...new Set([...document.querySelectorAll('#treeProperties .tree-property-state')]
+            [...new Set([...document.querySelectorAll('#treeOutput .tree-property-state')]
                 .map((state) => state.textContent))];
         const stateTextsBefore = collectStateTexts();
         const PROPERTY_PASS = stateTextsBefore[0] || '';
-        const propertyRows = qa('#treeProperties .tree-property');
-        const propertySummary = q('#treeProperties .tree-property-summary');
-        const passStates = qa('#treeProperties .tree-property-state.is-pass');
-        const failStates = qa('#treeProperties .tree-property-state.is-fail');
+        const propertyRows = qa('#treeOutput .tree-property');
+        const propertySummary = q('#treeOutput .tree-property-summary');
+        const passStates = qa('#treeOutput .tree-property-state.is-pass');
+        const failStates = qa('#treeOutput .tree-property-state.is-fail');
         /*
           颜色要换算过再比:令牌里写的是 #4ade80,getComputedStyle 给的永远是
           rgb(74, 222, 128),直接比字符串会永远不相等;而且令牌读不到时两边都是
@@ -299,7 +299,7 @@ const report = await cdp.evalValue(`(() => {
             return 'rgb(' + ((n >> 16) & 255) + ', ' + ((n >> 8) & 255) + ', ' + (n & 255) + ')';
         };
         ok('红黑树性质清单渲染出来了(示例树四条全过)',
-            q('#treeProperties') !== null && q('#treeProperties').hidden === false &&
+            q('#treeOutput') !== null && q('#treeOutput').hidden === false &&
             propertyRows.length === 4 && passStates.length === 4 && failStates.length === 0 &&
             propertySummary !== null &&
             propertyRows.every((row) => row.textContent.indexOf(PROPERTY_PASS) !== -1) &&
@@ -319,8 +319,8 @@ const report = await cdp.evalValue(`(() => {
             treeInput.value = '10R(5B(3B,7B),40B(2B,50B))';
             treeInput.dispatchEvent(new Event('input', { bubbles: true }));
         }
-        const failAfterBad = qa('#treeProperties .tree-property-state.is-fail');
-        const badRows = qa('#treeProperties .tree-property');
+        const failAfterBad = qa('#treeOutput .tree-property-state.is-fail');
+        const badRows = qa('#treeOutput .tree-property');
         const stateTextsAfter = collectStateTexts();
         const PROPERTY_FAIL = stateTextsAfter.find((text) => text !== PROPERTY_PASS) || '';
         const failRowTexts = badRows.filter((row) => row.textContent.indexOf(PROPERTY_FAIL) !== -1)
@@ -336,12 +336,13 @@ const report = await cdp.evalValue(`(() => {
             treeInput.dispatchEvent(new Event('input', { bubbles: true }));
         }
         ok('改回合法树:清单回到四条全过',
-            qa('#treeProperties .tree-property-state.is-fail').length === 0 &&
-            qa('#treeProperties .tree-property-state.is-pass').length === 4);
+            qa('#treeOutput .tree-property-state.is-fail').length === 0 &&
+            qa('#treeOutput .tree-property-state.is-pass').length === 4);
 
         /*
-          文案归 HTML,画布只画树(rbt/rbt.ts 的分工).这里在真浏览器里验三件事:
-          三种状态各亮哪一块,#treeHint / #treeError 的色值真的来自令牌(令牌只在
+          文案归 HTML,画布只画树(rbt/rbt.ts 的分工).输出区只有一个 #treeOutput,
+          每轮只装一种内容:一行提示 / 一行错误 / 性质清单.这里在真浏览器里验三件事 --
+          三种状态各放哪一种行,.tree-hint / .tree-error 的色值真的来自令牌(令牌只在
           CSS 级联之后才算得出来),以及"没有树"时画布上一个字都没留下.
           画布底色是纯白(RBT_CANVAS_BACKGROUND),所以判据很硬:没有树时整块画布
           必须只有白像素 -- 过去画在中央的错误提示会立刻在这里露馅.
@@ -354,38 +355,41 @@ const report = await cdp.evalValue(`(() => {
             }
             return true;
         };
-        const treeHint = q('#treeHint');
-        const treeError = q('#treeError');
-        ok('合法树时两块文案都收起来(#treeHint / #treeError 都 hidden)',
-            treeHint !== null && treeError !== null &&
-            treeHint.hidden === true && treeError.hidden === true);
+        const treeOutput = q('#treeOutput');
+        const hintLine = () => q('#treeOutput .tree-hint');
+        const errorLine = () => q('#treeOutput .tree-error');
+        ok('合法树:输出区只有性质清单(没有提示行 / 错误行)',
+            treeOutput !== null && treeOutput.hidden === false &&
+            hintLine() === null && errorLine() === null &&
+            qa('#treeOutput .tree-property').length === 4);
         if (treeInput) {
             treeInput.value = '';
             treeInput.dispatchEvent(new Event('input', { bubbles: true }));
         }
-        ok('清空输入:提示落在 #treeHint(颜色走令牌),画布只剩底色',
-            treeInput !== null && treeHint.hidden === false && treeError.hidden === true &&
-            (treeHint.textContent || '').indexOf('请输入红黑树表达式') !== -1 &&
-            getComputedStyle(treeHint).color === toRgb(readColorToken('--rbt-hint-color')) &&
-            canvasIsPlainWhite(),
-            (treeHint.textContent || '') + ' / 画布纯底色');
+        ok('清空输入:输出区换成一行提示(颜色走令牌),画布只剩底色',
+            treeInput !== null && hintLine() !== null && errorLine() === null &&
+            (hintLine().textContent || '').indexOf('请输入红黑树表达式') !== -1 &&
+            getComputedStyle(hintLine()).color === toRgb(readColorToken('--rbt-hint-color')) &&
+            qa('#treeOutput .tree-property').length === 0 && canvasIsPlainWhite(),
+            (hintLine() ? hintLine().textContent : '') + ' / 画布纯底色');
         if (treeInput) {
             treeInput.value = '5B(1B 2B)';
             treeInput.dispatchEvent(new Event('input', { bubbles: true }));
         }
-        ok('格式错误:错误落在 #treeError(颜色走令牌),画布依旧只剩底色',
-            treeError.hidden === false && treeHint.hidden === true &&
-            (treeError.textContent || '').indexOf('错误: ') === 0 &&
-            getComputedStyle(treeError).color === toRgb(readColorToken('--rbt-error-color')) &&
-            canvasIsPlainWhite(),
-            (treeError.textContent || ''));
+        ok('格式错误:输出区换成一行错误(颜色走令牌),画布依旧只剩底色',
+            hintLine() === null && errorLine() !== null &&
+            (errorLine().textContent || '').indexOf('错误: ') === 0 &&
+            getComputedStyle(errorLine()).color === toRgb(readColorToken('--rbt-error-color')) &&
+            qa('#treeOutput .tree-property').length === 0 && canvasIsPlainWhite(),
+            (errorLine() ? errorLine().textContent : ''));
         // 还原成一条合法红黑树,免得后面几条"页面状态"的断言读到被改过的输入
         if (treeInput) {
             treeInput.value = '15B(7R(3B,11B),23R(19B,27B))';
             treeInput.dispatchEvent(new Event('input', { bubbles: true }));
         }
-        ok('还原合法树:文案收起且画布重新画上树',
-            treeHint.hidden === true && treeError.hidden === true && !canvasIsPlainWhite());
+        ok('还原合法树:输出区回到清单且画布重新画上树',
+            hintLine() === null && errorLine() === null &&
+            qa('#treeOutput .tree-property').length === 4 && !canvasIsPlainWhite());
 
         // IEEE754:初始那次渲染真的跑完了(位图 64 格 + KaTeX 公式 + 特殊值表)
         ok('IEEE754 初始渲染跑完(位图 64 格 + KaTeX + 特殊值表)',

@@ -143,8 +143,8 @@ function parseNode(str: string): RbtNode | null {
 /**
  * 把表达式解析成一棵树;空表达式给 `null`(空树).
  *
- * 失败一律抛 Error:文案是 config 里那几条 RBT_ERR_*,由调用方(挂载函数)显示在
- * #treeError 这块 HTML 里 -- 画布只画树,不写任何文案(见 rbt.ts 的分工说明).
+ * 失败一律抛 Error:文案是 config 里那几条 RBT_ERR_*,由调用方(挂载函数)写成
+ * #treeOutput 里的一行错误 -- 画布只画树,不写任何文案(见 rbt.ts 的分工说明).
  *
  * 原始错误对象挂在新错误的 `cause` 上(而不是像原来那样先 `console.error(e)`):
  * 解析失败是**预期内的用户输入错误**,不是异常状况 -- 每敲错一个字符就往控制台

@@ -11,17 +11,21 @@
  * 红黑树控件用到的 DOM 元素 id.
  * 标记由 src/rbt/ui/rbt_panel.ts 按本文件的声明生成(id 写入元素再由组件
  * 交回引用);这些常量同时给样式(public/css/index.css 的 `#treeInput` /
- * `#treeHint` / `#treeError` / `#treeProperties`)与组件共用.
+ * `#treeOutput` / `#rbCanvas`)与组件共用.
  */
 export const RBT_DOM = {
     /** 表达式输入 textarea 的 id */
     inputId: 'treeInput',
-    /** 空输入 / 空树提示容器的 id(画布不再画任何文案,提示改由这里出) */
-    hintId: 'treeHint',
-    /** 错误提示容器的 id */
-    errorId: 'treeError',
-    /** 性质检查(诊断)清单的 id */
-    diagnosticsId: 'treeProperties',
+    /**
+     * 唯一输出区的 id:提示 / 错误 / 性质检查清单都写进这一个元素.
+     *
+     * 不按"提示一个元素,错误一个元素,清单一个元素"分成三块:它们只是同一件事的
+     * 不同内容(这一轮要显示什么),没有 stdout / stderr 那种必须分流的语义,
+     * 分开写只会多出"谁该显示,谁该隐藏"的互斥维护.现在整块内容每次重建,
+     * 行 / 结论 / 抬头的颜色由类名决定(见下面的 RBT_OUTPUT_*_CLASS 与
+     * RBT_DIAGNOSTICS_*_CLASS).
+     */
+    outputId: 'treeOutput',
     /** 树绘制 canvas 的 id */
     canvasId: 'rbCanvas',
 } as const;
@@ -138,17 +142,22 @@ export const RBT_BLACK_NODE_LINE_WIDTH = 1.6;
 /** 黑色节点文字颜色(浅灰) */
 export const RBT_BLACK_NODE_TEXT = '#f1f5f9';
 
-// ---------- 性质检查(诊断清单) ----------
+// ---------- 输出区(提示 / 错误 / 性质清单共用一套类名) ----------
 //
-// 表达式先过**格式检查**(解析器,错了只出 #treeError),解析成功再过**性质检查**:
-// 这棵树到底是不是一棵红黑树.清单排在输入框下面,每条一行,文案全部来自本区块.
-//
-// 性质有**先后**之分:前一条 FAIL 时,后面的往往也在报同一处错(一棵根为红的树
-// 通常还伴随红红相接),所以清单按下面这个顺序排,第一条不过就先看第一条.
+// 表达式先过**格式检查**(解析器):过了才有树可查性质,没过就在输出区出一行错误.
+// 输出区只有一个(#treeOutput),下面这些类名决定每一行的角色与颜色.
+
+/** 中性提示行的类名(空输入 / 空树;颜色见 public/css/index.css 的 .tree-hint) */
+export const RBT_OUTPUT_HINT_CLASS = 'tree-hint';
+
+/** 错误行的类名(解析失败;颜色见 public/css/index.css 的 .tree-error) */
+export const RBT_OUTPUT_ERROR_CLASS = 'tree-error';
+
+// ---------- 性质检查(清单行) ----------
 
 /**
  * 单条性质的类名(行为代码每渲染一次清单就整批重建这些节点).
- * 消费方是 scripts/smoke_home.mjs:它在真浏览器里按 `#treeProperties .tree-property`
+ * 消费方是 scripts/smoke_home.mjs:它在真浏览器里按 `#treeOutput .tree-property`
  * 数行数,所以这个类名是**跨语言契约**,不能只按"CSS 里没用到"就删.
  */
 export const RBT_DIAGNOSTICS_ROW_CLASS = 'tree-property';
@@ -156,7 +165,7 @@ export const RBT_DIAGNOSTICS_ROW_CLASS = 'tree-property';
 /** 单条性质里"结论"那一段的类名(状态色挂在它上面) */
 export const RBT_DIAGNOSTICS_STATE_CLASS = 'tree-property-state';
 
-/** 清单抬头那一段的类名(样式见 public/css/index.css 的 `#treeProperties`) */
+/** 清单抬头那一段的类名(样式见 public/css/index.css 的 `#treeOutput`) */
 export const RBT_DIAGNOSTICS_SUMMARY_CLASS = 'tree-property-summary';
 
 /**
@@ -254,12 +263,12 @@ export const RBT_TEXT_ALIGN = 'center';
 /** canvas 2D 文本的垂直基线(只给节点值用) */
 export const RBT_TEXT_BASELINE = 'middle';
 
-/** 空输入时的提示文案(可见文本,全站不用 emoji;渲染进 #treeHint) */
+/** 空输入时的提示文案(可见文本,全站不用 emoji;写成 #treeOutput 里的提示行) */
 export const RBT_EMPTY_HINT_TEXT =
     '请输入红黑树表达式 (例如: 13B(8R(1B,11R),17R(15B,25B)))';
 
 /**
- * 表达式解析成空树(`nil`)时的提示文案(渲染进 #treeHint).
+ * 表达式解析成空树(`nil`)时的提示文案(同上,写成 #treeOutput 里的提示行).
  *
  * 与"没输入"分开一条:用户确实敲了东西(`nil` 是合法空树),再回一句
  * "请输入红黑树表达式"会答非所问;画布上那时是空的,得说清为什么空.

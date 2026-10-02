@@ -61,34 +61,16 @@ describe('红黑树:输入与画布', () => {
         expect(panel.input.value).toBe('');
     });
 
-    it('错误提示初始隐藏,元素仍在 DOM 里', () => {
+    it('唯一输出区初始隐藏且是空的(提示 / 错误 / 清单共用这一个元素)', () => {
         const panel = renderPanel(createRbtPanel);
-        expect(document.getElementById(RBT_DOM.errorId)).toBe(panel.error);
-        expect(panel.error.hidden).toBe(true);
-        expect(panel.error.hasAttribute('hidden')).toBe(true);
-        expect(panel.error.textContent).toBe('');
-    });
-
-    it('空树提示初始隐藏且是空的(与错误提示分两个元素)', () => {
-        const panel = renderPanel(createRbtPanel);
-        expect(document.getElementById(RBT_DOM.hintId)).toBe(panel.hint);
-        expect(panel.error).not.toBe(panel.hint);
-        expect(panel.hint.className).toBe('');
-        expect(panel.hint.hidden).toBe(true);
-        expect(panel.hint.hasAttribute('hidden')).toBe(true);
-        expect(panel.hint.textContent).toBe('');
-    });
-
-    it('性质检查清单初始隐藏且是空的(内容由 rbt.ts 逐条重建)', () => {
-        const panel = renderPanel(createRbtPanel);
-        expect(document.getElementById(RBT_DOM.diagnosticsId)).toBe(panel.diagnostics);
-        // 容器只认 id(#treeProperties):不再挂没人消费的类名(类名契约只剩行 / 结论 / 抬头)
-        expect(panel.diagnostics.className).toBe('');
-        expect(panel.diagnostics.hidden).toBe(true);
-        expect(panel.diagnostics.hasAttribute('hidden')).toBe(true);
-        // 标记里不带性质条目:条数与文案都来自 config,由行为代码渲染
-        expect(panel.diagnostics.children).toHaveLength(0);
-        expect(panel.diagnostics.textContent).toBe('');
+        expect(document.getElementById(RBT_DOM.outputId)).toBe(panel.output);
+        // 容器只认 id(#treeOutput):自己不挂类名(类名契约只剩提示行 / 错误行 / 抬头的类)
+        expect(panel.output.className).toBe('');
+        expect(panel.output.hidden).toBe(true);
+        expect(panel.output.hasAttribute('hidden')).toBe(true);
+        // 标记里不带任何输出内容:写什么由 rbt.ts 每轮重建
+        expect(panel.output.children).toHaveLength(0);
+        expect(panel.output.textContent).toBe('');
     });
 
     it('画布 1200×640,尺寸来自 config 而不是 HTML', () => {
@@ -98,18 +80,11 @@ describe('红黑树:输入与画布', () => {
         expect(panel.canvas.getAttribute('height')).toBe(String(RBT_CANVAS_HEIGHT));
     });
 
-    it('提示区与各件都在 .ui-panel-body 里,顺序是 提示 -> 输入框 -> 空树提示 -> 错误提示 -> 性质清单 -> 画布', () => {
+    it('提示区与各件都在 .ui-panel-body 里,顺序是 提示 -> 输入框 -> 输出区 -> 画布', () => {
         const panel = renderPanel(createRbtPanel);
         const body = panel.root.querySelector('.ui-panel-body');
         expect([...(body?.children ?? [])].map((child) => child.id))
-            .toEqual([
-                '',
-                RBT_DOM.inputId,
-                RBT_DOM.hintId,
-                RBT_DOM.errorId,
-                RBT_DOM.diagnosticsId,
-                RBT_DOM.canvasId,
-            ]);
+            .toEqual(['', RBT_DOM.inputId, RBT_DOM.outputId, RBT_DOM.canvasId]);
     });
 
     it('文档里没有重复 id', () => {
