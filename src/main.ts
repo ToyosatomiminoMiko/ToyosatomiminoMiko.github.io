@@ -35,12 +35,13 @@ import 'miko_ui/styles/widgets.css';
 编辑器外壳:OLED 数据区那颗 `createCodeEditor`(导出与导入共用,见
 src/oled/ui/oled_panel.ts)读这一层的 `.code-editor*` 规则 -- 外框 / 行号槽 /
 "透明 textarea + 背后高亮层"的严格重叠都在里面.本站样式表只给这个外框补
-定高与可纵向拖动.
+**定尺(宽 / 高)**与可纵向拖动:库的默认是"外框随内容长,滚动归宿主",本站要的是
+"定尺的盒子 + textarea 内部滚"(理由与实测见 public/css/index.css 那条规则).
 */
 import 'miko_ui/styles/editor.css';
 /*
 滚动条(单独的一条规定):OLED 数据区的编辑器里唯一会滚的是库的 textarea
-(定高后竖着滚导出的 C 源码),它在 oled_panel.ts 里挂了 `ui-scrollbar`.
+(定尺后竖着滚导出的 C 源码,长行横着滚),它在 oled_panel.ts 里挂了 `ui-scrollbar`.
 */
 import 'miko_ui/styles/scrollbar.css';
 

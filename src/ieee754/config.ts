@@ -397,13 +397,3 @@ export const IEEE754_ERR_UNPARSABLE_SUFFIX = '"';
 
 /** 错误提示在 UI 上显示时的前缀(不用符号 / 表情,直接用字说明) */
 export const IEEE754_ERROR_UI_PREFIX = '错误: ';
-
-/** 公式渲染相关:KaTeX 选项 */
-export const IEEE754_KATEX_OPTIONS = {
-    /** 独立成行居中显示 */
-    displayMode: true,
-    /** 出错时渲染错误标记而不是抛异常(输入随时可能不合法) */
-    throwOnError: false,
-    /** 不允许 \href 等可信命令 */
-    trust: false,
-} as const;

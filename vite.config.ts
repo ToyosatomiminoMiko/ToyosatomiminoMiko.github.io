@@ -88,17 +88,21 @@ export default defineConfig({
     resolve: {
         alias: [{ find: /^@\//, replacement: `${SRC_ALIAS}/` }],
         /**
-         * `miko_ui` 从 npm 装(`package.json` 里声明为 `^0.1.6`,与该库的其它消费者
+         * `miko_ui` 从 npm 装(`package.json` 里声明为 `^0.1.11`,与该库的其它消费者
          * 同一口径;caret 范围,实际锁定的版本见 package-lock.json),
-         * 它自己的运行时依赖只有 `@preact/signals-core`,可选 peer 是 `katex`.
-         * 根 `package.json` 也**显式**声明了这两个:本站自己要直接用它们,而且声明在
-         * 那里才能保证解析到根目录的那一份实例.
+         * 它自己的运行时依赖是 `@preact/signals-core` 与 `katex`(0.1.11 起 `katex`
+         * 由"可选 peer"变成库自己的 `dependencies`,见库 README 的「运行时依赖」).
+         * 这两份现在都**只由库消费**:站点源码既不 import `katex`(IEEE754 的公式走库的
+         * `createFormulaElement`)也不 import signals;根 `package.json` 仍显式声明
+         * `@preact/signals-core` 是上游给的建议口径(声明在根上,解析就只落在根目录
+         * 那一份实例里,见下面 dedupe 的理由).
          *
          * 这条 dedupe 因此是**保险**而不是必需:万一将来某条路径(嵌套的
          * `node_modules`,另一个包也依赖它)又引入第二份,`signal` 与 `effect` 就会
          * 跨在两条注册表上,表现是"值变了界面不动"(库的 Slider 正是靠 signal 让
          * 滑杆与数值框互相同步的).`katex` 同理:库的 `dist/formula/FormulaView.js`
-         * 与本站的 `src/ieee754/ieee754.ts` 都要 `import katex`,必须是同一个实例.
+         * 要 `import katex` 与 `katex/dist/katex.min.css`,装成两份就是两套字体与两套
+         * 模块状态(本站已不直接依赖它,这一条纯属防第二份的保险).
          *
          * 改库的时候**不要**改这里:本地联调走 `scripts/dev_ui_link.sh`,它只把
          * node_modules/miko_ui 换成指向工作副本的符号链接(package.json /

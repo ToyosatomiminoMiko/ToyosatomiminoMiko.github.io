@@ -173,11 +173,11 @@
 .ieee-formula {
     overflow-x: auto;
     padding: 6px 0;
-}
-
-/* .katex-display运行时注入 */
-.ieee-formula .katex-display {
-    margin: 0;
+    /* "独立成行 + 居中"这一档以前由 KaTeX 的 displayMode 给(它产出带 1em 外边距的
+       `.katex-display`,本站再清掉外边距).改用库的 `createFormulaElement` 之后公式是
+       **行内**的(库固定 displayMode: false,见 FormulaView 的文件头),居中因此落在
+       容器上;超宽时仍旧靠上面的 `overflow-x` 横向滚,与显示档时的表现一致. */
+    text-align: center;
 }
 
 /* 特殊值参考表 */

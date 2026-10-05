@@ -10,8 +10,7 @@
     "@fontsource/quicksand": "^5.3.0",
     "@fontsource/space-mono": "^5.3.0",
     "@preact/signals-core": "^1.14.4",
-    "katex": "^0.18.5",
-    "miko_ui": "^0.1.6"
+    "miko_ui": "^0.1.11"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",

@@ -513,19 +513,23 @@ canvas#pixelCanvas {
  * 数据区那颗编辑器:`miko_ui` 的 `createCodeEditor`(外框类 `.code-editor`,
  * 见 src/oled/ui/oled_panel.ts;导出与导入共用这一颗).外框 / 行号槽 /
  * "透明 textarea + 背后高亮层"的严格重叠,以及等宽字体 / 配色,全部归库的
- * `styles/editor.css`(由 src/main.ts 引入);本站只在外框上补两件事:
- * 高度,与纵向可拖动.
+ * `styles/editor.css`(由 src/main.ts 引入);本站只在外框上补三件事:
+ * **宽 / 高**,与纵向可拖动.
  *
  * 为什么要 `.oled-card` 前缀:库的样式表由 main.ts 引入(排在 public/css/*.css
- * 之后),`.code-editor` 在库里已经写了 `height: 100%` / `min-height: 0`,平局时
- * 后者胜;加一层把特异性提到 (0,2,0),本站的定高口径才落得下去(与 `body .card`
+ * 之后),`.code-editor` 在库里自己写了 `width` / `height` / `min-height`,平局时
+ * 后者胜;加一层把特异性提到 (0,2,0),本站的尺寸口径才落得下去(与 `body .card`
  * 同因).
  *
- * 为什么是 height 而不是 min-height:`.code-editor` 的父元素是自动高度,库那条
- * `height: 100%` 退化成 auto,盒子会被内容撑高 -- 点一次"导出数据",67 行 C 源码
- * 把编辑器从 150px 撑到 1300px,滚动条反而不会出现.定高之后超出的部分由库的
- * textarea 自己滚(`.ui-scrollbar`,见 oled_panel.ts),与换成编辑器之前那条
- * `textarea.textarea-data` 的手感一致.
+ * 本站的口径是"**定尺的盒子,滚动在 textarea 里**":
+ *   - 高度:库的默认是"外框随内容长高,滚动归宿主",本站不要这个 -- 自动高度下
+ *     点一次"导出数据",67 行 C 源码会把编辑器从 150px 撑到 1300px;定高之后超出的
+ *     部分由库的 textarea 自己滚(`.ui-scrollbar`,见 oled_panel.ts),与换成编辑器
+ *     之前那条 `textarea.textarea-data` 的手感一致.注意这是**本站覆盖库的默认**,
+ *     不是库替我们定的(库 0.1.11 起改过一轮滚动归属,别再按"库会定高"来理解);
+ *   - 宽度:`width: 100%` 同理 -- 库(未发布的那一版)把外框写成 `max-content`,
+ *     导出后最长那行(100 字符)会让外框涨到 1034px 而卡片只有 795px(900px 视口
+ *     实测),横向滚动条反而消失.钉成卡片宽度,长行才回到 textarea 里横滚.
  *
  * 折叠 / 展开:折叠态就是上面这个 `--oled-editor-height`,同时被钉成 min-height
  * (手动拖动拖不到更矮,`resize: vertical` 会尊重 min-height);展开态换成
@@ -533,6 +537,7 @@ canvas#pixelCanvas {
  * `is-expanded` 类,由 oled.ts 的 toggleEditorExpanded 切.
  */
 .oled-card .code-editor {
+    width: 100%;
     height: var(--oled-editor-height);
     min-height: var(--oled-editor-height);
     resize: vertical;

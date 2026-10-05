@@ -335,10 +335,10 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 | 4xx 页面样式 | `src/4xx_page/418/418_tokens.css`,`src/4xx_page/451/451_tokens.css`;`404/404.css` 与 `shared/icon.css` 顶部的 `:root` 块 | 各彩蛋页的设计令牌(颜色 / 几何 / 阴影 / 时长 / 字体) |
 | 4xx 页面脚本 | `src/4xx_page/418/teapot/config.ts`,`src/4xx_page/451/boot.config.ts`,`src/4xx_page/451/ember/*.config.ts` | 茶壶交互,启动开关,GPU 计时 / 统计 / 资源 / 能力 / 性能面板参数 |
 | 地铁车窗前端 | `src/metro_window/src/config.ts`,`src/metro_window/src/stage_size.ts`,`src/metro_window/src/ui/`,`src/metro_window/src/tokens.css` | DOM id / class / `data-*` 键名,`setParam` 参数名映射,车窗标记 / 设置面板 / 上传图层的声明式模型(画布分辨率 / 滑块分组 / 风格 / 按钮 / 可上传贴图清单 / 文案),后备缓冲尺寸与防抖 / dpr 上限;声明式 DOM 组件(库的 `create_element` + 舞台标记 + 风格按钮行 + 设置面板 + 上传面板 + PNG 解码);组件设计令牌.**单个滑块(名称 + 滑杆 + 数值框 + 重置按钮)不在这里**:它是 UI 库 `miko_ui` 的 `createSlider`,本站只把声明翻译成它的选项(见下一行;SETTING 里那条页面透明度滑块同理,见 `src/setting/page_opacity.ts`);控件在设置页里的**观感**(配色 / 字体)也不在这里,见 `src/setting/setting.css` |
-| UI 库 | npm 包 `miko_ui`(声明在 `package.json`);配色与宽度在 `src/metro_window/src/metro_window.css` | 通用控件(滑块 / 按钮 / 开关 / 分段 / 数值框 / **折叠菜单** ...)与它们的样式.**全站标记的唯一原语**也是库的 `create_element`(站点没有自己的 DOM 原语);站内**所有按钮**都由库的 `createButton` 生成(基线类 `.ui-button`),本站不再写按钮外观;IEEE754 的精度选择是库的 `createMenu`(触发按钮 + `.menu-popover` 浮层,本站只给数据与一个 `.menu-anchor` 锚点);OLED 数据区那颗输入框也整颗是库的 `createCodeEditor`(`.code-editor`:行号槽 + 真 textarea + 高亮层,导出与导入共用这一颗),本站只注入 id / 槽宽下限 / 高亮函数;库的默认主题由 `src/main.ts` 引 `miko_ui/styles/tokens.css` 接进来.四块面板的框体是库的 `createPanel`(`section.ui-panel` + 标题栏 + 正文容器,与桌面窗口同源).**面板框体是本轮新加进库的**:`package.json` / `package-lock.json` 仍钉在 npm 上那一版,所以**库发版并把依赖 bump 到含 `createPanel` 的版本之前,CI / Pages 会缺这个导出**(本地走 `dev_ui_link` 的符号链接不受影响).本地联调与依赖契约见 [`scripts/dev_ui_link.py`](scripts/dev_ui_link.py) 顶部 |
+| UI 库 | npm 包 `miko_ui`(声明在 `package.json`);配色与宽度在 `src/metro_window/src/metro_window.css` | 通用控件(滑块 / 按钮 / 开关 / 分段 / 数值框 / **折叠菜单** ...)与它们的样式.**全站标记的唯一原语**也是库的 `create_element`(站点没有自己的 DOM 原语);站内**所有按钮**都由库的 `createButton` 生成(基线类 `.ui-button`),本站不再写按钮外观;IEEE754 的精度选择是库的 `createMenu`(触发按钮 + `.menu-popover` 浮层,本站只给数据与一个 `.menu-anchor` 锚点);OLED 数据区那颗输入框也整颗是库的 `createCodeEditor`(`.code-editor`:行号槽 + 真 textarea + 高亮层,导出与导入共用这一颗),本站只注入 id / 槽宽下限 / 高亮函数;IEEE754 那条递等链也是库的公式件 `createFormulaElement`(`.ui-formula`,KaTeX 与它的样式表由库自带,本站不再直接依赖 `katex`);库的默认主题由 `src/main.ts` 引 `miko_ui/styles/tokens.css` 接进来.四块面板的框体是库的 `createPanel`(`section.ui-panel` + 标题栏 + 正文容器,与桌面窗口同源).`package.json` / `package-lock.json` 钉在 **0.1.11**(`createPanel` 从库的 0.1.8 起就在;0.1.11 另带来滑块的新文本口径 `text` 与只读读数件),CI / Pages 走 `build.sh --ui npm` 时还会把依赖对齐到 npm 的 `latest`.本地联调与依赖契约见 [`scripts/dev_ui_link.py`](scripts/dev_ui_link.py) 顶部 |
 | 地铁车窗渲染 | `src/metro_window/rust/src/droplet_params.rs`,`app_params.rs`,`render_params.rs`,`random_params.rs`,`texture_params.rs` | 水滴生成 / 物理 / 折射 / 高光,主循环与资源路径 / 可上传材质槽位白名单,管线与绑定槽位 / 上传纹理尺寸上限,白噪声哈希,程序化贴图生成参数 |
 | 构建 | `vite.config.ts` | 多页入口,4xx 产物路径回移前缀,`miko_ui` 的运行期依赖(`katex` / `@preact/signals-core`)去重(`resolve.dedupe`) |
-| 依赖来源 | `package.json`(`"miko_ui": "^0.1.6"`),`scripts/dev_ui_link.py` | 前端第三方 UI 库从 npm registry 装;改库时本地联调用 `bash scripts/dev_ui_link.sh` 把 `node_modules/miko_ui` 换成指向工作副本的符号链接(只动 `node_modules/`) |
+| 依赖来源 | `package.json`(`"miko_ui": "^0.1.11"`),`scripts/dev_ui_link.py` | 前端第三方 UI 库从 npm registry 装;改库时本地联调用 `bash scripts/dev_ui_link.sh` 把 `node_modules/miko_ui` 换成指向工作副本的符号链接(只动 `node_modules/`) |
 
 维护要点:
 
@@ -540,7 +540,7 @@ wasm 产物(`src/metro_window/wasm/`)与 `target/` 不入库,
 名称 + 滑杆 + 数值框 + **重置按钮**),来自 npm 上的 `miko_ui` 包
 (<https://github.com/ToyosatomiminoMiko/miko_ui>):
 
-- `package.json` 里一条 `"miko_ui": "^0.1.6"`,`npm ci` 直接从 registry 装好,
+- `package.json` 里一条 `"miko_ui": "^0.1.11"`,`npm ci` 直接从 registry 装好,
   **没有** submodule / 本地 `file:` 依赖 / 需要预先下载的资产,所以 CI 不需要
   任何额外凭据或步骤.库的发布流程(CI 检查,打 tag,npm 发版)在库自己的仓库里.
 - 样式走库的 exports 子路径:站点引 `import 'miko_ui/styles/tokens.css'`(库的默认
@@ -549,9 +549,16 @@ wasm 产物(`src/metro_window/wasm/`)与 `target/` 不入库,
   `import 'miko_ui/styles/editor.css'`(OLED 数据区那颗 `createCodeEditor`(导出与导入共用)的
   外框 / 行号槽 / 高亮叠层)与 `import 'miko_ui/styles/scrollbar.css'`(编辑器里
   唯一会滚的 textarea 挂了库的 `.ui-scrollbar`);库的运行时依赖
-  `@preact/signals-core` 与可选 peer `katex` 由本站根 `package.json` **自己声明**
-  (本站也直接用它们),`vite.config.ts` 的 `resolve.dedupe` 是第二道保险,保证
-  全程只有一份实例.
+  `@preact/signals-core` 与 `katex`(**0.1.11 起 `katex` 从可选 peer 变成库自己的
+  `dependencies`**)都**只由库消费**:根 `package.json` 只声明
+  `@preact/signals-core`(上游建议的口径:声明在根上,解析就落在根目录那一份实例),
+  `vite.config.ts` 的 `resolve.dedupe` 是第二道保险,保证全程只有一份实例.
+- **本站不直接依赖 `katex`**:IEEE754 那条递等链走库的 `createFormulaElement`
+  (`src/ieee754/ieee754.ts` 的 `renderLatex`)--KaTeX 本体,`katex.min.css` 与
+  公式根节点的 `.ui-formula` 基线类都由库给,`katex` 因此从根 `package.json` 撤掉了.
+  代价只有一个:库的公式件是**行内**排法(`displayMode: false`),所以"独立成行 +
+  居中"那一档落在本站容器上(`public/css/ieee754.css` 的 `.ieee-formula`),逐像素
+  比对与原来的 `displayMode: true` 一致.
 - **改库的时候**不要在这里塞补丁:去库的工作副本改,用
   `bash scripts/dev_ui_link.sh link` 本地联调(`node_modules/miko_ui` 变成符号链接,
   库的 `styles/` 改完零构建立即生效,`src/` 要先进库的 `dist/`);改完发版,这里

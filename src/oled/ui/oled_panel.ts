@@ -186,8 +186,9 @@ function createDataEditor(id: string): CodeEditorHandle {
         highlight: highlightSource,
     });
     editor.element.id = id;
-    // 编辑器里唯一该滚的地方是 textarea(固定高度下竖着滚导出的 C 源码,长行
-    // 横着滚):挂上库的滚动条规定(`styles/scrollbar.css`,由 main.ts 引入).
+    // 编辑器里唯一该滚的地方是 textarea(外框被本站定尺之后竖着滚导出的 C 源码,
+    // 长行横着滚;定尺那条规则在 public/css/index.css):挂上库的滚动条规定
+    // (`styles/scrollbar.css`,由 main.ts 引入).
     editor.textarea.classList.add('ui-scrollbar');
     return editor;
 }

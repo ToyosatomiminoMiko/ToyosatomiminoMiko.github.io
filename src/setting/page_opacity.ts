@@ -23,7 +23,7 @@ setting.css 的 `.setting-group .slider-field*` 统一给(与车窗面板里的�
 规则);这里只加"它在背景行里占多宽"这一个类.
 */
 
-import { createSlider, type SliderHandle } from 'miko_ui';
+import { createSlider, numberText, type SliderHandle } from 'miko_ui';
 import {
     PAGE_OPACITY_DEFAULT,
     PAGE_OPACITY_FIELD_CLASS,
@@ -35,16 +35,22 @@ import {
 } from '@/setting/config';
 
 /**
- * 值 -> 文本.
+ * 值 <-> 文本的口径,全模块唯一一份(滑块的数值框 / 重置按钮标题 / CSS 令牌共用).
  *
- * 固定两位小数:滑杆的取值是 `min + n * step`(step = 0.01),浮点累加会算出
- * 0.8999999999999999 这种数,直接 `String()` 会把它写进数值框与 CSS.
- * 数值框这边还必须给**纯数字**文本:它是 `<input type="number">`,
- * 写 "90%" 会被浏览器当成非法值丢掉(框里变空),所以这里不做百分比换算.
+ * 为什么是"编辑档 + 固定两位小数":
+ *   1. 滑杆取值是 `min + n * step`(step = 0.01),浮点累加会算出 0.8999999999999999
+ *      这种数,直接 `String()` 会把它写进数值框与 CSS;
+ *   2. `digits: 2` 正好盖住 `step` 的小数位(`0.01`):控件里能出现的值都是 step 的
+ *      整数倍,所以不存在"编辑一下数值框就被静默量化"那条坑(判据不是库的
+ *      `assertLossless` -- 它在 1/3 这类任意值上探针,定点档恒为 false;这里钉的是
+ *      "档位覆盖 step",由 page_opacity.test.ts 的区间中点 / 端点断言落实);
+ *   3. `trimZeros: false` 是"0.9 显示成 0.90"的来源;数值框必须拿到**纯数字**文本
+ *      (它是 `<input type="number">`,写 "90%" 会被浏览器丢弃,框里变空).
+ *
+ * 口径收成库的 `numberText` 对象而不是本站的回调:同一个对象同时喂给滑块与 CSS 令牌,
+ * 两处文本才逐字符相同(旧写法是本站自己一份 `toFixed(2)`,库那边无从复用).
  */
-function formatOpacity(value: number): string {
-    return value.toFixed(2);
-}
+const OPACITY_TEXT = numberText({ syntax: 'edit', digits: 2, trimZeros: false });
 
 /**
  * 数值框写回值源前的夹取.
@@ -72,14 +78,14 @@ export function mountPageOpacity(host: HTMLElement): SliderHandle {
         step: PAGE_OPACITY_STEP,
         label: PAGE_OPACITY_LABEL,
         resetValue: PAGE_OPACITY_DEFAULT,
-        format: formatOpacity,
+        text: OPACITY_TEXT,
         normalize: clampOpacity,
     });
     // 站点只加"它在行里占多宽"这一个类;库的 `.slider-field` 保住内部排布.
     slider.element.classList.add(PAGE_OPACITY_FIELD_CLASS);
 
     slider.onInput((value) => {
-        document.documentElement.style.setProperty(PAGE_OPACITY_VARIABLE, formatOpacity(value));
+        document.documentElement.style.setProperty(PAGE_OPACITY_VARIABLE, OPACITY_TEXT.toText(value));
     });
 
     host.append(slider.element);

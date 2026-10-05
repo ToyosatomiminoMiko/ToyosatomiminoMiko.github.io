@@ -21,7 +21,8 @@ IEEE 754 浮点可视化:单精度(float32) / 双精度(float64).
   - 无效输入(空串,不可解析)只显示错误,不抛异常;NaN / ±∞ / ±0 按分类正常展示.
   - 有限值的公式是三行单向递等链:带入二进制值 = 十进制 = 精确十进制值;三行各占一行,
     超长值靠容器横向滚动,不换行分包.
-  - KaTeX 统一走 katex.render(throwOnError:false);唯一写 innerHTML 的地方是分解信息,
+  - 公式整颗走 UI 库 `miko_ui` 的 `createFormulaElement`(KaTeX 与它的样式表都由
+    库自带,本站不再直接依赖 katex);唯一写 innerHTML 的地方是分解信息,
     拼进去的全是本模块算出的数字与 0/1 位串,其余文本一律 textContent.
 
 [编码注意]
@@ -33,9 +34,7 @@ IEEE 754 浮点可视化:单精度(float32) / 双精度(float64).
     ieee754Latex / exactValueLatex / exactValueDecimal)不依赖 DOM,可被 vitest 直接测;
     DOM 入口 mountIEEE754 由 main.ts 调用.
 */
-import katex from 'katex';
-import 'katex/dist/katex.min.css';
-import { create_element } from 'miko_ui';
+import { create_element, createFormulaElement } from 'miko_ui';
 import type { IEEE754Class, IEEE754Format, IEEE754Value } from './types';
 import { createIeee754Panel, setFormatTriggerText } from './ui/ieee754_panel';
 import {
@@ -70,7 +69,6 @@ import {
     IEEE754_FORMATS,
     IEEE754_FRAC_CLASS,
     IEEE754_GAP_CLASS,
-    IEEE754_KATEX_OPTIONS,
     IEEE754_MUTED_CLASS,
     IEEE754_NAN_TEXT,
     IEEE754_ON_CLASS,
@@ -362,8 +360,22 @@ export function ieee754Latex(v: IEEE754Value): string {
 // DOM / UI 层
 // ============================================================
 
+/**
+ * 把一段 LaTeX 排进公式容器:整颗走库的 `createFormulaElement`(它自带 KaTeX 与
+ * `katex.min.css`,本站不再直接依赖 katex).
+ *
+ * 为什么是 replaceChildren 而不是像 `katex.render(el, ...)` 那样渲染进容器本身:
+ * 库的产物是一颗**新的** `<span class="ui-formula">`(基线类归库,字号走库的
+ * `--katex-font-size`),容器 `#ieee-formula` 仍归本站(它那圈 `overflow-x: auto`
+ * 与 `padding` 是本站的排布口径).每次重绘换一颗子节点,库内部的模板缓存保证
+ * 同一串 LaTeX 不会重新排版.
+ *
+ * `copyable = false`:这是只读展示,不是复制入口 -- 默认可复制会给它挂
+ * `tabindex=0` / `role=button`,而复制要另配 `FormulaCopyController`,不配就是一个
+ * 焦点可达,按了没反应的按钮.
+ */
 function renderLatex(latex: string, element: HTMLElement): void {
-    katex.render(latex, element, IEEE754_KATEX_OPTIONS);
+    element.replaceChildren(createFormulaElement(latex, undefined, false));
 }
 
 /** 完整位串里指数段与尾数段的起始下标(尾数段紧随指数段). */
