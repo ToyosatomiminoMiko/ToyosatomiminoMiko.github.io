@@ -516,18 +516,18 @@ const report = await cdp.evalValue(`(async () => {
         const metroLook = controlLook(metroSlider);
         const opacityLook = controlLook(opacitySliderField);
         /*
-          最后一条从句读的是 --font-base 令牌(站点通配重置
-          * { font-family: var(--font-base) } 的取值),而不是写死某个字体名:
-          滑块一旦吃到站点默认字体,就会跟着正文一起变成等宽字体,而这里要的是
-          "它就是界面字体".站点默认字体换过(consolas -> JetBrains Mono Slashed),
-          写死字体名的断言会随之变成一句永远为真的空话.
+          最后一条从句读的是 --metro-font-family-base(metro 组件自己的字体旋钮,
+          现在引用库的默认字体):设置页的滑块要的是**metro 那一份**,而不是"恰好
+          继承到站点基线".站点现在全线都是库的默认字体,这两者同族,所以按
+          "不等于站点基线"比会变成一句空话;按 metro 令牌比,单独改 metro 面板
+          字体时这条会跟着动.
         */
-        const siteBaseFamily = firstFamily(getComputedStyle(document.documentElement)
-            .getPropertyValue('--font-base'));
+        const metroBaseFamily = firstFamily(getComputedStyle(document.documentElement)
+            .getPropertyValue('--metro-font-family-base'));
         ok('设置组里的滑块只有一副长相(背景组那条与车窗面板里的配色 / 字体 / 强调色完全一致)',
             metroLook !== null && opacityLook !== null && metroLook === opacityLook &&
-            siteBaseFamily !== '' &&
-            getComputedStyle(opacitySliderField).fontFamily.indexOf(siteBaseFamily) === -1,
+            metroBaseFamily !== '' &&
+            getComputedStyle(opacitySliderField).fontFamily.indexOf(metroBaseFamily) !== -1,
             '车窗: ' + metroLook + '  <=>  背景: ' + opacityLook);
         /*
           背景缩略图项整块是库的按钮(见 src/setting/background_section.ts).两件事只有
@@ -613,17 +613,18 @@ const report = await cdp.evalValue(`(async () => {
         const bodyBg = getComputedStyle(document.body).backgroundColor;
         ok('页面底色来自本站令牌 --bg-page(不是浏览器默认的白)',
             bodyBg === 'rgb(33, 37, 41)', bodyBg);
-        // 正文基准字号是绝对长度:通用等宽族(monospace)不再被 Chrome 拉成 13px
-        ok('正文基准字号是 1rem = 16px(等宽族的坐标读数不再掉成 13px)',
+        // 正文基准字号是绝对长度:全站字号的唯一基线
+        ok('正文基准字号是 1rem = 16px(绝对基线,坐标读数等元素都落在它上面)',
             getComputedStyle(document.body).fontSize === '16px' &&
             getComputedStyle(q('#coordsDisplay')).fontSize === '16px',
             getComputedStyle(q('#coordsDisplay')).fontSize);
         /*
-          默认字体是**随站点发布**的 JetBrains Mono Slashed:文件在 public/fonts/,
-          @font-face 在 public/css/fonts.css,字体栈在 tokens.css 的 --font-base.
-          两件事只有在真浏览器里才验得出来:
+          默认字体是 JetBrains Mono Slashed:字体文件与 @font-face **随 miko_ui 依赖
+          发布**(miko_ui/styles/fonts.css,由 src/main.ts 引),本站只引库的令牌
+          (tokens.css 的 --font-base / --font-code).两件事只有在真浏览器里才验得出来:
             - 令牌与 @font-face 的族名对得上(对不上不报错,只会退回系统等宽字体);
-            - 字体真的从本站 HTTP 拉下来了 -- 没装这款字体的机器靠的就是这个文件,
+            - 字体真的被 HTTP 拉下来了 -- 没装这款字体的机器靠的就是包里那份文件
+              (打进产物后文件名是 JetBrainsMonoSlashed-<字重>-<hash>.woff2),
               而跑这条脚本的机器上恰好装着一份同名字体(只有 Medium 一个字重,且
               @font-face 会盖住同名的系统字体),所以"拉下来了"这一条才是自托管的证据.
         */
@@ -633,13 +634,13 @@ const report = await cdp.evalValue(`(async () => {
             .then((faces) => faces.length > 0).catch(() => false);
         const fontFiles = performance.getEntriesByType('resource')
             .map((e) => e.name)
-            .filter((name) => name.indexOf('/fonts/jetbrains_mono_slashed/') !== -1)
+            .filter((name) => /JetBrainsMonoSlashed-.*\.woff2$/.test(name))
             .map((name) => name.split('/').pop());
-        ok('默认字体是自托管的 JetBrains Mono Slashed(--font-base 与 @font-face 的族名一致)',
+        ok('默认字体是库带的 JetBrains Mono Slashed(--font-base 与 @font-face 的族名一致)',
             firstFamily(baseFontToken) === 'JetBrains Mono Slashed' &&
             firstFamily(bodyFontFamily) === 'JetBrains Mono Slashed',
             baseFontToken.trim() + ' | body: ' + bodyFontFamily);
-        ok('字体文件随站点发布并被真的拉取(不依赖机器上装没装这款字体)',
+        ok('字体文件随 miko_ui 依赖打进产物并被真的拉取(不依赖机器上装没装这款字体)',
             faceLoaded === true && fontFiles.length > 0,
             'woff2: ' + (fontFiles.join(', ') || '一个都没请求'));
         // 标签栏的布局:display:flex + 无项目符号(少了它导航栏塌成竖排列表)

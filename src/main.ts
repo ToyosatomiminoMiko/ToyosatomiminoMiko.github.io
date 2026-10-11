@@ -30,6 +30,13 @@ UI 库的主题与控件样式.
 所以库主题进来不会顺手把非按钮的圆角改掉.
 */
 import 'miko_ui/styles/tokens.css';
+/*
+库自带字体:站点默认字体 `JetBrains Mono Slashed` 的 woff2 与 `@font-face` 随
+`miko_ui` 发布(`styles/fonts/` + `styles/fonts.css`,OFL 1.1),本站不再自带一份.
+按分组引样式就必须**单独引这一份**:`styles.css` 那个总入口才会顺带带上它.
+`--font-family-base` / `--code-font-family` 是库的令牌(见 public/css/tokens.css).
+*/
+import 'miko_ui/styles/fonts.css';
 import 'miko_ui/styles/widgets.css';
 /*
 编辑器外壳:OLED 数据区那颗 `createCodeEditor`(导出与导入共用,见

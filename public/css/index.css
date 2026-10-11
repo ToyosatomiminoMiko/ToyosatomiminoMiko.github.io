@@ -66,10 +66,10 @@ body {
     line-height: var(--line-height-base);
     /*
      * 正文基准字号必须落一个绝对长度.
-     * `*` 那条 `font-size: 100%` 是一根"相对父元素"的链,而 Chrome 对通用等宽族
-     * (generic `monospace`)会在这根链上取自己的等宽默认字号 13px 而不是 16px --
-     * 站内的 `--font-mono` 正好就是 generic monospace,少了这一条,.coords-display
-     * 的坐标读数会从 16px 静默变成 13px(连带行高 24px -> 19.5px).
+     * `*` 那条 `font-size: 100%` 是一根"相对父元素"的链,落在 `html` 上就是 UA 的
+     * 16px;显式写成 1rem 是让"基准字号"只有一个来源,不被将来某个父级字号牵走.
+     * (历史上这条是防 Chrome 给通用等宽族取 13px -- 站点当时用 generic `monospace`
+     * 做坐标读数;现在全站字体都是具名字体,`--font-mono` 也是,这条只剩基线作用.)
      */
     font-size: 1rem;
     /*

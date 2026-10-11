@@ -92,8 +92,10 @@ export const RBT_CLAMP_TOLERANCE = 5;
 
 // ---------- 字体 ----------
 
-/** 节点文字字体族(与画布外 CSS 的等宽字体栈保持一致的写法) */
-export const RBT_NODE_FONT_FAMILY = '"Fira Code", "Monaco", monospace';
+/** 节点文字字体族:站点默认字体(JetBrains Mono Slashed).画布的 `ctx.font` 读不到
+    CSS 变量,只能写族名,所以这是"默认字体"在 TS 侧唯一的一处字面量 -- 换字体要
+    连这里一起改(节点文字只有画的当下取一次,字重由 ctx.font 自带的 bold 给) */
+export const RBT_NODE_FONT_FAMILY = '"JetBrains Mono Slashed", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 
 /** 节点文字最小字号(像素) */
 export const RBT_NODE_FONT_MIN_SIZE = 13;

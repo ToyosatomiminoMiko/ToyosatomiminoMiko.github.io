@@ -316,7 +316,7 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 - **HTML 里不写 CSS**:不放内联样式块,也不用 `style=` 属性;
   样式一律进 `.css` 文件,由 `<link>` 或 TS `import` 引入.
 - **静态资源只有 `public/` 一处**:不参与打包,按原 URL 直接访问的文件
-  (图片 / 图标 / 样式表 / 自托管字体 / 地铁车窗运行时贴图)全部放在这棵树下,
+  (图片 / 图标 / 样式表 / 地铁车窗运行时贴图)全部放在这棵树下,
   路径即线上 URL(站点 Vite 只有一个 `publicDir`);不要再给子项目另建 `public/`,
   那需要额外插件在 dev 重写,在 build 手动 emit.参与打包的资源走 TS `import`.
 
@@ -328,18 +328,18 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 | 作用域 | 配置文件 | 放什么 |
 | --- | --- | --- |
 | 主站样式 | `public/css/tokens.css` | 站点设计令牌(`:root`):字体栈,调色板,尺寸,圆角,间距,`z-index`,过渡;首屏(`--hero-*`)与固定导航条(`--chrome-*`).SETTING 页自己的令牌不在这一份里,见下面那行 |
-| 主站字体 | `public/css/fonts.css`,`public/fonts/jetbrains_mono_slashed/` | 站点默认字体 `JetBrains Mono Slashed` 的 `@font-face` 与随站点发布的 woff2(400 / 600 / 700;出自 JetBrains Mono Slashed v2.304 的 OFL 版,出处 / 校验值 / 再生成命令写在 `fonts.css` 顶部,许可全文在同目录 `LICENSE.txt`).**族名是令牌与 `@font-face` 之间的契约**:`fonts.css` 的 `font-family` 与 `tokens.css` 的 `--font-base` 必须同名,漏改一边不会报错,只会静默退回系统等宽字体(`scripts/smoke_home.mjs` 有一条真浏览器断言盯的就是这件事) |
-| 主站脚本 | `src/clock/config.ts`,`src/calendar/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,日历三套历法的清单 / Intl 选项 / 希伯来历月名汉译表,OLED 画板尺寸/通道/文案,红黑树布局与配色 + 性质清单(四条性质的名字与出错文案都在 `RBT_PROPERTIES`),IEEE 754 精度格式与掩码,站点级声明式模型(导航项 / 首屏结构 / 首屏那两颗宿主 id / `is-over-hero` 类名 / `--nav-height` 令牌名) |
+| 主站字体 | `src/main.ts`(引 `miko_ui/styles/fonts.css`),`public/css/tokens.css`(只留令牌别名) | 站点默认字体 `JetBrains Mono Slashed`(斜杠零)**随 `miko_ui` 依赖发布**(库的 `styles/fonts.css` + `styles/fonts/`,OFL 1.1),本站不再自带 woff2:`--font-base` / `--font-code` 分别是库 `--font-family-base` / `--code-font-family` 的别名,库换默认字体本站跟着换.本站按分组引库样式,所以 `fonts.css` 必须单独引 -- 漏了不会报错,只会静默退回系统等宽字体;`scripts/smoke_home.mjs` 有一条真浏览器断言同时盯「族名一致」与「woff2 真的被拉取」 |
+| 主站脚本 | `src/clock/config.ts`,`src/calendar/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,日历三套历法的清单 / Intl 选项 / 希伯来历月名汉译表,OLED 画板尺寸/通道/文案,红黑树布局与配色 + 性质清单(四条性质的名字与出错文案都在 `RBT_PROPERTIES`)+ 画布节点字体族(`RBT_NODE_FONT_FAMILY`:canvas 的 `ctx.font` 读不到 CSS 变量,字体只能写字面量),IEEE 754 精度格式与掩码,站点级声明式模型(导航项 / 首屏结构 / 首屏那两颗宿主 id / `is-over-hero` 类名 / `--nav-height` 令牌名) |
 | 首页骨架 | `src/common/ui/site_shell.ts` | 骨架:导航条 / 首屏 / 六个**空**窗格 / 首屏那两颗宿主(标记用库的 `create_element`;SETTING 页与 Calendario 页的结构不在这里,骨架只给它们空窗格) |
 | SETTING 页 | `src/setting/config.ts`,`src/setting/tokens.css`,`src/setting/setting.css`,`src/setting/setting_page.ts` | 那一页的全部声明与外观:三块设置组的 id·类名·面板标题,背景缩略图清单,页面透明度滑块的初值·区间·令牌名(纯数据);`--setting-*` 令牌;设置组框体与**组里每条控件的观感**(滑块配色 / 字体,作用域 `.setting-group`);整页面板 + 三颗空设置组的生成者 |
 | 主站行为 | `src/main.ts`,`src/common/header_state.ts`,`src/setting/background.ts`,`src/setting/page_opacity.ts` | 挂载顺序(骨架 -> 设置页 -> 各模块 -> 行为),导航条"隐形 / 实底"状态(首屏还压在它下面时,以及任何标签页停在页面顶端时),背景切换令牌写入,页面透明度滑块(库的 `createSlider`)往背景组里那条 `.bgrow` 追加并写 `--tab-pane-opacity` 令牌 |
 | 4xx 页面样式 | `src/4xx_page/418/418_tokens.css`,`src/4xx_page/451/451_tokens.css`;`404/404.css` 与 `shared/icon.css` 顶部的 `:root` 块 | 各彩蛋页的设计令牌(颜色 / 几何 / 阴影 / 时长 / 字体) |
 | 4xx 页面脚本 | `src/4xx_page/418/teapot/config.ts`,`src/4xx_page/451/boot.config.ts`,`src/4xx_page/451/ember/*.config.ts` | 茶壶交互,启动开关,GPU 计时 / 统计 / 资源 / 能力 / 性能面板参数 |
 | 地铁车窗前端 | `src/metro_window/src/config.ts`,`src/metro_window/src/stage_size.ts`,`src/metro_window/src/ui/`,`src/metro_window/src/tokens.css` | DOM id / class / `data-*` 键名,`setParam` 参数名映射,车窗标记 / 设置面板 / 上传图层的声明式模型(画布分辨率 / 滑块分组 / 风格 / 按钮 / 可上传贴图清单 / 文案),后备缓冲尺寸与防抖 / dpr 上限;声明式 DOM 组件(库的 `create_element` + 舞台标记 + 风格按钮行 + 设置面板 + 上传面板 + PNG 解码);组件设计令牌.**单个滑块(名称 + 滑杆 + 数值框 + 重置按钮)不在这里**:它是 UI 库 `miko_ui` 的 `createSlider`,本站只把声明翻译成它的选项(见下一行;SETTING 里那条页面透明度滑块同理,见 `src/setting/page_opacity.ts`);控件在设置页里的**观感**(配色 / 字体)也不在这里,见 `src/setting/setting.css` |
-| UI 库 | npm 包 `miko_ui`(声明在 `package.json`);配色与宽度在 `src/metro_window/src/metro_window.css` | 通用控件(滑块 / 按钮 / 开关 / 分段 / 数值框 / **折叠菜单** ...)与它们的样式.**全站标记的唯一原语**也是库的 `create_element`(站点没有自己的 DOM 原语);站内**所有按钮**都由库的 `createButton` 生成(基线类 `.ui-button`),本站不再写按钮外观;IEEE754 的精度选择是库的 `createMenu`(触发按钮 + `.menu-popover` 浮层,本站只给数据与一个 `.menu-anchor` 锚点);OLED 数据区那颗输入框也整颗是库的 `createCodeEditor`(`.code-editor`:行号槽 + 真 textarea + 高亮层,导出与导入共用这一颗),本站只注入 id / 槽宽下限 / 高亮函数;IEEE754 那条递等链也是库的公式件 `createFormulaElement`(`.ui-formula`,KaTeX 与它的样式表由库自带,本站不再直接依赖 `katex`);库的默认主题由 `src/main.ts` 引 `miko_ui/styles/tokens.css` 接进来.四块面板的框体是库的 `createPanel`(`section.ui-panel` + 标题栏 + 正文容器,与桌面窗口同源).`package.json` / `package-lock.json` 钉在 **0.1.11**(`createPanel` 从库的 0.1.8 起就在;0.1.11 另带来滑块的新文本口径 `text` 与只读读数件),CI / Pages 走 `build.sh --ui npm` 时还会把依赖对齐到 npm 的 `latest`.本地联调与依赖契约见 [`scripts/dev_ui_link.py`](scripts/dev_ui_link.py) 顶部 |
+| UI 库 | npm 包 `miko_ui`(声明在 `package.json`);配色与宽度在 `src/metro_window/src/metro_window.css` | 通用控件(滑块 / 按钮 / 开关 / 分段 / 数值框 / **折叠菜单** ...)与它们的样式.**全站标记的唯一原语**也是库的 `create_element`(站点没有自己的 DOM 原语);站内**所有按钮**都由库的 `createButton` 生成(基线类 `.ui-button`),本站不再写按钮外观;IEEE754 的精度选择是库的 `createMenu`(触发按钮 + `.menu-popover` 浮层,本站只给数据与一个 `.menu-anchor` 锚点);OLED 数据区那颗输入框也整颗是库的 `createCodeEditor`(`.code-editor`:行号槽 + 真 textarea + 高亮层,导出与导入共用这一颗),本站只注入 id / 槽宽下限 / 高亮函数;IEEE754 那条递等链也是库的公式件 `createFormulaElement`(`.ui-formula`,KaTeX 与它的样式表由库自带,本站不再直接依赖 `katex`);库的默认主题由 `src/main.ts` 引 `miko_ui/styles/tokens.css` + `miko_ui/styles/fonts.css`(后者是默认字体的 `@font-face` 与 woff2)接进来.四块面板的框体是库的 `createPanel`(`section.ui-panel` + 标题栏 + 正文容器,与桌面窗口同源).`package.json` / `package-lock.json` 钉在 **0.1.13**(`createPanel` 从库的 0.1.8 起就在;0.1.11 带来滑块的新文本口径 `text` 与只读读数件;**0.1.13 起库自带默认字体** `JetBrains Mono Slashed`,并把表单控件 / 分段按钮的字体收进库),CI / Pages 走 `build.sh --ui npm` 时还会把依赖对齐到 npm 的 `latest`.本地联调与依赖契约见 [`scripts/dev_ui_link.py`](scripts/dev_ui_link.py) 顶部 |
 | 地铁车窗渲染 | `src/metro_window/rust/src/droplet_params.rs`,`app_params.rs`,`render_params.rs`,`random_params.rs`,`texture_params.rs` | 水滴生成 / 物理 / 折射 / 高光,主循环与资源路径 / 可上传材质槽位白名单,管线与绑定槽位 / 上传纹理尺寸上限,白噪声哈希,程序化贴图生成参数 |
 | 构建 | `vite.config.ts` | 多页入口,4xx 产物路径回移前缀,`miko_ui` 的运行期依赖(`katex` / `@preact/signals-core`)去重(`resolve.dedupe`) |
-| 依赖来源 | `package.json`(`"miko_ui": "^0.1.11"`),`scripts/dev_ui_link.py` | 前端第三方 UI 库从 npm registry 装;改库时本地联调用 `bash scripts/dev_ui_link.sh` 把 `node_modules/miko_ui` 换成指向工作副本的符号链接(只动 `node_modules/`) |
+| 依赖来源 | `package.json`(`"miko_ui": "^0.1.13"`),`scripts/dev_ui_link.py` | 前端第三方 UI 库从 npm registry 装;改库时本地联调用 `bash scripts/dev_ui_link.sh` 把 `node_modules/miko_ui` 换成指向工作副本的符号链接(只动 `node_modules/`) |
 
 维护要点:
 
@@ -463,9 +463,9 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
   这些规则**必须留着**,而且少一条都是**静默**的版式崩坏(六个窗格同时堆叠,
   导航栏塌成竖排带项目符号的列表,全站盒模型反转,整页露出白底),不会有任何报错.
   两条踩过的坑记在这里:
-  `body` 的字号必须写成**绝对长度**(`1rem`)-- 否则 Chrome 会对通用等宽族
-  (站内的 `--font-mono` 正是 generic `monospace`)取自己的等宽默认字号 13px,
-  而不是 16px,坐标读数与行高会一起变小;
+  `body` 的字号必须写成**绝对长度**(`1rem`)-- 它是全站字号的唯一基线(历史上
+  还是"防 Chrome 给 generic `monospace` 取 13px"的那道保险:站点当时用通用等宽
+  族做坐标读数,现在全线都是具名字体,这道保险只剩基线作用);
   `fieldset { min-width: 0 }` 是地铁车窗控制台那两个 fieldset 作为 flex 子项
   肯不肯收缩的前提.
 - 等价性回归网:`cargo test` 与 `vitest` 覆盖参数布局与公式;
@@ -541,7 +541,7 @@ wasm 产物(`src/metro_window/wasm/`)与 `target/` 不入库,
 名称 + 滑杆 + 数值框 + **重置按钮**),来自 npm 上的 `miko_ui` 包
 (<https://github.com/ToyosatomiminoMiko/miko_ui>):
 
-- `package.json` 里一条 `"miko_ui": "^0.1.11"`,`npm ci` 直接从 registry 装好,
+- `package.json` 里一条 `"miko_ui": "^0.1.13"`,`npm ci` 直接从 registry 装好,
   **没有** submodule / 本地 `file:` 依赖 / 需要预先下载的资产,所以 CI 不需要
   任何额外凭据或步骤.库的发布流程(CI 检查,打 tag,npm 发版)在库自己的仓库里.
 - 样式走库的 exports 子路径:站点引 `import 'miko_ui/styles/tokens.css'`(库的默认

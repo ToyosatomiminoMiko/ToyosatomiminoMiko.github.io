@@ -88,7 +88,7 @@ export default defineConfig({
     resolve: {
         alias: [{ find: /^@\//, replacement: `${SRC_ALIAS}/` }],
         /**
-         * `miko_ui` 从 npm 装(`package.json` 里声明为 `^0.1.11`,与该库的其它消费者
+         * `miko_ui` 从 npm 装(`package.json` 里声明为 `^0.1.13`,与该库的其它消费者
          * 同一口径;caret 范围,实际锁定的版本见 package-lock.json),
          * 它自己的运行时依赖是 `@preact/signals-core` 与 `katex`(0.1.11 起 `katex`
          * 由"可选 peer"变成库自己的 `dependencies`,见库 README 的「运行时依赖」).

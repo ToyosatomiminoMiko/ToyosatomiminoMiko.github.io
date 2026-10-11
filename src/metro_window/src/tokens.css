@@ -115,11 +115,14 @@
 
     /* ---------- 字体 ---------- */
 
-    /** 界面字体栈(必须显式写在每个元素上,靠继承会被站点通配重置截断) */
-    --metro-font-family-base: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    /* 车窗面板与设置页滑块的字体旋钮.**引库令牌**(与上面 --metro-radius-* 同一条
+       口径:metro 前端本来就依赖 miko_ui 的控件与主题),所以站点全线就是库的默认
+       字体 `JetBrains Mono Slashed`;要单独给车窗面板换字体,改这两条即可,
+       站点基线不受影响.必须显式写在每个元素上 -- 靠继承会被站点通配重置截断 */
+    --metro-font-family-base: var(--font-family-base);
 
-    /** 等宽字体栈(数值框,上传状态行) */
-    --metro-font-family-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+    /** 等宽字体栈(数值框,上传状态行);库的代码面字体默认就是同一个族 */
+    --metro-font-family-mono: var(--code-font-family);
 
     /** 14px:参数面板 legend */
     --metro-font-size-legend: 14px;

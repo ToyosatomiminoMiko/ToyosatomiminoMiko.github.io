@@ -27,13 +27,16 @@
 :root {
     /* ---------- 字体族 ---------- */
 
-    /* 全局字体:随站点发布的 JetBrains Mono Slashed(斜杠零;字体文件与 @font-face
-       见 public/css/fonts.css),后面两项是字体没到时的回退 */
-    --font-base: 'JetBrains Mono Slashed', 'Consolas', monospace;
-    /* 通用等宽字体(坐标显示,文本框等) */
-    --font-mono: monospace;
-    /* 代码等宽字体栈:红黑树输入框与 IEEE754 位图共用(第一项就是上面那份自托管字体) */
-    --font-code: 'JetBrains Mono Slashed', 'Fira Code', 'Consolas', monospace;
+    /* 全局字体:库的默认字体(JetBrains Mono Slashed).**字体文件与 @font-face 随
+       miko_ui 发布**(`miko_ui/styles/fonts.css`,由 src/main.ts 引入),本站不再自带
+       woff2;这里只引库的令牌,库换默认字体这一条就跟着换 */
+    --font-base: var(--font-family-base);
+    /* 通用等宽字体(坐标显示,文本框等):与代码字体同一份.站点全线等宽,不再引
+       generic `monospace`(通用族会掉进"浏览器自己的等宽默认字号"那类坑,见
+       index.css 的正文基线) */
+    --font-mono: var(--font-code);
+    /* 代码等宽字体栈:红黑树输入框与 IEEE754 位图共用(库的代码面令牌,与上面同族) */
+    --font-code: var(--code-font-family);
 
     /* ---------- 背景 ---------- */
     /* 站点默认背景图 */

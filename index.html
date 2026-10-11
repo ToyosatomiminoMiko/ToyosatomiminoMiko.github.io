@@ -15,10 +15,10 @@ ToyosatomiminoMiko
     <title>ToyosatomiminoMiko</title>
 
     <!--
-      顺序有约束:后面几张样式表全部按变量取值,令牌必须先加载;
-      fonts.css 只放站点默认字体的 @font-face(与变量无关),排最前,让它尽早开始下载.
+      顺序有约束:后两个样式表全部按变量取值,令牌必须先加载.
+      站点默认字体的 @font-face 不在 public/css 里:它随 miko_ui 发布,由
+      src/main.ts 按分组引(import 'miko_ui/styles/fonts.css').
     -->
-    <link href="/css/fonts.css" rel="stylesheet" type="text/css" />
     <link href="/css/tokens.css" rel="stylesheet" type="text/css" />
     <link href="/css/index.css" rel="stylesheet" type="text/css" />
     <link href="/css/ieee754.css" rel="stylesheet" type="text/css" />
