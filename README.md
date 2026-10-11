@@ -316,7 +316,7 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 - **HTML 里不写 CSS**:不放内联样式块,也不用 `style=` 属性;
   样式一律进 `.css` 文件,由 `<link>` 或 TS `import` 引入.
 - **静态资源只有 `public/` 一处**:不参与打包,按原 URL 直接访问的文件
-  (图片 / 图标 / 样式表 / 地铁车窗运行时贴图)全部放在这棵树下,
+  (图片 / 图标 / 样式表 / 自托管字体 / 地铁车窗运行时贴图)全部放在这棵树下,
   路径即线上 URL(站点 Vite 只有一个 `publicDir`);不要再给子项目另建 `public/`,
   那需要额外插件在 dev 重写,在 build 手动 emit.参与打包的资源走 TS `import`.
 
@@ -328,6 +328,7 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 | 作用域 | 配置文件 | 放什么 |
 | --- | --- | --- |
 | 主站样式 | `public/css/tokens.css` | 站点设计令牌(`:root`):字体栈,调色板,尺寸,圆角,间距,`z-index`,过渡;首屏(`--hero-*`)与固定导航条(`--chrome-*`).SETTING 页自己的令牌不在这一份里,见下面那行 |
+| 主站字体 | `public/css/fonts.css`,`public/fonts/jetbrains_mono_slashed/` | 站点默认字体 `JetBrains Mono Slashed` 的 `@font-face` 与随站点发布的 woff2(400 / 600 / 700;出自 JetBrains Mono Slashed v2.304 的 OFL 版,出处 / 校验值 / 再生成命令写在 `fonts.css` 顶部,许可全文在同目录 `LICENSE.txt`).**族名是令牌与 `@font-face` 之间的契约**:`fonts.css` 的 `font-family` 与 `tokens.css` 的 `--font-base` 必须同名,漏改一边不会报错,只会静默退回系统等宽字体(`scripts/smoke_home.mjs` 有一条真浏览器断言盯的就是这件事) |
 | 主站脚本 | `src/clock/config.ts`,`src/calendar/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,日历三套历法的清单 / Intl 选项 / 希伯来历月名汉译表,OLED 画板尺寸/通道/文案,红黑树布局与配色 + 性质清单(四条性质的名字与出错文案都在 `RBT_PROPERTIES`),IEEE 754 精度格式与掩码,站点级声明式模型(导航项 / 首屏结构 / 首屏那两颗宿主 id / `is-over-hero` 类名 / `--nav-height` 令牌名) |
 | 首页骨架 | `src/common/ui/site_shell.ts` | 骨架:导航条 / 首屏 / 六个**空**窗格 / 首屏那两颗宿主(标记用库的 `create_element`;SETTING 页与 Calendario 页的结构不在这里,骨架只给它们空窗格) |
 | SETTING 页 | `src/setting/config.ts`,`src/setting/tokens.css`,`src/setting/setting.css`,`src/setting/setting_page.ts` | 那一页的全部声明与外观:三块设置组的 id·类名·面板标题,背景缩略图清单,页面透明度滑块的初值·区间·令牌名(纯数据);`--setting-*` 令牌;设置组框体与**组里每条控件的观感**(滑块配色 / 字体,作用域 `.setting-group`);整页面板 + 三颗空设置组的生成者 |

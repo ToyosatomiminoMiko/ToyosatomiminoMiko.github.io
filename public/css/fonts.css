@@ -1,0 +1,74 @@
+/* ================================================================
+ * 自托管字体(fonts.css)
+ *
+ * 站点默认字体是 `JetBrains Mono Slashed`,它不是系统自带字体:这里把随站点发布的
+ * woff2 用 @font-face 声明成同一个字体族,机器上没装这款字体也照样按设计显示.
+ * 字体栈(消费方)在 tokens.css 的 `--font-base`,两边只靠**族名**对齐 --
+ * 名字对不上不会报错,只会静默退回系统等宽字体,所以族名改动必须两边一起改
+ * (scripts/smoke_home.mjs 有一条真浏览器断言专门盯这件事).
+ *
+ * 字体文件在 public/fonts/jetbrains_mono_slashed/:public/ 是 Vite 的 publicDir,
+ * 原样拷贝,不经打包,路径即线上 URL(见 vite.config.ts 顶部那段说明).
+ *
+ *     JetBrainsMonoSlashed-Regular.woff2    weight 400  正文
+ *     JetBrainsMonoSlashed-SemiBold.woff2   weight 600  IEEE754 的 .ieee-error / 特殊值表头
+ *     JetBrainsMonoSlashed-Bold.woff2       weight 700  .ieee-bit.on / UA 对 th 的默认粗体
+ *
+ * 只带这三个字重:站点样式表里出现过的 font-weight 就是 400 / 600 / 700,其余字重
+ * (Thin ~ ExtraBold)在站内没有消费方,带上只是多几百 KB 要随版本同步的字节.
+ * 也没有做字符子集:这份字体是**全站默认**(正文 / 数字 / 符号都吃它),裁掉希腊字母,
+ * 箭头,制表符这些会在某一块面板上以"某个字符突然换成别的字体"的形式露出来,
+ * 而中文本来就不在这份字体里,由回退链交给系统 CJK 字体逐字命中.
+ *
+ * 出处(字体本身是第三方作品,不是本站自己的产物):
+ *     JetBrains Mono Slashed v2.304 -- 上游 JetBrains Mono v2.304 把 OpenType 的
+ *     `zero` 特性冻结成默认值("斜杠零")的再发行版,取自
+ *     <https://github.com/sharpjs/JetBrainsMonoSlashed/releases/tag/v2.304>
+ *     (归档 sha256 ca05b59fd6ece9c697468c9e7b1e5558db517cb58d19d3776e88556a0f65259e;
+ *     其中 Medium 一份与系统里已装的那款 JetBrains Mono Slashed 逐字节相同:
+ *     能对上"这份就是作者本机在用的那款字体").
+ *
+ * 再生成(换字体版本时照做,再把下面的文件名 / url 一起同步):
+ *     python3 -m venv env && env/bin/pip install fonttools brotli
+ *     env/bin/python -c "from fontTools.ttLib import TTFont; \
+ *         f = TTFont('JetBrainsMonoSlashed-Regular.otf'); f.flavor = 'woff2'; \
+ *         f.save('JetBrainsMonoSlashed-Regular.woff2')"
+ *     # SemiBold / Bold 同理,各换一次输入输出文件名
+ * 转换只改容器格式(OTF -> WOFF2),字形与名字表原样保留:name 表里的
+ * "Version 2.304; ... featfreeze: zero" 就是"斜杠零已冻结"的凭据.
+ *
+ * 许可:SIL Open Font License 1.1(允许随软件再分发),许可全文随字体一起发布在
+ * public/fonts/jetbrains_mono_slashed/LICENSE.txt -- 再分发时那份文件必须跟着走.
+ *
+ * 三条取舍:
+ *   - 只写 woff2:2016 年之后的浏览器都认它,再挂一份 woff / ttf 只是多一份要同步的字节;
+ *   - `font-display: swap`:字体没到之前先用回退字体把字画出来(不出现"看不到字"),
+ *     到了再换 -- 栈里的回退也都是等宽字体,换的时候只有小幅重排;
+ *   - 不在 index.html 里 `<link rel="preload">`:那会把字体 URL 变成两处定义,
+ *     改名时漏一处就是一次白下的请求加一条控制台警告;首屏本来就要等 JS 挂载,
+ *     这点并行收益不值得多一份要维护的东西.
+ * ================================================================ */
+
+@font-face {
+    font-family: 'JetBrains Mono Slashed';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/fonts/jetbrains_mono_slashed/JetBrainsMonoSlashed-Regular.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'JetBrains Mono Slashed';
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url('/fonts/jetbrains_mono_slashed/JetBrainsMonoSlashed-SemiBold.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'JetBrains Mono Slashed';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url('/fonts/jetbrains_mono_slashed/JetBrainsMonoSlashed-Bold.woff2') format('woff2');
+}

@@ -27,11 +27,12 @@
 :root {
     /* ---------- 字体族 ---------- */
 
-    /* 全局字体:用 Unicode 转义写 consolas(注释里的字体名必须转义才生效) */
-    --font-base: "\0063\006f\006e\0073\006f\006c\0061\0073";
+    /* 全局字体:随站点发布的 JetBrains Mono Slashed(斜杠零;字体文件与 @font-face
+       见 public/css/fonts.css),后面两项是字体没到时的回退 */
+    --font-base: 'JetBrains Mono Slashed', 'Consolas', monospace;
     /* 通用等宽字体(坐标显示,文本框等) */
     --font-mono: monospace;
-    /* 代码等宽字体栈:红黑树输入框与 IEEE754 位图共用 */
+    /* 代码等宽字体栈:红黑树输入框与 IEEE754 位图共用(第一项就是上面那份自托管字体) */
     --font-code: 'JetBrains Mono Slashed', 'Fira Code', 'Consolas', monospace;
 
     /* ---------- 背景 ---------- */

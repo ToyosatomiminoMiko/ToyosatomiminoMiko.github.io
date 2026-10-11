@@ -90,11 +90,13 @@ for (let i = 0; i < 60; i++) {
 }
 await sleep(700); // 让"每帧 / 每秒"的东西跑一轮(时钟,初始渲染)
 
-const report = await cdp.evalValue(`(() => {
+const report = await cdp.evalValue(`(async () => {
     const out = [];
     const ok = (name, pass, extra) => out.push({ name, pass: !!pass, extra: extra === undefined ? '' : String(extra) });
     const q = (s) => document.querySelector(s);
     const qa = (s) => Array.from(document.querySelectorAll(s));
+    /* 从 font-family 计算值(或 --font-base 令牌)里取第一个族名,去掉引号再比 */
+    const firstFamily = (stack) => stack.split(',')[0].replace(/["']/g, '').trim();
     try {
         /*
           ---- 第 0 组:整体挂上了吗 ----
@@ -513,9 +515,19 @@ const report = await cdp.evalValue(`(() => {
         };
         const metroLook = controlLook(metroSlider);
         const opacityLook = controlLook(opacitySliderField);
+        /*
+          最后一条从句读的是 --font-base 令牌(站点通配重置
+          * { font-family: var(--font-base) } 的取值),而不是写死某个字体名:
+          滑块一旦吃到站点默认字体,就会跟着正文一起变成等宽字体,而这里要的是
+          "它就是界面字体".站点默认字体换过(consolas -> JetBrains Mono Slashed),
+          写死字体名的断言会随之变成一句永远为真的空话.
+        */
+        const siteBaseFamily = firstFamily(getComputedStyle(document.documentElement)
+            .getPropertyValue('--font-base'));
         ok('设置组里的滑块只有一副长相(背景组那条与车窗面板里的配色 / 字体 / 强调色完全一致)',
             metroLook !== null && opacityLook !== null && metroLook === opacityLook &&
-            getComputedStyle(opacitySliderField).fontFamily.indexOf('consolas') === -1,
+            siteBaseFamily !== '' &&
+            getComputedStyle(opacitySliderField).fontFamily.indexOf(siteBaseFamily) === -1,
             '车窗: ' + metroLook + '  <=>  背景: ' + opacityLook);
         /*
           背景缩略图项整块是库的按钮(见 src/setting/background_section.ts).两件事只有
@@ -606,6 +618,30 @@ const report = await cdp.evalValue(`(() => {
             getComputedStyle(document.body).fontSize === '16px' &&
             getComputedStyle(q('#coordsDisplay')).fontSize === '16px',
             getComputedStyle(q('#coordsDisplay')).fontSize);
+        /*
+          默认字体是**随站点发布**的 JetBrains Mono Slashed:文件在 public/fonts/,
+          @font-face 在 public/css/fonts.css,字体栈在 tokens.css 的 --font-base.
+          两件事只有在真浏览器里才验得出来:
+            - 令牌与 @font-face 的族名对得上(对不上不报错,只会退回系统等宽字体);
+            - 字体真的从本站 HTTP 拉下来了 -- 没装这款字体的机器靠的就是这个文件,
+              而跑这条脚本的机器上恰好装着一份同名字体(只有 Medium 一个字重,且
+              @font-face 会盖住同名的系统字体),所以"拉下来了"这一条才是自托管的证据.
+        */
+        const baseFontToken = getComputedStyle(document.documentElement).getPropertyValue('--font-base');
+        const bodyFontFamily = getComputedStyle(document.body).fontFamily;
+        const faceLoaded = await document.fonts.load('400 16px "JetBrains Mono Slashed"')
+            .then((faces) => faces.length > 0).catch(() => false);
+        const fontFiles = performance.getEntriesByType('resource')
+            .map((e) => e.name)
+            .filter((name) => name.indexOf('/fonts/jetbrains_mono_slashed/') !== -1)
+            .map((name) => name.split('/').pop());
+        ok('默认字体是自托管的 JetBrains Mono Slashed(--font-base 与 @font-face 的族名一致)',
+            firstFamily(baseFontToken) === 'JetBrains Mono Slashed' &&
+            firstFamily(bodyFontFamily) === 'JetBrains Mono Slashed',
+            baseFontToken.trim() + ' | body: ' + bodyFontFamily);
+        ok('字体文件随站点发布并被真的拉取(不依赖机器上装没装这款字体)',
+            faceLoaded === true && fontFiles.length > 0,
+            'woff2: ' + (fontFiles.join(', ') || '一个都没请求'));
         // 标签栏的布局:display:flex + 无项目符号(少了它导航栏塌成竖排列表)
         const navList = q('ul.nav-tabs');
         ok('标签栏是横向 flex 且没有项目符号(文档基线里的标签栏规则生效)',
