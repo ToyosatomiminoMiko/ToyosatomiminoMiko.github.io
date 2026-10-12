@@ -378,7 +378,7 @@ main {
 }
 
 /*
- * 窗格自身的透明度 = 令牌 `--tab-pane-opacity`(默认 0.9,见 tokens.css).
+ * 窗格自身的透明度 = 令牌 `--tab-pane-opacity`
  * SETTING 里那条"页面透明度"滑块用 `documentElement.style.setProperty()` 改写它
  * (src/setting/page_opacity.ts),所以整站的标签页内容一起变淡.
  *

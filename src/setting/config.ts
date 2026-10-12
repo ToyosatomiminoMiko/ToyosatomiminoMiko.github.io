@@ -124,7 +124,7 @@ export const PAGE_OPACITY_VARIABLE = '--tab-pane-opacity';
  * 透明度初值(也是滑块的重置目标).
  * 必须与 public/css/tokens.css 的 `--tab-pane-opacity` 相等,理由见那边.
  */
-export const PAGE_OPACITY_DEFAULT = 0.9;
+export const PAGE_OPACITY_DEFAULT = 1;
 
 /**
  * 滑块区间与步长.

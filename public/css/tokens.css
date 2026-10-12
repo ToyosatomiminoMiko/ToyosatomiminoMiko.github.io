@@ -81,11 +81,10 @@
      * (src/setting/page_opacity.ts 写到文档根的内联样式上,内联值覆盖这里的声明).
      * 消费方只有 index.css 的 `.tab-pane` 一条规则.
      *
-     * 这个数**必须**与 site.config.ts 的 PAGE_OPACITY_DEFAULT 相等:它是 CSS 与
-     * TS 的跨语言契约,两边不一致的表现是"刚打开时 0.9,拖一下滑块跳成另一个初值"
-     * 这种不报错的静默失配.
+     * 这个数**必须**与 site.config.ts 的 PAGE_OPACITY_DEFAULT 相等:
+     * 它是 CSS 与 TS 的跨语言契约
      */
-    --tab-pane-opacity: 0.9;
+    --tab-pane-opacity: 1;
 
     /* ---------- 层级(z-index) ---------- */
     --z-pixel-indicator: 9999;
