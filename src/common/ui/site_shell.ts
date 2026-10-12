@@ -11,10 +11,9 @@ OLED / RBT / IEEE754 三个模块直接把整个标签页窗格当宿主,所以�
 SETTING 页的整张面板由 src/setting/setting_page.ts 长进窗格).
 组装出的完整结构(导航条 / 首屏 / 六个窗格)见 README.md 的"首屏与导航条"一节.
 
-头像与标签栏平级,排在 header 末尾,而不是当标签栏的最后一项:标签栏是横向滚动
-容器(窄窗口时标签横向滑动),滚动容器的 padding box 就是裁剪区,头像放进去 hover
-辉光会被裁成方块.`.head-link` 的负 margin 把 header 的 gap 抵掉,落点与"排在
-标签栏末尾"时一致.
+GitHub 按钮与标签栏平级,排在 header 末尾,而不是当标签栏的最后一项:标签栏是
+横向滚动容器(窄窗口时标签横向滑动),滚动容器的 padding box 就是裁剪区,按钮放
+进去 hover 辉光会被裁掉.
 
 组件自己的修饰类不在这里加:地铁车窗的 `.metro-window` 由它自己的挂载函数补到
 每个宿主上,骨架不替组件记这些约定.
@@ -22,12 +21,12 @@ SETTING 页的整张面板由 src/setting/setting_page.ts 长进窗格).
 
 import { create_element } from 'miko_ui';
 import {
-    AVATAR_ALT,
-    AVATAR_CLASS,
-    AVATAR_LINK,
-    AVATAR_LINK_CLASS,
-    AVATAR_SRC,
     DEFAULT_NAV_PANE,
+    GITHUB_ICON_ALT,
+    GITHUB_ICON_CLASS,
+    GITHUB_ICON_SRC,
+    GITHUB_LINK,
+    GITHUB_LINK_CLASS,
     HEADER_CLASS,
     HERO_BOTTOM_CLASS,
     HERO_CLASS,
@@ -124,13 +123,14 @@ export function mountSiteShell(): SiteShell {
         { class: HEADER_CLASS },
         create_element({ tag: 'span' }, { class: SITE_BRAND_CLASS }, SITE_BRAND_TEXT),
         navList,
-        // 头像:导航条最右,点了去 GitHub(不是标签页,所以没有 href="#窗格").
-        // 位置在标签栏**外面**:标签栏是横向滚动容器,会把 hover 辉光裁成方块
-        // (完整理由见文件头的结构说明).
+        // GitHub 按钮:导航条最右,点了去 GitHub 主页(不是标签页,所以没有 href="#窗格")
         create_element(
             { tag: 'a' },
-            { class: AVATAR_LINK_CLASS, href: AVATAR_LINK },
-            create_element({ tag: 'img' }, { class: AVATAR_CLASS, src: AVATAR_SRC, alt: AVATAR_ALT }),
+            { class: GITHUB_LINK_CLASS, href: GITHUB_LINK },
+            create_element(
+                { tag: 'img' },
+                { class: GITHUB_ICON_CLASS, src: GITHUB_ICON_SRC, alt: GITHUB_ICON_ALT },
+            ),
         ),
     );
 

@@ -15,12 +15,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-    AVATAR_ALT,
-    AVATAR_CLASS,
-    AVATAR_LINK,
-    AVATAR_LINK_CLASS,
-    AVATAR_SRC,
     DEFAULT_NAV_PANE,
+    GITHUB_ICON_ALT,
+    GITHUB_ICON_CLASS,
+    GITHUB_ICON_SRC,
+    GITHUB_LINK,
+    GITHUB_LINK_CLASS,
     HEADER_CLASS,
     HERO_BOTTOM_CLASS,
     HERO_CLASS,
@@ -110,7 +110,7 @@ describe('首页骨架:导航条', () => {
         const list = document.querySelector(`.${NAV_LIST_CLASS.split(' ')[0]}`);
         expect(list?.tagName).toBe('UL');
         expect(classes(list).join(' ')).toBe(NAV_LIST_CLASS);
-        // 头像不在里面(它是 header 的子节点,理由见下一条)
+        // GitHub 按钮不在里面(它是 header 的子节点,理由见下一条)
         expect(list?.children).toHaveLength(NAV_ITEMS.length);
     });
 
@@ -139,32 +139,28 @@ describe('首页骨架:导航条', () => {
         expect(active[0].getAttribute('href')).toBe(`#${DEFAULT_NAV_PANE}`);
     });
 
-    it('头像在导航条里,指向 GitHub', () => {
+    it('GitHub 按钮在导航条里,指向 GitHub 主页', () => {
         setupShell();
-        const link = document.querySelector(`header a[href="${AVATAR_LINK}"]`);
+        const link = document.querySelector(`header a[href="${GITHUB_LINK}"]`);
         const image = link?.querySelector('img');
-        expect(image?.getAttribute('src')).toBe(AVATAR_SRC);
-        expect(image?.getAttribute('alt')).toBe(AVATAR_ALT);
-        // .head 的尺寸与 hover 辉光在 public/css/index.css 里,两边靠这些类对齐
-        expect(classes(image ?? null).join(' ')).toBe(AVATAR_CLASS);
-        expect(classes(link ?? null)).toEqual([AVATAR_LINK_CLASS]);
+        expect(image?.getAttribute('src')).toBe(GITHUB_ICON_SRC);
+        expect(image?.getAttribute('alt')).toBe(GITHUB_ICON_ALT);
+        // 尺寸与辉光在 public/css/index.css 里,两边靠这些类对齐
+        expect(classes(image ?? null).join(' ')).toBe(GITHUB_ICON_CLASS);
+        expect(classes(link ?? null)).toEqual([GITHUB_LINK_CLASS]);
     });
 
-    it('头像挂在 header 上,不在标签栏的滚动容器里(hover 辉光会被它裁成方块)', () => {
-        /*
-          index.css 的 .site-header .nav-tabs 是 overflow-x: auto 的滚动容器,
-          它的 padding box 就是裁剪区:头像只要还排在 ul 里,hover 辉光的模糊
-          半径就会被裁掉一截(实测会被裁成一个方块).这条断言钉住"头像与标签栏
-          平级"这条结构约束 -- 谁把头像挪回 ul 里,这里就会红.
-        */
+    it('GitHub 按钮挂在 header 上,不在标签栏的滚动容器里(辉光会被它裁掉)', () => {
+        // index.css 的 .site-header .nav-tabs 是 overflow-x: auto 的滚动容器,
+        // 它的 padding box 就是裁剪区.这条断言钉住"按钮与标签栏平级".
         const shell = setupShell();
         const list = shell.header.querySelector(`.${NAV_LIST_CLASS.split(' ')[0]}`);
-        const link = shell.header.querySelector(`a[href="${AVATAR_LINK}"]`);
+        const link = shell.header.querySelector(`a[href="${GITHUB_LINK}"]`);
         expect(list).not.toBeNull();
         expect(link).not.toBeNull();
         expect(list?.contains(link ?? null)).toBe(false);
         expect(link?.closest('ul')).toBeNull();
-        // 位置契约:头像与标签栏都直接躺在 header 的 flex 行里(负 margin 由 CSS 负责)
+        // 位置契约:按钮与标签栏都直接躺在 header 的 flex 行里(负 margin 由 CSS 负责)
         expect(link?.parentElement).toBe(shell.header);
     });
 });

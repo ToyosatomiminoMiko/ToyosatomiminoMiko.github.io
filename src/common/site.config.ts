@@ -2,7 +2,7 @@
  * 站点级(main.ts / common)的声明式配置.
  *
  * 首页整套骨架都在这里声明,由 src/common/ui/site_shell.ts 生成:导航条(站名 +
- * 标签 + 头像),首屏(舞台 / 压暗层 / 底部一排),六个标签页,以及首屏那两个
+ * 标签 + GitHub 按钮),首屏(舞台 / 压暗层 / 底部一排),六个标签页,以及首屏那两个
  * 模块空宿主;各模块的挂载函数只往宿主里长标记.宿主页 index.html 里没有任何标记,
  * 只留一个空位 `#site-root`.
  *
@@ -51,21 +51,16 @@ export const NAV_LINK_CLASS = 'nav-link';
 /** 选中态类名:触发器用它点亮文字,窗格用它上屏(见 index.css 的 .tab-content > .active) */
 export const NAV_ACTIVE_CLASS = 'active';
 
-/** 头像:导航条最右侧,点了去 GitHub */
-export const AVATAR_LINK = 'https://github.com/ToyosatomiminoMiko';
-export const AVATAR_SRC = '/images/head.png';
-/** 头像的类名:尺寸与圆形都在 public/css/index.css 的 `.head` 里 */
-export const AVATAR_CLASS = 'head';
-/**
- * 头像链接的类名(样式见 public/css/index.css 的 .head-link).
- *
- * 头像挂在**导航条 header 上**,不在标签栏 `ul.nav-tabs` 里:`ul` 为了窄窗口
- * 横向滚动是 `overflow-x: auto` 的滚动容器,padding box 就是裁剪区,hover 辉光
- * 放进去会被裁成方块(负 margin 把 header 的 gap 抵掉,位置与"排在标签栏末尾"时一致).
- */
-export const AVATAR_LINK_CLASS = 'head-link';
-/** 头像的 alt:它同时是链接图标,给它一句可读的替代文本 */
-export const AVATAR_ALT = 'ToyosatomiminoMiko 的 GitHub';
+/** GitHub 按钮:导航条最右侧,点了去 GitHub 主页(不是头像) */
+export const GITHUB_LINK = 'https://github.com/ToyosatomiminoMiko';
+/** 按钮图标 */
+export const GITHUB_ICON_SRC = '/images/github.svg';
+/** 图标的类名(尺寸与辉光见 public/css/index.css 的 .github-icon) */
+export const GITHUB_ICON_CLASS = 'github-icon';
+/** 图标链接的类名(见 public/css/index.css 的 .github-link) */
+export const GITHUB_LINK_CLASS = 'github-link';
+/** 图标的 alt:它是链接里唯一的内容,这句就是链接的可读名字 */
+export const GITHUB_ICON_ALT = 'ToyosatomiminoMiko 的 GitHub';
 
 /**
  * 一个导航项 = 一个标签页.

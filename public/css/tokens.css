@@ -90,15 +90,15 @@
     /* ---------- 层级(z-index) ---------- */
     --z-pixel-indicator: 9999;
 
-    /* ---------- 导航条上的头像 ---------- */
-    /* 头像直径 */
-    --head-size: 35px;
-    /* 头像外边距 */
-    --head-margin: 5px;
-    /* 头像悬停辉光颜色 */
-    --head-glow: #00ffc3;
-    /* 头像悬停辉光模糊半径 */
-    --head-glow-blur: 15px;
+    /* ---------- 导航条上的 GitHub 按钮 ---------- */
+    /* 图标边长 */
+    --github-icon-size: 25px;
+    /* 图标外边距 */
+    --github-icon-margin: 5px;
+    /* 图标悬停辉光颜色 */
+    --github-icon-glow: #00ffc3;
+    /* 图标悬停辉光模糊半径 */
+    --github-icon-glow-blur: 15px;
 
     /* ---------- 首屏(hero) ---------- */
     /*

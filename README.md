@@ -170,14 +170,11 @@ HOME 标签页的最上面是一块**首屏**(`.hero`,由 `src/common/ui/site_sh
 - **首屏满宽是"逃逸"出来的**:`main` 只有 90% 宽,`.hero` 用
   `margin-left/right: calc(50% - 50vw)` 外扩到视口两侧,所以 `body` 上有
   `overflow-x: hidden`(`100vw` 含滚动条宽度,必然溢出一点).
-- **头像挂在 `header` 上,不在标签栏 `ul.nav-tabs` 里**:那个 `ul` 为了窄窗口
+- **GitHub 按钮挂在 `header` 上,不在标签栏 `ul.nav-tabs` 里**:那个 `ul` 为了窄窗口
   横向滑动是 `overflow-x: auto` 的滚动容器,而滚动容器的 padding box 就是裁剪区 --
-  头像排在里面,hover 辉光会被裁成方块(位置靠 `.head-link` 的负 margin 找回来).
-  同理辉光只能用 `box-shadow`,不能用 `filter: drop-shadow()`:`head.png` 是不带
-  透明通道的方形位图,`drop-shadow` 取的是位图自己的 alpha 通道,画出来是方影子;
-  `box-shadow` 跟着 `border-radius` 画,才是圆的.两条都在 `public/css/index.css`
-  (`.head` / `.head-link`),结构那半有回归断言
-  (`src/common/ui/site_shell.test.ts`).
+  按钮排在里面,hover 辉光会被裁掉(位置靠 `.github-link` 的负 margin 找回来).
+  样式在 `public/css/index.css`(`.github-icon` / `.github-link`),结构那半有回归
+  断言(`src/common/ui/site_shell.test.ts`).
 - **首屏的结构与首屏那两颗宿主都在 `src/common/site.config.ts` 里声明**
   (`HERO_ID` / `HERO_*_CLASS` / `SITE_HOST_IDS`),由 `src/common/ui/site_shell.ts`
   生成并把元素引用交回 `src/main.ts`.要动首屏布局就改这两处 -- `index.html` 里
@@ -227,7 +224,7 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 
 | 想改什么 | 去哪 |
 | --- | --- |
-| 站名 / 标签栏 / 头像 / 首屏结构 / 标签页清单 | `src/common/site.config.ts`(`NAV_ITEMS` / `SITE_BRAND_TEXT` / `AVATAR_*` / `HERO_*`),骨架代码在 `src/common/ui/site_shell.ts` |
+| 站名 / 标签栏 / GitHub 按钮 / 首屏结构 / 标签页清单 | `src/common/site.config.ts`(`NAV_ITEMS` / `SITE_BRAND_TEXT` / `GITHUB_*` / `HERO_*`),骨架代码在 `src/common/ui/site_shell.ts` |
 | SETTING 页的三块设置组 / 面板标题 | `src/setting/config.ts`(组 id / 类名 / 面板标题),页面骨架在 `src/setting/setting_page.ts`,样式在 `src/setting/setting.css` + `src/setting/tokens.css` |
 | 背景缩略图(加一张图 / 换名字) | `src/setting/config.ts` 的 `BACKGROUND_PRESETS` 与 `BACKGROUND_GROUP_LEGEND`,标记在 `src/setting/background_section.ts` 的 `mountBackgroundSection()`(宿主是设置页建的那颗带 legend 的 `#setting-bg` 设置组,里面一条 `.bgrow` flex 行;每颗 tile 都是库的按钮,缩略图在按钮里面) |
 | 页面透明度(滑块 / 初值 / 区间) | `src/setting/config.ts` 的 `PAGE_OPACITY_*`(初值必须与 `public/css/tokens.css` 的 `--tab-pane-opacity` 相等,`config.test.ts` 会核对),滑块在 `src/setting/page_opacity.ts`,消费方是 `public/css/index.css` 的 `.tab-pane` 规则 |
@@ -430,10 +427,9 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
   本站只给标题文案与作用域类(如 `.oled-card` 定宽),不再有面板类名常量.
   这一层原先走过两站:bootstrap 的 `.card` 三件套(靠 `body .card` 覆盖
   `--bs-card-*` 变量染暗)-> 站点自研的 `.panel` 三件套 -> 现在收进库.
-- **IEEE754 顶部那一行 + 头像圆形也是站点自研**:那一行从 bootstrap 的
+- **IEEE754 顶部那一行也是站点自研**:那一行从 bootstrap 的
   `.row.g-3` 栅格与 `.form-control` / `.input-group` 换成站点的 `.ieee-controls*` /
-  `.ieee-input-group` / `.ieee-input`(观感引库令牌);头像的圆形从 `.rounded-circle`
-  收回 `.head` 的 `border-radius`.
+  `.ieee-input-group` / `.ieee-input`(观感引库令牌).
 - **RBT 唯一一处结构变化**:提示区原先夹在标题栏与正文之间,框体归库之后正文只有
   一个入口,提示区移进了 `.ui-panel-body` 最前(其余面板结构不变).
 - **IEEE754 精度菜单的两处本站裁量**(都写在 `src/ieee754/ui/ieee754_panel.ts` 里):

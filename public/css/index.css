@@ -81,7 +81,7 @@ body {
 }
 
 /*
- * 链接:继承所在元素的颜色,不要下划线 -- 导航项与头像链接都是自定义观感的元素,
+ * 链接:继承所在元素的颜色,不要下划线 -- 导航项与 GitHub 按钮都是自定义观感的元素,
  * 浏览器默认的蓝字加下划线只会碍事.需要强调的链接自己写 color.
  */
 a {
@@ -90,8 +90,8 @@ a {
 }
 
 /*
- * 替换元素去掉行内基线的下沉.少了它,只放一张图的块(如头像链接)会平白多出
- * 几像素的 descender 高度,头像整体下移,导航条跟着被撑高.
+ * 替换元素去掉行内基线的下沉.少了它,只放一张图的块(如 GitHub 按钮)会平白多出
+ * 几像素的 descender 高度,图标整体下移,导航条跟着被撑高.
  */
 img,
 svg {
@@ -276,7 +276,7 @@ code {
 .site-header .nav-tabs {
     display: flex;
     list-style: none;
-    /* 站名在左,导航项与头像推到右边 */
+    /* 站名在左,导航项与 GitHub 按钮推到右边 */
     margin-left: auto;
     border-bottom: none;
     /*
@@ -285,8 +285,8 @@ code {
      *
      * 注意这是个**滚动容器**:overflow-x: auto 会让 overflow-y 也算成 auto,
      * 而滚动容器的 padding box 就是裁剪区 -- 任何想画到标签栏外面的东西
-     * (比如头像的 hover 辉光)都会被裁成方块.头像因此不在这个 ul 里,
-     * 而是 header 的最后一个子节点(见 src/common/ui/site_shell.ts 与 .head-link).
+     * (比如 GitHub 按钮的 hover 辉光)都会被裁掉.按钮因此不在这个 ul 里,
+     * 而是 header 的最后一个子节点(见 .github-link).
      */
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -408,31 +408,22 @@ main {
     padding-top: 0;
 }
 
-/* 头像图标:.head 由 site_shell 生成,尺寸与圆形都在这里 */
-.head {
-    width: var(--head-size);
-    margin: var(--head-margin);
-    /* head.png 是方形位图,靠这里裁成圆 */
-    border-radius: 50%;
+/* GitHub 按钮图标:.github-icon 由 site_shell 生成,尺寸都在这里 */
+.github-icon {
+    width: var(--github-icon-size);
+    margin: var(--github-icon-margin);
+}
+
+/* hover 辉光:图标是带透明通道的 SVG,drop-shadow 跟着图标本身的轮廓画 */
+.github-icon:hover {
+    filter: drop-shadow(0 0 var(--github-icon-glow-blur) var(--github-icon-glow));
 }
 
 /*
- * hover 辉光:必须用 box-shadow,**不能**用 filter: drop-shadow().
- * head.png 是一张不带透明通道的方形位图(圆形是 .head 的 border-radius 裁出来的),
- * 而 drop-shadow 取的是位图自己的 alpha 通道 -- 方形不透明的图,影子就是方块,
- * border-radius 不参与;box-shadow 按元素的圆角画,才是跟着头像的圆.
- * 辉光要画到头像盒子外面,所以头像自己不能在滚动容器里(见 .head-link).
+ * GitHub 按钮:header 的最后一个子节点,与标签栏平级(不在滚动容器里,见上).
+ * header 是 flex + gap,直接排会被 gap 推远;负 margin 把它抵掉.
  */
-.head:hover {
-    box-shadow: 0 0 var(--head-glow-blur) var(--head-glow);
-}
-
-/*
- * 头像链接:header 的最后一个子节点,与标签栏平级(不在滚动容器里,见上).
- * header 是 flex + gap,直接排会被 gap 推远;负 margin 把它抵掉,
- * 头像的落点就跟贴着标签栏末尾时一样.
- */
-.head-link {
+.github-link {
     display: block;
     margin-left: calc(-1 * var(--chrome-gap));
 }
