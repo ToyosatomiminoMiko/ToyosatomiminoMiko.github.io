@@ -119,9 +119,20 @@ describe('SETTING:页面透明度滑块', () => {
 
     it('数值框输入的越界值被夹回区间,写进令牌的是夹取后的值', () => {
         const { slider } = mount();
-        slider.number.input.value = '1.5';
+        // 必须先从默认档挪开:默认档**就是** MAX(见 config.ts 的
+        // PAGE_OPACITY_DEFAULT),不挪开的话"夹回 MAX"与当前值相同 -- 值源同值
+        // 短路,令牌本来就不该被改写,这条断言会退化成"无论夹取对不对都通过".
+        // (0fbb77b 把默认值从 0.9 改成 1 之后,它就是在这一点上开始红的.)
+        slider.input.value = String(PAGE_OPACITY_MIN);
+        fire(slider.input, 'input');
+        expect(token()).toBe(PAGE_OPACITY_MIN.toFixed(2));
+
+        // 越界输入:夹回区间,并且**落回输入框与令牌的都得是夹取后的值**
+        // (框里留着 2.00 而值是 1.00 就是两处文本分叉).
+        slider.number.input.value = String(PAGE_OPACITY_MAX + 1);
         fire(slider.number.input, 'change');
         expect(slider.get()).toBe(PAGE_OPACITY_MAX);
+        expect(slider.number.readText()).toBe(PAGE_OPACITY_MAX.toFixed(2));
         expect(token()).toBe(PAGE_OPACITY_MAX.toFixed(2));
     });
 
