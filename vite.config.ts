@@ -1,10 +1,16 @@
+import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 // defineConfig 从 vitest/config 拿:它只是给 Vite 的 UserConfig 多加了 test 段,
 // 这样 vitest 的排除规则可以和构建配置写在同一个文件里,不必再养一份 vitest.config.ts
 import { defineConfig } from 'vitest/config';
-import type { Plugin } from 'vite';
+// searchForWorkspaceRoot 用来拿回"没写 fs.allow 时 Vite 自己会用的那个默认值"
+// (见下面 server.fs.allow 的说明);它是 Vite 的公开导出,不能再自己推一遍规则.
+import { searchForWorkspaceRoot, type Plugin } from 'vite';
 
 const here = (relativePath: string): string => fileURLToPath(new URL(relativePath, import.meta.url));
+
+/** 仓库根(绝对路径,**不带**尾斜杠):下面前缀判断与 fs 白名单的基准都取它 */
+const PROJECT_ROOT = here('./').replace(/\/$/, '');
 
 /**
  * 源码根别名 `@/` == `src/`.跨目录的模块导入统一用它
@@ -83,6 +89,44 @@ function fourXXPage(): Plugin {
  * 子项目另建 public/(那需要额外插件在 dev 重写,在 build 里手动 emit),
  * 直接把文件放进这棵树下即可.
  */
+
+/**
+ * 本地联调 miko_ui 时,dev server 还必须能读到**仓库外**的那份工作副本.
+ *
+ * 背景:`node_modules/miko_ui` 被 `scripts/dev_ui_link.sh` 换成指向工作副本的
+ * 符号链接(链接不是仓库的一部分,只落在被忽略的 node_modules/ 里).Vite 的
+ * `server.fs.allow` 默认只有 workspace root,而静态资源请求是按**符号链接解析后的
+ * 真实路径**过白名单的,于是:
+ *
+ *   - 库的 `styles/*.css` 能读到 -- `import` 过的模块由解析器记进
+ *     `safeModulePaths`,不受白名单约束;
+ *   - 样式表里 `url()` 引用的三份 woff2 全部 403("outside of Vite serving
+ *     allow list") -- 它们是纯静态资源请求,没有"模块"这一层.
+ *
+ * 症状是字体**静默**退回回退字体(等宽字体看着也是等宽,谁都不会发现),
+ * 浏览器控制台里只有一串 403.所以链接目标必须进白名单.
+ *
+ * 返回 null 的两种情形(还没 npm install / 装的是 npm 上的真实目录)解析出来本来
+ * 就在 root 里,不需要额外放行:白名单每多一条仓库外的目录,dev server 能读的范围
+ * 就真的大一圈,不越界就不放.
+ */
+function linkedUiDir(): string | null {
+    let real: string;
+    try {
+        real = realpathSync(here('./node_modules/miko_ui'));
+    } catch {
+        return null; // 目录不存在:不会有请求,也就谈不上放行
+    }
+    return real === PROJECT_ROOT || real.startsWith(`${PROJECT_ROOT}/`) ? null : real;
+}
+
+/**
+ * 链接目标的真实路径(没链接时为 null).
+ * 只在配置求值时算一次:重新链接(dev_ui_link.sh)之后要重启 dev server 才生效,
+ * 这与"改 vite.config.ts 要重启"是同一类事实,不值得为它再挂一次文件监听.
+ */
+const LINKED_UI_DIR = linkedUiDir();
+
 export default defineConfig({
     base: '/',
     resolve: {
@@ -130,6 +174,15 @@ export default defineConfig({
     // 根目录 target/:它是十几万个文件 / GB 级的构建缓存;让 chokidar 去遍历,
     // 轻则拖慢启动,重则吃满 inotify watch.它和站点源码无关,直接忽略.
     server: {
+        host: true, // Vite 中 true -> listen(port, undefined) -> Node 绑 :: 双栈全网卡
+        /*
+          写了 allow 就必须自己带上默认值:Vite 只在用户**没写** allow 时才用
+          `[searchForWorkspaceRoot(root)]`(见 vite 的 resolveServerOptions).
+          这里保留它并追加链接目标,链接目标为空(常规 npm 安装)时结果与默认完全一样.
+        */
+        fs: {
+            allow: [searchForWorkspaceRoot(PROJECT_ROOT), ...(LINKED_UI_DIR ? [LINKED_UI_DIR] : [])],
+        },
         watch: {
             ignored: ['**/target/**'],
         },

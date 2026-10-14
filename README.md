@@ -500,7 +500,11 @@ lint:rs -> clean -> build:wasm -> test(vitest) -> test:rs(cargo) -> build:app
   `MIKO_UI_DIR` 覆盖):先用库自己的 `npm run build:dist` 重建它的 `dist/`,再把
   `node_modules/miko_ui` 换成指向副本的符号链接,所以构建完直接跑 `npx vite`
   看到的就是本地库.链接只存在于 `node_modules/`(gitignore),
-  `package.json` / `package-lock.json` 一个字节都不动.
+  `package.json` / `package-lock.json` 一个字节都不动.链接之后 dev server 还要能读到
+  **仓库外**那份副本:`import` 进来的模块由解析器自己记账,但库样式表里 `url()`
+  引用的三份 woff2 是纯静态资源请求,按链接解析后的真实路径过 `server.fs.allow` --
+  少了白名单里那一条就是一串 403 加**静默**退回回退字体(`vite.config.ts` 的
+  `linkedUiDir()` 负责补上,只在真的链接到仓库外时才加).
 - CI / 发布带 `--ui npm`:按 lock 装,并把 `miko_ui` 对齐到 npm 的 `latest`
   (`MIKO_UI_SYNC=auto`,想要"落后就失败"用 `check`,想严格按 lock 用 `off`).
   CI 里显式要 `local` 会被直接拒绝,不会把未发布的副本构建出去.

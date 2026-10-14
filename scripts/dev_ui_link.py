@@ -39,8 +39,12 @@ MIKO_UI_DIR 覆盖:
     `cd <副本> && npm run build:dist`. 库内常驻开发可以用
     `npx tsc -p tsconfig.build.json --watch`, 但它与 build:dist 别同时用
     (build:dist 开头的 clean 会拆掉 watch 的输出);
-  * Vite 会把 root 外已加载的模块加进自己的 watcher, 所以保存后会自动刷新,
-    不需要配 server.fs.allow(见本仓库 vite.config.ts 的 dedupe 说明).
+  * Vite 会把 root 外已加载的模块加进自己的 watcher, 所以保存后会自动刷新;
+    **但模块之外还有一类请求**: 库样式表里 `url()` 引用的 woff2 是纯静态资源
+    请求, 不经过模块解析, 按符号链接解析后的真实路径过 `server.fs.allow`. 少了
+    那一条就是三份字体全部 403 加**静默**退回回退字体(看着也是等宽, 谁都不会
+    发现), 所以仓库的 vite.config.ts 会把链接目标补进白名单 -- 那条白名单不是
+    为了"能 import 到库的模块"(那个本来就能), 而是为了这几份字体.
 
 [三个已知坑]
   1. node_modules/.vite 里可能有上一轮按 npm 包预打包的产物
