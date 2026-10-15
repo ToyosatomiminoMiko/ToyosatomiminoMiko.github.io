@@ -1,9 +1,9 @@
 /**
  * LED 时钟画布的标记契约(进程内,跑在 happy-dom 里).
  *
- * 断言的是 CSS 真正依赖的两处:宿主选择器 `#app_led_clock`(面板底色)与画布
- * 选择器 `#time_canvas`(image-rendering: pixelated,显示高度),以及画布分辨率
- * 与 config 的声明一致.
+ * 断言的是 CSS 真正依赖的两处:画布选择器 `#time_canvas`(面板观感:黑底 / 圆角 /
+ * 辉光 / 垫层 + image-rendering),以及画布分辨率与 config 的声明一致.宿主
+ * `#app_led_clock` 自己**不带**样式,所以这里只钉"画布长在宿主里面"这条结构契约.
  *
  * @vitest-environment happy-dom
  */
@@ -27,7 +27,7 @@ describe('LED 时钟:画布标记', () => {
         expect(canvas.getAttribute('height')).toBe(String(CLOCK_CANVAS_HEIGHT));
     });
 
-    it('插进宿主后,#app_led_clock > canvas#time_canvas 这两条 CSS 选择器都命中', () => {
+    it('插进宿主后,画布确实长在 #app_led_clock 里面(宿主本身不带样式)', () => {
         document.body.innerHTML = '';
         const host = document.createElement('div');
         host.id = CLOCK_HOST_ID;

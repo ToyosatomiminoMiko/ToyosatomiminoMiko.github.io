@@ -3,36 +3,41 @@
 /*
 LED 时钟样式.
 
-两个 id:`#app_led_clock`(面板宿主,由 src/clock/ui/clock_display.ts 生成)与
-`#time_canvas`(点阵画布).时钟的宿主长在 Calendario 页顶部,但它的外观只由本文件
-与同目录的 tokens.css 给 -- 时钟的标记与行为仍然只在 src/clock/ 里.
+`#app_led_clock`(宿主,由 src/clock/ui/clock_display.ts 生成)是**空架架**:它只占一个
+位置,自己一条样式都没有.面板的观感(黑底 / 圆角 / 辉光 / 垫层)全部长在画布
+`#time_canvas` 自己身上,居中也是画布用 auto 外边距自己办.这样"时钟长什么样"只有一处
+定义,宿主换成别的容器,或者被塞进别的页面,观感都不变.所以本文件里**没有**
+`#app_led_clock` 规则 -- 那不是漏写.
 
 搬迁的原委见 public/css/index.css 顶部那段说明.
 */
-/*
- * 时钟黑底**贴着画布**长,自己在正文里居中.
- *
- * 画布显示宽度 = --clock-canvas-height × 65/8(位图 65×8;128px 档 = 1040px),比
- * 任何阅读列都宽.宽度若由父级给(块级默认),宿主会窄于画布,画布溢出黑底两侧 --
- * 时钟看着不在自己的面板里.所以这里的宽度跟着内容走(max-content),居中由自己的
- * auto 外边距负责,不依赖父级宽度.
- */
-#app_led_clock {
-    background-color: var(--clock-panel-bg) !important;
+#time_canvas {
+    /* ---------- 面板:黑底 / 圆角 / 辉光 / 垫层,全在画布上 ---------- */
+    background-color: var(--clock-panel-bg);
     border-radius: var(--clock-panel-radius);
-    padding: var(--clock-panel-padding);
     box-shadow: 0 0 var(--clock-glow-blur) var(--clock-glow);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    width: max-content;
-    /* 窄窗口:最多占满一行,画布随之等比缩小(见下面 object-fit) */
-    max-width: 100%;
+    padding: var(--clock-panel-padding);
+    /*
+     * height 令牌说的是**点阵区**(内容盒)的高度,而全站 `*` 把 box-sizing 定成了
+     * border-box:不改回来的话那两条 20px 垫层会被算进 128px 里 -- 点阵区矮一圈,
+     * 每颗像素也不再是 8 行的整数倍.
+     */
+    box-sizing: content-box;
+    /* 点阵区尺寸:宽由位图 65×8 的比例推出来(--clock-canvas-display-width),高是令牌 */
+    width: var(--clock-canvas-display-width);
+    height: var(--clock-canvas-height);
+    /*
+     * 宿主不管布局,所以居中由画布自己的 auto 外边距负责;上限要**减掉自己的垫层**,
+     * 否则窄窗口下黑底会顶出宿主,右半边被 body 的 overflow-x: hidden 裁掉.
+     *
+     * `display: block` 是这两条 auto 外边距的前提:canvas 默认是**行内级**替换元素,
+     * 行内盒的 auto 外边距一律算 0(黑底会贴在宿主左边),而且它落在文字基线上 --
+     * 宿主会平白多出一截行盒下沉的高度(实测 +7px).
+     */
+    display: block;
     margin-left: auto;
     margin-right: auto;
-}
-
-#time_canvas {
+    max-width: calc(100% - 2 * var(--clock-panel-padding));
     /*
     图像使用诸如"最近邻"等算法进行缩放
     以保留图像中的对比度和边缘
@@ -47,14 +52,10 @@ LED 时钟样式.
     保留"像素化"外观,同时避免引入缩放伪影
     */
     image-rendering: pixelated;
-    height: var(--clock-canvas-height);
     /*
-     * 一行放不下整幅点阵时(窄窗口)把画布收进黑底:溢出的一头会被 body 的
-     * overflow-x: hidden 裁掉(表现是年份少一位),而黑底又不再跟着长.
-     * object-fit: contain 让位图**按比例**缩进盒子里 -- 像素仍是方的,只是每颗小一点;
-     * 少了它,65 列会被硬拉进更窄的盒子,数字横向变形(库的舞台也用同一条:
-     * Chromium 认 canvas 的 object-fit).
+     * 窄窗口把画布收进宿主时:位图**按比例**缩进点阵区(contain),而不是把 65 列硬拉进
+     * 更窄的盒子 -- 少了它数字会横向变形(库的舞台也用同一条:Chromium 认 canvas 的
+     * object-fit).
      */
-    max-width: 100%;
     object-fit: contain;
 }

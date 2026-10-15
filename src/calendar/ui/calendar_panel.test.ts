@@ -40,9 +40,9 @@ describe('Calendario 页:面板框体(库的 .ui-panel + 标题)', () => {
 describe('Calendario 页:顶部是 LED 时钟宿主', () => {
     it('时钟宿主是正文的第一个子节点,id 取自 clock/config.ts', () => {
         /*
-          时钟从 HOME 首屏搬到这一页顶部,所以它的位置在这条断言里钉死:CSS 与
-          "#app_led_clock" 那条面板外观规则,以及 main.ts 转交给 mountClock() 的
-          引用,都依赖它确实长在这里(而不是首屏底部).
+          时钟从 HOME 首屏搬到这一页顶部,所以它的位置在这条断言里钉死:main.ts
+          转交给 mountClock() 的引用依赖它确实长在这里(而不是首屏底部),而
+          时钟的面板观感长在画布上(宿主只是空位,见 src/clock/clock.css).
         */
         const panel = renderPanel(createCalendarPanel);
         const body = panel.root.querySelector('.ui-panel-body');

@@ -14,8 +14,8 @@
  *
  * 宿主由 Calendario 页自己的面板生成器建(src/calendar/ui/calendar_panel.ts 把
  * 它排在三张日历卡之上),引用随面板组件一起交回,再经 main.ts 交给
- * mountClock(),所以挂载时不做 DOM 查询;这个 id 只供 CSS
- * (./clock.css 的 `#app_led_clock`)使用.
+ * mountClock(),所以挂载时不做 DOM 查询;
+ * 这个 id 只作**结构锚点**(调试定位与测试的选择器).
  */
 export const CLOCK_HOST_ID = 'app_led_clock';
 

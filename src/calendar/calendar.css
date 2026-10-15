@@ -4,8 +4,9 @@
 Calendario 标签页样式(三张历法卡).
 
 结构与文案见 src/calendar/:面板由库的 createPanel 建(`section.ui-panel.calendar-pane`),
-标记在 ui/calendar_panel.ts,正文顶部是 LED 时钟宿主 `#app_led_clock`(外观归
-src/clock/clock.css),下面 `.calendar-list` 里三张卡.
+标记在 ui/calendar_panel.ts,正文顶部是 LED 时钟宿主 `#app_led_clock`(空架架:它
+自己不带样式,时钟的面板观感全在画布上,见 src/clock/clock.css),下面 `.calendar-list`
+里三张卡.
 
 可调数值全部走本目录 tokens.css 的 `--calendar-*`(选择器里不写死色值与尺寸).
 */
