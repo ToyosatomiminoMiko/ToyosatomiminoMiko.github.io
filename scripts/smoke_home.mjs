@@ -189,6 +189,26 @@ const report = await cdp.evalValue(`(async () => {
         /*
           ---- 第 2 组:必须真渲染才成立的事 ----
         */
+        /*
+          令牌 -> 计算色的两个换算件,这一组里跨几条断言共用,所以提到最前:
+
+          颜色要换算过再比 -- 令牌里写的是 #4ade80,而 getComputedStyle 给的永远是
+          rgb(74, 222, 128),直接比字符串会永远不相等;而且令牌读不到时两边都是空串
+          也会"相等",那种真问题正好被这条换算暴露出来.
+
+          (从前这两个函数定义在下面"性质清单"那一段里,后来红黑树红节点那条也要用
+          它 -- 而那条断言排在前面,于是 const 的暂时性死区把它变成 ReferenceError.
+          定义放前面就没有这个先后问题.整条 CDP 脚本住在一个模板字符串里,所以这段
+          注释里**不能出现反引号**:它会把外层模板提前收掉.)
+        */
+        const readColorToken = (name) =>
+            getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        const toRgb = (color) => {
+            const hex = /^#([0-9a-f]{6})$/i.exec(color);
+            if (!hex) return color;
+            const n = parseInt(hex[1], 16);
+            return 'rgb(' + ((n >> 16) & 255) + ', ' + ((n >> 8) & 255) + ', ' + (n & 255) + ')';
+        };
         // 时钟:2D 画布真的点出像素了
         const clock = q('#time_canvas');
         let clockPixels = -1;
@@ -255,14 +275,21 @@ const report = await cdp.evalValue(`(async () => {
         } catch (e) { oledPixel = '读取失败'; }
         ok('OLED 画布已初始化(左上角未亮的中性灰 ${OLED_UNLIT_HEX})', oledUnlit, oledPixel);
 
-        // 红黑树:示例树真的被解析并画出了红节点
-        const tree = q('#rbCanvas');
-        let redPixels = 0;
-        try {
-            const d = tree.getContext('2d').getImageData(0, 0, tree.width, tree.height).data;
-            for (let i = 0; i < d.length; i += 4) { if (d[i] > 200 && d[i + 1] < 60 && d[i + 2] < 60) { redPixels++; if (redPixels > 200) break; } }
-        } catch (e) { redPixels = -1; }
-        ok('红黑树真的画出来了(有红色节点)', redPixels > 200, redPixels + ' 个红像素(采样到上限即停)');
+        /*
+          红黑树:示例树真的被解析并画出来了.
+
+          从前这条读的是 canvas 像素(#rbCanvas 里数红点).树换成 SVG 之后判据更强也更
+          直接:红节点是**文档里的元素**,按类名点得到,而它的 fill 是 CSS 级联算出来的
+          (令牌 --rbt-node-red-fill) -- 所以这里同时验了"树建起来了"与"令牌真的落到了
+          元素的 fill 上",后者在 happy-dom 里查不到(getComputedStyle 返回空串),
+          只有真引擎能验.
+        */
+        const redNodes = qa('#rbtTree .rbt-node--red');
+        const redFill = redNodes[0] ? getComputedStyle(redNodes[0].querySelector('.rbt-node__shape')).fill : '';
+        const redToken = toRgb(readColorToken('--rbt-node-red-fill'));
+        ok('红黑树真的画出来了(有红节点,且 fill 走令牌)',
+            redNodes.length > 0 && redFill === redToken,
+            redNodes.length + ' 个红节点, fill ' + (redFill || '读不到') + ' / 令牌 ' + redToken);
 
         /*
           性质检查(见 rbt/rbt_tree.ts):清单是"抬头 + 每条一行",示例树是合法红黑树
@@ -287,19 +314,7 @@ const report = await cdp.evalValue(`(async () => {
         const propertySummary = q('#treeOutput .tree-property-summary');
         const passStates = qa('#treeOutput .tree-property-state.is-pass');
         const failStates = qa('#treeOutput .tree-property-state.is-fail');
-        /*
-          颜色要换算过再比:令牌里写的是 #4ade80,getComputedStyle 给的永远是
-          rgb(74, 222, 128),直接比字符串会永远不相等;而且令牌读不到时两边都是
-          空串也会"相等",那种真问题正好被这条换算暴露出来.
-        */
-        const readColorToken = (name) =>
-            getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-        const toRgb = (color) => {
-            const hex = /^#([0-9a-f]{6})$/i.exec(color);
-            if (!hex) return color;
-            const n = parseInt(hex[1], 16);
-            return 'rgb(' + ((n >> 16) & 255) + ', ' + ((n >> 8) & 255) + ', ' + (n & 255) + ')';
-        };
+        // 颜色的换算件(readColorToken / toRgb)在本组最前面统一声明,这里直接用(理由见那边)
         ok('红黑树性质清单渲染出来了(示例树四条全过)',
             q('#treeOutput') !== null && q('#treeOutput').hidden === false &&
             propertyRows.length === 4 && passStates.length === 4 && failStates.length === 0 &&
@@ -342,21 +357,18 @@ const report = await cdp.evalValue(`(async () => {
             qa('#treeOutput .tree-property-state.is-pass').length === 4);
 
         /*
-          文案归 HTML,画布只画树(rbt/rbt.ts 的分工).输出区只有一个 #treeOutput,
+          文案归 HTML,树只画结构(rbt/rbt.ts 的分工).输出区只有一个 #treeOutput,
           每轮只装一种内容:一行提示 / 一行错误 / 性质清单.这里在真浏览器里验三件事 --
           三种状态各放哪一种行,.tree-hint / .tree-error 的色值真的来自令牌(令牌只在
-          CSS 级联之后才算得出来),以及"没有树"时画布上一个字都没留下.
-          画布底色是纯白(RBT_CANVAS_BACKGROUND),所以判据很硬:没有树时整块画布
-          必须只有白像素 -- 过去画在中央的错误提示会立刻在这里露馅.
+          CSS 级联之后才算得出来),以及"没有树"时树上真的一颗节点都没留下.
+
+          判据从"画布只剩白底"改成"这棵 SVG 里没有节点 / 连线":从前底色是画上去的
+          (RBT_CANVAS_BACKGROUND 铺满画布),必须按像素验;现在是元素树,直接点元素即可.
         */
-        const treeCanvas = q('#rbCanvas');
-        const canvasIsPlainWhite = () => {
-            const d = treeCanvas.getContext('2d').getImageData(0, 0, treeCanvas.width, treeCanvas.height).data;
-            for (let i = 0; i < d.length; i += 4) {
-                if (d[i] !== 255 || d[i + 1] !== 255 || d[i + 2] !== 255) return false;
-            }
-            return true;
-        };
+        const treeSvg = q('#rbtTree');
+        const treeIsEmpty = () =>
+            treeSvg !== null && treeSvg.children.length === 0 &&
+            qa('#rbtTree .rbt-node').length === 0 && qa('#rbtTree .rbt-edge').length === 0;
         const treeOutput = q('#treeOutput');
         const hintLine = () => q('#treeOutput .tree-hint');
         const errorLine = () => q('#treeOutput .tree-error');
@@ -368,30 +380,30 @@ const report = await cdp.evalValue(`(async () => {
             treeInput.value = '';
             treeInput.dispatchEvent(new Event('input', { bubbles: true }));
         }
-        ok('清空输入:输出区换成一行提示(颜色走令牌),画布只剩底色',
+        ok('清空输入:输出区换成一行提示(颜色走令牌),树上不留节点',
             treeInput !== null && hintLine() !== null && errorLine() === null &&
             (hintLine().textContent || '').indexOf('请输入红黑树表达式') !== -1 &&
             getComputedStyle(hintLine()).color === toRgb(readColorToken('--rbt-hint-color')) &&
-            qa('#treeOutput .tree-property').length === 0 && canvasIsPlainWhite(),
-            (hintLine() ? hintLine().textContent : '') + ' / 画布纯底色');
+            qa('#treeOutput .tree-property').length === 0 && treeIsEmpty(),
+            (hintLine() ? hintLine().textContent : '') + ' / 树是空的');
         if (treeInput) {
             treeInput.value = '5B(1B 2B)';
             treeInput.dispatchEvent(new Event('input', { bubbles: true }));
         }
-        ok('格式错误:输出区换成一行错误(颜色走令牌),画布依旧只剩底色',
+        ok('格式错误:输出区换成一行错误(颜色走令牌),树上依旧不留节点',
             hintLine() === null && errorLine() !== null &&
             (errorLine().textContent || '').indexOf('错误: ') === 0 &&
             getComputedStyle(errorLine()).color === toRgb(readColorToken('--rbt-error-color')) &&
-            qa('#treeOutput .tree-property').length === 0 && canvasIsPlainWhite(),
+            qa('#treeOutput .tree-property').length === 0 && treeIsEmpty(),
             (errorLine() ? errorLine().textContent : ''));
         // 还原成一条合法红黑树,免得后面几条"页面状态"的断言读到被改过的输入
         if (treeInput) {
             treeInput.value = '15B(7R(3B,11B),23R(19B,27B))';
             treeInput.dispatchEvent(new Event('input', { bubbles: true }));
         }
-        ok('还原合法树:输出区回到清单且画布重新画上树',
+        ok('还原合法树:输出区回到清单且树上重新长出节点',
             hintLine() === null && errorLine() === null &&
-            qa('#treeOutput .tree-property').length === 4 && !canvasIsPlainWhite());
+            qa('#treeOutput .tree-property').length === 4 && !treeIsEmpty());
 
         // IEEE754:初始那次渲染真的跑完了(位图 64 格 + KaTeX 公式 + 特殊值表)
         ok('IEEE754 初始渲染跑完(位图 64 格 + KaTeX + 特殊值表)',

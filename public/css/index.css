@@ -733,3 +733,127 @@ canvas#pixelCanvas {
 #treeOutput .tree-property-state.is-fail {
     color: var(--rbt-fail-color);
 }
+
+/*
+ * ================================================================
+ * 红黑树:树本身(#rbtTree 那棵 SVG)
+ *
+ * 这一块是 2026-10 从 canvas 换过来的结果.从前树的每一笔都要自己算:配色写死在
+ * src/rbt/config.ts(ctx.fillStyle 读不到 CSS 变量),字号按半径手算,窄屏上还要
+ * 处理 devicePixelRatio 否则糊.现在节点与连线都是文档里的元素:
+ *
+ *   - 观感全在这一块里,颜色引 tokens.css 的 --rbt-node-* / --rbt-edge-*(换配色
+ *     不用碰 TS);
+ *   - 圆的大小按 --rbt-node-radius 画,而 TS 侧只算"圆该在哪"(布局).两边半径必须
+ *     相等,理由写在 tokens.css 的 --rbt-node-radius 上方;
+ *   - 窄屏缩放交给 width: 100% + viewBox,不必再管 dpr.
+ *
+ * 节点值的字体是**必须显式写**的:index.css 开头那条 `*` 重置把全站字体统一成
+ * --font-base,它对 SVG 的 <text> 一样生效(SVG 的 font 也是可继承的 CSS 属性),
+ * 不写这一条的话节点值会吃 --font-base 而不是等宽字体.字号与 fill 同理都被那条
+ * 重置清空过,所以三个值都落在下面那条规则里.
+ * ================================================================
+ */
+
+/* 整棵树的画布:铺满面板宽度,高度按 viewBox 的 1200:640 等比算(不设 native 尺寸) */
+#rbtTree {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+/* 连线:细线只认描边色,没有填充 */
+#rbtTree .rbt-edge {
+    stroke: var(--rbt-edge-color);
+    stroke-width: var(--rbt-edge-width);
+}
+
+/* 节点圆:半径 / 描边宽度在这里,填充与描边色按节点颜色分下面两条 */
+#rbtTree .rbt-node__shape {
+    r: var(--rbt-node-radius);
+    stroke-width: var(--rbt-node-stroke-width);
+}
+
+/* 红节点(修饰类挂在节点组上,不挂在圆上:组才是"这个节点") */
+#rbtTree .rbt-node--red {
+    color: var(--rbt-node-red-text);
+}
+
+#rbtTree .rbt-node--red .rbt-node__shape {
+    fill: var(--rbt-node-red-fill);
+    stroke: var(--rbt-node-red-stroke);
+    stroke-width: var(--rbt-node-stroke-width-red);
+}
+
+/* 黑节点(与红节点成对) */
+#rbtTree .rbt-node--black {
+    color: var(--rbt-node-black-text);
+}
+
+#rbtTree .rbt-node--black .rbt-node__shape {
+    fill: var(--rbt-node-black-fill);
+    stroke: var(--rbt-node-black-stroke);
+}
+
+/*
+ * 节点值:水平 / 垂直都以节点圆心为中心.
+ * 只有水平有对齐属性(text-anchor),垂直那条走 dominant-baseline = central
+ * (Chromium / Firefox 都支持);两个都要写,少一个的话一段文字会整体偏出圆心
+ * 半个行高的位置 -- 而且不会有任何报错,只能靠眼睛看出来.
+ */
+#rbtTree .rbt-node__label {
+    font-family: var(--font-code);
+    font-size: var(--rbt-node-font-size);
+    font-weight: bold;
+    fill: currentColor;
+    text-anchor: middle;
+    dominant-baseline: central;
+}
+
+/*
+ * 进入动画:树每次重建就重播一次.
+ *
+ * transform-origin 用**元素自己的盒子**(fill-box)而不是视口:默认的 50% 50% 是
+ * 相对 `<svg>` 视口的,那样每个节点会从整块画布的中心缩放出去,而它本身还在自己的
+ * 位置上 -- 看着像整棵树在抖.`transform-box: fill-box` 把它改成"以这个元素自己的
+ * 包围盒为参照",于是每个圆从自己圆心放大.
+ *
+ * 只动 opacity 与 transform:两者都是合成层属性,不会触发布局重排,所以 31 个节点
+ * 一起播也不掉帧(这也是换 SVG 换来的一件:canvas 时代同一个效果要自己写 rAF 补间).
+ */
+@keyframes rbt-node-enter {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+#rbtTree .rbt-node {
+    transform-box: fill-box;
+    transform-origin: center;
+    /*
+      这里**不能写 `both`**(也不写 `forwards`):那两个值会把 from 那一帧的
+      `transform: scale(...)` 永久留在元素上,于是每个节点长期停在"从自己中心缩过
+      一点点"的状态 -- 而锚点相对圆心偏了约 2px,节点因此整体挪位,还小了一圈
+      (实测:31 个节点整棵树看着"往下沉",圆心与连线端点对不齐).
+      只留 from 那一帧,不要 fill 模式,动画播完属性就回到 none,节点停在布局给的
+      位置上.要改"从多小长出来"就只动 keyframes 里的 scale,不动这里.
+    */
+    animation: rbt-node-enter var(--rbt-node-enter-duration) ease-out;
+}
+
+/*
+ * 系统设了"减少动态效果"就把动画关掉:元素本来就在最终态(动画没有 fill 模式,
+ * 不播就等于没写过),所以 `animation: none` 就够,不需要额外兜底.
+ */
+@media (prefers-reduced-motion: reduce) {
+    #rbtTree .rbt-node {
+        animation: none;
+    }
+}
+

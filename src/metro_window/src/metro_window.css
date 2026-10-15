@@ -9,7 +9,7 @@
   `* { margin:0; padding:0; border:0; background:none; font-family: var(--font-base) }`
   的通配重置.那边是通配(0,0,0)选择器,只要本文件的选择器带上类名就能压住它;
   反过来,不带作用域的裸元素选择器(`body` / `canvas` / `button`)一旦进站,
-  会连 OLED 的 `#pixelCanvas` 和 RBT 的 `#rbCanvas` 一起改样,所以一律不写.
+  会连 OLED 的 `#pixelCanvas` 和 RBT 的 `#rbtTree` 一起改样,所以一律不写.
 - 所有可调数值(颜色 / 间距 / 圆角 / 字体)集中在 tokens.css,本文件只引用
   `var(--metro-*)`,不再出现字面色值或尺寸;结构性字面量(`0`/`100%`/`none`/
   `display:block`/`1` 份数等)保持内联.唯一的例外是

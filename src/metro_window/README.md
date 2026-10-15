@@ -116,7 +116,7 @@ mountMetroWindow({ stage, styles, panel, uploads });
 - 样式**全部**以 `.metro-window` 作用域开头.站点首页有一条
   `* { margin:0; padding:0; border:0; background:none }` 的通配重置,
   原来那份独立页写法里的 `body` / `canvas` / `button` 裸元素选择器一旦进站,
-  会把 OLED 的 `#pixelCanvas`,RBT 的 `#rbCanvas` 一起改样.
+  会把 OLED 的 `#pixelCanvas`,RBT 的 `#rbtTree` 一起改样.
   设置组不是这条约束的例外:`.setting-group` 是**站点侧**的类,写在
   `src/setting/setting.css` 里,由设置页在**建那颗 fieldset 时**就给上 --
   组件既不写它,也不补它,本文件依旧一条页面级选择器都没有.

@@ -1,8 +1,11 @@
 // ================================================================
 // 红黑树工具(rbt/rbt.ts)常量配置
 //
-// 集中 rbt/rbt.ts 里所有"设计参数":布局几何,节点/连线配色,字体,
-// 阴影与线宽,默认示例与 DOM 契约.
+// 集中 rbt/rbt.ts 里所有"设计参数":DOM 契约,布局几何,结构类名与文案.
+// **不再有配色与字体**:树从 canvas 换成 SVG 之后,每一笔都是文档里的元素,颜色 /
+// 字号 / 线宽全部回到 CSS(public/css/tokens.css 的 `--rbt-*` 令牌 +
+// public/css/index.css 的 `#rbtTree` 区块).从前 `ctx.fillStyle` 读不到 CSS 变量,
+// 这套配色只能写死在这里,那是 canvas 的固有代价.
 // ================================================================
 
 // ---------- DOM 契约(id,public/css/index.css 按它命中) ----------
@@ -11,7 +14,7 @@
  * 红黑树控件用到的 DOM 元素 id.
  * 标记由 src/rbt/ui/rbt_panel.ts 按本文件的声明生成(id 写入元素再由组件
  * 交回引用);这些常量同时给样式(public/css/index.css 的 `#treeInput` /
- * `#treeOutput` / `#rbCanvas`)与组件共用.
+ * `#treeOutput` / `#rbtTree`)与组件共用.
  */
 export const RBT_DOM = {
     /** 表达式输入 textarea 的 id */
@@ -26,8 +29,15 @@ export const RBT_DOM = {
      * RBT_DIAGNOSTICS_*_CLASS).
      */
     outputId: 'treeOutput',
-    /** 树绘制 canvas 的 id */
-    canvasId: 'rbCanvas',
+    /**
+     * 树绘制 `<svg>` 根的 id.
+     *
+     * 从前这里是 `rbCanvas`(canvas 2D).换成 SVG 之后树是**文档里的元素**:
+     * 命中检测 / pointer 事件 / CSS transition 全部由浏览器给,颜色能直接引 CSS
+     * 令牌(见 public/css/tokens.css 的 `--rbt-node-*`),`canvas` 那条路整个不要了.
+     * id 由 `canvasId` 改成 `treeId`:名字跟着它现在是什么走,不留一个名不副实的旧 id.
+     */
+    treeId: 'rbtTree',
 } as const;
 
 // ---------- 面板标记契约(声明式模型,ui/rbt_panel.ts 用) ----------
@@ -58,15 +68,28 @@ export const RBT_INPUT_PLACEHOLDER =
 export const RBT_INPUT_SPELLCHECK = 'false';
 
 /**
- * 树绘制 canvas 的逻辑分辨率.
- * 行为代码按 canvas.width / canvas.height 自适应,故改这两个值即可整体缩放.
+ * 树绘制 `<svg>` 的 viewBox 尺寸(逻辑坐标,单位同 CSS px).
+ *
+ * 布局算出来的 x / y 就是 **viewBox 坐标系**里的坐标,SVG 自己按
+ * `preserveAspectRatio` 缩放进面板宽度(见 public/css/index.css 的 `#rbtTree`),
+ * 所以改这两个值 = 换一块更宽 / 更高的画布,不用动任何布局代码.
  */
-export const RBT_CANVAS_WIDTH = 1200;
-export const RBT_CANVAS_HEIGHT = 640;
+export const RBT_VIEW_BOX_WIDTH = 1200;
+export const RBT_VIEW_BOX_HEIGHT = 640;
 
-// ---------- 布局几何(单位:canvas 逻辑像素) ----------
+/** `<svg>` 的 viewBox 属性值(`min-x min-y width height`,固定从原点起) */
+export const RBT_VIEW_BOX = `0 0 ${RBT_VIEW_BOX_WIDTH} ${RBT_VIEW_BOX_HEIGHT}`;
 
-/** 节点圆半径(像素) */
+// ---------- 布局几何(单位:viewBox 坐标) ----------
+
+/**
+ * 节点圆半径.
+ *
+ * **与 CSS 里的 `--rbt-node-radius` 必须相等**:半径同时是两件事的输入 --
+ * 布局(下面的最小间距 / 安全边距都从它推)与画出来的圆(`<circle r>` 由 CSS 给,
+ * 见 index.css 的 `#rbtTree .rbt-node__shape`).TS 侧算的是位置,CSS 侧画的是大小,
+ * 两边不一致的表现是节点之间该留的空没留够(而不是报错).
+ */
 export const RBT_NODE_RADIUS = 22;
 
 /** 相邻两层的垂直步长(像素) */
@@ -90,59 +113,33 @@ export const RBT_SINGLE_CHILD_GAP_FACTOR = 0.6;
 /** 位置钳制的容差(像素):允许节点略微越出安全边距 */
 export const RBT_CLAMP_TOLERANCE = 5;
 
-// ---------- 字体 ----------
+// ---------- 节点与连线:类名契约(观感全在 CSS) ----------
+//
+// 从 canvas 换成 SVG 之后,**树的每一笔都是文档里的元素**,于是配色 / 字号 / 线宽
+// 全部回到 CSS(引 public/css/tokens.css 的 `--rbt-*` 令牌),TS 侧一个色值都不留 --
+// 这正是不用 canvas 的最大收益:`ctx.fillStyle` 读不到 CSS 变量,从前那套红黑配色
+// 只能写死在 config 里.现在 config 只声明**类名**(选择器锚点),观感去样式表改.
+//
+// 类名同时是跨语言契约:scripts/smoke_home.mjs 在真浏览器里按 `.rbt-node--red`
+// 数红节点,按 `.rbt-edge` 数连线,所以它们不能只因为"CSS 里看着没用"就删.
 
-/** 节点文字字体族:站点默认字体(JetBrains Mono Slashed).画布的 `ctx.font` 读不到
-    CSS 变量,只能写族名,所以这是"默认字体"在 TS 侧唯一的一处字面量 -- 换字体要
-    连这里一起改(节点文字只有画的当下取一次,字重由 ctx.font 自带的 bold 给) */
-export const RBT_NODE_FONT_FAMILY = '"JetBrains Mono Slashed", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+/** 一个节点的组(位置在它的 `transform` 上;圆与文字是它的两个孩子) */
+export const RBT_NODE_CLASS = 'rbt-node';
 
-/** 节点文字最小字号(像素) */
-export const RBT_NODE_FONT_MIN_SIZE = 13;
+/** 节点圆的类名(半径 / 描边 / 填充 / 进入动画都在它上面) */
+export const RBT_NODE_SHAPE_CLASS = 'rbt-node__shape';
 
-/** 节点文字字号相对半径的比例(× 半径,向下取整) */
-export const RBT_NODE_FONT_RADIUS_FACTOR = 0.75;
+/** 节点值的类名(字体 / 字号 / 对齐 / 文字色) */
+export const RBT_NODE_LABEL_CLASS = 'rbt-node__label';
 
-// ---------- 配色 ----------
+/** 红节点的修饰类(挂在节点组上,不挂在圆上:组是"这个节点"的语义单位) */
+export const RBT_NODE_RED_CLASS = 'rbt-node--red';
 
-/** 画布底色(白) */
-export const RBT_CANVAS_BACKGROUND = '#ffffff';
+/** 黑节点的修饰类(与红色成对,见 RBT_NODE_RED_CLASS) */
+export const RBT_NODE_BLACK_CLASS = 'rbt-node--black';
 
-/** 连线颜色(浅灰蓝) */
-export const RBT_EDGE_COLOR = '#94a3b8';
-
-/** 连线线宽(像素) */
-export const RBT_EDGE_LINE_WIDTH = 2;
-
-/** 节点投影颜色(极淡的黑色) */
-export const RBT_NODE_SHADOW_COLOR = 'rgba(0,0,0,0.08)';
-
-/** 节点投影模糊半径(像素) */
-export const RBT_NODE_SHADOW_BLUR = 4;
-
-/** 红色节点填充色 */
-export const RBT_RED_NODE_FILL = '#ff0000';
-
-/** 红色节点描边色(深橙) */
-export const RBT_RED_NODE_STROKE = '#c2410c';
-
-/** 红色节点描边线宽(像素) */
-export const RBT_RED_NODE_LINE_WIDTH = 1.8;
-
-/** 红色节点文字颜色(深棕) */
-export const RBT_RED_NODE_TEXT = '#2d1a0e';
-
-/** 黑色节点填充色 */
-export const RBT_BLACK_NODE_FILL = '#000000';
-
-/** 黑色节点描边色(深蓝黑) */
-export const RBT_BLACK_NODE_STROKE = '#0f172a';
-
-/** 黑色节点描边线宽(像素) */
-export const RBT_BLACK_NODE_LINE_WIDTH = 1.6;
-
-/** 黑色节点文字颜色(浅灰) */
-export const RBT_BLACK_NODE_TEXT = '#f1f5f9';
+/** 父子连线的类名(`<line>` 的描边与线宽在 CSS) */
+export const RBT_EDGE_CLASS = 'rbt-edge';
 
 // ---------- 输出区(提示 / 错误 / 性质清单共用一套类名) ----------
 //
@@ -179,10 +176,10 @@ export const RBT_DIAGNOSTICS_SUMMARY_CLASS = 'tree-property-summary';
  */
 export const RBT_PROPERTY_SUMMARY = '红黑树性质检查: {total} 条中 {failed} 条 FAIL';
 
-/** 单条性质 PASS 时的结论文案(可见文本,不用符号 / 表情) */
+/** 单条性质 PASS 时的结论文本 */
 export const RBT_PROPERTY_STATE_PASS = 'PASS';
 
-/** 单条性质 FAIL 时的结论文案(可见文本,不用符号 / 表情) */
+/** 单条性质 FAIL 时的结论文本 */
 export const RBT_PROPERTY_STATE_FAIL = 'FAIL';
 
 // ---------- 性质检查:逐条的出错文案 ----------
@@ -257,13 +254,7 @@ export const RBT_PROPERTIES = [
  */
 export const RBT_COMPARISON_TOLERANCE = 1e-9;
 
-// ---------- 文本对齐与占位 ----------
-
-/** canvas 2D 文本的水平对齐方式(只给节点值用,画布不画别的文字) */
-export const RBT_TEXT_ALIGN = 'center';
-
-/** canvas 2D 文本的垂直基线(只给节点值用) */
-export const RBT_TEXT_BASELINE = 'middle';
+// ---------- 占位文案 ----------
 
 /** 空输入时的提示文案(可见文本,全站不用 emoji;写成 #treeOutput 里的提示行) */
 export const RBT_EMPTY_HINT_TEXT =

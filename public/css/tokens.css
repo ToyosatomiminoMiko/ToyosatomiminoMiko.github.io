@@ -244,6 +244,42 @@
     /* 解析错误提示(玫红,与性质 FAIL 同色:都是"这棵树不对") */
     --rbt-error-color: #e11d48;
 
+    /* ---------- 红黑树:树本身(SVG) ---------- */
+    /*
+     * 树从 canvas 换成 SVG 之后,这些值第一次真正落在 CSS 里:元素是自己的,
+     * fill / stroke / font 都吃令牌(canvas 的 ctx.fillStyle 读不到自定义属性,
+     * 从前这套配色只能写死在 src/rbt/config.ts).
+     *
+     * --rbt-node-radius 与 TS 的 RBT_NODE_RADIUS 必须相等:布局拿它算最小间距与
+     * 安全边距(节点该放哪),这里拿它画圆(节点多大).改一处要改两处,不一致的
+     * 表现是节点之间该留的空没留够,不会有任何报错.
+     */
+    --rbt-node-radius: 22px;
+    /* 节点圆的描边宽度(红 / 黑各一条,红节点略粗一档) */
+    --rbt-node-stroke-width: 1.6;
+    --rbt-node-stroke-width-red: 1.8;
+    /* 红节点:填充 / 描边 / 节点值文字色(白字,红底上黑字看不清) */
+    --rbt-node-red-fill: #ff0000;
+    --rbt-node-red-stroke: #c2410c;
+    --rbt-node-red-text: #ffffff;
+    /* 黑节点:填充 / 描边 / 节点值文字色(白字,黑底上同理) */
+    --rbt-node-black-fill: #000000;
+    --rbt-node-black-stroke: #0f172a;
+    --rbt-node-black-text: #ffffff;
+    /*
+     * 上面两条文字色**现在是同一个白**.仍然分两条,而不是收成一条"节点文字色":
+     * 名字说的是"哪一种节点的字",红底 / 黑底将来要各配一种时改一条即可.真要收成
+     * 一条,把 index.css 里 `.rbt-node--red { color }` 与 `.rbt-node--black { color }`
+     * 两条并成 `#rbtTree .rbt-node { color: ... }`,再删这两条令牌.
+     */
+    /* 节点值字号(圆半径 22px × 0.75 向下取整 = 16,与 canvas 时代的算式同源) */
+    --rbt-node-font-size: 16px;
+    /* 父子连线:颜色(浅灰蓝)与线宽 */
+    --rbt-edge-color: #94a3b8;
+    --rbt-edge-width: 2;
+    /* 节点出现的时长(每次输入整批重建,所以每个节点都会重新播一次) */
+    --rbt-node-enter-duration: 220ms;
+
     /* ---------- IEEE 754 面板:文案色 ---------- */
     /* 提示文字(浅灰) */
     --ieee-hint-color: #cbd5e1;

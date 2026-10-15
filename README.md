@@ -15,6 +15,18 @@ $there$ $is$ $nothing$ $to$ $do.$
 
 读取字符串生成红黑树,并检查它到底是不是一棵红黑树.
 
+**树是一棵 `<svg>`,不是 `<canvas>`**(2026-10 换成 SVG).节点与连线都是文档里的
+元素,所以:配色 / 字号 / 线宽全在 CSS(`public/css/tokens.css` 的 `--rbt-node-*` /
+`--rbt-edge-*` 令牌 + `public/css/index.css` 的 `#rbtTree` 区块),`src/rbt/config.ts`
+里不再有任何一个色值;窄屏等比缩放交给 `width: 100%` + `viewBox`,不必再算
+`devicePixelRatio`.命中检测 / 节点拖动 / 结构变化动画这些以后要做的交互,也由浏览器
+给(`pointerdown` 的 `event.target` 就是命中的节点,位移走 CSS transition).布局算法
+(区间递归分配)与解析 / 性质检查完全没动 -- 它们本来就不认识"用什么画".
+
+建 SVG 节点走库的 `create_svg_element`(`miko_ui` 的 `widgets/svg/`),不用
+`create_element`:`createElement('circle')` 给的是 `HTMLUnknownElement`,不渲染也不收
+事件,而且**不报错** -- 几何图形必须在 SVG 命名空间里造.
+
 **画布只画树**(节点值,连线,底色),一个字的文案都不写;提示 / 错误 / 性质结论
 全部写进输入框下面的**同一个**输出区 `#treeOutput`,每轮只装一种内容(整批替换):
 
@@ -232,7 +244,7 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 | LED 时钟的画布尺寸 / 时间戳格式 | `src/clock/config.ts`;标记在 `src/clock/ui/clock_display.ts`;绘制在 `src/clock/clock.ts`.时钟挂在 Calendario 标签页顶部,宿主 `#app_led_clock` 由 `src/calendar/ui/calendar_panel.ts` 生成(骨架不再建它) |
 | 日历页的三套历法 / 卡片文案 / 配色 | `src/calendar/config.ts`(`CALENDAR_SPECS`:中文名 + `-u-ca-` 历法 + Intl 选项 + Intl 表达不了的收尾开关 `dropRelatedYear` / `padMonthDay`),标记在 `src/calendar/ui/calendar_panel.ts`,格式化与跨日调度在 `src/calendar/calendar_date.ts`,样式令牌 `--calendar-*` 在 `public/css/tokens.css` |
 | OLED 画板的按钮 / 文案 / 提示 | `src/oled/config.ts`,面板标记在 `src/oled/ui/oled_panel.ts` |
-| 红黑树的提示文案 / 画布尺寸 / 占位符 / 性质清单 | `src/rbt/config.ts`(`RBT_PROPERTIES` 是性质清单,清单顺序 = 检查顺序),面板标记在 `src/rbt/ui/rbt_panel.ts`,解析与性质检查在 `src/rbt/rbt_tree.ts`,绘制与挂载在 `src/rbt/rbt.ts` |
+| 红黑树的提示文案 / viewBox 尺寸 / 结构类名 / 占位符 / 性质清单 | `src/rbt/config.ts`(`RBT_PROPERTIES` 是性质清单,清单顺序 = 检查顺序;树的配色 / 字号 / 线宽**不在这里**,见 `public/css/tokens.css` 的 `--rbt-node-*`),面板标记在 `src/rbt/ui/rbt_panel.ts`,解析与性质检查在 `src/rbt/rbt_tree.ts`,布局与 SVG 绘制在 `src/rbt/rbt.ts` |
 | IEEE 754 的标签 / 精度菜单项 / 初值 | `src/ieee754/config.ts`,面板标记在 `src/ieee754/ui/ieee754_panel.ts` |
 | 地铁车窗的滑块 / 风格按钮 / 上传图层 | `src/metro_window/src/config.ts`,面板在 `src/metro_window/src/ui/`(见它自己的 README) |
 | 导航条"隐形 / 实底"(首屏,各标签页) | `src/common/header_state.ts`(行为),类名与令牌名在 `src/common/site.config.ts` |
@@ -326,7 +338,7 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 | --- | --- | --- |
 | 主站样式 | `public/css/tokens.css` | 站点设计令牌(`:root`):字体栈,调色板,尺寸,圆角,间距,`z-index`,过渡;首屏(`--hero-*`)与固定导航条(`--chrome-*`).SETTING 页自己的令牌不在这一份里,见下面那行 |
 | 主站字体 | `src/main.ts`(引 `miko_ui/styles/fonts.css`),`public/css/tokens.css`(只留令牌别名) | 站点默认字体 `JetBrains Mono Slashed`(斜杠零)**随 `miko_ui` 依赖发布**(库的 `styles/fonts.css` + `styles/fonts/`,OFL 1.1),本站不再自带 woff2:`--font-base` / `--font-code` 分别是库 `--font-family-base` / `--code-font-family` 的别名,库换默认字体本站跟着换.本站按分组引库样式,所以 `fonts.css` 必须单独引 -- 漏了不会报错,只会静默退回系统等宽字体;`scripts/smoke_home.mjs` 有一条真浏览器断言同时盯「族名一致」与「woff2 真的被拉取」 |
-| 主站脚本 | `src/clock/config.ts`,`src/calendar/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,日历三套历法的清单 / Intl 选项 / 希伯来历月名汉译表,OLED 画板尺寸/通道/文案,红黑树布局与配色 + 性质清单(四条性质的名字与出错文案都在 `RBT_PROPERTIES`)+ 画布节点字体族(`RBT_NODE_FONT_FAMILY`:canvas 的 `ctx.font` 读不到 CSS 变量,字体只能写字面量),IEEE 754 精度格式与掩码,站点级声明式模型(导航项 / 首屏结构 / 首屏那两颗宿主 id / `is-over-hero` 类名 / `--nav-height` 令牌名) |
+| 主站脚本 | `src/clock/config.ts`,`src/calendar/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,日历三套历法的清单 / Intl 选项 / 希伯来历月名汉译表,OLED 画板尺寸/通道/文案,红黑树布局几何 + 结构类名 + 性质清单(四条性质的名字与出错文案都在 `RBT_PROPERTIES`;树的配色 / 字体 / 线宽**不在 TS 里**,它们是 SVG 元素的 CSS 观感,见 `public/css/tokens.css` 的 `--rbt-*`),IEEE 754 精度格式与掩码,站点级声明式模型(导航项 / 首屏结构 / 首屏那两颗宿主 id / `is-over-hero` 类名 / `--nav-height` 令牌名) |
 | 首页骨架 | `src/common/ui/site_shell.ts` | 骨架:导航条 / 首屏 / 六个**空**窗格 / 首屏那两颗宿主(标记用库的 `create_element`;SETTING 页与 Calendario 页的结构不在这里,骨架只给它们空窗格) |
 | SETTING 页 | `src/setting/config.ts`,`src/setting/tokens.css`,`src/setting/setting.css`,`src/setting/setting_page.ts` | 那一页的全部声明与外观:三块设置组的 id·类名·面板标题,背景缩略图清单,页面透明度滑块的初值·区间·令牌名(纯数据);`--setting-*` 令牌;设置组框体与**组里每条控件的观感**(滑块配色 / 字体,作用域 `.setting-group`);整页面板 + 三颗空设置组的生成者 |
 | 主站行为 | `src/main.ts`,`src/common/header_state.ts`,`src/setting/background.ts`,`src/setting/page_opacity.ts` | 挂载顺序(骨架 -> 设置页 -> 各模块 -> 行为),导航条"隐形 / 实底"状态(首屏还压在它下面时,以及任何标签页停在页面顶端时),背景切换令牌写入,页面透明度滑块(库的 `createSlider`)往背景组里那条 `.bgrow` 追加并写 `--tab-pane-opacity` 令牌 |

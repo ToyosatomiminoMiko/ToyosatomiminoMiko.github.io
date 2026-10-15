@@ -1,13 +1,14 @@
 /*
-红黑树的**表达式解析**与**性质检查**(纯逻辑,不碰 DOM 也不碰 canvas).
+红黑树的**表达式解析**与**性质检查**(纯逻辑,不碰 DOM,也不认识树是怎么画的).
 
-拆出来单独一份的原因:`rbt.ts` 里剩的是画布绘制与挂载(要 canvas / 要宿主),
+拆出来单独一份的原因:`rbt.ts` 里剩的是布局,SVG 绘制与挂载(要宿主,要元素),
 而"这段表达式是不是一棵红黑树"只需一个字符串就能算完,能在 happy-dom 里直接测
-(见 rbt_tree.test.ts) -- 混在一个要 `getContext('2d')` 的文件里就没法测.
+(见 rbt_tree.test.ts) -- 混在一个要建元素 / 绑事件的挂载文件里就不是"纯函数"了.
+这条分工也让 2026-10 那次 canvas -> SVG 的改动一行都不用碰本文件.
 
 数据形状:
 - `RbtColor` / `RbtNode` 是这棵树的全部状态;节点是**可变对象**(布局期往
-  `x` / `y` 上写坐标,见 rbt.ts 的 TreeDrawer),所以这里给的是 interface 而不是
+  `x` / `y` 上写坐标,见 rbt.ts 的布局函数),所以这里给的是 interface 而不是
   只读视图.
 - `nil` 叶子**不建节点**:用 `null` 表示,颜色恒为黑(所以"nil 叶子是黑色"
   这条性质结构上不会违反,不列进清单,理由见 config 的 RBT_PROPERTIES).
@@ -59,7 +60,7 @@ export interface RbtNode {
     color: RbtColor;
     left: RbtNode | null;
     right: RbtNode | null;
-    /** 布局期由 TreeDrawer 写入的画布坐标(解析与性质检查不读它) */
+    /** 布局期由 rbt.ts 写入的 viewBox 坐标(解析与性质检查不读它) */
     x?: number;
     y?: number;
 }
