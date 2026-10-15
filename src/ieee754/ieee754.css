@@ -1,4 +1,16 @@
-/* IEEE 754 */
+@import '@/ieee754/tokens.css';
+
+/*
+IEEE 754 面板样式.
+
+类名全部由 src/ieee754/ui/ieee754_panel.ts 生成(`.ieee-*`),可调数值走本目录
+tokens.css 的 `--ieee-*`.控件(精度菜单 / 按钮 / 公式)与它们的观感都归 `miko_ui`,
+本站只给布局与容器口径.
+
+**为什么在这里**:从前这份文件是 `public/css/ieee754.css`,靠 index.html 里的静态
+`<link>` 进来 -- 全站唯一一个把规则放在 public 里的模块.现在令牌 / 规则 / 标记都在
+同一个目录里(搬迁的原委见 public/css/index.css 顶部那段说明).
+*/
 .ieee-hint {
     color: var(--ieee-hint-color);
     font-size: 0.9rem;

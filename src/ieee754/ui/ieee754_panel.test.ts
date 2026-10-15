@@ -1,7 +1,7 @@
 /**
  * IEEE 754 面板的标记契约(进程内,跑在 happy-dom 里).
  *
- * 面板整块由 `ui/ieee754_panel.ts` 生成,而 `public/css/ieee754.css` 通篇按这里的
+ * 面板整块由 `ui/ieee754_panel.ts` 生成,而 `src/ieee754/ieee754.css` 通篇按这里的
  * 类名命中,所以这份测试相当于把"CSS 与标记的接口"钉住:类名少一个,层级挪一层,
  * 样式就静默失效.
  *

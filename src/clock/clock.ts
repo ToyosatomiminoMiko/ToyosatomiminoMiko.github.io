@@ -7,6 +7,14 @@ src/calendar/ui/calendar_panel.ts 生成后交给 main.ts 转交),标记由
 ui/clock_display.ts 生成.本文件只做行为:接收 createClockDisplay() 交回的
 画布引用直接绘制,不按 id 去 DOM 里找元素.
 */
+
+/*
+样式:`tokens.css`(设计令牌)与 `clock.css`(观感)在本模块引入(与 SETTING 页 /
+地铁车窗同一条做法:组件在自己的入口里引样式).时钟宿主长在 Calendario 页顶部,但
+它的外观只由本目录这两份文件给.
+*/
+import '@/clock/clock.css';
+
 import { fmt_time } from '@/common/utils';
 import { createClockDisplay } from '@/clock/ui/clock_display';
 import {

@@ -126,7 +126,7 @@ function createStubContext(): Record<string, unknown> {
 /**
  * 把面板挂进文档并把画布几何钉成给定值.
  *
- * clientLeft / clientTop 固定为 1,因为 public/css/index.css 给画布画了 1px 描边 --
+ * clientLeft / clientTop 固定为 1,因为 src/oled/oled.css 给画布画了 1px 描边 --
  * 内容盒口径的换算就是靠这两个值把描边扣掉,桩里必须带上,否则测不到那条换算.
  */
 function mountWithBox(box: CanvasBox): OledPanel {

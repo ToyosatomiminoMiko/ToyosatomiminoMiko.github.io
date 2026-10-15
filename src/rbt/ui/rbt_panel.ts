@@ -4,7 +4,7 @@
 骨架(src/common/ui/site_shell.ts)只提供空的标签页窗格 `shell.panes.rbt`,
 整块面板按 config.ts 的声明在这里生成
 正文顺序(提示区 -> 输入框 -> 输出区 -> 树)由下面 createPanel 的 body 实参决定,
-不能调换:rbt_panel.test.ts 按这个顺序定位(index.css 只按 id 命中,与先后无关;
+不能调换:rbt_panel.test.ts 按这个顺序定位(src/rbt/rbt.css 只按 id 命中,与先后无关;
 顺序管的是视觉堆叠与测试).
 
 **树是一棵 `<svg>`,不是一个 `<canvas>`**(2026-10 起):节点与连线都是文档里的真

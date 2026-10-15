@@ -9,6 +9,13 @@
 
 import { create_element, type CodeEditorHandle, type SegmentedHandle } from 'miko_ui';
 
+/*
+样式:`tokens.css`(设计令牌)与 `oled.css`(画板观感)在本模块引入(与 SETTING 页 /
+地铁车窗同一条做法).库的控件观感由 main.ts 先引的 widgets.css / editor.css 给,
+本站只补尺寸与排布.
+*/
+import '@/oled/oled.css';
+
 import type {
     PixelPos,
     DrawTool,
@@ -73,7 +80,7 @@ import {
  * 画布**内容盒**在视口中的位置与放大率(换算坐标与红框位置唯一依赖的那份几何).
  *
  * 为什么不能直接用 `getBoundingClientRect()` 的结果:那是**边框盒**.本站画布有
- * 1px 描边(见 public/css/index.css 的 `canvas#pixelCanvas`),于是
+ * 1px 描边(见 src/oled/oled.css 的 `canvas#pixelCanvas`),于是
  *   1024 / 128 = 8.000 才是"每像素显示宽",
  *   1026 / 128 = 8.016 是拿边框盒量出来的错值.
  * 错值沿画布累积,右下角能差到 3px 以上;再加上红框是从边框盒外沿起算,左上角固定
@@ -378,7 +385,7 @@ export class OLEDCanvas {
     /**
      * 折叠 / 展开数据编辑器.
      *
-     * 两种高度都是设计参数,留在样式表里(见 public/css/index.css 与 tokens.css):
+     * 两种高度都是设计参数,留在样式表里(见 src/oled/oled.css 与 tokens.css):
      * 折叠态 = `--oled-editor-height`(同时也是最小高度),展开态 = 70 行的
      * `--oled-editor-expanded-height`.这里只切一个类名,并把按钮文案与
      * `aria-expanded` 同步过去.
@@ -622,7 +629,7 @@ export class OLEDCanvas {
     private updateCanvasMetrics(): void {
         const rect = this.canvas.getBoundingClientRect();
         // 边框盒 -> 内容盒:clientLeft / clientTop 就是左边框 / 上边框的宽度
-        // (见 public/css/index.css 里画布那 1px 描边).除以 clientWidth 而不是
+        // (见 src/oled/oled.css 里画布那 1px 描边).除以 clientWidth 而不是
         // rect.width,才是一个画布像素真实的显示宽.
         this.metrics = {
             left: rect.left + this.canvas.clientLeft,

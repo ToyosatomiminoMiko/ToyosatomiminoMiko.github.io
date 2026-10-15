@@ -1,0 +1,38 @@
+@import '@/clock/tokens.css';
+
+/*
+LED 时钟样式.
+
+两个 id:`#app_led_clock`(面板宿主,由 src/clock/ui/clock_display.ts 生成)与
+`#time_canvas`(点阵画布).时钟的宿主长在 Calendario 页顶部,但它的外观只由本文件
+与同目录的 tokens.css 给 -- 时钟的标记与行为仍然只在 src/clock/ 里.
+
+搬迁的原委见 public/css/index.css 顶部那段说明.
+*/
+#app_led_clock {
+    background-color: var(--clock-panel-bg) !important;
+    border-radius: var(--clock-panel-radius);
+    padding: var(--clock-panel-padding);
+    box-shadow: 0 0 var(--clock-glow-blur) var(--clock-glow);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#time_canvas {
+    /*
+    图像使用诸如"最近邻"等算法进行缩放
+    以保留图像中的对比度和边缘
+    通常适用于像素画或线条图等图像
+    不会产生模糊或颜色平滑
+    */
+    /*image-rendering: crisp-edges;*/
+    /*
+    图像先使用"最近邻"或类似算法缩放到原始图像尺寸的最近整数倍
+    再使用平滑插值将图像调整到最终所需尺寸
+    这样可以在放大分辨率不是原始尺寸整数倍时
+    保留"像素化"外观,同时避免引入缩放伪影
+    */
+    image-rendering: pixelated;
+    height: var(--clock-canvas-height);
+}

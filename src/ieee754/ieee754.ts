@@ -35,6 +35,13 @@ IEEE 754 浮点可视化:单精度(float32) / 双精度(float64).
     DOM 入口 mountIEEE754 由 main.ts 调用.
 */
 import { create_element, createFormulaElement } from 'miko_ui';
+
+/*
+样式:`tokens.css`(设计令牌)与 `ieee754.css`(面板观感)在本模块引入.从前
+`ieee754.css` 住在 public/css 里靠 index.html 的静态 `<link>` 进来,现在跟模块同级
+(搬迁的原委见 public/css/index.css 顶部那段说明).
+*/
+import '@/ieee754/ieee754.css';
 import type { IEEE754Class, IEEE754Format, IEEE754Value } from './types';
 import { createIeee754Panel, setFormatTriggerText } from './ui/ieee754_panel';
 import {

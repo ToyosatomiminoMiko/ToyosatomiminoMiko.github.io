@@ -177,7 +177,7 @@ export const IEEE754_SPECIAL_VALUES: IEEE754SpecialSpec[] = [
 ];
 
 // ============================================================
-// DOM 契约:id 与 ui/ieee754_panel.ts 生成的标记一致,样式在 public/css/ieee754.css
+// DOM 契约:id 与 ui/ieee754_panel.ts 生成的标记一致,样式在 ./ieee754.css
 //
 // 宿主只提供空窗格;id 由组件生成时写上(留给 CSS 与调试定位),行为代码拿的是组件
 // 交回的元素引用,不做 getElementById,所以这里只留 id,没有选择器.
@@ -201,7 +201,7 @@ export const IEEE754_DOM = {
 // 面板的声明式模型(ui/ieee754_panel.ts 按此生成整块面板)
 //
 // 结构与可见文案只在这里声明一次,组件按模型生成标记,行为代码只跟组件交回的
-// 元素引用打交道.类名与 public/css/ieee754.css 的选择器一一对应,不合并 / 不省略.
+// 元素引用打交道.类名与 ./ieee754.css 的选择器一一对应,不合并 / 不省略.
 // ============================================================
 
 /** 面板标题文案(全站不用 emoji) */
@@ -351,7 +351,7 @@ export const IEEE754_LEGENDS = [
 ] as const satisfies readonly IEEE754LegendSpec[];
 
 // ============================================================
-// 位图 class 名(与 public/css/ieee754.css 一致)
+// 位图 class 名(与 ./ieee754.css 一致)
 // ============================================================
 
 export const IEEE754_BIT_CLASS = 'ieee-bit';

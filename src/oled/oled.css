@@ -1,0 +1,152 @@
+@import '@/oled/tokens.css';
+
+/*
+OLED 像素画板样式.
+
+作用域:`#pixelCanvas` / `.oled-card` / `.tools` / `.coords-display` / `.pixel-indicator`
+/ `.area-data`,标记由 src/oled/ui/oled_panel.ts 生成(`oled.ts` 只按交回的引用操作).
+
+**为什么在这里**:这些选择器只服务画板一处,从前却住在 `public/css/index.css`,而
+它们引的令牌住在 `public/css/tokens.css` -- 一个模块横跨两棵树.跟模块同级之后
+标记 / 令牌 / 观感在一个目录里,改一处不会漏(与 SETTING 页 / 地铁车窗同一条做法,
+搬迁的原委见 public/css/index.css 顶部那段说明).
+
+与库的关系:按钮 / 分段选择器 / 数据编辑器(`createCodeEditor`)的**观感**全部归
+`miko_ui` 的 `widgets.css` / `editor.css`(由 `src/main.ts` 引入,在本文件之前),
+本站只补"尺寸与排布"这几件事.
+*/
+/* 画布样式.
+   描边宽度用本模块自己的 --oled-border-width:从前这里引的是 IEEE754 的
+   --ieee-border-width,那是跨模块借令牌(改 IEEE 的边框会把画布一起改掉). */
+.oled-card {
+    width: var(--card-width);
+}
+
+canvas#pixelCanvas {
+    /* 放大显示尺寸 */
+    /*width: 512px;
+    height: 256px;*/
+    width: var(--oled-canvas-width);
+    height: var(--oled-canvas-height);
+    /*width: 100%;*/
+    /* 保持像素锐利 */
+    image-rendering: pixelated;
+    /* 隐藏默认鼠标指针 */
+    cursor: none;
+    border: var(--oled-border-width) solid var(--oled-border);
+}
+
+/*
+ * 工具区布局:一排可换行的控件 -- 八颗按钮(颜色重置 / 画笔颜色 / 导出数据 /
+ * 复制到剪贴板 / 导入数据 / 展开-折叠编辑器 / 下载PNG / 字节序)加库的分段选择器.
+ * 按钮间距统一由这里的 `gap` 给(`--oled-button-margin`).
+ * 按钮本身的观感(描边 / 底色 / 文字 / 悬停 / 焦点 / 禁用)归 UI 库(`miko_ui`
+ * 的 `.ui-button` 基线,见 main.ts 引的 widgets.css);分段选择器组内按钮的间距
+ * 由库的 `.segmented` gap 管.
+ */
+.tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--oled-button-margin);
+    margin-top: var(--oled-tools-margin-top);
+    /* 文字色归库(与卡片正文同一色) */
+    color: var(--color-text);
+}
+
+/* 状态指示器样式 */
+.coords-display {
+    background: var(--oled-coords-bg);
+    padding: var(--oled-coords-padding);
+    /* 小控件圆角:用 miko_ui 主题的小圆角(库默认 0px),本站不另存尺寸 */
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    margin-top: var(--oled-coords-margin-top);
+}
+
+/*
+ * 鼠标像素指示器(红框 = 自由绘制那颗"光标").
+ *
+ * `position: fixed`:行为代码写进来的是**视口坐标**(getBoundingClientRect 那一套),
+ * 所以这一层不能跟着祖先滚动 -- 否则红框会随页面滚走,与画面错开.本站画布是
+ * 立即滚动到顶层的元素,祖先上没有 transform / filter,不会给它造包含块.
+ *
+ * **这里刻意没有 transition**(曾经是 `transition: all 10ms linear`,还有一条配套
+ * 令牌 `--transition-indicator`).红框是"指针落在哪颗像素上"的读数,不是动画:
+ * 指针一动它就该在那一格上.加过渡之后每次换格都会从旧位置插值一帧,鼠标快速划过
+ * 时红框永远落在指针后面(真引擎实测同一帧内能落后 900px 以上),停下还有一小段
+ * "追上来"的余动 -- 这正是长期观感里那点抖.读数类定位一律不做过渡,一条对齐规则
+ * 就够:红框左上角 = 画布内容盒原点 + 像素下标 × 每像素显示尺寸(见 oled.ts).
+ *
+ * 没有圆角:红框要正好盖住一颗方块像素,库的主题圆角会让四角露出画面.
+ * `display: none` 是初始态,指针进画面后由行为代码改成 block.
+ */
+.pixel-indicator {
+    position: fixed;
+    z-index: var(--z-pixel-indicator);
+    background: var(--oled-indicator-bg);
+    pointer-events: none;
+    display: none;
+}
+
+/*
+ * 数据区那颗编辑器:`miko_ui` 的 `createCodeEditor`(外框类 `.code-editor`,
+ * 见 src/oled/ui/oled_panel.ts;导出与导入共用这一颗).外框 / 行号槽 /
+ * "透明 textarea + 背后高亮层"的严格重叠,以及等宽字体 / 配色,全部归库的
+ * `styles/editor.css`(由 src/main.ts 引入);本站只在外框上补三件事:
+ * **宽 / 高**,与纵向可拖动.
+ *
+ * 为什么要 `.oled-card` 前缀:库的样式表由 main.ts 先引(同一份打包产物里排在本文件
+ * 之前),`.code-editor` 在库里自己写了 `width` / `height` / `min-height`;加一层把
+ * 特异性提到 (0,2,0),本站的尺寸口径才算得准,不依赖"谁的样式表排在后面"这条顺序
+ * 约定(两边的引入顺序一改,平局就翻转,而这种改动不会有任何报错).
+ *
+ * 本站的口径是"**定尺的盒子,滚动在 textarea 里**":
+ *   - 高度:库的默认是"外框随内容长高,滚动归宿主",本站不要这个 -- 自动高度下
+ *     点一次"导出数据",67 行 C 源码会把编辑器从 150px 撑到 1300px;定高之后超出的
+ *     部分由库的 textarea 自己滚(`.ui-scrollbar`,见 oled_panel.ts),与换成编辑器
+ *     之前那条 `textarea.textarea-data` 的手感一致.注意这是**本站覆盖库的默认**,
+ *     不是库替我们定的(库 0.1.11 起改过一轮滚动归属,别再按"库会定高"来理解);
+ *   - 宽度:`width: 100%` 同理 -- 库(未发布的那一版)把外框写成 `max-content`,
+ *     导出后最长那行(100 字符)会让外框涨到 1034px 而卡片只有 795px(900px 视口
+ *     实测),横向滚动条反而消失.钉成卡片宽度,长行才回到 textarea 里横滚.
+ *
+ * 折叠 / 展开:折叠态就是上面这个 `--oled-editor-height`,同时被钉成 min-height
+ * (手动拖动拖不到更矮,`resize: vertical` 会尊重 min-height);展开态换成
+ * `--oled-editor-expanded-height`(= 70 行,算式见本目录 tokens.css).两态只差一个
+ * `is-expanded` 类,由 oled.ts 的 toggleEditorExpanded 切.
+ */
+.oled-card .code-editor {
+    width: 100%;
+    height: var(--oled-editor-height);
+    min-height: var(--oled-editor-height);
+    resize: vertical;
+}
+
+/* 展开态:70 行的高度(选择器多一个类,特异性 (0,3,0),稳压上面那条) */
+.oled-card .code-editor.is-expanded {
+    height: var(--oled-editor-expanded-height);
+}
+
+/*
+ * 行号槽:永不滚动 + 槽宽钉死.
+ *
+ * 永不滚动:整个编辑器只有 textarea 一个滚动容器,行号栏内容超高时也是裁掉,
+ * 不给它自己加滑条(`overflow: hidden` 与库的 `styles/editor.css` 一致,写在这里
+ * 是让"行号栏不滚"这条要求在本站样式表里也一眼可见).
+ *
+ * 槽宽:库(EditorLineNumbers)在行号位数进位时按当前字体重量一次,把结果写成 gutter
+ * 上一条**不带 priority** 的内联自定义属性;内联的普通声明压得过任何不带 `!important`
+ * 的作者声明,所以钉住它的只能是这里的作者 `!important` -- 内联那份反而会被库随后的
+ * 普通写入连 priority 一起替换掉.位数再多(超过 48px)的部分由上面的 `overflow: hidden`
+ * 裁掉,而不是给行号栏加滑条;取值理由见 src/oled/config.ts 的同名常量.
+ */
+.oled-card .code-editor-gutter {
+    --code-gutter-width: 48px !important;
+    overflow: hidden;
+}
+
+.area-data {
+    margin-top: var(--oled-area-margin);
+    margin-bottom: var(--oled-area-margin);
+}

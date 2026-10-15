@@ -164,7 +164,7 @@ export const OLED_BYTE_ORDER_TEXT = {
     msb: '高位模式(MSB)',
 } as const;
 
-// ---------- DOM 契约(id / class,public/css/index.css 按它命中) ----------
+// ---------- DOM 契约(id / class,src/oled/oled.css 按它命中) ----------
 
 /** OLED 控件用到的 DOM 元素 id(所有 id 契约都在这一张表里) */
 export const OLED_DOM = {
@@ -249,7 +249,7 @@ export const OLED_MOUSE_BUTTON_MASK = 3;
 // ---------- 面板标记的声明式模型(ui/oled_panel.ts 用) ----------
 //
 // 标签 / 类名 / 文案 / id 集中到这里,由 ui/oled_panel.ts 的纯函数生成标记.
-// 类名与 id 直接决定 public/css/index.css 的命中,所以字符串一字不改.
+// 类名与 id 直接决定 src/oled/oled.css 的命中,所以字符串一字不改.
 // 唯一的例外是框体:它由 miko_ui 的 `createPanel` 建(`section.ui-panel`),
 // 类名归库,本站只留定宽的作用域类.
 
@@ -286,7 +286,7 @@ export const OLED_PANEL_ROW_CLASS = 'area-data';
  * 而库默认按"最大行号位数 × 当前字体的数字宽"自己量,量出来的宽度会在
  * 1 位行号(刚粘贴)与 2 位行号(导出的 67 行)之间跳(实测 32px / 35px),同一颗
  * 框在"粘贴一小段"与"导出整份"之间就会忽宽忽窄.所以这里钉一个常量:既作为库的
- * `gutterMinWidth`,也由 public/css/index.css 的 `.oled-card .code-editor-gutter`
+ * `gutterMinWidth`,也由 src/oled/oled.css 的 `.oled-card .code-editor-gutter`
  * 声明成 `--code-gutter-width: 48px !important`.
  * 为什么必须落在作者样式表里:库在位数进位时会按字体重量,并把结果写成 gutter 上
  * 一条**不带 priority** 的内联自定义属性;内联的普通声明压得过任何不带 `!important`
@@ -294,7 +294,7 @@ export const OLED_PANEL_ROW_CLASS = 'area-data';
  * 无效的 -- CSSOM 里对同一条内联属性做不带 priority 的写入,会连 priority 一起替换掉.
  * 取值按"3 位数 + 槽内边距 / 边框"留量(实测 3 位需约 45px).
  * 位数再多(例如把 1024 个字节一行一个粘进来)会被同一条规则里的 `overflow: hidden`
- * 裁掉,而不是给行号栏加一条自己的滑条 -- 这是刻意的,见 index.css 的说明.
+ * 裁掉,而不是给行号栏加一条自己的滑条 -- 这是刻意的,见 src/oled/oled.css 的说明.
  */
 export const OLED_PANEL_EDITOR_GUTTER_WIDTH = 48;
 
@@ -302,8 +302,8 @@ export const OLED_PANEL_EDITOR_GUTTER_WIDTH = 48;
  * 数据编辑器"展开"状态的类名(挂在库的 `.code-editor` 外框上).
  *
  * 折叠态高度 = `--oled-editor-height`,`is-expanded` 时换成
- * `--oled-editor-expanded-height`(70 行,见 public/css/tokens.css 的算式);
- * 两个高度都由 public/css/index.css 落在 `.oled-card .code-editor` 上.
+ * `--oled-editor-expanded-height`(70 行,见 src/oled/tokens.css 的算式);
+ * 两个高度都由 src/oled/oled.css 落在 `.oled-card .code-editor` 上.
  * 用类名而不是内联 style:高度是"设计参数",该留在样式表里;行为代码只切状态.
  */
 export const OLED_PANEL_EDITOR_EXPANDED_CLASS = 'is-expanded';

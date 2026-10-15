@@ -26,7 +26,7 @@ IEEE 754 面板的标记组件(声明式).
       </div>
     </section>
 
-这些 id / class 是 `public/css/ieee754.css` 的命中条件,不得合并或省略.三处部件归
+这些 id / class 是 `src/ieee754/ieee754.css` 的命中条件,不得合并或省略.三处部件归
 UI 库(`miko_ui`):面板框体是 `createPanel`,转换按钮是 `createButton`,精度那一列是
 `createMenu` 的折叠菜单(触发按钮 / 面板 / 分组 / 当前项 / 开合都归库,本站只给数据
 与挂载锚点).本模块是纯函数:不读页面,不改全局,不绑事件(`addEventListener` /

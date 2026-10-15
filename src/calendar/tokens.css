@@ -1,0 +1,36 @@
+/*
+Calendario 标签页的设计令牌.
+
+三套历法那三张卡的全部可调数值(面板宽度上限 / 卡间距 / 卡的底色描边圆角内边距 /
+历法名 · 日期 · 副行三档文字色与字号)集中在这里,`calendar.css` 只引用
+`var(--calendar-*)`,选择器里不写死色值与尺寸.
+
+--calendar-panel-width 引的是站点级的 `--card-width`(public/css/tokens.css 里那条
+"跨模块共用的排版口径",画板卡片与红黑树输入框也引它),不在这里另存一份.
+
+搬迁的原委见 public/css/index.css 顶部那段说明.
+*/
+:root {
+    /* ---------- 日历标签页(Calendario) ---------- */
+    /*
+     * 面板占满窗格宽度(与 OLED / IEEE754 的卡片同口径:--card-width = 100%).
+     * 卡片是"三套历法各一行"的窄条,拉满反而不好读,所以正文宽度另给一条上限.
+     */
+    --calendar-panel-width: var(--card-width);
+    --calendar-content-width: 720px;
+    /* 时钟与三张卡之间,以及卡与卡之间的间距 */
+    --calendar-gap: 16px;
+    /* 单张日历卡的底色 / 描边 / 圆角 / 内边距(圆角引用 miko_ui 主题令牌) */
+    --calendar-item-bg: #0b1220;
+    --calendar-item-border: 1px solid #334155;
+    --calendar-item-radius: var(--radius-md);
+    --calendar-item-padding: 12px 16px;
+    /* 历法名(小字,弱化)与日期文字(大字) */
+    --calendar-label-color: #94a3b8;
+    --calendar-label-font-size: 13px;
+    --calendar-date-color: #e2e8f0;
+    --calendar-date-font-size: 22px;
+    /* 副日期行:拉丁转写 / 星期(中等字号,比主行弱) */
+    --calendar-latin-color: #cbd5e1;
+    --calendar-latin-font-size: 14px;
+}

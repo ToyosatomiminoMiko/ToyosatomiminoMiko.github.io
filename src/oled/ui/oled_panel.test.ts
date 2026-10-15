@@ -3,7 +3,7 @@
  *
  * 标记由 `ui/oled_panel.ts` 生成并把引用交回,这里断言两件事:
  *
- *   1) `public/css/index.css` 用到的选择器全部命中
+ *   1) `src/oled/oled.css` 用到的选择器全部命中
  *      (`canvas#pixelCanvas` / `.oled-card` / `.coords-display` / `.pixel-indicator` /
  *      `.tools` / `.oled-card .code-editor` / `.area-data` / `#change-color`);
  *   2) 交回的引用就是文档里那一个(否则行为会绑到不在页面上的元素).
@@ -183,7 +183,7 @@ describe('OLED:数据区', () => {
         // 高亮层已就位:脚本跑通后库才加这个开关(文字透明 + 高亮层显示)
         expect(editor.textarea.classList.contains('is-highlighted'), id).toBe(true);
         // 槽宽不在标记里钉:面板只把常量交给库的 `gutterMinWidth`,真正生效的是
-        // public/css/index.css 的 `--code-gutter-width: 48px !important`
+        // src/oled/oled.css 的 `--code-gutter-width: 48px !important`
         // (库随后写的普通内联值压不过它;由下面"行数进位"那条测试守着)
         // 唯一会滚的 textarea 挂库的滚动条规定(见 main.ts 引的 scrollbar.css)
         expect(editor.textarea.classList.contains('ui-scrollbar'), id).toBe(true);
@@ -257,11 +257,11 @@ describe('OLED:数据区', () => {
         */
         const { URL: NodeURL } = await import('node:url');
         const css = await readFile(
-            new NodeURL('../../../public/css/index.css', import.meta.url),
+            new NodeURL('../../../src/oled/oled.css', import.meta.url),
             'utf8',
         );
         const rule = css.match(/\.oled-card\s+\.code-editor-gutter\s*\{([^}]*)\}/);
-        expect(rule?.[1], 'public/css/index.css 里没有 .oled-card .code-editor-gutter 规则')
+        expect(rule?.[1], 'src/oled/oled.css 里没有 .oled-card .code-editor-gutter 规则')
             .toBeDefined();
         // 去掉注释再断言:把这条声明整行注释掉也算"钉住了"的话,这条测试就白写了
         const declarations = (rule?.[1] ?? '').replace(/\/\*[\s\S]*?\*\//g, '');

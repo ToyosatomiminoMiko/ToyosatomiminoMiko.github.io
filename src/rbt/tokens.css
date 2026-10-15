@@ -1,0 +1,64 @@
+/*
+红黑树工具的设计令牌.
+
+输入框 / 唯一输出区 / 那棵 SVG 树的可调数值全部集中在这里,`rbt.css` 只引用
+`var(--rbt-*)`,选择器里不写死色值与尺寸(换配色不用碰 TS).
+
+跨语言契约(改一处必须改两处,不一致时不会有任何报错):
+  - `--rbt-node-radius` 与 `src/rbt/config.ts` 的 `RBT_NODE_RADIUS` 必须相等:
+    布局拿它算最小间距与安全边距(节点该放哪),这里拿它画圆(节点多大);
+  - `--rbt-node-enter-duration` 与 config.ts 里那条同名常量是同一件事的两种写法,
+    理由写在下面.
+
+搬迁的原委见 public/css/index.css 顶部那段说明.
+*/
+:root {
+    /* ---------- 红黑树 ---------- */
+    /* 表达式输入框的字体绿 / 背景黑 */
+    --rbt-text-color: #00FF00FF;
+    --rbt-input-bg: #000000FF;
+    /* 输入框边框 */
+    --rbt-input-border: 1.5px solid #e2e8f0;
+    /* 输入框上下外边距 / 最小高度 */
+    --rbt-input-margin: 10px;
+    --rbt-input-min-height: 100px;
+    /* 性质检查:PASS(浅绿,与输入框的绿同一色系)/ FAIL(玫红,同解析错误) */
+    --rbt-pass-color: #4ade80;
+    --rbt-fail-color: #e11d48;
+    /* 性质检查清单的抬头色(弱化)与上下外边距 */
+    --rbt-diag-summary-color: #94a3b8;
+    --rbt-diag-margin: 6px;
+    /* 空输入 / 空树提示(中性说明,与清单抬头同一档弱化色) */
+    --rbt-hint-color: #94a3b8;
+    /* 解析错误提示(玫红,与性质 FAIL 同色:都是"这棵树不对") */
+    --rbt-error-color: #e11d48;
+
+    /* ---------- 红黑树:树本身(SVG) ---------- */
+    /*
+     * 树从 canvas 换成 SVG 之后,这些值第一次真正落在 CSS 里:元素是自己的,
+     * fill / stroke / font 都吃令牌(canvas 的 ctx.fillStyle 读不到自定义属性,
+     * 从前这套配色只能写死在 src/rbt/config.ts).
+     *
+     * --rbt-node-radius 与 TS 的 RBT_NODE_RADIUS 必须相等:布局拿它算最小间距与
+     * 安全边距(节点该放哪),这里拿它画圆(节点多大).改一处要改两处,不一致的
+     * 表现是节点之间该留的空没留够,不会有任何报错.
+     */
+    --rbt-node-radius: 22px;
+    /*
+     * 红节点 / 黑节点:各一条填充色.
+     *
+     * 只有填充,没有描边:描边那套(两条线宽 + 两条描边色)已经整个删掉 --
+     * 真需要描边时再加 `--rbt-node-stroke-width` 与 `stroke`,别提前留着.
+     */
+    --rbt-node-red-fill: #ff0000;
+    --rbt-node-black-fill: #000000;
+    /* 节点值文字色:红黑同一个白(红底上黑字看不清,黑底上更是) */
+    --rbt-node-text: #ffffff;
+    /* 节点值字号(圆半径 22px × 0.75 向下取整 = 16,与 canvas 时代的算式同源) */
+    --rbt-node-font-size: 16px;
+    /* 父子连线:颜色(浅灰蓝)与线宽 */
+    --rbt-edge-color: #94a3b8;
+    --rbt-edge-width: 2;
+    /* 节点出现的时长(每次输入整批重建,所以每个节点都会重新播一次) */
+    --rbt-node-enter-duration: 220ms;
+}

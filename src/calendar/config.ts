@@ -175,14 +175,14 @@ export const CALENDAR_SPECS: readonly CalendarSpec[] = [
 
 // ---------- 面板标记契约(ui/calendar_panel.ts 用) ----------
 //
-// 标签 / 类名直接决定 public/css/index.css 的命中,所以字符串一字不改.
+// 标签 / 类名直接决定 ./calendar.css 的命中,所以字符串一字不改.
 // 框体(section.ui-panel + 标题栏 + 正文容器)由 miko_ui 的 `createPanel` 建,
 // 类名归库,本站只留下面这些作用域类.
 
 /** 面板标题(可见文本) */
 export const CALENDAR_PANEL_TITLE = '日历';
 
-/** 本站给面板根追加的作用域类(CSS 的 .calendar-pane 定宽) */
+/** 本站给面板根追加的作用域类(CSS 的 .calendar-pane:框体满宽,宽度上限在正文上) */
 export const CALENDAR_PANEL_EXTRA_CLASS = 'calendar-pane';
 
 /** 三张卡片组成的列表容器类名(CSS 的 .calendar-list 给网格间距) */

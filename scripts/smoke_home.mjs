@@ -192,9 +192,14 @@ const report = await cdp.evalValue(`(async () => {
         /*
           令牌 -> 计算色的两个换算件,这一组里跨几条断言共用,所以提到最前:
 
-          颜色要换算过再比 -- 令牌里写的是 #4ade80,而 getComputedStyle 给的永远是
-          rgb(74, 222, 128),直接比字符串会永远不相等;而且令牌读不到时两边都是空串
-          也会"相等",那种真问题正好被这条换算暴露出来.
+          颜色必须**过一遍引擎**再比,不能自己解析令牌字符串:
+            - 自定义属性读出来是作者写的原文(getPropertyValue 只做 var() 替换,不规范化),
+              而 fill / color 的 computed value 永远是 rgb(...);
+            - 打包产物里的颜色会被 CSS 压缩器改写(实测 #ff0000 -> red,#000000 -> #000),
+              自己按 6 位十六进制解析会量出"令牌 red,元素 fill rgb(255, 0, 0)"这种假失败
+              (令牌从前住在 public/css 里是原样拷贝,没有压缩器碰它,所以没暴露);
+            - 令牌读不到时两边都是空串也会"相等",那种真问题正好被这条换算暴露出来.
+          探针用完就摘掉,不留在页面上.
 
           (从前这两个函数定义在下面"性质清单"那一段里,后来红黑树红节点那条也要用
           它 -- 而那条断言排在前面,于是 const 的暂时性死区把它变成 ReferenceError.
@@ -204,10 +209,14 @@ const report = await cdp.evalValue(`(async () => {
         const readColorToken = (name) =>
             getComputedStyle(document.documentElement).getPropertyValue(name).trim();
         const toRgb = (color) => {
-            const hex = /^#([0-9a-f]{6})$/i.exec(color);
-            if (!hex) return color;
-            const n = parseInt(hex[1], 16);
-            return 'rgb(' + ((n >> 16) & 255) + ', ' + ((n >> 8) & 255) + ', ' + (n & 255) + ')';
+            // 令牌为空 = 读不到:回空串,让调用方那条 === 直接判失败(计算色不会是空串)
+            if (color === '') return '';
+            const probe = document.createElement('span');
+            probe.style.color = color;
+            document.documentElement.appendChild(probe);
+            const resolved = getComputedStyle(probe).color;
+            probe.remove();
+            return resolved;
         };
         // 时钟:2D 画布真的点出像素了
         const clock = q('#time_canvas');
@@ -820,7 +829,7 @@ const tabSwitch = await cdp.evalValue(`(async () => {
         expandedAria,
         collapsedText: toggle.textContent,
         collapsedAria: toggle.getAttribute('aria-expanded'),
-        // 两个高度口径的唯一来源是 CSS 令牌(public/css/tokens.css);脚本在浏览器里量到的
+        // 两个高度口径的唯一来源是 CSS 令牌(src/oled/tokens.css);脚本在浏览器里量到的
         // computed height 必须等于它,而不是脚本里再抄一份 150px / 1366px
         tokenCollapsed: getComputedStyle(document.documentElement).getPropertyValue('--oled-editor-height').trim(),
         tokenExpanded: getComputedStyle(document.documentElement).getPropertyValue('--oled-editor-expanded-height').trim(),
@@ -1018,7 +1027,7 @@ console.log(`${tabOk ? '  ok  ' : ' FAIL '} 点标签页能切窗格(站点自�
     `切过去的 window 真的 display: block + opacity 落在 --tab-pane-opacity 那一档,切走的 display: none)`);
 adHoc(tabOk);
 // OLED 数据区:一颗编辑器 + 真 textarea;折叠态 = 150px(也是最小高度),
-// 点一下"展开编辑器"变 1366px(70 行,算式见 public/css/tokens.css),再点一下回到 150px;
+// 点一下"展开编辑器"变 1366px(70 行,算式见 src/oled/tokens.css),再点一下回到 150px;
 // 复制 / 导入 / 折叠三颗按钮都在 .tools 里
 const cursorOk = cursorHover?.display === 'block' &&
     cursorHover?.coords === 'coordinate:(X:40,Y:20)' &&
@@ -1053,7 +1062,7 @@ const oledDataOk = oledData?.editors === 1 && oledData?.textareas === 1 &&
     oledData?.tokenCollapsed !== '' && oledData?.collapsed?.height === oledData?.tokenCollapsed &&
     oledData?.collapsed?.minHeight === oledData?.tokenCollapsed &&
     oledData?.tokenExpanded !== '' && oledData?.expanded?.height === oledData?.tokenExpanded &&
-    // 70 行是 --oled-editor-expanded-height 的语义(见 tokens.css 的算式),不是另一个可调值
+    // 70 行是 --oled-editor-expanded-height 的语义(见 src/oled/tokens.css 的算式),不是另一个可调值
     oledData?.expanded?.lines === 70 &&
     oledData?.backToCollapsed?.height === oledData?.tokenCollapsed &&
     oledData?.expandedText === '折叠编辑器' && oledData?.expandedAria === 'true' &&

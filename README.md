@@ -16,8 +16,8 @@ $there$ $is$ $nothing$ $to$ $do.$
 读取字符串生成红黑树,并检查它到底是不是一棵红黑树.
 
 **树是一棵 `<svg>`,不是 `<canvas>`**(2026-10 换成 SVG).节点与连线都是文档里的
-元素,所以:配色 / 字号 / 线宽全在 CSS(`public/css/tokens.css` 的 `--rbt-node-*` /
-`--rbt-edge-*` 令牌 + `public/css/index.css` 的 `#rbtTree` 区块),`src/rbt/config.ts`
+元素,所以:配色 / 字号 / 线宽全在 CSS(`src/rbt/tokens.css` 的 `--rbt-node-*` /
+`--rbt-edge-*` 令牌 + `src/rbt/rbt.css` 的 `#rbtTree` 区块),`src/rbt/config.ts`
 里不再有任何一个色值;窄屏等比缩放交给 `width: 100%` + `viewBox`,不必再算
 `devicePixelRatio`.命中检测 / 节点拖动 / 结构变化动画这些以后要做的交互,也由浏览器
 给(`pointerdown` 的 `event.target` 就是命中的节点,位移走 CSS transition).布局算法
@@ -242,14 +242,14 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 | 页面透明度(滑块 / 初值 / 区间) | `src/setting/config.ts` 的 `PAGE_OPACITY_*`(初值必须与 `public/css/tokens.css` 的 `--tab-pane-opacity` 相等,`config.test.ts` 会核对),滑块在 `src/setting/page_opacity.ts`,消费方是 `public/css/index.css` 的 `.tab-pane` 规则 |
 | 设置组框体 / 组里控件的观感 | `src/setting/setting.css`(作用域 `.setting-group`:框体 + 组里每条滑块的配色与字体);取值来自 `--metro-*`(`src/metro_window/src/tokens.css`)与 `--setting-*`(`src/setting/tokens.css`) |
 | LED 时钟的画布尺寸 / 时间戳格式 | `src/clock/config.ts`;标记在 `src/clock/ui/clock_display.ts`;绘制在 `src/clock/clock.ts`.时钟挂在 Calendario 标签页顶部,宿主 `#app_led_clock` 由 `src/calendar/ui/calendar_panel.ts` 生成(骨架不再建它) |
-| 日历页的三套历法 / 卡片文案 / 配色 | `src/calendar/config.ts`(`CALENDAR_SPECS`:中文名 + `-u-ca-` 历法 + Intl 选项 + Intl 表达不了的收尾开关 `dropRelatedYear` / `padMonthDay`),标记在 `src/calendar/ui/calendar_panel.ts`,格式化与跨日调度在 `src/calendar/calendar_date.ts`,样式令牌 `--calendar-*` 在 `public/css/tokens.css` |
+| 日历页的三套历法 / 卡片文案 / 配色 | `src/calendar/config.ts`(`CALENDAR_SPECS`:中文名 + `-u-ca-` 历法 + Intl 选项 + Intl 表达不了的收尾开关 `dropRelatedYear` / `padMonthDay`),标记在 `src/calendar/ui/calendar_panel.ts`,格式化与跨日调度在 `src/calendar/calendar_date.ts`,样式令牌 `--calendar-*` 在 `src/calendar/tokens.css` |
 | OLED 画板的按钮 / 文案 / 提示 | `src/oled/config.ts`,面板标记在 `src/oled/ui/oled_panel.ts` |
-| 红黑树的提示文案 / viewBox 尺寸 / 结构类名 / 占位符 / 性质清单 | `src/rbt/config.ts`(`RBT_PROPERTIES` 是性质清单,清单顺序 = 检查顺序;树的配色 / 字号 / 线宽**不在这里**,见 `public/css/tokens.css` 的 `--rbt-node-*`),面板标记在 `src/rbt/ui/rbt_panel.ts`,解析与性质检查在 `src/rbt/rbt_tree.ts`,布局与 SVG 绘制在 `src/rbt/rbt.ts` |
+| 红黑树的提示文案 / viewBox 尺寸 / 结构类名 / 占位符 / 性质清单 | `src/rbt/config.ts`(`RBT_PROPERTIES` 是性质清单,清单顺序 = 检查顺序;树的配色 / 字号 / 线宽**不在这里**,见 `src/rbt/tokens.css` 的 `--rbt-node-*`),面板标记在 `src/rbt/ui/rbt_panel.ts`,解析与性质检查在 `src/rbt/rbt_tree.ts`,布局与 SVG 绘制在 `src/rbt/rbt.ts` |
 | IEEE 754 的标签 / 精度菜单项 / 初值 | `src/ieee754/config.ts`,面板标记在 `src/ieee754/ui/ieee754_panel.ts` |
 | 地铁车窗的滑块 / 风格按钮 / 上传图层 | `src/metro_window/src/config.ts`,面板在 `src/metro_window/src/ui/`(见它自己的 README) |
 | 导航条"隐形 / 实底"(首屏,各标签页) | `src/common/header_state.ts`(行为),类名与令牌名在 `src/common/site.config.ts` |
 | 背景切换,页面透明度 | `src/setting/background.ts` / `src/setting/page_opacity.ts`(行为),口径在 `src/setting/config.ts` |
-| 样式 | `public/css/*.css`(站点级)+ `src/setting/*.css`(SETTING 页)+ `src/metro_window/src/*.css`(车窗组件);选择器按**类名与 id** 命中(config.ts 里的 id 契约),不依赖结构位置 |
+| 样式 | `public/css/*.css`(文档级)+ 各标签页自己的 `src/<模块>/*.css`(见下面"作用域 / 配置文件"那张表);选择器按**类名与 id** 命中(config.ts 里的 id 契约),不依赖结构位置 |
 
 几条硬约束:
 
@@ -271,7 +271,8 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 - **不按 id 回头查 DOM**:骨架与组件都把元素引用直接交回来.唯一的 id 查找是
   骨架找自己的宿主 `#site-root`,拿到了就往下传,后面再没有任何 `getElementById`.
 - **id 仍然重要**:它是 CSS 与调试定位的锚点,集中写在 `config.ts` 里;
-  改 id 要同步 `public/css/*.css`(写错不会报错,只会静默失效).
+  改 id 要同步对应的样式表(`public/css/*.css` 是文档级,`src/<模块>/*.css` 是各
+  标签页自己的;写错不会报错,只会静默失效).
 - **组件不写页面级选择器**:`body { margin: 0 }` 这类规则属于站点的
   `public/css/index.css`,组件样式只作用在自己的作用域类下(地铁车窗是
   `.metro-window`,其余模块用库的面板框体 `.ui-panel` + 自己的类名).
@@ -336,9 +337,10 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 
 | 作用域 | 配置文件 | 放什么 |
 | --- | --- | --- |
-| 主站样式 | `public/css/tokens.css` | 站点设计令牌(`:root`):字体栈,调色板,尺寸,圆角,间距,`z-index`,过渡;首屏(`--hero-*`)与固定导航条(`--chrome-*`).SETTING 页自己的令牌不在这一份里,见下面那行 |
+| 主站样式(文档级) | `public/css/tokens.css` + `public/css/index.css` | **首屏就要上屏**的那一层:通配重置 / 文档基线 / 首屏(`--hero-*`)/ 固定导航条(`--chrome-*`)/ 标签页窗格外壳,以及它们引的令牌(字体栈,调色板,跨模块共用的尺寸,`z-index`,过渡).由 index.html 的静态 `<link>` 引入,所以只放这一层:各标签页自己的令牌与规则跟着模块走,见下一行 |
+| 各标签页样式 | `src/calendar/calendar.css` + `tokens.css`,`src/clock/clock.css` + `tokens.css`,`src/oled/oled.css` + `tokens.css`,`src/rbt/rbt.css` + `tokens.css`,`src/ieee754/ieee754.css` + `tokens.css` | 每个标签页自己的观感与设计令牌:标记 / 令牌 / 规则在同一个目录里,由模块入口 `import`(`src/calendar/calendar.ts` 等),进 Vite 产物.窗格起手是 `display: none`,所以它们晚一步生效看不出来(导航条 / body 底色晚一步就是一次闪烁,所以那两条留在上一行);与 SETTING 页(`src/setting/`),地铁车窗(`src/metro_window/src/`)同一条做法 |
 | 主站字体 | `src/main.ts`(引 `miko_ui/styles/fonts.css`),`public/css/tokens.css`(只留令牌别名) | 站点默认字体 `JetBrains Mono Slashed`(斜杠零)**随 `miko_ui` 依赖发布**(库的 `styles/fonts.css` + `styles/fonts/`,OFL 1.1),本站不再自带 woff2:`--font-base` / `--font-code` 分别是库 `--font-family-base` / `--code-font-family` 的别名,库换默认字体本站跟着换.本站按分组引库样式,所以 `fonts.css` 必须单独引 -- 漏了不会报错,只会静默退回系统等宽字体;`scripts/smoke_home.mjs` 有一条真浏览器断言同时盯「族名一致」与「woff2 真的被拉取」 |
-| 主站脚本 | `src/clock/config.ts`,`src/calendar/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,日历三套历法的清单 / Intl 选项 / 希伯来历月名汉译表,OLED 画板尺寸/通道/文案,红黑树布局几何 + 结构类名 + 性质清单(四条性质的名字与出错文案都在 `RBT_PROPERTIES`;树的配色 / 字体 / 线宽**不在 TS 里**,它们是 SVG 元素的 CSS 观感,见 `public/css/tokens.css` 的 `--rbt-*`),IEEE 754 精度格式与掩码,站点级声明式模型(导航项 / 首屏结构 / 首屏那两颗宿主 id / `is-over-hero` 类名 / `--nav-height` 令牌名) |
+| 主站脚本 | `src/clock/config.ts`,`src/calendar/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,日历三套历法的清单 / Intl 选项 / 希伯来历月名汉译表,OLED 画板尺寸/通道/文案,红黑树布局几何 + 结构类名 + 性质清单(四条性质的名字与出错文案都在 `RBT_PROPERTIES`;树的配色 / 字体 / 线宽**不在 TS 里**,它们是 SVG 元素的 CSS 观感,见 `src/rbt/tokens.css` 的 `--rbt-*`),IEEE 754 精度格式与掩码,站点级声明式模型(导航项 / 首屏结构 / 首屏那两颗宿主 id / `is-over-hero` 类名 / `--nav-height` 令牌名) |
 | 首页骨架 | `src/common/ui/site_shell.ts` | 骨架:导航条 / 首屏 / 六个**空**窗格 / 首屏那两颗宿主(标记用库的 `create_element`;SETTING 页与 Calendario 页的结构不在这里,骨架只给它们空窗格) |
 | SETTING 页 | `src/setting/config.ts`,`src/setting/tokens.css`,`src/setting/setting.css`,`src/setting/setting_page.ts` | 那一页的全部声明与外观:三块设置组的 id·类名·面板标题,背景缩略图清单,页面透明度滑块的初值·区间·令牌名(纯数据);`--setting-*` 令牌;设置组框体与**组里每条控件的观感**(滑块配色 / 字体,作用域 `.setting-group`);整页面板 + 三颗空设置组的生成者 |
 | 主站行为 | `src/main.ts`,`src/common/header_state.ts`,`src/setting/background.ts`,`src/setting/page_opacity.ts` | 挂载顺序(骨架 -> 设置页 -> 各模块 -> 行为),导航条"隐形 / 实底"状态(首屏还压在它下面时,以及任何标签页停在页面顶端时),背景切换令牌写入,页面透明度滑块(库的 `createSlider`)往背景组里那条 `.bgrow` 追加并写 `--tab-pane-opacity` 令牌 |
@@ -422,7 +424,7 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
   `refresh()`,否则行号栏与高亮层不知道 `.value` 变了.**折叠 / 展开**也归本站:
   折叠态高度 = `--oled-editor-height`(150px,同时也是外框的 `min-height`,手动
   拖动拖不到更矮),展开态 = `--oled-editor-expanded-height`(1366px = 70 行,
-  算式在 `public/css/tokens.css`),`.tools` 里那颗"展开 / 折叠编辑器"按钮只切
+  算式在 `src/oled/tokens.css`),`.tools` 里那颗"展开 / 折叠编辑器"按钮只切
   外框上的 `is-expanded` 类并同步按钮文案与 `aria-expanded`.
 
   **唯一的两处例外**都不是"另造一套":地铁车窗风格按钮的"当前项"
@@ -570,7 +572,7 @@ wasm 产物(`src/metro_window/wasm/`)与 `target/` 不入库,
   (`src/ieee754/ieee754.ts` 的 `renderLatex`)--KaTeX 本体,`katex.min.css` 与
   公式根节点的 `.ui-formula` 基线类都由库给,`katex` 因此从根 `package.json` 撤掉了.
   代价只有一个:库的公式件是**行内**排法(`displayMode: false`),所以"独立成行 +
-  居中"那一档落在本站容器上(`public/css/ieee754.css` 的 `.ieee-formula`),逐像素
+  居中"那一档落在本站容器上(`src/ieee754/ieee754.css` 的 `.ieee-formula`),逐像素
   比对与原来的 `displayMode: true` 一致.
 - **改库的时候**不要在这里塞补丁:去库的工作副本改,用
   `bash scripts/dev_ui_link.sh link` 本地联调(`node_modules/miko_ui` 变成符号链接,

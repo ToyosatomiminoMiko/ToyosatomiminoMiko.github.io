@@ -3,17 +3,17 @@
 //
 // 集中 rbt/rbt.ts 里所有"设计参数":DOM 契约,布局几何,结构类名与文案.
 // **不再有配色与字体**:树从 canvas 换成 SVG 之后,每一笔都是文档里的元素,颜色 /
-// 字号 / 线宽全部回到 CSS(public/css/tokens.css 的 `--rbt-*` 令牌 +
-// public/css/index.css 的 `#rbtTree` 区块).从前 `ctx.fillStyle` 读不到 CSS 变量,
+// 字号 / 线宽全部回到 CSS(src/rbt/tokens.css 的 `--rbt-*` 令牌 +
+// src/rbt/rbt.css 的 `#rbtTree` 区块).从前 `ctx.fillStyle` 读不到 CSS 变量,
 // 这套配色只能写死在这里,那是 canvas 的固有代价.
 // ================================================================
 
-// ---------- DOM 契约(id,public/css/index.css 按它命中) ----------
+// ---------- DOM 契约(id,src/rbt/rbt.css 按它命中) ----------
 
 /**
  * 红黑树控件用到的 DOM 元素 id.
  * 标记由 src/rbt/ui/rbt_panel.ts 按本文件的声明生成(id 写入元素再由组件
- * 交回引用);这些常量同时给样式(public/css/index.css 的 `#treeInput` /
+ * 交回引用);这些常量同时给样式(src/rbt/rbt.css 的 `#treeInput` /
  * `#treeOutput` / `#rbtTree`)与组件共用.
  */
 export const RBT_DOM = {
@@ -34,7 +34,7 @@ export const RBT_DOM = {
      *
      * 从前这里是 `rbCanvas`(canvas 2D).换成 SVG 之后树是**文档里的元素**:
      * 命中检测 / pointer 事件 / CSS transition 全部由浏览器给,颜色能直接引 CSS
-     * 令牌(见 public/css/tokens.css 的 `--rbt-node-*`),`canvas` 那条路整个不要了.
+     * 令牌(见 src/rbt/tokens.css 的 `--rbt-node-*`),`canvas` 那条路整个不要了.
      * id 由 `canvasId` 改成 `treeId`:名字跟着它现在是什么走,不留一个名不副实的旧 id.
      */
     treeId: 'rbtTree',
@@ -42,7 +42,7 @@ export const RBT_DOM = {
 
 // ---------- 面板标记契约(声明式模型,ui/rbt_panel.ts 用) ----------
 //
-// 结构 / 文案 / id 与 public/css/index.css 及测试的定位契约一致.框体
+// 结构 / 文案 / id 与 src/rbt/rbt.css 及测试的定位契约一致.框体
 // (section.ui-panel + 标题栏 + 正文容器)由 miko_ui 的 `createPanel` 建,
 // 类名归库;提示区排在正文容器最前(见 ui/rbt_panel.ts).
 
@@ -71,7 +71,7 @@ export const RBT_INPUT_SPELLCHECK = 'false';
  * 树绘制 `<svg>` 的 viewBox 尺寸(逻辑坐标,单位同 CSS px).
  *
  * 布局算出来的 x / y 就是 **viewBox 坐标系**里的坐标,SVG 自己按
- * `preserveAspectRatio` 缩放进面板宽度(见 public/css/index.css 的 `#rbtTree`),
+ * `preserveAspectRatio` 缩放进面板宽度(见 src/rbt/rbt.css 的 `#rbtTree`),
  * 所以改这两个值 = 换一块更宽 / 更高的画布,不用动任何布局代码.
  */
 export const RBT_VIEW_BOX_WIDTH = 1200;
@@ -87,7 +87,7 @@ export const RBT_VIEW_BOX = `0 0 ${RBT_VIEW_BOX_WIDTH} ${RBT_VIEW_BOX_HEIGHT}`;
  *
  * **与 CSS 里的 `--rbt-node-radius` 必须相等**:半径同时是两件事的输入 --
  * 布局(下面的最小间距 / 安全边距都从它推)与画出来的圆(`<circle r>` 由 CSS 给,
- * 见 index.css 的 `#rbtTree .rbt-node__shape`).TS 侧算的是位置,CSS 侧画的是大小,
+ * 见 src/rbt/rbt.css 的 `#rbtTree .rbt-node__shape`).TS 侧算的是位置,CSS 侧画的是大小,
  * 两边不一致的表现是节点之间该留的空没留够(而不是报错).
  */
 export const RBT_NODE_RADIUS = 22;
@@ -116,7 +116,7 @@ export const RBT_CLAMP_TOLERANCE = 5;
 // ---------- 节点与连线:类名契约(观感全在 CSS) ----------
 //
 // 从 canvas 换成 SVG 之后,**树的每一笔都是文档里的元素**,于是配色 / 字号 / 线宽
-// 全部回到 CSS(引 public/css/tokens.css 的 `--rbt-*` 令牌),TS 侧一个色值都不留 --
+// 全部回到 CSS(引 src/rbt/tokens.css 的 `--rbt-*` 令牌),TS 侧一个色值都不留 --
 // 这正是不用 canvas 的最大收益:`ctx.fillStyle` 读不到 CSS 变量,从前那套红黑配色
 // 只能写死在 config 里.现在 config 只声明**类名**(选择器锚点),观感去样式表改.
 //
@@ -146,10 +146,10 @@ export const RBT_EDGE_CLASS = 'rbt-edge';
 // 表达式先过**格式检查**(解析器):过了才有树可查性质,没过就在输出区出一行错误.
 // 输出区只有一个(#treeOutput),下面这些类名决定每一行的角色与颜色.
 
-/** 中性提示行的类名(空输入 / 空树;颜色见 public/css/index.css 的 .tree-hint) */
+/** 中性提示行的类名(空输入 / 空树;颜色见 src/rbt/rbt.css 的 .tree-hint) */
 export const RBT_OUTPUT_HINT_CLASS = 'tree-hint';
 
-/** 错误行的类名(解析失败;颜色见 public/css/index.css 的 .tree-error) */
+/** 错误行的类名(解析失败;颜色见 src/rbt/rbt.css 的 .tree-error) */
 export const RBT_OUTPUT_ERROR_CLASS = 'tree-error';
 
 // ---------- 性质检查(清单行) ----------
@@ -164,7 +164,7 @@ export const RBT_DIAGNOSTICS_ROW_CLASS = 'tree-property';
 /** 单条性质里"结论"那一段的类名(状态色挂在它上面) */
 export const RBT_DIAGNOSTICS_STATE_CLASS = 'tree-property-state';
 
-/** 清单抬头那一段的类名(样式见 public/css/index.css 的 `#treeOutput`) */
+/** 清单抬头那一段的类名(样式见 src/rbt/rbt.css 的 `#treeOutput`) */
 export const RBT_DIAGNOSTICS_SUMMARY_CLASS = 'tree-property-summary';
 
 /**

@@ -1,0 +1,61 @@
+/*
+OLED 像素画板的设计令牌.
+
+画板的全部可调数值集中在这里,`oled.css` 只引用 `var(--oled-*)`,选择器里不写死
+色值与尺寸 -- 与 SETTING 页(`src/setting/tokens.css`)/ 地铁车窗
+(`src/metro_window/src/tokens.css`)同一条做法.
+
+为什么在 src/ 而不在 public/css:public 是 publicDir,文件按原样拷贝,不经打包,
+而这份令牌只服务画板一处;跟模块同级之后"改画板"只落在一个目录里(搬迁的原委见
+public/css/index.css 顶部那段说明).
+
+`--z-pixel-indicator` 也在这里:像素指示器压在全站之上(含固定导航条 `--z-chrome`),
+它是画板自己的层级,不是站点层级表的一员.
+*/
+:root {
+    /* ---------- OLED 像素画板 ---------- */
+    /* 画布放大后的显示宽度 */
+    --oled-canvas-width: 1024px;
+    /* 画布放大后的显示高度 */
+    --oled-canvas-height: 512px;
+    /* 画布边框颜色 */
+    --oled-border: #00785c;
+    /*
+     * 画布边框宽度.
+     * 从前这一条引的是 `--ieee-border-width`(IEEE 754 面板的边框宽),那是跨模块借
+     * 令牌:画布与 IEEE 面板没有任何关系,改 IEEE 的边框却会把画布一起改掉.各留一条.
+     */
+    --oled-border-width: 1px;
+    /* 工具区与上方元素的间距 */
+    --oled-tools-margin-top: 15px;
+    /* 面板里每颗按钮的间距(八颗按钮同排在 .tools 里,由那里的 gap 消费;
+       全局 `*` 已把 margin 归零,这里统一补回来) */
+    --oled-button-margin: 4px;
+    /* 坐标显示条的背景:卡片走库的暗色面板,这里也用库的凹陷底,
+       文字沿用卡片的正文色(--color-text),不是一块浅色条 */
+    --oled-coords-bg: var(--color-bg-sunken);
+    /* 坐标显示条的内边距 */
+    --oled-coords-padding: 8px 15px;
+    --oled-coords-margin-top: 10px;
+    /* 鼠标像素指示器的背景(红色半透明) */
+    --oled-indicator-bg: rgba(255, 0, 0, 0.6);
+    /* 数据编辑器**折叠态**的高度:固定值,导出数据再长也由内部 textarea 自己滚,
+       不把卡片撑高.它同时也是外框的 min-height(手动拖动拖不到更矮);
+       底色 / 边框走 miko_ui 的主题令牌. */
+    --oled-editor-height: 150px;
+    /* 数据编辑器**展开态**的高度 = 70 行.
+       算式(库的 --code-font-size 16px × --code-line-height 1.2 = 每行 19.2px,
+       本站不覆盖这两个值;行数取 70 是为了盖住导出的 67 行还有余量):
+         70 × 19.2px = 1344px            <- 70 行的正文高度
+       + 外框 border 1px × 2 = 2px
+       + textarea 上下 padding 10px × 2 = 20px(库的 11px = border 1px + padding 10px)
+       = 1366px
+       库改了字号 / 行高的话这个数要重算:scripts/smoke_home.mjs 里有一条真机断言
+       会量"展开后正好放得下 70 行",漂了就会失败. */
+    --oled-editor-expanded-height: 1366px;
+    --oled-area-margin: 10px;
+
+    /* ---------- 层级(z-index) ---------- */
+    /* 像素指示器:压在全站之上,包括固定导航条(--z-chrome) */
+    --z-pixel-indicator: 9999;
+}

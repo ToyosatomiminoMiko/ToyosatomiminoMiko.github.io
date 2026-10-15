@@ -1,0 +1,85 @@
+/*
+IEEE 754 面板的设计令牌.
+
+面板的全部可调数值(文案色 / 边框与底色 / 位颜色 / 尺寸间距 / 输入框)集中在这里,
+`ieee754.css` 只引用 `var(--ieee-*)`(区块圆角不在这里:它是 miko_ui 主题的
+`--radius-md`,由消费方直接引用,本站不另存尺寸).
+
+为什么在 src/ 而不在 public/css:这一份只服务 `#ieee754` 一处,搬过来之后面板的
+令牌与观感在同一个目录里(搬迁的原委见 public/css/index.css 顶部那段说明).
+*/
+:root {
+    /* ---------- IEEE 754 面板:文案色 ---------- */
+    /* 提示文字(浅灰) */
+    --ieee-hint-color: #cbd5e1;
+    /* 错误提示(玫红) */
+    --ieee-error-color: #f43f5e;
+    /* 弱化 / 次要文字(石板灰) */
+    --ieee-muted-color: #94a3b8;
+    /* 强调文字(浅蓝,高亮数值与位) */
+    --ieee-accent-color: #7dd3fc;
+    /* 正文文字(浅灰白) */
+    --ieee-text-color: #e2e8f0;
+
+    /* ---------- IEEE 754 面板:边框与底色 ---------- */
+    /* 区块 / 单元格边框(深石板) */
+    --ieee-border-color: #334155;
+    /* 区块 / 单元格边框宽度 */
+    --ieee-border-width: 1px;
+    /* 区块圆角不在这里:它是 miko_ui 主题的中圆角,由 ieee754.css 直接引用
+       var(--radius-md)(库默认 0px). */
+    /* 位与分组的底色(深蓝黑) */
+    --ieee-bit-bg: #0f172a;
+    /* 区块底色(更深蓝黑) */
+    --ieee-section-bg: #0b1220;
+    /* 表格行悬停底色 */
+    --ieee-row-hover-bg: #1e293b;
+    /* 位边框色(中石板) */
+    --ieee-bit-border: #475569;
+    /* 表格白字(白色,用于彩色位底) */
+    --ieee-on-color: #fff;
+    /* 符号位底色(玫红) */
+    --ieee-sign-bg: #be123c;
+    /* 指数位底色(深橙) */
+    --ieee-exp-bg: #7c2d12;
+    /* 尾数位底色(深绿) */
+    --ieee-frac-bg: #065f46;
+    /* 图例符号色(浅玫红 / 浅橙 / 浅绿) */
+    --ieee-legend-sign: #fda4af;
+    --ieee-legend-exp: #fdba74;
+    --ieee-legend-frac: #6ee7b7;
+
+    /* ---------- IEEE 754 面板:尺寸与间距 ---------- */
+    /* 区块上下外边距 / 内边距 */
+    --ieee-section-margin: 12px 0;
+    --ieee-section-padding: 10px;
+    /* 图例 / 标题的底部间距 */
+    --ieee-caption-margin-bottom: 6px;
+    /* 公式标题的底部间距(比图例更紧凑) */
+    --ieee-formula-title-margin-bottom: 4px;
+    /* 提示文字底部间距 */
+    --ieee-hint-margin-bottom: 8px;
+    /* 错误提示上下外边距 */
+    --ieee-error-margin: 6px 0;
+    /* 区块内小元素的上下外边距 */
+    --ieee-block-margin: 8px 0;
+    /* 位图行高 / 单个位方块尺寸 */
+    --ieee-bit-line-height: 2;
+    --ieee-bit-width: 12px;
+    --ieee-bit-height: 22px;
+    --ieee-bit-font-size: 11px;
+    /* 位分组间距 / 组间距 / 4 位间距占位宽度 */
+    --ieee-group-gap: 2px;
+    --ieee-group-margin-right: 8px;
+    --ieee-gap-width: 6px;
+    /* 特殊值表单元格内边距 */
+    --ieee-cell-padding: 5px 10px;
+    /* 图例项间距 */
+    --ieee-legend-gap: 16px;
+    /* 精度 / 输入那一行:两列的间距与输入列宽度(布局在 ieee754.css 的 .ieee-controls) */
+    --ieee-controls-gap: 1rem;
+    --ieee-controls-input-width: 50%;
+    /* 十进制输入框:内边距与字号(观感对齐 miko_ui 的数字框) */
+    --ieee-input-padding: 4px 8px;
+    --ieee-input-font-size: 0.875rem;
+}

@@ -26,7 +26,7 @@ UI 库的主题与控件样式.
 
 撞名处理:库的主题在 `:root` 上给出 `--radius-sm` / `--radius-md`,本站只在
 **需要非零圆角**的地方引用它们(时钟面板为此另存了一个语义名
-`--clock-panel-radius`,见 public/css/tokens.css),不自己重定义这两个名字,
+`--clock-panel-radius`,见 ./clock/tokens.css),不自己重定义这两个名字,
 所以库主题进来不会顺手把非按钮的圆角改掉.
 */
 import 'miko_ui/styles/tokens.css';
@@ -43,7 +43,7 @@ import 'miko_ui/styles/widgets.css';
 src/oled/ui/oled_panel.ts)读这一层的 `.code-editor*` 规则 -- 外框 / 行号槽 /
 "透明 textarea + 背后高亮层"的严格重叠都在里面.本站样式表只给这个外框补
 **定尺(宽 / 高)**与可纵向拖动:库的默认是"外框随内容长,滚动归宿主",本站要的是
-"定尺的盒子 + textarea 内部滚"(理由与实测见 public/css/index.css 那条规则).
+"定尺的盒子 + textarea 内部滚"(理由与实测见 ./oled/oled.css 那条规则).
 */
 import 'miko_ui/styles/editor.css';
 /*

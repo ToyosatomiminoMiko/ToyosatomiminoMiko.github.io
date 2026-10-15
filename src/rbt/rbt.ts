@@ -8,7 +8,7 @@
 - mountRBT:接管宿主,把"格式检查 -> 性质检查 -> 重绘"接到输入框的 input 事件上.
 
 **为什么是 SVG 而不是 canvas**(2026-10 起):树的每一笔都成了文档里的元素,于是
-- 配色 / 字号 / 线宽回到 CSS(引 tokens.css 的 `--rbt-*`),不再写死在 config 里
+- 配色 / 字号 / 线宽回到 CSS(引 src/rbt/tokens.css 的 `--rbt-*`),不再写死在 config 里
   (`ctx.fillStyle` 读不到 CSS 变量,那是 canvas 的死结);
 - 将来要做的命中检测 / 节点拖动 / 结构变化动画由浏览器给:`pointerdown` 的
   `event.target` 就是命中的节点,位移与淡入走 CSS transition,不必自己写一遍
@@ -27,6 +27,13 @@
 3. 格式检查不过 -> 输出区一行错误(#treeOutput .tree-error),树清空;
 4. 解析成功 -> 输出区性质清单 + 画出树.
 */
+
+/*
+样式:`tokens.css`(设计令牌)与 `rbt.css`(输入框 / 输出区 / SVG 树的观感)在本模块
+引入(与 SETTING 页 / 地铁车窗同一条做法).
+*/
+import '@/rbt/rbt.css';
+
 import {
     RBT_CLAMP_TOLERANCE,
     RBT_DIAGNOSTICS_ROW_CLASS,

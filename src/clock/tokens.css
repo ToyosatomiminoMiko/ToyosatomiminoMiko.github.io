@@ -1,0 +1,24 @@
+/*
+LED 时钟的设计令牌.
+
+时钟的全部可调数值(面板底色 / 圆角 / 内边距 / 辉光 / 画布显示高度)集中在这里,
+`clock.css` 只引用 `var(--clock-*, --font-*)`.时钟的显示尺寸另有 TS 侧的一份
+(`src/clock/config.ts` 的像素网格),那一份管"画什么",这一份管"排多大".
+
+与模块同级:时钟的宿主长在 Calendario 页顶部,但它的外观只由本目录这两份文件给
+(与 SETTING 页 / 地铁车窗同一条做法,搬迁的原委见 public/css/index.css 顶部那段).
+*/
+:root {
+    /* ---------- LED 时钟 ---------- */
+    /* 时钟面板底色(纯黑:LED 点阵要压在最暗的底上) */
+    --clock-panel-bg: #000;
+    /* 时钟面板圆角:直接引用 miko_ui 主题的中圆角(库默认 0px) */
+    --clock-panel-radius: var(--radius-md);
+    --clock-panel-padding: 20px;
+    /* 时钟面板辉光阴影 */
+    --clock-glow: rgba(0, 255, 255, 0.5);
+    /* 时钟面板辉光模糊半径 */
+    --clock-glow-blur: 40px;
+    /* 时钟 canvas 显示高度(保持像素锐利:8 行的整数倍) */
+    --clock-canvas-height: 128px;
+}

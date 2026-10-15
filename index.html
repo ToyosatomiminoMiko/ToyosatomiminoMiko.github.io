@@ -15,13 +15,15 @@ ToyosatomiminoMiko
     <title>ToyosatomiminoMiko</title>
 
     <!--
-      顺序有约束:后两个样式表全部按变量取值,令牌必须先加载.
-      站点默认字体的 @font-face 不在 public/css 里:它随 miko_ui 发布,由
-      src/main.ts 按分组引(import 'miko_ui/styles/fonts.css').
+      顺序有约束:index.css 全部按变量取值,令牌必须先加载.
+      head 里只有这两份**文档级**样式表(通配重置 / 基线 / 首屏 / 导航条 / 窗格外壳);
+      各标签页自己的观感跟着模块走,由 src/main.ts 经 Vite 打进产物(如
+      src/oled/oled.css,见 public/css/index.css 顶部那份清单).站点默认字体的
+      @font-face 也不在这里:它随 miko_ui 发布,由 src/main.ts 按分组引
+      (import 'miko_ui/styles/fonts.css').
     -->
     <link href="/css/tokens.css" rel="stylesheet" type="text/css" />
     <link href="/css/index.css" rel="stylesheet" type="text/css" />
-    <link href="/css/ieee754.css" rel="stylesheet" type="text/css" />
 </head>
 
 <body>
@@ -33,7 +35,8 @@ ToyosatomiminoMiko
         src/common/ui/site_shell.ts     生成骨架,并把各部分的元素引用交回 main.ts
         src/<模块>/config.ts            模块自己的声明式模型(文案/DOM 契约/几何)
         src/<模块>/ui/*.ts              模块的标记生成
-        public/css/*.css                样式(靠类名与 id 命中,不靠结构位置)
+        public/css/*.css                文档级样式(重置 / 基线 / 首屏 / 导航条 / 窗格外壳)
+        src/<模块>/*.css                各标签页自己的样式(跟模块同级,由模块入口 import)
 
     例外是 head 里的样式表顺序与 `<title>`:它们属于文档本身.
     -->

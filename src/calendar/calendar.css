@@ -1,0 +1,72 @@
+@import '@/calendar/tokens.css';
+
+/*
+Calendario 标签页样式(三张历法卡).
+
+结构与文案见 src/calendar/:面板由库的 createPanel 建(`section.ui-panel.calendar-pane`),
+标记在 ui/calendar_panel.ts,正文顶部是 LED 时钟宿主 `#app_led_clock`(外观归
+src/clock/clock.css),下面 `.calendar-list` 里三张卡.
+
+可调数值全部走本目录 tokens.css 的 `--calendar-*`(选择器里不写死色值与尺寸).
+*/
+/*
+ * 框体占满窗格宽度(与 OLED / IEEE754 同口径:--calendar-panel-width = --card-width).
+ *
+ * 宽度上限**不属于框体**:上限是给三张历法卡那条窄列的,落在正文容器
+ * (`.ui-panel-body`,库的类)上.挂在 `.calendar-pane` 上会把标题栏与框体一起夹窄,
+ * 而 tokens.css 里"框体宽度"与"正文宽度"本来就是两条令牌.
+ */
+.calendar-pane {
+    width: var(--calendar-panel-width);
+}
+
+/* 三张卡是"一套历法一行"的窄条,拉满反而不好读:正文给一条上限并居中,窄窗口按 100% 收缩 */
+.calendar-pane .ui-panel-body {
+    max-width: var(--calendar-content-width);
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.calendar-list {
+    display: grid;
+    gap: var(--calendar-gap);
+    /* 与时钟之间的间距:时钟自己带内边距与辉光,再给一整条间距会显得两头都空 */
+    margin-top: var(--calendar-gap);
+}
+
+.calendar-item {
+    background: var(--calendar-item-bg);
+    border: var(--calendar-item-border);
+    border-radius: var(--calendar-item-radius);
+    padding: var(--calendar-item-padding);
+}
+
+.calendar-item__label {
+    color: var(--calendar-label-color);
+    font-size: var(--calendar-label-font-size);
+}
+
+.calendar-item__date {
+    color: var(--calendar-date-color);
+    font-size: var(--calendar-date-font-size);
+    /*
+     * 三张卡的日期行统一左对齐.希伯来历那行是 RTL(元素带 dir="auto",让希伯来文
+     * 的字符顺序正确),而 direction: rtl 默认把行盒也摆到右边 -- 不写这条,那一行
+     * 会贴着卡片右缘,跟左对齐的历法名 / 副行错开,看着像排版事故.
+     * 只改行盒的位置,不改文字方向:希伯来文的读序仍由 dir 决定.
+     */
+    text-align: left;
+}
+
+.calendar-item__latin {
+    color: var(--calendar-latin-color);
+    font-size: var(--calendar-latin-font-size);
+}
+
+/*
+ * 没有副行的日历(农历)把副行元素填成空串,这里整行收掉 -- 留着它会在卡片底部
+ * 多一条与行高同高的空白,三张卡的高度就对不齐了.
+ */
+.calendar-item__latin:empty {
+    display: none;
+}

@@ -1,9 +1,23 @@
 /* ================================================================
  * 设计令牌(tokens.css)
  *
- * public/css 是 Vite 的 publicDir,文件按原样拷贝,不经打包.所有按设计
- * 可调的参数(字体族,调色板,尺寸,圆角,间距,z-index,过渡时长,阴影)
- * 都集中在这里的 :root 自定义属性里,index.css / ieee754.css 只引用 var().
+ * public/css 是 Vite 的 publicDir,文件按原样拷贝,不经打包.这里只留**文档级与
+ * 站壳级**的令牌 -- 首屏就要上屏的那一层(通配重置读的字体族,body 的底色 /
+ * 正文色 / 行距,首屏与固定导航条,GitHub 按钮,标签页窗格自身).
+ *
+ * 为什么只留这一层:public/css/*.css 由 index.html 静态引入,是首屏关键路径;
+ * 各子应用(OLED / 红黑树 / IEEE754 / 日历 / LED 时钟)的令牌跟它们的样式表一起
+ * 住在 src/<模块>/ 下,进 Vite 产物 -- 那些窗格起手是 display: none,后一步生效
+ * 看不出来;导航条与 body 底色晚一步生效就是一次闪烁,所以它们不能走那条路.
+ *
+ * 各模块的令牌在哪(全部只引用 var(),不再定义):
+ *   --clock-*     src/clock/tokens.css
+ *   --calendar-*  src/calendar/tokens.css
+ *   --oled-*      src/oled/tokens.css(--z-pixel-indicator 也在那边)
+ *   --rbt-*       src/rbt/tokens.css
+ *   --ieee-*      src/ieee754/tokens.css
+ *   --setting-*   src/setting/tokens.css
+ *   --metro-*     src/metro_window/src/tokens.css
  *
  * 命名约定:
  *   --font-*      字体族
@@ -11,16 +25,11 @@
  *   --bg-page     页面(html/body)底色
  *   --text-page   页面正文色
  *   --line-height-base 全站基准行距
- *   --led-*       LED 时钟
- *   --calendar-*  日历标签页(格里高利历 / 农历 / 希伯来历三张卡;LED 时钟现在也长在这一页)
- *   --oled-*      OLED 像素画板
- *   --rbt-*       红黑树工具
- *   --ieee-*      IEEE 754 面板
- *   --tab-*       标签页窗格(SETTING 页自己的令牌见 src/setting/tokens.css)
+ *   --tab-*       标签页窗格
  *   --hero-*      首屏(hero)
  *   --chrome-*    固定导航条(站名 / 导航项 / 隐形↔实底)
  *   --radius-*    圆角(**由 miko_ui 主题提供,本站只引用**)
- *   --z-*         层级
+ *   --z-*         层级(站壳:--z-chrome;像素指示器那条在 src/oled/tokens.css)
  *   --transition-* 过渡
  * ================================================================ */
 
@@ -49,9 +58,6 @@
      */
     --bg-image-active: var(--bg-image-default);
 
-    /* ---------- 基础色 ---------- */
-    --clock-panel-bg: #000;
-
     /* ---------- 文档基线取值(index.css 的文档基线一节消费) ---------- */
     /*
      * 页面底色 / 正文色.要换站点主题色只改这两条.
@@ -61,7 +67,12 @@
     /* 全站基准行距 */
     --line-height-base: 1.5;
 
-    /* ---------- 通用尺寸 / 圆角 / 过渡 ---------- */
+    /* ---------- 通用尺寸 / 过渡 ---------- */
+    /*
+     * 跨模块共用的排版口径:三张日历卡的容器(src/calendar/tokens.css 的
+     * --calendar-panel-width),OLED 画板卡片(src/oled/oled.css)与红黑树输入框
+     * (src/rbt/rbt.css)都引它,所以它属于站点层,不跟着任何一个模块走.
+     */
     --card-width: 100%;
     /* 主内容区占视口宽度比例(首屏会从这里满宽逃逸到 100vw,见 index.css 的 .hero) */
     --main-width: 90%;
@@ -72,7 +83,7 @@
      * (main.ts 引了库的 tokens.css,库默认全站直角 0px).本站只是**引用**,
      * 要改圆角就改库主题,不在下游另存一份尺寸.
      */
-    /* 标签页切换时的淡入时长(src/common/tabs.ts 的显示切换读它) */
+    /* 标签页切换时的淡入时长(index.css 的 .tab-pane.fade 读它) */
     --transition-tab-fade: 150ms linear;
 
     /* ---------- 标签页窗格 ---------- */
@@ -85,19 +96,6 @@
      * 它是 CSS 与 TS 的跨语言契约
      */
     --tab-pane-opacity: 1;
-
-    /* ---------- 层级(z-index) ---------- */
-    --z-pixel-indicator: 9999;
-
-    /* ---------- 导航条上的 GitHub 按钮 ---------- */
-    /* 图标边长 */
-    --github-icon-size: 25px;
-    /* 图标外边距 */
-    --github-icon-margin: 5px;
-    /* 图标悬停辉光颜色 */
-    --github-icon-glow: #00ffc3;
-    /* 图标悬停辉光模糊半径 */
-    --github-icon-glow-blur: 15px;
 
     /* ---------- 首屏(hero) ---------- */
     /*
@@ -112,7 +110,8 @@
     --hero-scrim: linear-gradient(#00000073, #00000000);
 
     /* ---------- 固定导航条 ---------- */
-    /* 导航条层级:压在首屏画面之上,但低于 --z-pixel-indicator(OLED 的像素指示器) */
+    /* 导航条层级:压在首屏画面之上,但低于像素指示器(src/oled/tokens.css 的
+       --z-pixel-indicator) */
     --z-chrome: 100;
     /* 导航条高与左右内边距 */
     --nav-height: 42px;
@@ -148,202 +147,13 @@
     /* 隐形 ↔ 实底的过渡时长与缓动 */
     --chrome-transition: 180ms ease;
 
-    /* ---------- LED 时钟 ---------- */
-    /* 时钟面板圆角:直接引用 miko_ui 主题的中圆角(库默认 0px) */
-    --clock-panel-radius: var(--radius-md);
-    --clock-panel-padding: 20px;
-    /* 时钟面板辉光阴影 */
-    --clock-glow: rgba(0, 255, 255, 0.5);
-    /* 时钟面板辉光模糊半径 */
-    --clock-glow-blur: 40px;
-    /* 时钟 canvas 显示高度(保持像素锐利:8 行的整数倍,64px = 8 倍) */
-    --clock-canvas-height: 64px;
-
-    /* ---------- 日历标签页(Calendario) ---------- */
-    /*
-     * 面板占满窗格宽度(与 OLED / IEEE754 的卡片同口径:--card-width = 100%).
-     * 卡片是"三套历法各一行"的窄条,拉满反而不好读,所以正文宽度另给一条上限.
-     */
-    --calendar-panel-width: var(--card-width);
-    --calendar-content-width: 720px;
-    /* 时钟与三张卡之间,以及卡与卡之间的间距 */
-    --calendar-gap: 16px;
-    /* 单张日历卡的底色 / 描边 / 圆角 / 内边距(圆角引用 miko_ui 主题令牌) */
-    --calendar-item-bg: #0b1220;
-    --calendar-item-border: 1px solid #334155;
-    --calendar-item-radius: var(--radius-md);
-    --calendar-item-padding: 12px 16px;
-    /* 历法名(小字,弱化)与日期文字(大字) */
-    --calendar-label-color: #94a3b8;
-    --calendar-label-font-size: 13px;
-    --calendar-date-color: #e2e8f0;
-    --calendar-date-font-size: 22px;
-    /* 副日期行:拉丁转写 / 星期(中等字号,比主行弱) */
-    --calendar-latin-color: #cbd5e1;
-    --calendar-latin-font-size: 14px;
-
-    /* ---------- OLED 像素画板 ---------- */
-    /* 画布放大后的显示宽度 */
-    --oled-canvas-width: 1024px;
-    /* 画布放大后的显示高度 */
-    --oled-canvas-height: 512px;
-    /* 画布边框颜色 */
-    --oled-border: #00785c;
-    /* 工具区与上方元素的间距 */
-    --oled-tools-margin-top: 15px;
-    /* 面板里每颗按钮的间距(八颗按钮同排在 .tools 里,由那里的 gap 消费;
-       全局 `*` 已把 margin 归零,这里统一补回来) */
-    --oled-button-margin: 4px;
-    /* 坐标显示条的背景:卡片现在走库的暗色面板,这里也用库的凹陷底,
-       文字沿用卡片的正文色(--color-text),不再是一块浅色条 */
-    --oled-coords-bg: var(--color-bg-sunken);
-    /* 坐标显示条的内边距 */
-    --oled-coords-padding: 8px 15px;
-    --oled-coords-margin-top: 10px;
-    /* 鼠标像素指示器的背景(红色半透明) */
-    --oled-indicator-bg: rgba(255, 0, 0, 0.6);
-    /* 数据编辑器**折叠态**的高度:固定值,导出数据再长也由内部 textarea 自己滚,
-       不把卡片撑高.它同时也是外框的 min-height(手动拖动拖不到更矮);
-       底色 / 边框走 miko_ui 的主题令牌. */
-    --oled-editor-height: 150px;
-    /* 数据编辑器**展开态**的高度 = 70 行.
-       算式(库的 --code-font-size 16px × --code-line-height 1.2 = 每行 19.2px,
-       本站不覆盖这两个值;行数取 70 是为了盖住导出的 67 行还有余量):
-         70 × 19.2px = 1344px            <- 70 行的正文高度
-       + 外框 border 1px × 2 = 2px
-       + textarea 上下 padding 10px × 2 = 20px(库的 11px = border 1px + padding 10px)
-       = 1366px
-       库改了字号 / 行高的话这个数要重算:scripts/smoke_home.mjs 里有一条真机断言
-       会量"展开后正好放得下 70 行",漂了就会失败. */
-    --oled-editor-expanded-height: 1366px;
-    --oled-area-margin: 10px;
-
-    /*
-     * SETTING 标签页的令牌不在这里:它们跟着那一页走,见 src/setting/tokens.css
-     * (--setting-*).唯一留下的是下面那条 --tab-pane-opacity:它属于标签页窗格
-     * (消费方是 index.css 的 `.tab-pane`),设置页那条滑块只是它的写入方.
-     */
-
-    /* ---------- 红黑树 ---------- */
-    /* 表达式输入框的字体绿 / 背景黑 */
-    --rbt-text-color: #00FF00FF;
-    --rbt-input-bg: #000000FF;
-    /* 输入框边框 */
-    --rbt-input-border: 1.5px solid #e2e8f0;
-    /* 输入框上下外边距 / 最小高度 */
-    --rbt-input-margin: 10px;
-    --rbt-input-min-height: 100px;
-    /* 性质检查:PASS(浅绿,与输入框的绿同一色系)/ FAIL(玫红,同解析错误) */
-    --rbt-pass-color: #4ade80;
-    --rbt-fail-color: #e11d48;
-    /* 性质检查清单的抬头色(弱化)与上下外边距 */
-    --rbt-diag-summary-color: #94a3b8;
-    --rbt-diag-margin: 6px;
-    /* 空输入 / 空树提示(中性说明,与清单抬头同一档弱化色) */
-    --rbt-hint-color: #94a3b8;
-    /* 解析错误提示(玫红,与性质 FAIL 同色:都是"这棵树不对") */
-    --rbt-error-color: #e11d48;
-
-    /* ---------- 红黑树:树本身(SVG) ---------- */
-    /*
-     * 树从 canvas 换成 SVG 之后,这些值第一次真正落在 CSS 里:元素是自己的,
-     * fill / stroke / font 都吃令牌(canvas 的 ctx.fillStyle 读不到自定义属性,
-     * 从前这套配色只能写死在 src/rbt/config.ts).
-     *
-     * --rbt-node-radius 与 TS 的 RBT_NODE_RADIUS 必须相等:布局拿它算最小间距与
-     * 安全边距(节点该放哪),这里拿它画圆(节点多大).改一处要改两处,不一致的
-     * 表现是节点之间该留的空没留够,不会有任何报错.
-     */
-    --rbt-node-radius: 22px;
-    /*
-     * 红节点 / 黑节点:各一条填充色.
-     *
-     * 只有填充,没有描边:描边那套(两条线宽 + 两条描边色)已经整个删掉 --
-     * 真需要描边时再加 `--rbt-node-stroke-width` 与 `stroke`,别提前留着.
-     */
-    --rbt-node-red-fill: #ff0000;
-    --rbt-node-black-fill: #000000;
-    /* 节点值文字色:红黑同一个白(红底上黑字看不清,黑底上更是) */
-    --rbt-node-text: #ffffff;
-    /* 节点值字号(圆半径 22px × 0.75 向下取整 = 16,与 canvas 时代的算式同源) */
-    --rbt-node-font-size: 16px;
-    /* 父子连线:颜色(浅灰蓝)与线宽 */
-    --rbt-edge-color: #94a3b8;
-    --rbt-edge-width: 2;
-    /* 节点出现的时长(每次输入整批重建,所以每个节点都会重新播一次) */
-    --rbt-node-enter-duration: 220ms;
-
-    /* ---------- IEEE 754 面板:文案色 ---------- */
-    /* 提示文字(浅灰) */
-    --ieee-hint-color: #cbd5e1;
-    /* 错误提示(玫红) */
-    --ieee-error-color: #f43f5e;
-    /* 弱化 / 次要文字(石板灰) */
-    --ieee-muted-color: #94a3b8;
-    /* 强调文字(浅蓝,高亮数值与位) */
-    --ieee-accent-color: #7dd3fc;
-    /* 正文文字(浅灰白) */
-    --ieee-text-color: #e2e8f0;
-
-    /* ---------- IEEE 754 面板:边框与底色 ---------- */
-    /* 区块 / 单元格边框(深石板) */
-    --ieee-border-color: #334155;
-    /* 区块 / 单元格边框宽度 */
-    --ieee-border-width: 1px;
-    /* 区块圆角不在这里:它是 miko_ui 主题的中圆角,由 ieee754.css 直接引用
-       var(--radius-md)(库默认 0px). */
-    /* 位与分组的底色(深蓝黑) */
-    --ieee-bit-bg: #0f172a;
-    /* 区块底色(更深蓝黑) */
-    --ieee-section-bg: #0b1220;
-    /* 表格行悬停底色 */
-    --ieee-row-hover-bg: #1e293b;
-    /* 位边框色(中石板) */
-    --ieee-bit-border: #475569;
-    /* 表格白字(白色,用于彩色位底) */
-    --ieee-on-color: #fff;
-    /* 符号位底色(玫红) */
-    --ieee-sign-bg: #be123c;
-    /* 指数位底色(深橙) */
-    --ieee-exp-bg: #7c2d12;
-    /* 尾数位底色(深绿) */
-    --ieee-frac-bg: #065f46;
-    /* 图例符号色(浅玫红 / 浅橙 / 浅绿) */
-    --ieee-legend-sign: #fda4af;
-    --ieee-legend-exp: #fdba74;
-    --ieee-legend-frac: #6ee7b7;
-
-    /* ---------- IEEE 754 面板:尺寸与间距 ---------- */
-    /* 区块上下外边距 / 内边距 */
-    --ieee-section-margin: 12px 0;
-    --ieee-section-padding: 10px;
-    /* 图例 / 标题的底部间距 */
-    --ieee-caption-margin-bottom: 6px;
-    /* 公式标题的底部间距(比图例更紧凑) */
-    --ieee-formula-title-margin-bottom: 4px;
-    /* 提示文字底部间距 */
-    --ieee-hint-margin-bottom: 8px;
-    /* 错误提示上下外边距 */
-    --ieee-error-margin: 6px 0;
-    /* 区块内小元素的上下外边距 */
-    --ieee-block-margin: 8px 0;
-    /* 位图行高 / 单个位方块尺寸 */
-    --ieee-bit-line-height: 2;
-    --ieee-bit-width: 12px;
-    --ieee-bit-height: 22px;
-    --ieee-bit-font-size: 11px;
-    /* 位分组间距 / 组间距 / 4 位间距占位宽度 */
-    --ieee-group-gap: 2px;
-    --ieee-group-margin-right: 8px;
-    --ieee-gap-width: 6px;
-    /* 特殊值表单元格内边距 */
-    --ieee-cell-padding: 5px 10px;
-    /* 图例项间距 */
-    --ieee-legend-gap: 16px;
-    /* 精度 / 输入那一行:两列的间距与输入列宽度(布局在 ieee754.css 的 .ieee-controls) */
-    --ieee-controls-gap: 1rem;
-    --ieee-controls-input-width: 50%;
-    /* 十进制输入框:内边距与字号(观感对齐 miko_ui 的数字框) */
-    --ieee-input-padding: 4px 8px;
-    --ieee-input-font-size: 0.875rem;
+    /* ---------- 导航条上的 GitHub 按钮 ---------- */
+    /* 图标边长 */
+    --github-icon-size: 25px;
+    /* 图标外边距 */
+    --github-icon-margin: 5px;
+    /* 图标悬停辉光颜色 */
+    --github-icon-glow: #00ffc3;
+    /* 图标悬停辉光模糊半径 */
+    --github-icon-glow-blur: 15px;
 }

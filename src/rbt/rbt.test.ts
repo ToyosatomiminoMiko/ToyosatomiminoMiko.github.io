@@ -99,7 +99,7 @@ describe('红黑树:挂载后的树与唯一输出区', () => {
             .toHaveLength(RBT_PROPERTIES.length);
 
         // 深度 4 的满树 31 个节点 => 31 个节点组,且每个都是一颗圆 + 一个节点值.
-        // 每颗圆都带 .rbt-node__shape(半径 / 颜色由 CSS 给它,见 index.css).
+        // 每颗圆都带 .rbt-node__shape(半径 / 颜色由 CSS 给它,见 src/rbt/rbt.css).
         const nodes = treeNodes(tree);
         expect(nodes).toHaveLength(31);
         expect(tree.querySelectorAll(`.${RBT_NODE_SHAPE_CLASS}`)).toHaveLength(31);

@@ -13,6 +13,12 @@ CALENDAR_MIDNIGHT_GRACE_MS).
 但时钟自己的标记与行为仍然只在 src/clock/ 里(挂载函数只认宿主,不认页面).
 */
 
+/*
+样式:`tokens.css`(设计令牌)与 `calendar.css`(三张历法卡的观感)在本模块引入.
+顶部 LED 时钟的外观不在这里,它跟着时钟模块走(src/clock/clock.css).
+*/
+import '@/calendar/calendar.css';
+
 import { msUntilNextLocalMidnight, readCalendars } from './calendar_date';
 import { CALENDAR_MIDNIGHT_GRACE_MS } from './config';
 import { createCalendarPanel } from './ui/calendar_panel';
