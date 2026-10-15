@@ -7,6 +7,8 @@ Calendario 标签页的设计令牌.
 
 --calendar-panel-width 引的是站点级的 `--card-width`(public/css/tokens.css 里那条
 "跨模块共用的排版口径",画板卡片与红黑树输入框也引它),不在这里另存一份.
+--calendar-content-width 引的是时钟模块的 `--clock-panel-width`:卡片列的宽度上限
+就是时钟那一块的自然宽度(理由见下面那条注释).
 
 搬迁的原委见 public/css/index.css 顶部那段说明.
 */
@@ -14,10 +16,12 @@ Calendario 标签页的设计令牌.
     /* ---------- 日历标签页(Calendario) ---------- */
     /*
      * 面板占满窗格宽度(与 OLED / IEEE754 的卡片同口径:--card-width = 100%).
-     * 卡片是"三套历法各一行"的窄条,拉满反而不好读,所以正文宽度另给一条上限.
+     * 卡片是"三套历法各一行"的窄条,拉满反而不好读,所以卡片列另有一条上限 --
+     * 上限取**时钟面板的自然宽度**(src/clock/tokens.css 的 --clock-panel-width):
+     * 卡片框的左右边与时钟黑底的左右边落在同一条竖线上,改时钟大小这里跟着变.
      */
     --calendar-panel-width: var(--card-width);
-    --calendar-content-width: 720px;
+    --calendar-content-width: var(--clock-panel-width);
     /* 时钟与三张卡之间,以及卡与卡之间的间距 */
     --calendar-gap: 16px;
     /* 单张日历卡的底色 / 描边 / 圆角 / 内边距(圆角引用 miko_ui 主题令牌) */

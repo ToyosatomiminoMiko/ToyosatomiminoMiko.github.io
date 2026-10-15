@@ -429,27 +429,4 @@ main {
 }
 /* ================================================================
  * 子应用样式归各自的 src/<模块>/
- *
- * 这一份只剩**文档级**:通配重置 / 文档基线 / 首屏(hero)/ 固定导航条 / 标签页窗格
- * 外壳.各标签页自己的观感住在各自的模块目录里,跟那一页的声明式模型,标记与设计
- * 令牌放在一起(理由:搬过去之后页面样式与页面标记就在同一个目录里,改一处不会漏):
- *
- *   SETTING 页         src/setting/setting.css        + src/setting/tokens.css
- *   地铁车窗(首屏)     src/metro_window/src/*.css      (一开始就是这样)
- *   Calendario 页      src/calendar/calendar.css      + src/calendar/tokens.css
- *     └ 顶部 LED 时钟  src/clock/clock.css            + src/clock/tokens.css
- *   OLED 像素画板      src/oled/oled.css              + src/oled/tokens.css
- *   红黑树工具         src/rbt/rbt.css                 + src/rbt/tokens.css
- *   IEEE 754 面板      src/ieee754/ieee754.css        + src/ieee754/tokens.css
- *
- * 所以本站样式表里**不再**有 `.setting-group` / `.bgrow` / `.bgbtn` / `.opacity-field`
- * / `.oled-card` / `#app_led_clock` / `.calendar-*` / `#treeInput` / `#treeOutput`
- * / `#rbtTree` / `.ieee-*`:它们各自只有一份定义,住在消费它们的模块里.从前这几块
- * 挤在这一份里,而它们引的令牌又挤在 tokens.css 里,一个模块横跨两棵树.
- *
- * 为什么文档级这一层**不跟着搬**:public/css/*.css 由 index.html 静态引入,是首屏
- * 关键路径;src/ 下的样式进 Vite 产物(dev 由 JS 注入 <style>,prod 是排在静态
- * link 之后的 assets/main-*.css),要等模块执行才生效.首屏就要上屏的东西(字体基线 /
- * body 底色 / 导航条 / 首屏自己)吃不起这个时序差,窗格里的页面起手是 display: none,
- * 吃得起.令牌的分界线同理,见 public/css/tokens.css 的文件头.
  * ================================================================ */

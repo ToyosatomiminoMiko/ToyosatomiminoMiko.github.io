@@ -9,6 +9,14 @@ LED 时钟样式.
 
 搬迁的原委见 public/css/index.css 顶部那段说明.
 */
+/*
+ * 时钟黑底**贴着画布**长,自己在正文里居中.
+ *
+ * 画布显示宽度 = --clock-canvas-height × 65/8(位图 65×8;128px 档 = 1040px),比
+ * 任何阅读列都宽.宽度若由父级给(块级默认),宿主会窄于画布,画布溢出黑底两侧 --
+ * 时钟看着不在自己的面板里.所以这里的宽度跟着内容走(max-content),居中由自己的
+ * auto 外边距负责,不依赖父级宽度.
+ */
 #app_led_clock {
     background-color: var(--clock-panel-bg) !important;
     border-radius: var(--clock-panel-radius);
@@ -17,6 +25,11 @@ LED 时钟样式.
     display: flex;
     justify-content: center;
     align-items: center;
+    width: max-content;
+    /* 窄窗口:最多占满一行,画布随之等比缩小(见下面 object-fit) */
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 #time_canvas {
@@ -35,4 +48,13 @@ LED 时钟样式.
     */
     image-rendering: pixelated;
     height: var(--clock-canvas-height);
+    /*
+     * 一行放不下整幅点阵时(窄窗口)把画布收进黑底:溢出的一头会被 body 的
+     * overflow-x: hidden 裁掉(表现是年份少一位),而黑底又不再跟着长.
+     * object-fit: contain 让位图**按比例**缩进盒子里 -- 像素仍是方的,只是每颗小一点;
+     * 少了它,65 列会被硬拉进更窄的盒子,数字横向变形(库的舞台也用同一条:
+     * Chromium 认 canvas 的 object-fit).
+     */
+    max-width: 100%;
+    object-fit: contain;
 }

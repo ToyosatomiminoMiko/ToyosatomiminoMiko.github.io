@@ -12,22 +12,20 @@ src/clock/clock.css),下面 `.calendar-list` 里三张卡.
 /*
  * 框体占满窗格宽度(与 OLED / IEEE754 同口径:--calendar-panel-width = --card-width).
  *
- * 宽度上限**不属于框体**:上限是给三张历法卡那条窄列的,落在正文容器
- * (`.ui-panel-body`,库的类)上.挂在 `.calendar-pane` 上会把标题栏与框体一起夹窄,
- * 而 tokens.css 里"框体宽度"与"正文宽度"本来就是两条令牌.
+ * 宽度上限**不属于框体,也不属于整块正文**:它是"一套历法一行"那条窄列的阅读口径,
+ * 所以只落在下面的 `.calendar-list` 上.挂到框体上会把标题栏一起夹窄;挂到正文上
+ * 会把时钟一起夹窄 -- 时钟画布按当前档位是 1040px 宽,夹到 720 之后画布两侧各溢出
+ * 176px,看着像时钟不在自己的黑底里(黑底贴画布的规则见 clock/clock.css).
  */
 .calendar-pane {
     width: var(--calendar-panel-width);
 }
 
-/* 三张卡是"一套历法一行"的窄条,拉满反而不好读:正文给一条上限并居中,窄窗口按 100% 收缩 */
-.calendar-pane .ui-panel-body {
+.calendar-list {
+    /* 拉满反而不好读:列宽给一条上限并居中,窄窗口按 100% 收缩 */
     max-width: var(--calendar-content-width);
     margin-left: auto;
     margin-right: auto;
-}
-
-.calendar-list {
     display: grid;
     gap: var(--calendar-gap);
     /* 与时钟之间的间距:时钟自己带内边距与辉光,再给一整条间距会显得两头都空 */

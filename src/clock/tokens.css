@@ -21,4 +21,16 @@ LED 时钟的设计令牌.
     --clock-glow-blur: 40px;
     /* 时钟 canvas 显示高度(保持像素锐利:8 行的整数倍) */
     --clock-canvas-height: 128px;
+    /*
+     * 画布显示宽度:位图按自己的比例等比放大,不写死 --clock-canvas-height × 65/8.
+     * **65 / 8 与 src/clock/config.ts 的 CLOCK_CANVAS_WIDTH / CLOCK_CANVAS_HEIGHT
+     * 必须一致**(改那边要改这边;不一致的表现是黑底比画布宽或窄,不会有任何报错).
+     */
+    --clock-canvas-display-width: calc(var(--clock-canvas-height) * 65 / 8);
+    /*
+     * 面板(黑底)的自然宽度 = 画布 + 两侧内边距.这是"时钟这整块的宽度",Calendario 页
+     * 拿它对齐卡片列的左右边(见 src/calendar/tokens.css 的 --calendar-content-width):
+     * 卡片框的左右边与时钟黑底的左右边落在同一条竖线上.
+     */
+    --clock-panel-width: calc(var(--clock-canvas-display-width) + 2 * var(--clock-panel-padding));
 }
