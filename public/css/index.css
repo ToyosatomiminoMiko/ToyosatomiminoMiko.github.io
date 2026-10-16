@@ -141,7 +141,7 @@ legend {
 /* ================================================================
  * 面板框体归 miko_ui
  *
- * OLED / RBT / IEEE754 三块面板与 SETTING 整页都用库的 `createPanel`
+ * OLED / IEEE754 两块面板与 SETTING 整页都用库的 `createPanel`
  * (`section.ui-panel > header.ui-panel-header > span.ui-panel-title` +
  * `div.ui-panel-body`),外观在库的 `styles/widgets.css`(底色 / 描边 / 圆角 /
  * 标题栏与桌面窗口同源),本站不再给框体写样式.这里只剩各面板自己的作用域类

@@ -6,7 +6,7 @@ Calendario 标签页的设计令牌.
 `var(--calendar-*)`,选择器里不写死色值与尺寸.
 
 --calendar-panel-width 引的是站点级的 `--card-width`(public/css/tokens.css 里那条
-"跨模块共用的排版口径",画板卡片与红黑树输入框也引它),不在这里另存一份.
+"跨模块共用的排版口径",画板卡片也引它),不在这里另存一份.
 --calendar-content-width 引的是时钟模块的 `--clock-panel-width`:卡片列的宽度上限
 就是时钟那一块的自然宽度(理由见下面那条注释).
 

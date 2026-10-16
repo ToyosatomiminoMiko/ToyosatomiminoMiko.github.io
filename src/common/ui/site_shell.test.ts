@@ -207,7 +207,7 @@ describe('首页骨架:首屏', () => {
     });
 });
 
-describe('首页骨架:六个标签页窗格', () => {
+describe('首页骨架:五个标签页窗格', () => {
     it('每个导航项都有一个同 id 的窗格,类名是 tab-pane fade', () => {
         const shell = setupShell();
         for (const item of NAV_ITEMS) {
@@ -219,7 +219,7 @@ describe('首页骨架:六个标签页窗格', () => {
         }
     });
 
-    it('只有默认窗格是 show active,其余五个都不带', () => {
+    it('只有默认窗格是 show active,其余四个都不带', () => {
         setupShell();
         for (const item of NAV_ITEMS) {
             const pane = document.getElementById(item.pane);

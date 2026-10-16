@@ -35,7 +35,7 @@ interface TabsTargets {
     readonly list: HTMLElement;
     /** 触发器,顺序与 site.config.ts 的 NAV_ITEMS 一致 */
     readonly links: readonly HTMLAnchorElement[];
-    /** 窗格:pane id -> 元素(OLED / RBT / IEEE754 直接把窗格当模块宿主) */
+    /** 窗格:pane id -> 元素(OLED / IEEE754 直接把窗格当模块宿主) */
     readonly panes: Readonly<Record<NavPaneId, HTMLElement>>;
 }
 

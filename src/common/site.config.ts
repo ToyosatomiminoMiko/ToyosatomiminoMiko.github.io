@@ -2,7 +2,7 @@
  * 站点级(main.ts / common)的声明式配置.
  *
  * 首页整套骨架都在这里声明,由 src/common/ui/site_shell.ts 生成:导航条(站名 +
- * 标签 + GitHub 按钮),首屏(舞台 / 压暗层 / 底部一排),六个标签页,以及首屏那两个
+ * 标签 + GitHub 按钮),首屏(舞台 / 压暗层 / 底部一排),五个标签页,以及首屏那两个
  * 模块空宿主;各模块的挂载函数只往宿主里长标记.宿主页 index.html 里没有任何标记,
  * 只留一个空位 `#site-root`.
  *
@@ -65,7 +65,7 @@ export const GITHUB_ICON_ALT = 'ToyosatomiminoMiko 的 GitHub';
 /**
  * 一个导航项 = 一个标签页.
  * pane 同时是:标签页窗格的 id,标签 href 的锚点(`#pane`),
- * 以及**该模块的挂载宿主**(OLED / RBT / IEEE754 三个模块把整块面板长在窗格里).
+ * 以及**该模块的挂载宿主**(OLED / IEEE754 两个模块把整块面板长在窗格里).
  */
 export interface NavItemSpec {
     readonly pane: string;
@@ -82,12 +82,11 @@ export const NAV_ITEMS = [
     { pane: 'home', label: 'HOME' },
     { pane: 'calendar', label: 'Calendario' },
     { pane: 'oled', label: 'OLED' },
-    { pane: 'rbt', label: 'RBT' },
     { pane: 'ieee754', label: 'IEEE754' },
     { pane: 'setting', label: 'SETTING' },
 ] as const satisfies readonly NavItemSpec[];
 
-/** 标签页 id 的字面量联合('home' | 'calendar' | 'oled' | 'rbt' | 'ieee754' | 'setting') */
+/** 标签页 id 的字面量联合('home' | 'calendar' | 'oled' | 'ieee754' | 'setting') */
 export type NavPaneId = (typeof NAV_ITEMS)[number]['pane'];
 
 /** 默认激活的标签页(取声明里的第一项,不另写一份字面量) */

@@ -104,7 +104,7 @@ const report = await cdp.evalValue(`(async () => {
           这样真出问题时是一条"没挂上",而不是下面十几条连带的看不懂的报错.
         */
         ok('骨架挂上了(header + main)', q('header.site-header') !== null && q('main .tab-content') !== null);
-        ok('六个标签页窗格都在', ['home','calendar','oled','rbt','ieee754','setting'].every((id) => q('#' + id)));
+        ok('五个标签页窗格都在', ['home','calendar','oled','ieee754','setting'].every((id) => q('#' + id)));
         /*
           LED 时钟从 HOME 首屏底部搬到了 Calendario 标签页顶部:首屏底部只剩风格按钮宿主,
           时钟宿主必须长在日历页的正文里,而且是正文的第一个子节点(见 src/calendar/).
@@ -169,7 +169,7 @@ const report = await cdp.evalValue(`(async () => {
             toggledTransport.back === '暂停',
             toggledTransport.before + ' -> ' + toggledTransport.after + ' -> ' + toggledTransport.back);
         /*
-          全站可见文本里不允许出现 emoji(导航 / 首屏 / 六个窗格的全部文本节点;
+          全站可见文本里不允许出现 emoji(导航 / 首屏 / 五个窗格的全部文本节点;
           隐藏窗格也在 DOM 里,一并过一遍).这条守着"不用图标做提示"的约定 --
           以后谁再往按钮或提示里塞 emoji,真机验收会当场失败.
         */
@@ -189,35 +189,6 @@ const report = await cdp.evalValue(`(async () => {
         /*
           ---- 第 2 组:必须真渲染才成立的事 ----
         */
-        /*
-          令牌 -> 计算色的两个换算件,这一组里跨几条断言共用,所以提到最前:
-
-          颜色必须**过一遍引擎**再比,不能自己解析令牌字符串:
-            - 自定义属性读出来是作者写的原文(getPropertyValue 只做 var() 替换,不规范化),
-              而 fill / color 的 computed value 永远是 rgb(...);
-            - 打包产物里的颜色会被 CSS 压缩器改写(实测 #ff0000 -> red,#000000 -> #000),
-              自己按 6 位十六进制解析会量出"令牌 red,元素 fill rgb(255, 0, 0)"这种假失败
-              (令牌从前住在 public/css 里是原样拷贝,没有压缩器碰它,所以没暴露);
-            - 令牌读不到时两边都是空串也会"相等",那种真问题正好被这条换算暴露出来.
-          探针用完就摘掉,不留在页面上.
-
-          (从前这两个函数定义在下面"性质清单"那一段里,后来红黑树红节点那条也要用
-          它 -- 而那条断言排在前面,于是 const 的暂时性死区把它变成 ReferenceError.
-          定义放前面就没有这个先后问题.整条 CDP 脚本住在一个模板字符串里,所以这段
-          注释里**不能出现反引号**:它会把外层模板提前收掉.)
-        */
-        const readColorToken = (name) =>
-            getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-        const toRgb = (color) => {
-            // 令牌为空 = 读不到:回空串,让调用方那条 === 直接判失败(计算色不会是空串)
-            if (color === '') return '';
-            const probe = document.createElement('span');
-            probe.style.color = color;
-            document.documentElement.appendChild(probe);
-            const resolved = getComputedStyle(probe).color;
-            probe.remove();
-            return resolved;
-        };
         // 时钟:2D 画布真的点出像素了
         const clock = q('#time_canvas');
         let clockPixels = -1;
@@ -266,8 +237,8 @@ const report = await cdp.evalValue(`(async () => {
           注:这段代码坐在一个模板字符串里,注释里不能出现反引号.
         */
         const navLabels = qa('.site-header .nav-tabs .nav-link').map((a) => (a.textContent || '').trim());
-        ok('导航项文案是 HOME / Calendario / OLED / RBT / IEEE754 / SETTING',
-            navLabels.join(' / ') === 'HOME / Calendario / OLED / RBT / IEEE754 / SETTING',
+        ok('导航项文案是 HOME / Calendario / OLED / IEEE754 / SETTING',
+            navLabels.join(' / ') === 'HOME / Calendario / OLED / IEEE754 / SETTING',
             navLabels.join(' / '));
         const cardLabels = qa('#calendar .calendar-item__label').map((el) => (el.textContent || '').trim());
         ok('三张卡的名字是 格里高利历 / 农历 / 希伯来历',
@@ -284,135 +255,6 @@ const report = await cdp.evalValue(`(async () => {
         } catch (e) { oledPixel = '读取失败'; }
         ok('OLED 画布已初始化(左上角未亮的中性灰 ${OLED_UNLIT_HEX})', oledUnlit, oledPixel);
 
-        /*
-          红黑树:示例树真的被解析并画出来了.
-
-          从前这条读的是 canvas 像素(#rbCanvas 里数红点).树换成 SVG 之后判据更强也更
-          直接:红节点是**文档里的元素**,按类名点得到,而它的 fill 是 CSS 级联算出来的
-          (令牌 --rbt-node-red-fill) -- 所以这里同时验了"树建起来了"与"令牌真的落到了
-          元素的 fill 上",后者在 happy-dom 里查不到(getComputedStyle 返回空串),
-          只有真引擎能验.
-        */
-        const redNodes = qa('#rbtTree .rbt-node--red');
-        const redFill = redNodes[0] ? getComputedStyle(redNodes[0].querySelector('.rbt-node__shape')).fill : '';
-        const redToken = toRgb(readColorToken('--rbt-node-red-fill'));
-        ok('红黑树真的画出来了(有红节点,且 fill 走令牌)',
-            redNodes.length > 0 && redFill === redToken,
-            redNodes.length + ' 个红节点, fill ' + (redFill || '读不到') + ' / 令牌 ' + redToken);
-
-        /*
-          性质检查(见 rbt/rbt_tree.ts):清单是"抬头 + 每条一行",示例树是合法红黑树
-          所以四条全过.这里验的是**清单真的被渲染出来了**(条数 == config 里的条数)
-          与"PASS / FAIL"两种结论的类名与颜色都挂上了;具体某棵树该过哪几条由
-          npm test 的 rbt_tree.test.ts 覆盖,这里不重复.
-        */
-        /*
-          状态文案的真值只有一处(src/rbt/config.ts 的 RBT_PROPERTY_STATE_PASS / _FAIL).
-          这里过去抄了两份字面量,后来 config 那句被改写成 PASS / FAIL 而脚本没跟上,
-          这两条断言就直接挂了 -- 所以现在从页面上现读,不在脚本里维护第二份文案.
-
-          坏树那一轮里,清单上只会出现两种状态文案(一条 PASS 一条 FAIL),所以
-          "不是 PROPERTY_PASS 的那个"就是失败文案;这样脚本对文案本身完全免疫.
-        */
-        const collectStateTexts = () =>
-            [...new Set([...document.querySelectorAll('#treeOutput .tree-property-state')]
-                .map((state) => state.textContent))];
-        const stateTextsBefore = collectStateTexts();
-        const PROPERTY_PASS = stateTextsBefore[0] || '';
-        const propertyRows = qa('#treeOutput .tree-property');
-        const propertySummary = q('#treeOutput .tree-property-summary');
-        const passStates = qa('#treeOutput .tree-property-state.is-pass');
-        const failStates = qa('#treeOutput .tree-property-state.is-fail');
-        // 颜色的换算件(readColorToken / toRgb)在本组最前面统一声明,这里直接用(理由见那边)
-        ok('红黑树性质清单渲染出来了(示例树四条全过)',
-            q('#treeOutput') !== null && q('#treeOutput').hidden === false &&
-            propertyRows.length === 4 && passStates.length === 4 && failStates.length === 0 &&
-            propertySummary !== null &&
-            propertyRows.every((row) => row.textContent.indexOf(PROPERTY_PASS) !== -1) &&
-            (passStates[0] ? getComputedStyle(passStates[0]).color : '') ===
-                toRgb(readColorToken('--rbt-pass-color')) &&
-            (propertySummary ? propertySummary.textContent : '').indexOf('4 条中 0 条') !== -1,
-            '行数 ' + propertyRows.length + ' / PASS ' + passStates.length + ' / 抬头 ' +
-                (propertySummary ? propertySummary.textContent : '没有抬头'));
-
-        /*
-          往输入框里喂一棵坏树(根是红的 + 左子树里塞了更小的值),看清单会不会跟着变:
-          这一下同时走"input 事件 -> 重新解析 -> 性质检查 -> 重建清单"整条链路,
-          单测各自只覆盖其中一段.
-        */
-        const treeInput = q('#treeInput');
-        if (treeInput) {
-            treeInput.value = '10R(5B(3B,7B),40B(2B,50B))';
-            treeInput.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-        const failAfterBad = qa('#treeOutput .tree-property-state.is-fail');
-        const badRows = qa('#treeOutput .tree-property');
-        const stateTextsAfter = collectStateTexts();
-        const PROPERTY_FAIL = stateTextsAfter.find((text) => text !== PROPERTY_PASS) || '';
-        const failRowTexts = badRows.filter((row) => row.textContent.indexOf(PROPERTY_FAIL) !== -1)
-            .map((row) => row.textContent);
-        ok('喂一棵坏树:清单跟着报 FAIL(根红 + 值乱序两条)',
-            failAfterBad.length === 2 && failRowTexts.length === 2 &&
-            (failAfterBad[0] ? getComputedStyle(failAfterBad[0]).color : '') ===
-                toRgb(readColorToken('--rbt-fail-color')),
-            'FAIL ' + failAfterBad.length + ' 条: ' + failRowTexts.join(' / '));
-        // 还原成一条合法红黑树,免得后面几条"页面状态"的断言读到被改过的输入
-        if (treeInput) {
-            treeInput.value = '15B(7R(3B,11B),23R(19B,27B))';
-            treeInput.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-        ok('改回合法树:清单回到四条全过',
-            qa('#treeOutput .tree-property-state.is-fail').length === 0 &&
-            qa('#treeOutput .tree-property-state.is-pass').length === 4);
-
-        /*
-          文案归 HTML,树只画结构(rbt/rbt.ts 的分工).输出区只有一个 #treeOutput,
-          每轮只装一种内容:一行提示 / 一行错误 / 性质清单.这里在真浏览器里验三件事 --
-          三种状态各放哪一种行,.tree-hint / .tree-error 的色值真的来自令牌(令牌只在
-          CSS 级联之后才算得出来),以及"没有树"时树上真的一颗节点都没留下.
-
-          判据从"画布只剩白底"改成"这棵 SVG 里没有节点 / 连线":从前底色是画上去的
-          (RBT_CANVAS_BACKGROUND 铺满画布),必须按像素验;现在是元素树,直接点元素即可.
-        */
-        const treeSvg = q('#rbtTree');
-        const treeIsEmpty = () =>
-            treeSvg !== null && treeSvg.children.length === 0 &&
-            qa('#rbtTree .rbt-node').length === 0 && qa('#rbtTree .rbt-edge').length === 0;
-        const treeOutput = q('#treeOutput');
-        const hintLine = () => q('#treeOutput .tree-hint');
-        const errorLine = () => q('#treeOutput .tree-error');
-        ok('合法树:输出区只有性质清单(没有提示行 / 错误行)',
-            treeOutput !== null && treeOutput.hidden === false &&
-            hintLine() === null && errorLine() === null &&
-            qa('#treeOutput .tree-property').length === 4);
-        if (treeInput) {
-            treeInput.value = '';
-            treeInput.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-        ok('清空输入:输出区换成一行提示(颜色走令牌),树上不留节点',
-            treeInput !== null && hintLine() !== null && errorLine() === null &&
-            (hintLine().textContent || '').indexOf('请输入红黑树表达式') !== -1 &&
-            getComputedStyle(hintLine()).color === toRgb(readColorToken('--rbt-hint-color')) &&
-            qa('#treeOutput .tree-property').length === 0 && treeIsEmpty(),
-            (hintLine() ? hintLine().textContent : '') + ' / 树是空的');
-        if (treeInput) {
-            treeInput.value = '5B(1B 2B)';
-            treeInput.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-        ok('格式错误:输出区换成一行错误(颜色走令牌),树上依旧不留节点',
-            hintLine() === null && errorLine() !== null &&
-            (errorLine().textContent || '').indexOf('错误: ') === 0 &&
-            getComputedStyle(errorLine()).color === toRgb(readColorToken('--rbt-error-color')) &&
-            qa('#treeOutput .tree-property').length === 0 && treeIsEmpty(),
-            (errorLine() ? errorLine().textContent : ''));
-        // 还原成一条合法红黑树,免得后面几条"页面状态"的断言读到被改过的输入
-        if (treeInput) {
-            treeInput.value = '15B(7R(3B,11B),23R(19B,27B))';
-            treeInput.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-        ok('还原合法树:输出区回到清单且树上重新长出节点',
-            hintLine() === null && errorLine() === null &&
-            qa('#treeOutput .tree-property').length === 4 && !treeIsEmpty());
 
         // IEEE754:初始那次渲染真的跑完了(位图 64 格 + KaTeX 公式 + 特殊值表)
         ok('IEEE754 初始渲染跑完(位图 64 格 + KaTeX + 特殊值表)',
@@ -617,7 +459,7 @@ const report = await cdp.evalValue(`(async () => {
         /*
           ---- 第 4 组:index.css 的**文档基线** ----
           这几条全是元素级规则,特异性高过站点的 '*' 重置,所以只有它们能盖住重置.
-          它们**不会**以任何形式报错,只会静默地让版式变样(六个窗格堆叠 /
+          它们**不会**以任何形式报错,只会静默地让版式变样(五个窗格堆叠 /
           导航栏竖排 / 盒模型反转 / 整页露白底),所以只能靠真浏览器里的
           computed style 与几何把它们钉住.
         */
@@ -677,14 +519,14 @@ const report = await cdp.evalValue(`(async () => {
             getComputedStyle(q('a.nav-link')).paddingTop);
         /*
           窗格显隐:**最容易被静默改坏的一条**.'.tab-content > .tab-pane' 的
-          display:none 与 '> .active' 的 display:block 是六个窗格"一次只显示一个"
-          的全部依据,少了它们六个会同时纵向堆叠在首屏下面(页面还是"能打开"的).
-          这里逐个数一遍:除当前项外,其余五个窗口的 display 必须是 none.
+          display:none 与 '> .active' 的 display:block 是五个窗格"一次只显示一个"
+          的全部依据,少了它们五个会同时纵向堆叠在首屏下面(页面还是"能打开"的).
+          这里逐个数一遍:除当前项外,其余四个窗口的 display 必须是 none.
           注:这段代码本身坐在一个模板字符串里,注释里不能出现反引号.
         */
-        const panes = ['home', 'calendar', 'oled', 'rbt', 'ieee754', 'setting'];
+        const panes = ['home', 'calendar', 'oled', 'ieee754', 'setting'];
         const shown = panes.filter((id) => getComputedStyle(q('#' + id)).display !== 'none');
-        ok('六个窗格里只有一个可见(窗格显隐规则生效)',
+        ok('五个窗格里只有一个可见(窗格显隐规则生效)',
             shown.length === 1 && shown[0] === 'home', '可见: ' + JSON.stringify(shown));
         /*
           窗格的不透明档位不再是写死的 1:它由令牌 --tab-pane-opacity(默认 0.9)给,
@@ -1016,7 +858,7 @@ const adHoc = (pass) => { adHocTotal++; if (!pass) failed++; };
 const paneOpacity = Number(await cdp.evalValue(
     `getComputedStyle(document.documentElement).getPropertyValue('--tab-pane-opacity')`));
 // 切过去的窗格必须真的"上屏且落在令牌那一档",切走的必须真的 display: none --
-// 只对类名就会漏掉"类名对了但 CSS 掉了,六个窗格一起堆叠"这种最坏的静默失效.
+// 只对类名就会漏掉"类名对了但 CSS 掉了,五个窗格一起堆叠"这种最坏的静默失效.
 const shownOk = (pane) => pane?.active === true && pane?.show === true &&
     pane?.display === 'block' && Math.abs(Number(pane?.opacity) - paneOpacity) < 1e-6;
 const hiddenOk = (pane) => pane?.active === false && pane?.show === false && pane?.display === 'none';

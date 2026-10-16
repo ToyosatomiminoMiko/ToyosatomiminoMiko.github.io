@@ -142,13 +142,16 @@ describe('标签页:点击', () => {
 
     it('切走再切回来,旧窗格恢复成 .show active', () => {
         const shell = setupTabs();
-        linkFor(shell, 'rbt').click();
+        // 切到"另一页"用清单里的第二项,不写具体页名的字面量:
+        // 这条测的是状态迁移,与挪走的是哪一页无关(见 site.config.ts 的 NAV_ITEMS)
+        const other = NAV_ITEMS[1].pane;
+        linkFor(shell, other).click();
         linkFor(shell, DEFAULT_NAV_PANE).click();
         expect(activePane(shell)).toBe(DEFAULT_NAV_PANE);
         expect(shell.panes[DEFAULT_NAV_PANE].classList.contains(NAV_ACTIVE_CLASS)).toBe(true);
         expect(shell.panes[DEFAULT_NAV_PANE].classList.contains(TAB_PANE_SHOW_CLASS)).toBe(true);
-        expect(shell.panes.rbt.classList.contains(NAV_ACTIVE_CLASS)).toBe(false);
-        expect(shell.panes.rbt.classList.contains(TAB_PANE_SHOW_CLASS)).toBe(false);
+        expect(shell.panes[other].classList.contains(NAV_ACTIVE_CLASS)).toBe(false);
+        expect(shell.panes[other].classList.contains(TAB_PANE_SHOW_CLASS)).toBe(false);
     });
 });
 

@@ -11,59 +11,6 @@ $there$ $is$ $nothing$ $to$ $do.$
 
 在`128*64`的画布上绘图并导出为`uint8_t`数组或PNG.
 
-## Red-Black Tree Lab
-
-读取字符串生成红黑树,并检查它到底是不是一棵红黑树.
-
-**树是一棵 `<svg>`,不是 `<canvas>`**(2026-10 换成 SVG).节点与连线都是文档里的
-元素,所以:配色 / 字号 / 线宽全在 CSS(`src/rbt/tokens.css` 的 `--rbt-node-*` /
-`--rbt-edge-*` 令牌 + `src/rbt/rbt.css` 的 `#rbtTree` 区块),`src/rbt/config.ts`
-里不再有任何一个色值;窄屏等比缩放交给 `width: 100%` + `viewBox`,不必再算
-`devicePixelRatio`.命中检测 / 节点拖动 / 结构变化动画这些以后要做的交互,也由浏览器
-给(`pointerdown` 的 `event.target` 就是命中的节点,位移走 CSS transition).布局算法
-(区间递归分配)与解析 / 性质检查完全没动 -- 它们本来就不认识"用什么画".
-
-建 SVG 节点走库的 `create_svg_element`(`miko_ui` 的 `widgets/svg/`),不用
-`create_element`:`createElement('circle')` 给的是 `HTMLUnknownElement`,不渲染也不收
-事件,而且**不报错** -- 几何图形必须在 SVG 命名空间里造.
-
-**画布只画树**(节点值,连线,底色),一个字的文案都不写;提示 / 错误 / 性质结论
-全部写进输入框下面的**同一个**输出区 `#treeOutput`,每轮只装一种内容(整批替换):
-
-| 什么时候 | 输出区里的行 | 说什么 |
-| --- | --- | --- |
-| 输入为空 | `.tree-hint` | 请写一条表达式(附例子) |
-| 解析成空树 `nil` | `.tree-hint` | 表达式是空树,画布上没有节点 |
-| 格式检查不过 | `.tree-error` | `错误: 解析失败: ...` |
-| 解析成功 | `.tree-property-summary` + 四条 `.tree-property` | 四条性质的 `PASS` / `FAIL` 清单 |
-
-提示 / 错误 / 清单不分元素:它们只是"这一轮要显示的内容",没有 stdout 与 stderr
-那种必须分流的语义;合在一起就没有"谁该显示,谁该隐藏"的互斥维护.文案归页面元素而
-不是画布,颜色 / 字号 / 折行就都走 CSS(含主题令牌),截图与选中复制也都正常.
-
-两步是分开的,先格式后性质:
-
-1. **格式检查**(`src/rbt/rbt_tree.ts` 的解析器):表达式写法错了(缺逗号 / 括号不配 /
-   颜色不是 R 或 B)输出区只出一行 `.tree-error`,画布清空 -- 连树都没有,
-   列性质没有意义.
-2. **性质检查**(同文件的 `checkTreeProperties`):解析成功后才跑,四条性质各一条,
-   每条的结论就两个词 `PASS` / `FAIL`(不跟着列表口号走,免得长短不一),
-   结果只写进 HTML(输入框下面那块 `#treeOutput` 清单),**不往画布上画**.
-
-| 性质 | FAIL 时说的是什么 |
-| --- | --- |
-| 根节点是黑色 | 指出那个红根(如 `10R`) |
-| 红节点的孩子是黑色 | 指出那个红节点 |
-| 各路径黑节点数相同 | 指出黑高开始分岔的节点,并给出两侧的黑高 |
-| 二叉搜索树有序 | 指出哪棵子树不满足左小右大(值按数值比,相等也算乱序) |
-
-清单顺序 = 检查顺序 = `src/rbt/config.ts` 的 `RBT_PROPERTIES` 顺序;加一条性质要同时
-在 `RBT_PROPERTIES` 里加一条,在 `checkTreeProperties` 的 `checks` 里加一条对应的
-检查函数(有单测钉住两边条数一致).CLRS 那五条里剩下的几条(非红即黑 / nil 叶子黑 /
-每个节点要么两个孩子要么都是 nil)**结构上不可能违反**,所以不列进清单:
-颜色是表达式里写死的,`nil` 由解析器当黑叶子(不建节点),单孩子写法
-`5B(1B)` 在解析阶段就报"缺少逗号".理由写在 `config.ts` 的 `RBT_PROPERTIES` 上方.
-
 ## IEEE 754
 
 浮点数位串 / 十进制互转与公式展开.
@@ -221,7 +168,7 @@ HOME 标签页的最上面是一块**首屏**(`.hero`,由 `src/common/ui/site_sh
 
 ## UI 在哪里
 
-首页的整套 UI(导航条 / 首屏 / 六个标签页 / 各模块面板)**没有一行写在
+首页的整套 UI(导航条 / 首屏 / 五个标签页 / 各模块面板)**没有一行写在
 `index.html` 里**:HTML 只有骨架宿主 `<div id="site-root"></div>`.
 这条约定是从地铁车窗控制台推广开来的,现在全站统一:
 
@@ -229,7 +176,7 @@ HOME 标签页的最上面是一块**首屏**(`.hero`,由 `src/common/ui/site_sh
 config.ts        声明式模型:文案 / 类名 / DOM 契约 id / 几何 / 清单(纯数据,无副作用)
 ui/*.ts          纯函数组件:模型 -> 元素,并交回行为代码要用的元素引用
 <模块>.ts         挂载函数 mount<模块>(host):插进宿主 + 绑事件,不回头查 DOM
-site_shell.ts    先生成整页骨架(导航条 / 首屏 / 六个空窗格 / 首屏那两颗宿主),把引用交回
+site_shell.ts    先生成整页骨架(导航条 / 首屏 / 五个空窗格 / 首屏那两颗宿主),把引用交回
 setting/         再生成 SETTING 页自己的面板与三块设置组,把三颗组交回
 main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 ```
@@ -244,7 +191,6 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 | LED 时钟的画布尺寸 / 时间戳格式 | `src/clock/config.ts`;标记在 `src/clock/ui/clock_display.ts`;绘制在 `src/clock/clock.ts`.时钟挂在 Calendario 标签页顶部,宿主 `#app_led_clock` 由 `src/calendar/ui/calendar_panel.ts` 生成(骨架不再建它) |
 | 日历页的三套历法 / 卡片文案 / 配色 | `src/calendar/config.ts`(`CALENDAR_SPECS`:中文名 + `-u-ca-` 历法 + Intl 选项 + Intl 表达不了的收尾开关 `dropRelatedYear` / `padMonthDay`),标记在 `src/calendar/ui/calendar_panel.ts`,格式化与跨日调度在 `src/calendar/calendar_date.ts`,样式令牌 `--calendar-*` 在 `src/calendar/tokens.css` |
 | OLED 画板的按钮 / 文案 / 提示 | `src/oled/config.ts`,面板标记在 `src/oled/ui/oled_panel.ts` |
-| 红黑树的提示文案 / viewBox 尺寸 / 结构类名 / 占位符 / 性质清单 | `src/rbt/config.ts`(`RBT_PROPERTIES` 是性质清单,清单顺序 = 检查顺序;树的配色 / 字号 / 线宽**不在这里**,见 `src/rbt/tokens.css` 的 `--rbt-node-*`),面板标记在 `src/rbt/ui/rbt_panel.ts`,解析与性质检查在 `src/rbt/rbt_tree.ts`,布局与 SVG 绘制在 `src/rbt/rbt.ts` |
 | IEEE 754 的标签 / 精度菜单项 / 初值 | `src/ieee754/config.ts`,面板标记在 `src/ieee754/ui/ieee754_panel.ts` |
 | 地铁车窗的滑块 / 风格按钮 / 上传图层 | `src/metro_window/src/config.ts`,面板在 `src/metro_window/src/ui/`(见它自己的 README) |
 | 导航条"隐形 / 实底"(首屏,各标签页) | `src/common/header_state.ts`(行为),类名与令牌名在 `src/common/site.config.ts` |
@@ -261,7 +207,7 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 - **宿主只提供空位**:每个模块的宿主都是空容器,标记全部由组件生成.
   宿主页不出现任何面板标记,所以"改了 HTML 但忘了改组件"这种失配不存在.
   挂载函数对**自己独占**的宿主用 `replaceChildren` 整体接管(重复挂载不会插两份,
-  OLED / RBT / IEEE754 / 日历页 / 时钟 / 背景设置组都是这样);地铁车窗例外 -- 它往调用方
+  OLED / IEEE754 / 日历页 / 时钟 / 背景设置组都是这样);地铁车窗例外 -- 它往调用方
   给的设置组里长内容,并**整体接管**那颗 fieldset 的内容(参数组与上传组是两颗,
   各接管各的);省略上传宿主时上传面板落进参数组内部,所以那一步是 `append`.
   这条也管**结构**:SETTING 面板体的直接子节点因此正好是三颗
@@ -288,7 +234,7 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 | 层 | 跑什么 | 在哪 |
 | --- | --- | --- |
 | 标记契约 + 行为(进程内) | 生成的标签 / 类名 / id / 文案与 CSS 是否对得上;标签页的点击 / 方向键 / 显隐状态迁移对不对 | `src/**/*.test.ts`,文件头 `@vitest-environment happy-dom`,进 `npm test`(不需要 build,CI 里也跑) |
-| 真浏览器验收 | canvas 真的画出来了吗,六个窗格真的只有一个可见吗,布局与 CSS 级联对不对,导航条隐形/实底的翻转对不对,宿主与车窗组件接上了吗 | `npm run smoke:home`(要 `dist/` 与 chromium,见[「构建」](#构建)) |
+| 真浏览器验收 | canvas 真的画出来了吗,五个窗格真的只有一个可见吗,布局与 CSS 级联对不对,导航条隐形/实底的翻转对不对,宿主与车窗组件接上了吗 | `npm run smoke:home`(要 `dist/` 与 chromium,见[「构建」](#构建)) |
 
 加/改 UI 之后:`npm test` 跑第一层;涉及渲染/交互/样式的改动再跑一次 `smoke:home`.
 
@@ -302,7 +248,7 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 ## 约定
 
 - **`src/` 下按域分目录,不散放在根上**:每个控件/子项目一个目录
-  (`clock/`,`calendar/`,`oled/`,`rbt/`,`ieee754/`,`4xx_page/`,`setting/`,`metro_window/`),
+  (`clock/`,`calendar/`,`oled/`,`ieee754/`,`4xx_page/`,`setting/`,`metro_window/`),
   跨域复用的公共函数与站点级常量放 `src/common/`;根上只留
   `main.ts`(入口)与 `vite_env.d.ts`(Vite 全局模块声明).
   每个目录里 `config.ts` 是**声明式模型 + 可调常量**(或 `*_tokens.css`),
@@ -338,10 +284,10 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 | 作用域 | 配置文件 | 放什么 |
 | --- | --- | --- |
 | 主站样式(文档级) | `public/css/tokens.css` + `public/css/index.css` | **首屏就要上屏**的那一层:通配重置 / 文档基线 / 首屏(`--hero-*`)/ 固定导航条(`--chrome-*`)/ 标签页窗格外壳,以及它们引的令牌(字体栈,调色板,跨模块共用的尺寸,`z-index`,过渡).由 index.html 的静态 `<link>` 引入,所以只放这一层:各标签页自己的令牌与规则跟着模块走,见下一行 |
-| 各标签页样式 | `src/calendar/calendar.css` + `tokens.css`,`src/clock/clock.css` + `tokens.css`,`src/oled/oled.css` + `tokens.css`,`src/rbt/rbt.css` + `tokens.css`,`src/ieee754/ieee754.css` + `tokens.css` | 每个标签页自己的观感与设计令牌:标记 / 令牌 / 规则在同一个目录里,由模块入口 `import`(`src/calendar/calendar.ts` 等),进 Vite 产物.窗格起手是 `display: none`,所以它们晚一步生效看不出来(导航条 / body 底色晚一步就是一次闪烁,所以那两条留在上一行);与 SETTING 页(`src/setting/`),地铁车窗(`src/metro_window/src/`)同一条做法 |
+| 各标签页样式 | `src/calendar/calendar.css` + `tokens.css`,`src/clock/clock.css` + `tokens.css`,`src/oled/oled.css` + `tokens.css`,`src/ieee754/ieee754.css` + `tokens.css` | 每个标签页自己的观感与设计令牌:标记 / 令牌 / 规则在同一个目录里,由模块入口 `import`(`src/calendar/calendar.ts` 等),进 Vite 产物.窗格起手是 `display: none`,所以它们晚一步生效看不出来(导航条 / body 底色晚一步就是一次闪烁,所以那两条留在上一行);与 SETTING 页(`src/setting/`),地铁车窗(`src/metro_window/src/`)同一条做法 |
 | 主站字体 | `src/main.ts`(引 `miko_ui/styles/fonts.css`),`public/css/tokens.css`(只留令牌别名) | 站点默认字体 `JetBrains Mono Slashed`(斜杠零)**随 `miko_ui` 依赖发布**(库的 `styles/fonts.css` + `styles/fonts/`,OFL 1.1),本站不再自带 woff2:`--font-base` / `--font-code` 分别是库 `--font-family-base` / `--code-font-family` 的别名,库换默认字体本站跟着换.本站按分组引库样式,所以 `fonts.css` 必须单独引 -- 漏了不会报错,只会静默退回系统等宽字体;`scripts/smoke_home.mjs` 有一条真浏览器断言同时盯「族名一致」与「woff2 真的被拉取」 |
-| 主站脚本 | `src/clock/config.ts`,`src/calendar/config.ts`,`src/oled/config.ts`,`src/rbt/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,日历三套历法的清单 / Intl 选项 / 希伯来历月名汉译表,OLED 画板尺寸/通道/文案,红黑树布局几何 + 结构类名 + 性质清单(四条性质的名字与出错文案都在 `RBT_PROPERTIES`;树的配色 / 字体 / 线宽**不在 TS 里**,它们是 SVG 元素的 CSS 观感,见 `src/rbt/tokens.css` 的 `--rbt-*`),IEEE 754 精度格式与掩码,站点级声明式模型(导航项 / 首屏结构 / 首屏那两颗宿主 id / `is-over-hero` 类名 / `--nav-height` 令牌名) |
-| 首页骨架 | `src/common/ui/site_shell.ts` | 骨架:导航条 / 首屏 / 六个**空**窗格 / 首屏那两颗宿主(标记用库的 `create_element`;SETTING 页与 Calendario 页的结构不在这里,骨架只给它们空窗格) |
+| 主站脚本 | `src/clock/config.ts`,`src/calendar/config.ts`,`src/oled/config.ts`,`src/ieee754/config.ts`,`src/common/site.config.ts` | LED 时钟字形与配色,日历三套历法的清单 / Intl 选项 / 希伯来历月名汉译表,OLED 画板尺寸/通道/文案,IEEE 754 精度格式与掩码,站点级声明式模型(导航项 / 首屏结构 / 首屏那两颗宿主 id / `is-over-hero` 类名 / `--nav-height` 令牌名) |
+| 首页骨架 | `src/common/ui/site_shell.ts` | 骨架:导航条 / 首屏 / 五个**空**窗格 / 首屏那两颗宿主(标记用库的 `create_element`;SETTING 页与 Calendario 页的结构不在这里,骨架只给它们空窗格) |
 | SETTING 页 | `src/setting/config.ts`,`src/setting/tokens.css`,`src/setting/setting.css`,`src/setting/setting_page.ts` | 那一页的全部声明与外观:三块设置组的 id·类名·面板标题,背景缩略图清单,页面透明度滑块的初值·区间·令牌名(纯数据);`--setting-*` 令牌;设置组框体与**组里每条控件的观感**(滑块配色 / 字体,作用域 `.setting-group`);整页面板 + 三颗空设置组的生成者 |
 | 主站行为 | `src/main.ts`,`src/common/header_state.ts`,`src/setting/background.ts`,`src/setting/page_opacity.ts` | 挂载顺序(骨架 -> 设置页 -> 各模块 -> 行为),导航条"隐形 / 实底"状态(首屏还压在它下面时,以及任何标签页停在页面顶端时),背景切换令牌写入,页面透明度滑块(库的 `createSlider`)往背景组里那条 `.bgrow` 追加并写 `--tab-pane-opacity` 令牌 |
 | 4xx 页面样式 | `src/4xx_page/418/418_tokens.css`,`src/4xx_page/451/451_tokens.css`;`404/404.css` 与 `shared/icon.css` 顶部的 `:root` 块 | 各彩蛋页的设计令牌(颜色 / 几何 / 阴影 / 时长 / 字体) |
@@ -434,7 +380,7 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
   / `--radius-*`),不引 `--metro-color-*`;圆角也全部走库主题(库默认 0px),
   本站不再自己存圆角尺寸,也不再用 bootstrap 的圆角工具类(背景缩略图原来的
   `.rounded` 已撤,圆角写在 `.bgimg` 里引 `--radius-sm`).
-- **面板框体归 miko_ui**:OLED / RBT / IEEE754 / Calendario 四块面板与 SETTING 整页都用库的
+- **面板框体归 miko_ui**:OLED / IEEE754 / Calendario 三块面板与 SETTING 整页都用库的
   `createPanel`(`section.ui-panel > header.ui-panel-header > span.ui-panel-title`
   + `div.ui-panel-body`),外观在库的 `styles/widgets.css`;桌面窗口复用同一组
   `.ui-panel*` 基类(`window = panel + 几何/拖动`),两边不会各写一份框体.
@@ -444,8 +390,6 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
 - **IEEE754 顶部那一行也是站点自研**:那一行从 bootstrap 的
   `.row.g-3` 栅格与 `.form-control` / `.input-group` 换成站点的 `.ieee-controls*` /
   `.ieee-input-group` / `.ieee-input`(观感引库令牌).
-- **RBT 唯一一处结构变化**:提示区原先夹在标题栏与正文之间,框体归库之后正文只有
-  一个入口,提示区移进了 `.ui-panel-body` 最前(其余面板结构不变).
 - **IEEE754 精度菜单的两处本站裁量**(都写在 `src/ieee754/ui/ieee754_panel.ts` 里):
   一是触发按钮与菜单项一样,把类型名包在 `<code>` 里(`setFormatTriggerText` 是唯一
   写入点 -- 行为代码换精度时直接写 `textContent` 会把 `code` 冲掉,字体悄悄退回正文);
@@ -470,7 +414,7 @@ main.ts          按顺序调用:骨架 -> 设置页 -> 各模块 -> 行为
   窗格的 `display: none / block` + 淡入(原先是 bootstrap 的 `.nav` / `.tab-content`
   规则给的).
 
-  这些规则**必须留着**,而且少一条都是**静默**的版式崩坏(六个窗格同时堆叠,
+  这些规则**必须留着**,而且少一条都是**静默**的版式崩坏(五个窗格同时堆叠,
   导航栏塌成竖排带项目符号的列表,全站盒模型反转,整页露出白底),不会有任何报错.
   两条踩过的坑记在这里:
   `body` 的字号必须写成**绝对长度**(`1rem`)-- 它是全站字号的唯一基线(历史上

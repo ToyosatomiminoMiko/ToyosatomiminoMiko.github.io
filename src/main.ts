@@ -2,7 +2,7 @@
 // 站点入口:生成骨架,再把各模块挂到骨架交回的空宿主上.
 //
 // 顺序有讲究:
-//   1. `mountSiteShell()` 先生成整页骨架(导航条 / 首屏 / 六个空窗格 / 首屏那两颗
+//   1. `mountSiteShell()` 先生成整页骨架(导航条 / 首屏 / 五个空窗格 / 首屏那两颗
 //      空宿主),并交回元素引用 -- 后面的模块全都靠这些引用,不按 id 查 DOM;
 //   2. 各模块把标记长进骨架给的宿主(每个模块的挂载函数只认宿主,不认页面);
 //      其中 Calendario 页自己长面板,再把面板顶部的时钟宿主转交给时钟模块;
@@ -55,7 +55,6 @@ import 'miko_ui/styles/scrollbar.css';
 // --- 导入 JS 依赖 ---
 import { mountCalendar } from '@/calendar/calendar';
 import { mountClock } from '@/clock/clock';
-import { mountRBT } from '@/rbt/rbt';
 import { mountOLED } from '@/oled/oled';
 import { mountIEEE754 } from '@/ieee754/ieee754';
 import { mountMetroWindow } from '@/metro_window/src/metro_window';
@@ -78,7 +77,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const calendar = mountCalendar(shell.panes.calendar);
     mountClock(calendar.clockHost);
     mountOLED(shell.panes.oled);
-    mountRBT(shell.panes.rbt);
     mountIEEE754(shell.panes.ieee754);
 
     // 3) SETTING 页:整页面板与三块设置组由它自己建(骨架只给它一个空窗格),

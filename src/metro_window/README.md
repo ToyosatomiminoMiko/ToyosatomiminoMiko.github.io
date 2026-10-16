@@ -116,7 +116,7 @@ mountMetroWindow({ stage, styles, panel, uploads });
 - 样式**全部**以 `.metro-window` 作用域开头.站点首页有一条
   `* { margin:0; padding:0; border:0; background:none }` 的通配重置,
   原来那份独立页写法里的 `body` / `canvas` / `button` 裸元素选择器一旦进站,
-  会把 OLED 的 `#pixelCanvas`,RBT 的 `#rbtTree` 一起改样.
+  会把 OLED 的 `#pixelCanvas` 一起改样.
   设置组不是这条约束的例外:`.setting-group` 是**站点侧**的类,写在
   `src/setting/setting.css` 里,由设置页在**建那颗 fieldset 时**就给上 --
   组件既不写它,也不补它,本文件依旧一条页面级选择器都没有.
@@ -591,7 +591,7 @@ SETTING 页里其实是**三块同构的设置组**:背景,实时参数,图层�
 | 宿主的定义从"`div` 包 `fieldset`"改成**宿主就是那颗 `fieldset.setting-group`**:`setting_page.ts` 建三颗空组,`mountBackgroundSection(group)` 与 `mountMetroWindow({ panel, uploads })` 只往交回的元素里长内容;组件不再自己建框体,也不再补站点的类名 | 原先面板体的子节点是三颗宿主 `div`,每颗里再一颗 fieldset -- 中间那层没有类名 / 样式 / 语义,只让同一个东西有了两个 id(`#metro-params` 定位宿主,`#paramPanel` 定位里面那颗框体),改名字要改两处,还看不出哪个才是框体.现在面板体的直接子节点正好是三颗组,`MetroMountPoints.panel` / `uploads` 也随之收窄成 `HTMLFieldSetElement` |
 | 控件观感从 `.metro-window .slider-field*` 搬到 `.setting-group .slider-field*`(并补一条字体规则 `font-family` -- 站点的通配重置给每个元素都设了字体,靠继承传不下去),`metro_window.css` 只留"一排滑块怎么排"(`.slider-grid > .slider-field` 的宽度口径) | 这里其实是两件事:外观是**设置页**的口径(三块组共用一份,作用域只能是三块组都有的 `.setting-group`),排布是**各自上下文**的口径(车窗面板里一排,背景行里一条).原先外观挂在 `.metro-window` 下,背景组那条滑块就落到库的默认主题上 -- 同一个页面里两条滑块两种长相,而"这两条本该一样"这句话没有任何地方承载得住 |
 | `MOUNT_IDS` 只剩首屏两块(`stage` / `styles`);`PANEL_ID`(`#paramPanel`)与 `.sliders` / `.uploads` 两个定位类删掉;两块设置组的 id 移到 `src/setting/config.ts` 的 `SETTING_GROUP_IDS` | 谁建元素,id 就归谁:SETTING 那两块由设置页建,组件只接引用,没必要在组件里再存一份同值 id.`.sliders` / `.uploads` 是"宿主 div 时代"的查询钩子,宿主换成设置组之后 id 与 `.setting-group` 已经够用(单测 / 冒烟脚本都改成按 id 与 `fieldset.setting-group` 查) |
-| 站点骨架不再建 SETTING 面板:`site_shell.ts` 只留一颗空窗格,面板与三块组由 `mountSettingPage(pane)` 长出来;`main.ts` 的挂载顺序变成"骨架 -> 设置页 -> 各模块 -> 行为" | 与 OLED / RBT / IEEE754"窗格就是宿主"完全一致:SETTING 页原本是骨架里唯一的特例(骨架替它建面板与三颗宿主),现在它也是普通一页,骨架不替任何一页记结构 |
+| 站点骨架不再建 SETTING 面板:`site_shell.ts` 只留一颗空窗格,面板与三块组由 `mountSettingPage(pane)` 长出来;`main.ts` 的挂载顺序变成"骨架 -> 设置页 -> 各模块 -> 行为" | 与 OLED / IEEE754"窗格就是宿主"完全一致:SETTING 页原本是骨架里唯一的特例(骨架替它建面板与三颗宿主),现在它也是普通一页,骨架不替任何一页记结构 |
 | 兜底路径跟着改:省略 `panel` / `uploads` 宿主时,组件自建的是一颗**没有站点框体**的 `fieldset.metro-window`,参数组落进舞台里的隐藏容器(`.metro-panel-sink`),上传组落进参数组内部 | 兜底只服务"只想挂舞台"的调用方,页面不在场,站点的框体与观感本来就不该出现;`display:none` 的隐藏容器仍由舞台作用域命中,面板 / 状态区 / 事件绑定一个不少 |
 
 ### 水珠拆分

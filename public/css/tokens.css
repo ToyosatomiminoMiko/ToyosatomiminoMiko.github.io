@@ -6,7 +6,7 @@
  * 正文色 / 行距,首屏与固定导航条,GitHub 按钮,标签页窗格自身).
  *
  * 为什么只留这一层:public/css/*.css 由 index.html 静态引入,是首屏关键路径;
- * 各子应用(OLED / 红黑树 / IEEE754 / 日历 / LED 时钟)的令牌跟它们的样式表一起
+ * 各子应用(OLED / IEEE754 / 日历 / LED 时钟)的令牌跟它们的样式表一起
  * 住在 src/<模块>/ 下,进 Vite 产物 -- 那些窗格起手是 display: none,后一步生效
  * 看不出来;导航条与 body 底色晚一步生效就是一次闪烁,所以它们不能走那条路.
  *
@@ -14,7 +14,6 @@
  *   --clock-*     src/clock/tokens.css
  *   --calendar-*  src/calendar/tokens.css
  *   --oled-*      src/oled/tokens.css(--z-pixel-indicator 也在那边)
- *   --rbt-*       src/rbt/tokens.css
  *   --ieee-*      src/ieee754/tokens.css
  *   --setting-*   src/setting/tokens.css
  *   --metro-*     src/metro_window/src/tokens.css
@@ -44,7 +43,7 @@
        generic `monospace`(通用族会掉进"浏览器自己的等宽默认字号"那类坑,见
        index.css 的正文基线) */
     --font-mono: var(--font-code);
-    /* 代码等宽字体栈:红黑树输入框与 IEEE754 位图共用(库的代码面令牌,与上面同族) */
+    /* 代码等宽字体栈:IEEE754 位图用(库的代码面令牌,与上面同族) */
     --font-code: var(--code-font-family);
 
     /* ---------- 背景 ---------- */
@@ -70,8 +69,8 @@
     /* ---------- 通用尺寸 / 过渡 ---------- */
     /*
      * 跨模块共用的排版口径:三张日历卡的容器(src/calendar/tokens.css 的
-     * --calendar-panel-width),OLED 画板卡片(src/oled/oled.css)与红黑树输入框
-     * (src/rbt/rbt.css)都引它,所以它属于站点层,不跟着任何一个模块走.
+     * --calendar-panel-width)与 OLED 画板卡片(src/oled/oled.css)都引它,
+     * 所以它属于站点层,不跟着任何一个模块走.
      */
     --card-width: 100%;
     /* 主内容区占视口宽度比例(首屏会从这里满宽逃逸到 100vw,见 index.css 的 .hero) */

@@ -859,7 +859,7 @@ export class OLEDCanvas {
 /**
  * 把 OLED 像素画板挂到宿主上(独立标签页窗格,见 src/main.ts).
  *
- * 分工与 clock / RBT 一致:标记由 ui/oled_panel.ts 的纯函数生成,这里只负责
+ * 分工与 clock 一致:标记由 ui/oled_panel.ts 的纯函数生成,这里只负责
  * "插进宿主 + 起行为".宿主由 common/ui/site_shell.ts 交回,所以不查 DOM.
  *
  * 用 replaceChildren 而不是 append:宿主就是本模块的面板容器(标签页窗格本身),
